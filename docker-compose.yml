@@ -49,6 +49,9 @@ services:
       # URL для браузера на хосте (не внутренние имена контейнеров)
       VITE_API_URL: http://localhost:8000
       VITE_TILESERVER_URL: http://localhost:8080
+      # Polling для hot-reload через bind mount (Windows / Docker Desktop)
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
     depends_on:
       - backend
       - tileserver
