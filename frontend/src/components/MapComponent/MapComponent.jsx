@@ -50,12 +50,32 @@ function FullscreenControl({isFullscreen, onToggle}) {
     )
 }
 
+// Стандартные топографические / военные масштабы для дропдауна выбора и снаппинга.
+// Убраны масштабы детальнее 1:10 000 (по требованию пользователя).
+const AVAILABLE_DENOMINATORS = [25000, 50000, 100000, 200000, 500000, 1000000];
+
 // Линейка масштаба (топографический стиль) — числовое 1:N + двухцветная графическая шкала.
 // Отображается только в полноэкранном режиме, внизу по центру.
 // Адаптивно пересчитывает реальный масштаб по данным Leaflet.
+// По клику на числовое значение открывает выпадающий список для выбора масштаба (меняет зум карты).
 function MapScaleBar({ isFullscreen }) {
     const map = useMap();
     const [scale, setScale] = useState(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const numericRef = useRef(null);
+    const dropdownRef = useRef(null);
+
+    // Обратный расчёт зума для заданного знаменателя масштаба (1:N).
+    // Использует ту же константу Web Mercator и приближение, что и updateScale.
+    const getZoomForDenominator = useCallback((denominator, lat) => {
+        if (!denominator || typeof lat !== "number") return null;
+        const latRad = (lat * Math.PI) / 180;
+        const mpp0 = 156543.03392 * Math.cos(latRad);
+        // targetMpp согласован с формулой denomRaw = niceMeters / (barWidth * 0.000264583333)
+        const targetMpp = denominator * 0.000264583333;
+        const z = Math.log2(mpp0 / targetMpp);
+        return Math.max(0, Math.min(18, Math.round(z)));
+    }, []);
 
     const updateScale = useCallback(() => {
         if (!map || !isFullscreen) {
@@ -94,10 +114,10 @@ function MapScaleBar({ isFullscreen }) {
         // Вычисляем Representative Fraction (1 : N) — военный/топо формат
         // Используем стандартное приближение для 96 DPI
         const denomRaw = Math.round(niceMeters / (barWidth * 0.000264583333));
-        const common = [1000, 2000, 5000, 10000, 25000, 50000, 100000, 200000, 250000, 500000, 1000000];
-        let denom = common[0];
+        // Используем общий список доступных масштабов
+        let denom = AVAILABLE_DENOMINATORS[0];
         let bestDiff = Math.abs(denomRaw - denom);
-        for (const c of common) {
+        for (const c of AVAILABLE_DENOMINATORS) {
             const diff = Math.abs(denomRaw - c);
             if (diff < bestDiff) {
                 bestDiff = diff;
@@ -152,6 +172,67 @@ function MapScaleBar({ isFullscreen }) {
         };
     }, [map, updateScale]);
 
+    // Закрываем дропдаун при выходе из fullscreen или при потере карты
+    useEffect(() => {
+        if (!isFullscreen) {
+            setIsDropdownOpen(false);
+        }
+    }, [isFullscreen]);
+
+    // Закрытие по клику вне + Escape
+    useEffect(() => {
+        if (!isDropdownOpen) return undefined;
+
+        const handleOutside = (e) => {
+            const target = e.target;
+            if (
+                dropdownRef.current &&
+                !dropdownRef.current.contains(target) &&
+                numericRef.current &&
+                !numericRef.current.contains(target)
+            ) {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        const handleKey = (e) => {
+            if (e.key === "Escape") {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleOutside);
+        document.addEventListener("keydown", handleKey);
+
+        return () => {
+            document.removeEventListener("mousedown", handleOutside);
+            document.removeEventListener("keydown", handleKey);
+        };
+    }, [isDropdownOpen]);
+
+    const handleNumericClick = (e) => {
+        e.stopPropagation();
+        if (!isFullscreen) return;
+        setIsDropdownOpen((prev) => !prev);
+    };
+
+    const handleScaleSelect = (newDenom) => {
+        if (!map || !scale || newDenom === scale.denom) {
+            setIsDropdownOpen(false);
+            return;
+        }
+
+        const center = map.getCenter();
+        const targetZoom = getZoomForDenominator(newDenom, center.lat);
+
+        if (targetZoom !== null && typeof targetZoom === "number") {
+            // Сохраняем центр, меняем зум. Используем flyTo для приятной анимации (короткая).
+            map.flyTo(center, targetZoom, { duration: 0.25 });
+        }
+
+        setIsDropdownOpen(false);
+    };
+
     if (!isFullscreen || !scale) {
         return null;
     }
@@ -184,9 +265,32 @@ function MapScaleBar({ isFullscreen }) {
 
     return (
         <div className="map-scale-bar">
-            <div className="map-scale-numeric">
+            <div
+                className="map-scale-numeric"
+                ref={numericRef}
+                onClick={handleNumericClick}
+                title="Выбрать масштаб"
+            >
                 {formatMilitaryScale(scale.denom)}
             </div>
+
+            {isDropdownOpen && (
+                <div className="map-scale-dropdown" ref={dropdownRef}>
+                    {AVAILABLE_DENOMINATORS.map((d) => {
+                        const isActive = d === scale.denom;
+                        return (
+                            <div
+                                key={d}
+                                className={`map-scale-option${isActive ? " map-scale-option--active" : ""}`}
+                                onClick={() => handleScaleSelect(d)}
+                            >
+                                {formatMilitaryScale(d)}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
             <div
                 className="map-scale-ruler"
                 style={{ width: `${scale.barWidth}px` }}

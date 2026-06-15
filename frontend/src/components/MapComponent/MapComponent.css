@@ -914,3 +914,60 @@
 .map-scale-labels span:last-child {
     text-align: right;
 }
+
+/* === Интерактивный выбор масштаба (дропдаун по клику на numeric) === */
+.map-scale-bar {
+    /* Делаем контейнер containing block для абсолютного позиционирования дропдауна (вверх или вниз) */
+    position: absolute;
+}
+
+.map-scale-numeric {
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background-color 80ms ease, opacity 80ms ease;
+}
+
+.map-scale-numeric:hover {
+    background-color: rgba(31, 42, 56, 0.06);
+    border-radius: 2px;
+}
+
+.map-scale-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #3a4654;
+    border-radius: 3px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+    z-index: 670; /* выше самой линейки, но ниже попапов */
+    min-width: 92px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1f2a38;
+    pointer-events: auto;
+    user-select: none;
+}
+
+.map-scale-option {
+    padding: 3px 10px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.map-scale-option:hover {
+    background-color: #e8eaec;
+}
+
+.map-scale-option--active {
+    font-weight: 700;
+    background-color: #d4d8dc;
+}
+
+.map-scale-option--active:hover {
+    background-color: #c9ced3;
+}
