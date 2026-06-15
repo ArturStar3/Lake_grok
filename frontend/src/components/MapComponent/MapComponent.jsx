@@ -565,6 +565,9 @@ function MapComponent({
     const sidebarRef = useRef(null);
     const measureMenuRef = useRef(null);
 
+    // Ограничение движения карты по оси Y (чтобы нельзя было уехать за полюса)
+    const mapMaxBounds = [[-85.0511287798, -180], [85.0511287798, 180]];
+
     const isEventEditModeActive = isEditEventMode && !!editEventDrawMode;
     const activeEventDrawMode = isEventEditModeActive ? editEventDrawMode : eventDrawMode;
     const activeEventDrawPoints = isEventEditModeActive ? editEventDrawPoints : eventDrawPoints;
@@ -1490,6 +1493,8 @@ function MapComponent({
                 zoom={4}
                 style={{height: "100%", width: "100%"}}
                 className={isFullscreen ? "map--fullscreen" : ""}
+                maxBounds={mapMaxBounds}
+                maxBoundsViscosity={1}
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <MapScaleBar isFullscreen={isFullscreen} />
