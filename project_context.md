@@ -823,3 +823,109 @@ python manage.py seed_test_targets --clear   # удалить seed:test:*
 ---
 
 **Дата последнего обновления контекста:** 2026 (анализ + оптимизация всего project_context.md: удалена крупная историческая избыточность в разделе 3 (3.2–3.6 — проблемы/баг-репорты/предложения по non-flag кластеризации сведены к текущему as-built + actionable remaining); дополнительно подчищены дубли в 9 и closing notes; section 0 сокращён; header обновлён).
+
+---
+
+## Current Session Task (new query)
+
+User query: `@frontend/src/components/MapComponent/MapComponent.jsx` + `/model`
+
+- User has attached/referenced the main map component file for context (the file is large; specific sections will be read with targeted offset/limit as needed).
+- This component is the primary location for:
+  - The adaptive topographic scale bar (see fully documented section 9 and 9.1.x): visible **only in fullscreen**, military numeric format ("1 : 50 000"), two-color 4-segment graphical ruler (#1f2a38 / #f4f6f7), real Leaflet/Web Mercator + cos(lat) calculations with snapping, clickable numeric that opens upward dropdown, selection triggers `map.flyTo` (preserving center) to matching zoom. AVAILABLE_DENOMINATORS starts at 1:10 000.
+  - Marker rendering and clustering (both flag and non-flag paths, using markerClusteringUtils.js and NonFlagMarkerUtils.jsx).
+  - Event shapes, action radius animations/intersections, measure tool (Ctrl+click), GeoJSON country boundaries, fullscreen state propagation.
+  - Integration with parent Formular.jsx for objects, selection, hovered state, etc.
+- **Strict protocol followed:** Update to `project_context.md` performed **before** any read_file / grep / list_dir or other access to the referenced source file or any files under frontend/src/.
+- Likely purpose: analysis, review, debugging, or incremental changes to MapComponent.jsx (especially scale bar or map UI features). No explicit "implement X" or "fix Y" instructions given in this message — will add detailed requirements here once clarified or proceed with targeted inspection only after this record.
+- `/model` command handling: Per TUI documentation and prior session pattern, the current active model is **Grok 4.3** (released by xAI, April 2026). (User guide discovery attempted via standard paths; model info consistent with system definition.)
+
+After recording this update, work continues exclusively from the context. If the task requires code inspection or changes, further details/requirements will be appended here first.
+
+---
+
+## 10. UI: Таблица списка объектов — группировка по странам (раскрывающийся список + чекбокс "выбрать все в стране")
+
+**Дата добавления требования:** текущая сессия
+
+**Контекст:** Пользователь хочет улучшить таблицу со списком объектов (вероятно ObjectsTable.jsx, отображаемая в Formular.jsx). Текущая таблица, по-видимому, показывает плоский список. Требуется сгруппировать объекты по странам.
+
+### Основные требования
+- Объекты в таблице **группируются по стране** (`country.title` из данных объекта).
+- Каждая группа представлена в формате **раскрывающегося списка** (collapsible / accordion):
+  - Заголовок группы (страна): название страны + количество объектов в группе + цвет страны (если есть).
+  - При клике по заголовку (кроме чекбокса) — группа раскрывается/сворачивается.
+  - Внутри раскрытой группы — список объектов этой страны (каждый объект: чекбокс + название/label + возможно другие поля: тип, координаты и т.д.).
+- **Чекбокс "выбрать все в стране"**:
+  - Расположен в заголовке группы (рядом с названием страны).
+  - При установке — добавляет **все** id объектов этой страны в глобальный selected (selectedObj / selectedIds).
+  - При снятии — убирает все id объектов этой страны из selected.
+  - Состояние:
+    - Отмечен полностью — все объекты страны выбраны.
+    - Частично отмечен (indeterminate) — выбрана часть объектов страны.
+    - Снят — ни один объект страны не выбран.
+  - Клик по этому чекбоксу **не должен** переключать раскрытие группы (нужен stopPropagation / отдельный обработчик).
+- Выбор отдельных объектов внутри группы работает как раньше (отдельные чекбоксы).
+- Глобальное состояние выбора остаётся массивом id объектов (не меняем архитектуру selected).
+- Группировка применяется к отображаемому списку (учитывает текущие фильтры/поиск из Formular, если они есть).
+- Страны в списке групп: отсортировать по названию (или по порядку, если есть). Внутри страны — объекты по `marker.order` или title (как сейчас).
+- Визуально:
+  - Чёткое разделение групп (border, background, отступы).
+  - Использовать цвет страны (country.color) для акцента заголовка группы.
+  - Коллапс: можно использовать нативный `<details>` + `<summary>` (просто и без лишнего state) или контролируемые div'ы (если нужно сохранять состояние открытых групп).
+  - Чекбокс в summary требует аккуратной обработки событий.
+- Совместимость:
+  - Не ломает существующие фильтры, поиск, переключение вкладок (Objects/Events).
+  - Выбранные объекты по-прежнему влияют на карту (маркеры, кластеризация non-flag и т.д.).
+  - Таблица остаётся синхронизированной с картой и другими частями UI.
+- Edge cases:
+  - Пустая страна — не показывать группу.
+  - Один объект в стране — группа всё равно сворачиваемая (или можно сделать exception, но лучше единообразно).
+  - Много стран/объектов — производительность (группировка O(n), рендер только видимых).
+  - Индикатор количества выбранных в группе в заголовке (опционально, но полезно: "Страна (12/35)").
+
+### Ожидаемый пользовательский сценарий
+1. Пользователь видит список стран (свёрнутый или частично раскрытый).
+2. Кликает чекбокс рядом со страной → все объекты этой страны становятся выбранными (галочки появляются у каждого, маркеры на карте обновляются).
+3. Раскрывает группу, снимает галочки у некоторых объектов внутри.
+4. Чекбокс страны автоматически переходит в indeterminate.
+5. Повторный клик по чекбоксу страны сбрасывает выбор всех в этой стране.
+
+### Технические замечания (для реализации)
+- Группировка: лучше делать в Formular.jsx (или в хуке) — `groupedByCountry = useMemo(() => groupBy(objects, o => o.country?.title), [filteredObjects])`.
+- Передавать в ObjectsTable сгруппированные данные + текущий setSelected.
+- Или оставить ObjectsTable плоским, но рендерить группы в Formular и передавать только visible объекты.
+- Для indeterminate: использовать `ref` на input или controlled checkbox с `checked` + `indeterminate` property.
+- CSS: добавить стили для `.country-group`, `.country-header`, `.country-objects-list`. Можно переиспользовать существующие стили таблиц/чекбоксов.
+- Существующий код выбора (onChange отдельного объекта) должен остаться рабочим.
+
+**Статус:** Реализовано.
+
+**Что было сделано:**
+- Полностью переработан `ObjectsTable.jsx`: вместо плоской `<table>` теперь используется группировка по `country.title`.
+- Каждая страна — `<details class="country-group">` (нативный раскрывающийся список).
+- В `<summary class="country-header">`:
+  - Чекбокс "выбрать все в стране" с поддержкой `indeterminate` (частичное выделение).
+  - Название страны + количество объектов.
+  - При частичном выборе показывается счётчик выбранных.
+- Клик по чекбоксу страны массово вызывает `onCheckboxChange` для всех объектов группы (не ломает глобальный `selectedObj`).
+- Внутренние объекты отображаются компактными строками (сохранили flyto, hover, клик по названию для открытия формуляра, edit/delete).
+- Добавлена верхняя панель "Выбрать все видимые" (работает на всём `filteredObjects`).
+- Добавлены стили в `Formular.css` (`.country-group`, `.country-header`, `.object-row` и т.д.). Визуально группы отделены, есть hover и отступы.
+- Фильтры (FilterPanel) продолжают работать — группировка применяется уже к `filteredObjects`.
+- Интерфейс компонента (props) не изменился — правки только внутри ObjectsTable.
+- Выбор объектов продолжает синхронизироваться с картой (MapComponent получает те же `selectedObj`).
+
+**Обновление по запросу пользователя:** По умолчанию все группы стран **свёрнуты** (атрибут `open` убран). Пользователь может раскрывать отдельные страны вручную.
+
+**Дополнение (новый запрос):** Добавлены кнопки «Развернуть все» / «Свернуть все» над списком групп стран. 
+- Кнопки управляют состоянием всех групп одновременно.
+- Реализовано через контролируемый `open` на `<details>` + внутренний `useState<Set<string>>` для expandedCountries.
+- При клике на индивидуальный summary состояние синхронизируется.
+- Кнопки размещены рядом с «Выбрать все видимые» в верхней панели.
+- Добавлены минимальные стили для кнопок (классы `expand-btn`).
+- Начальное состояние — все группы свёрнуты (пустой Set).
+
+**Примечание по списку масштабов в коде:** Во время анализа было замечено, что в MapComponent.jsx `AVAILABLE_DENOMINATORS` сейчас начинается с 25000 (хотя в контексте задокументировано с 10000). При необходимости можно выровнять.
+
+Обновление контекста и реализация выполнены в строгом соответствии с правилами проекта.
