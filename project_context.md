@@ -929,3 +929,168 @@ After recording this update, work continues exclusively from the context. If the
 **Примечание по списку масштабов в коде:** Во время анализа было замечено, что в MapComponent.jsx `AVAILABLE_DENOMINATORS` сейчас начинается с 25000 (хотя в контексте задокументировано с 10000). При необходимости можно выровнять.
 
 Обновление контекста и реализация выполнены в строгом соответствии с правилами проекта.
+
+---
+
+## Debug: Вывод в консоль масштаба, используемого для тайлов
+
+**Запрос пользователя:** "выведи в консоль значение масштаба, которое используется в текущий момент для тайлов"
+
+**Цель:** Помочь с отладкой — видеть, какой zoom level (и/или вычисленный масштаб 1:N) Leaflet в данный момент использует при загрузке тайлов из тайлсервера.
+
+**Что нужно вывести:**
+- Основное значение для тайлов — текущий `map.getZoom()` (или Math.floor / round, т.к. тайлы запрашиваются по целому z).
+- Желательно также вычисленный "масштаб" в стиле топографическом (Representative Fraction / denom), аналогично тому, что делает MapScaleBar (чтобы сравнить визуальный масштаб и тайлы).
+- Формат лога удобный для консоли, например:
+  `console.log('[Tiles] zoom:', zoom, 'approx scale 1:', denom, 'center:', center);`
+
+**Где реализовать:**
+- В MapComponent.jsx (главный компонент карты).
+- Лучше всего через `useMapEvents` (react-leaflet) на события `zoomend` и `moveend` (или только zoomend, чтобы не спамить).
+- Или внутри существующей логики обновления масштаба (если есть ZoomTracker или подобное).
+- Лог должен срабатывать при изменении зума/положения карты.
+- Можно добавить условие (например, только в dev режиме, или временный флаг).
+
+**Технические детали:**
+- `useMap()` даёт доступ к leaflet map instance.
+- Формула из scale bar (для consistency):
+  ```js
+  const zoom = map.getZoom();
+  const center = map.getCenter();
+  const metersPerPx = 156543.03392 * Math.cos((center.lat * Math.PI) / 180) / Math.pow(2, zoom);
+  // затем расчёт niceMeters / denomRaw как в updateScale
+  ```
+- Доступные константы: AVAILABLE_DENOMINATORS уже есть в файле.
+- Не ломать существующий MapScaleBar (он уже считает похожий масштаб, но только в fullscreen).
+
+**Статус:** Требуется реализация. Обновление контекста выполнено перед любыми чтениями/изменениями кода MapComponent.jsx или связанных файлов.
+
+**Примечание:** Это временный debug-лог для разработки. После отладки можно убрать или закомментировать.
+
+---
+
+## Marker Visibility Filtering by Zoom
+
+**Запрос пользователя (на основе ссылки на MapComponent.jsx):** "теперь, сделай так, чтобы до 5 масштаба включительно на карте отображались маркеры с order только 1 и 2"
+
+**Требования:**
+- При текущем зуме карты `<= 5` (включительно) отображать **только** маркеры, у которых `marker.order` равен 1 или 2.
+- При зуме `> 5` — показывать все маркеры как обычно (без этого ограничения).
+- "Масштаб" здесь означает zoom level Leaflet (currentZoom).
+- Фильтрация применяется к объектам (Targets), которые рендерятся как маркеры на карте.
+- Должно работать для flag-маркеров (через кластеризацию) и non-flag маркеров.
+- Сохранить существующую логику выбора (selectedObj), ховера, кликов, группировок кластеров, отрисовки в GroupCircleDisplay и т.д.
+- Фильтр должен реагировать на изменение зума в реальном времени (использовать существующий currentZoom из ZoomTracker).
+- Объекты с `marker.order` 1 и 2 имеют высший приоритет (из истории кластеризации: меньший order = выше в стеке).
+
+**Дизайн и реализация (задокументировано до чтения кода):**
+- В MapComponent.jsx есть:
+  - `const [currentZoom, setCurrentZoom] = useState(4);`
+  - `<ZoomTracker onZoomChange={setCurrentZoom} />`
+  - Пропсы: `objects`, `selectedObj`, `objectsAll`
+  - Подготовка данных для маркеров: `MarkerInitializer`, `NonFlagMarkerInitializer`, `GroupCircleDisplay`
+  - Кластеризация: `markerData`, `nonFlagData` (с clusteredObjects, iconsById)
+  - Рендер маркеров происходит на основе этих данных.
+- Лучшее место для фильтрации: перед передачей объектов в initializers или внутри вычисления displayed/selected объектов для маркеров.
+- Предлагаемый подход:
+  - Добавить `useMemo` для `displayedObjectsForMarkers` или аналог:
+    ```js
+    const objectsForMap = useMemo(() => {
+      if (currentZoom > 5) return objects;
+      return objects.filter(obj => {
+        const ord = parseInt(obj.marker?.order) || 999;
+        return ord === 1 || ord === 2;
+      });
+    }, [objects, currentZoom]);
+    ```
+  - Затем использовать `objectsForMap` (или filtered по selected + zoom) при вызове MarkerInitializer / NonFlag... и при передаче в Map для кластеризации.
+  - Для selected: возможно, selected должен оставаться полным, но отображение на карте — отфильтрованным. Или фильтровать и selected тоже для консистентности (но пользователь не уточнил; вероятно, отображение на карте).
+- Если фильтрация внутри кластеризации — лучше централизованно на уровне MapComponent.
+- Не затрагивать таблицу объектов (только карту).
+- Обновить контекст перед любым read_file/grep по MapComponent.jsx.
+
+**Статус:** Реализовано (дополнено).
+
+**Дополнение по новому запросу пользователя:**
+- Логика фильтрации маркеров по зуму сделана более гранулированной и дифференцированной по типу маркера (flag vs non-flag).
+- Для flag-маркеров (через MarkerInitializer / LabelGeneration):
+  - Если currentZoom <= 5: только order <= 2 (как раньше).
+  - Если 5 < currentZoom <= 7: только order <= 7.
+  - Если currentZoom > 7: все flag-маркеры.
+- Для non-flag маркеров (NonFlagMarkerInitializer): **всегда все** non-flag маркеры (без ограничения по зуму или order). Передаётся полный список `objects`.
+- Это реализовано через два отдельных memo:
+  - `flagObjectsForMap` — фильтрованный для флагов в зависимости от зума.
+  - Non-flag инициализатор получает исходный `objects`.
+- Обновлены передачи в JSX.
+- Fallback в action-radius тоже обновлён для консистентности (хотя основной путь — через clusteredObjects из инициализаторов).
+- Сохраняет предыдущее поведение для зума <=5 (order 1-2), дополняя его до 7-го масштаба.
+
+**Код (основные места):**
+```js
+const flagObjectsForMap = useMemo(() => {
+  if (currentZoom > 7) return objects;
+  const maxOrder = currentZoom <= 5 ? 2 : 7;
+  return objects.filter(obj => {
+    const ord = parseInt(obj.marker?.order ?? 999, 10);
+    return ord <= maxOrder;
+  });
+}, [objects, currentZoom]);
+
+// в рендере:
+<MarkerInitializer objects={flagObjectsForMap} ... />
+<NonFlagMarkerInitializer objects={objects} ... />  // все nonflag
+```
+
+Обновление контекста выполнено. Изменения в MapComponent.jsx.
+
+**Дополнение (текущий запрос + баг-репорт):** non-flag маркеры должны быть видны **только начиная с 6-го масштаба** (currentZoom >= 6).
+- При уменьшении масштаба (currentZoom < 6): non-flag объекты должны полностью пропадать с карты (даже если выбраны).
+- Проблема пользователя: при зуме вниз (5,4,...) non-flag объекты продолжают отображаться, хотя должны исчезнуть. При зуме вверх (до 6) появляются корректно.
+- При currentZoom >= 6: все non-flag маркеры отображаются.
+- Это дополняет логику flag-маркеров.
+- Причина (предположительно): фильтр только на входе в NonFlagMarkerInitializer, но:
+  - nonFlagData (groupedObjects) не очищается полностью при shrink списка.
+  - Рендер non-flag маркеров (включая isHidden=false, группы) и GroupCircleDisplay продолжают использовать старые данные из nonFlagData.
+  - Возможно, обработка в NonFlagLabelGeneration / handleNonFlagMarkersReady не реагирует на уменьшение входного objects (только на увеличение или selected).
+- План исправления:
+  - Убедиться, что nonFlagObjectsForMap корректно [] при <6.
+  - Принудительно очищать nonFlagData когда nonFlagObjectsForMap пуст.
+  - Или добавить фильтр по зуму прямо в местах рендера non-flag маркеров (visibleNonFlags, GroupCircle и т.д.), чтобы даже если данные в nonFlagData остались, они не рендерились при низком зуме.
+  - Лучше: сбрасывать nonFlagData.groupedObjects в [] когда currentZoom <6 или когда входной список пуст.
+  - Также проверить action-radius nonFlagObjects.
+- Обновление контекста перед чтением/правкой кода.
+- При currentZoom < 5: non-flag маркеры полностью скрыты на карте (даже если выбраны).
+- При currentZoom >= 5: все non-flag маркеры отображаются (в соответствии с предыдущими правилами для non-flags).
+- Это дополняет предыдущую логику:
+  - Для flag-маркеров: градуированная фильтрация по order ( <=2 при <=5, <=7 при <=7 ).
+  - Для non-flag: нет отображения до 5, с 5+ — все.
+- Реализация:
+  - Добавлен `useMemo` `nonFlagObjectsForMap` после flagObjectsForMap:
+    ```js
+    const nonFlagObjectsForMap = useMemo(() => {
+      if (currentZoom < 5) return [];
+      return objects;  // все non-flag с 5+
+    }, [objects, currentZoom]);
+    ```
+  - NonFlagMarkerInitializer теперь получает `objects={nonFlagObjectsForMap}`
+  - GroupCircleDisplay (через nonFlagData) и action-radius (nonFlagObjects из nonFlagData) автоматически следуют за этим.
+- Обновление контекста перед правкой кода.
+
+**Исправление бага (не исчезали при зуме вниз):**
+- Добавлен useEffect сразу после nonFlagObjectsForMap:
+  ```js
+  useEffect(() => {
+    if (currentZoom < 6) {
+      setNonFlagData({ iconsById: {}, groupedObjects: [] });
+    }
+  }, [currentZoom]);
+  ```
+  Это принудительно очищает nonFlagData при зуме <6, независимо от того, эмитит ли инициализатор clear.
+- В основном рендере visibleNonFlags (nonFlagData.groupedObjects IIFE) добавлен guard:
+  ```js
+  if (currentZoom < 6) return null;
+  ```
+  (перед фильтром visibleNonFlags).
+- Это гарантирует, что при уменьшении зума ниже 6 non-flag маркеры (включая групповые иконки) исчезают, даже если nonFlagData временно содержит stale данные из предыдущего зума.
+- nonFlagObjectsForMap остаётся с условием <6 → [].
+- Контекст обновлён. Изменения только внутри MapComponent.jsx.

@@ -446,7 +446,30 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
 function ZoomTracker({ onZoomChange }) {
     const map = useMapEvents({
         zoomend: () => {
-            onZoomChange(map.getZoom());
+            const zoom = map.getZoom();
+            onZoomChange(zoom);
+
+            // Debug: значение масштаба (zoom), используемое в текущий момент для запроса тайлов
+            const center = map.getCenter();
+            const metersPerPx = 156543.03392 * Math.cos((center.lat * Math.PI) / 180) / Math.pow(2, zoom);
+
+            // Простой расчёт Representative Fraction (аналогично MapScaleBar)
+            const denomRaw = Math.round(metersPerPx / 0.000264583333);
+            let denom = AVAILABLE_DENOMINATORS[0];
+            let bestDiff = Math.abs(denomRaw - denom);
+            for (const c of AVAILABLE_DENOMINATORS) {
+                const diff = Math.abs(denomRaw - c);
+                if (diff < bestDiff) {
+                    bestDiff = diff;
+                    denom = c;
+                }
+            }
+
+            console.log(
+                `[Tiles] Current zoom for tiles: ${zoom}, ` +
+                `approx scale 1:${denom} ` +
+                `(center lat: ${center.lat.toFixed(4)}, lng: ${center.lng.toFixed(4)})`
+            );
         }
     });
     return null;
@@ -638,6 +661,41 @@ function MapComponent({
     const isActionRadiusAnimationMode = showActionRadius && actionRadiusMode === "animation";
 
     const displayedObjects = objects.filter(obj => selectedObj.includes(obj.id));
+
+    // Zoom-based marker filtering (supplemented):
+    // - For flag markers: graduated by zoom
+    //   <=5 : only order <=2
+    //   <=7 : order <=7
+    //   >7  : all
+    // - For non-flag markers: always all (no zoom/order restriction)
+    const flagObjectsForMap = useMemo(() => {
+      if (currentZoom > 7) {
+        return objects;
+      }
+      const maxOrder = currentZoom <= 5 ? 2 : 7;
+      return objects.filter((obj) => {
+        const ord = parseInt(obj.marker?.order ?? 999, 10);
+        return ord <= maxOrder;
+      });
+    }, [objects, currentZoom]);
+
+    // non-flag markers should be visible only starting from zoom 6 (inclusive)
+    // hide when decreasing zoom below 6
+    const nonFlagObjectsForMap = useMemo(() => {
+      if (currentZoom < 6) {
+        return [];
+      }
+      return objects;  // all non-flag markers from 6+
+    }, [objects, currentZoom]);
+
+    // Force-clear nonFlagData when zooming out below 6.
+    // The NonFlagMarkerInitializer may not emit a "clear" when its objects prop shrinks,
+    // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
+    useEffect(() => {
+      if (currentZoom < 6) {
+        setNonFlagData({ iconsById: {}, groupedObjects: [] });
+      }
+    }, [currentZoom]);
 
     useEffect(() => {
         const handleEsc = (e) => {
@@ -1441,13 +1499,13 @@ function MapComponent({
                 {/* <CursorTracker /> */}
                 <MarkerInitializer 
                     key={`markers-v${markerVersion}`}
-                    objects={objects} 
+                    objects={flagObjectsForMap} 
                     selectedIds={selectedObj} 
                     onMarkersReady={handleMarkersReady} 
                 />
                 <NonFlagMarkerInitializer 
                     key={`nonflag-v${markerVersion}`}
-                    objects={objects} 
+                    objects={nonFlagObjectsForMap} 
                     onMarkersReady={handleNonFlagMarkersReady} 
                     selectedIds={selectedObj} 
                 />
@@ -1463,7 +1521,7 @@ function MapComponent({
                 />
                 <TileLayer
                     url={TILE_RASTER_URL}
-                    minZoom={5}
+                    minZoom={2}
                     maxZoom={14}
                     attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
                 />
@@ -1645,6 +1703,8 @@ function MapComponent({
                     />
                 ))}
                 {nonFlagData.groupedObjects && (() => {
+                    // Additional guard: never render non-flags below zoom 6, even if nonFlagData has stale entries
+                    if (currentZoom < 6) return null;
                     const allNonFlags = nonFlagData.groupedObjects;
                     const visibleNonFlags = allNonFlags.filter(obj => !obj.isHidden && selectedObj.includes(obj.id));
                     return visibleNonFlags.map((obj, idx) => {
@@ -1771,9 +1831,15 @@ function MapComponent({
                     // Используем кластеризованные объекты для правильного отображения радиусов
                     const flagObjects = markerData.clusteredObjects.length > 0 
                         ? markerData.clusteredObjects 
-                        : displayedObjects.filter(obj => isFlagMarker(obj));
+                        : displayedObjects.filter(obj => {
+                            if (!isFlagMarker(obj)) return false;
+                            if (currentZoom > 7) return true;
+                            const maxOrder = currentZoom <= 5 ? 2 : 7;
+                            const ord = parseInt(obj.marker?.order ?? 999, 10);
+                            return ord <= maxOrder;
+                          });
                     
-                    // Для non-flag объектов берём координаты маркера группы
+                    // Для non-flag объектов: всегда все (без ограничения по зуму/order)
                     const nonFlagObjects = nonFlagData.groupedObjects.filter(obj => 
                         selectedObj.includes(obj.id) && isNonFlagMarker(obj)
                     );
