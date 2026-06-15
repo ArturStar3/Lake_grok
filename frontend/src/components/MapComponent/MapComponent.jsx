@@ -50,6 +50,157 @@ function FullscreenControl({isFullscreen, onToggle}) {
     )
 }
 
+// Линейка масштаба (топографический стиль) — числовое 1:N + двухцветная графическая шкала.
+// Отображается только в полноэкранном режиме, внизу по центру.
+// Адаптивно пересчитывает реальный масштаб по данным Leaflet.
+function MapScaleBar({ isFullscreen }) {
+    const map = useMap();
+    const [scale, setScale] = useState(null);
+
+    const updateScale = useCallback(() => {
+        if (!map || !isFullscreen) {
+            setScale(null);
+            return;
+        }
+
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+
+        // Метров на пиксель (Web Mercator, с учётом широты)
+        const metersPerPx = 156543.03392 * Math.cos((center.lat * Math.PI) / 180) / Math.pow(2, zoom);
+
+        // Целевая визуальная ширина линейки (px). Подбирается под типичный размер контрола.
+        const targetPx = 170;
+
+        let groundMeters = targetPx * metersPerPx;
+
+        // Округление до "красивого" картографического расстояния (ряд 1, 2, 5)
+        const exp = Math.floor(Math.log10(Math.max(groundMeters, 1)));
+        const base = Math.pow(10, exp);
+        const coeff = groundMeters / base;
+
+        let niceCoeff;
+        if (coeff < 1.4) niceCoeff = 1;
+        else if (coeff < 2.8) niceCoeff = 2;
+        else if (coeff < 7) niceCoeff = 5;
+        else niceCoeff = 10;
+
+        let niceMeters = niceCoeff * base;
+
+        // Реальная ширина бара в пикселях для выбранного расстояния
+        let barWidth = Math.round(niceMeters / metersPerPx);
+        barWidth = Math.max(80, Math.min(260, barWidth));
+
+        // Вычисляем Representative Fraction (1 : N) — военный/топо формат
+        // Используем стандартное приближение для 96 DPI
+        const denomRaw = Math.round(niceMeters / (barWidth * 0.000264583333));
+        const common = [1000, 2000, 5000, 10000, 25000, 50000, 100000, 200000, 250000, 500000, 1000000];
+        let denom = common[0];
+        let bestDiff = Math.abs(denomRaw - denom);
+        for (const c of common) {
+            const diff = Math.abs(denomRaw - c);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                denom = c;
+            }
+        }
+
+        // Форматируем подпись расстояния на линейке
+        let distLabel;
+        let unit;
+        if (niceMeters >= 1000) {
+            distLabel = niceMeters >= 10000 ? Math.round(niceMeters / 1000) : (niceMeters / 1000).toFixed(1);
+            unit = "км";
+        } else {
+            distLabel = Math.round(niceMeters);
+            unit = "м";
+        }
+
+        // 4 сегмента — классика топографических карт (чередование двух цветов)
+        const numSegments = 4;
+        const segmentWidth = Math.floor(barWidth / numSegments);
+
+        setScale({
+            denom,
+            barWidth,
+            distLabel,
+            unit,
+            numSegments,
+            segmentWidth
+        });
+    }, [map, isFullscreen]);
+
+    useEffect(() => {
+        if (!map) return undefined;
+
+        const scheduleUpdate = () => {
+            // Небольшой debounce, чтобы не дёргалось во время зума/перемещения
+            setTimeout(updateScale, 60);
+        };
+
+        map.on("zoomend", scheduleUpdate);
+        map.on("moveend", scheduleUpdate);
+        map.on("resize", scheduleUpdate);
+
+        // Первоначальный расчёт
+        updateScale();
+
+        return () => {
+            map.off("zoomend", scheduleUpdate);
+            map.off("moveend", scheduleUpdate);
+            map.off("resize", scheduleUpdate);
+        };
+    }, [map, updateScale]);
+
+    if (!isFullscreen || !scale) {
+        return null;
+    }
+
+    const formatMilitaryScale = (d) => {
+        // Военный/топографический формат: 1 : 50 000
+        if (d >= 1000000) return `1 : ${Math.round(d / 1000000)} 000 000`;
+        if (d >= 100000) return `1 : ${Math.floor(d / 1000)} 000`;
+        if (d >= 10000) return `1 : ${Math.floor(d / 1000)} 000`;
+        return `1 : ${d}`;
+    };
+
+    const segments = [];
+    for (let i = 0; i < scale.numSegments; i += 1) {
+        const isDark = i % 2 === 0;
+        segments.push(
+            <div
+                key={i}
+                style={{
+                    width: `${scale.segmentWidth}px`,
+                    height: "7px",
+                    backgroundColor: isDark ? "#1f2a38" : "#f4f6f7",
+                    // Рамка только на контейнере .map-scale-ruler; здесь только разделительные линии
+                    borderRight: i < scale.numSegments - 1 ? "1px solid #3a4654" : "none",
+                    boxSizing: "border-box"
+                }}
+            />
+        );
+    }
+
+    return (
+        <div className="map-scale-bar">
+            <div className="map-scale-numeric">
+                {formatMilitaryScale(scale.denom)}
+            </div>
+            <div
+                className="map-scale-ruler"
+                style={{ width: `${scale.barWidth}px` }}
+            >
+                {segments}
+            </div>
+            <div className="map-scale-labels">
+                <span>0</span>
+                <span>{scale.distLabel}&nbsp;{scale.unit}</span>
+            </div>
+        </div>
+    );
+}
+
 // Компонент для инициализации маркеров ВНУТРИ MapContainer
 function MarkerInitializer({ objects, selectedIds, onMarkersReady }) {
     // Этот компонент передаёт карту в LabelGeneration
@@ -1178,6 +1329,7 @@ function MapComponent({
                 className={isFullscreen ? "map--fullscreen" : ""}
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
+                <MapScaleBar isFullscreen={isFullscreen} />
                 <MapClickHandler onMapClick={() => setPinnedGroupId(null)} />
                 <MeasureHandler isActive={effectiveMeasureMode} onAddPoint={isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint} />
                 <EventContextMenuHandler />
