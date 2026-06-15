@@ -63,8 +63,9 @@ function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds }) {
     return <NonFlagLabelGeneration objects={objects} onMarkersReady={onMarkersReady} selectedIds={selectedIds} />;
 }
 
-// Компонент для отображения элементов группы в круге при наведении
-function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, onMarkerClick, measureMode, onMarkerHover }) {
+// Компонент для отображения элементов группы в круге при наведении.
+// Оптимизация: React.memo + вычисления зависят только от displayGroupId + groupedObjects.
+const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, onMarkerClick, measureMode, onMarkerHover }) {
     const mapInstance = useMapEvents({});
     const [circleMarkers, setCircleMarkers] = React.useState([]);
     const [circleCenter, setCircleCenter] = React.useState(null);
@@ -78,40 +79,48 @@ function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onP
             return;
         }
 
-        // Находим группу по ID
-        const group = groupedObjects.find(g => g.groupId === displayGroupId);
-        if (!group || !group.isGrouped) {
+        // Находим группу. Для центра окружности ВСЕГДА используем запись с isGroupIcon —
+        // у неё координаты первого объекта кластера (см. processNonFlagClustering).
+        // Это гарантирует, что иконка группировки находится на позиции первого объекта (требование 1),
+        // и центр круга будет совпадать с визуальным положением маркера группировки (требование 2).
+        const groupIconEntry = groupedObjects.find(g => g.groupId === displayGroupId && g.isGroupIcon);
+        const group = groupIconEntry || groupedObjects.find(g => g.groupId === displayGroupId);
+
+        if (!group || !group.isGrouped || !group.groupObjects) {
             setCircleMarkers([]);
             return;
         }
 
-        // Используем ТЕ ЖЕ координаты, где отображается маркер группировки
-        // (с учетом offset, если он есть)
+        // Центр окружности = позиция групповой иконки (lat/lng первого объекта группы).
         const centerLat = group.lat;
         const centerLng = group.lng;
 
-        // Получаем позиции элементов в круге
-        const baseCircleRadius = 60; // базовый радиус круга
-        const positionsWithCircle = group.groupObjects.map((obj, index) => {
-            const count = group.groupObjects.length;
-            const angleStep = (2 * Math.PI) / count;
-            const angle = angleStep * index;
-            
-            // Учитываем размер маркера для равномерного расположения краев
-            const markerScale = parseFloat(obj.marker?.scale) || 1;
-            const markerSize = 50 * markerScale; // ICON_WIDTH = 50
-            const adjustedRadius = baseCircleRadius + (markerSize / 2);
+        // Получаем относительные позиции через общую утилиту (меньше дублирования кода, единый источник радиуса).
+        // Радиус компактный (32px по умолчанию) — элементы располагаются плотно ВОКРУГ маркера группировки.
+        // Центр окружности = точная позиция групповой иконки (требование 2).
+        const relativePositions = getGroupCirclePositions(group.groupObjects, 40);
 
-            const x = Math.cos(angle) * adjustedRadius;
-            const y = Math.sin(angle) * adjustedRadius;
+        // Небольшой вертикальный bias, чтобы круг лучше визуально центрировался на группе.
+        // Групповая иконка (35px) визуально "сидит" иначе, чем 50px non-flag иконки.
+        // Положительное значение смещает членов круга вниз (по layer Y), чтобы группа не казалась ниже.
+        const circleVerticalBias = 8;
 
-            // Преобразуем пиксельное смещение в координаты lat/lng
+        const positionsWithCircle = relativePositions.map((rel) => {
+            // При необходимости слегка масштабируем радиус под размер иконки члена группы,
+            // но сохраняем общий компактный характер (не как раньше 60+).
+            const markerScale = parseFloat(rel.marker?.scale) || 1;
+            const scaleFactor = 1 + Math.min((markerScale - 1) * 0.1, 0.2);
+            const x = rel.circleX * scaleFactor;
+            const y = rel.circleY * scaleFactor + circleVerticalBias;
+
+            // Преобразуем пиксельное смещение относительно экранной позиции центра
+            // (latLng группы) в новые lat/lng для временных маркеров круга.
             const point = mapInstance.latLngToLayerPoint([centerLat, centerLng]);
             const newPoint = L.point(point.x + x, point.y + y);
             const newLatLng = mapInstance.layerPointToLatLng(newPoint);
 
             return {
-                ...obj,
+                ...rel,
                 lat: newLatLng.lat,
                 lng: newLatLng.lng,
                 originalLat: centerLat,
@@ -161,6 +170,7 @@ function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onP
                             },
                             click: (e) => {
                                 e.originalEvent.stopPropagation();
+
                                 handleCloseCircle();
                                 if (measureMode && e.originalEvent?.ctrlKey) {
                                     return;
@@ -175,9 +185,9 @@ function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onP
             })}
         </>
     );
-}
+});
 
-// Компонент для отслеживания изменений зума
+ // Компонент для отслеживания изменений зума
 function ZoomTracker({ onZoomChange }) {
     const map = useMapEvents({
         zoomend: () => {

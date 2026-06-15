@@ -654,6 +654,7 @@
 
 /* Родительский контейнер Leaflet для non-flag маркеров */
 .leaflet-marker-icon.non-flag-div-icon {
+    /* position: relative was not here, but related rules cleaned for consistency */
     z-index: 100 !important; /* Ниже, чем флаговые маркеры */
     transition: z-index 0s;
     pointer-events: none !important; /* По умолчанию не блокируем события */
@@ -681,7 +682,8 @@
 }
 
 .group-marker:hover {
-    transform: scale(1.15);
+    /* transform: scale(1.15); removed to prevent visual shift of the group icon when the hover circle appears.
+       Scaling was causing the group marker to appear lower relative to the positioned circle members. */
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
     z-index: 1000 !important;
 }
@@ -698,7 +700,7 @@
 
 /* Родительский контейнер Leaflet для групповых маркеров */
 .leaflet-marker-icon.group-div-icon {
-    position: relative !important;
+    /* position: relative !important; removed — it was interfering with Leaflet's absolute positioning + transform of the marker icon, causing the group graphic to render far from its intended geographic anchor (e.g. visual at ~32° while data at 36.5°). */
     z-index: 150 !important; /* Между non-flag и флаговыми маркерами */
     transition: z-index 0s;
 }
@@ -770,7 +772,7 @@
 
 /* Родительский контейнер Leaflet для элементов круга */
 .leaflet-marker-icon.circle-item-div-icon {
-    position: relative !important;
+    /* position: relative !important; removed — same reason as group icons: interferes with Leaflet marker placement */
     z-index: 300 !important; /* Выше всех остальных, так как это интерактивные элементы */
     transition: z-index 0s;
 }
