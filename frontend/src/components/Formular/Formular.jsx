@@ -88,6 +88,24 @@ export default function Formular() {
         });
     }, [objects, filterTitle, filterType, filterCountry]);
 
+    // Для таблицы и выбора в зонах используем все объекты (игнорируем filterCountry).
+    // Это позволяет выбирать объекты и изучать их Зоны действия, даже если маркеры страны скрыты чекбоксами.
+    // Поиск по названию и тип всё равно применяются.
+    const tableObjects = useMemo(() => {
+        return objects.filter((obj) => {
+            const titleMatch = filterTitle.trim().length === 0
+                ? true
+                : obj.title?.toLowerCase().includes(filterTitle.trim().toLowerCase());
+            if (!titleMatch) return false;
+            const typeMatch = filterType.length === 0
+                ? true
+                : filterType.includes(obj.type?.title);
+            if (!typeMatch) return false;
+            // Намеренно НЕ применяем filterCountry
+            return true;
+        });
+    }, [objects, filterTitle, filterType]);
+
     const mapRef = useRef(null);
 
     const handleObjectClick = (obj) => {
@@ -203,13 +221,13 @@ export default function Formular() {
     }, [measurePoints]);
 
     // Вычисление точек пересечения зон действия
+    // Теперь базируемся на полном списке объектов + selectedObj (независимо от filterCountry / видимости маркеров).
+    // Зоны действия должны быть доступны для изучения даже если маркер объекта скрыт страновым чекбоксом.
     const intersections = useMemo(() => {
         if (!showActionRadius) {
             return [];
         }
-        // Фильтруем только выбранные объекты (отображаемые на карте)
-        // Учитываем фильтры по типам зон (actionZoneFilters) — пересечения только между видимыми зонами
-        const baseVisible = filteredObjects.filter(obj => selectedObj.includes(obj.id));
+        const baseVisible = objects.filter(obj => selectedObj.includes(obj.id));
         const visibleForIntersections = baseVisible.map(obj => {
             if (!obj.actions || obj.actions.length === 0) return { ...obj, actions: [] };
             const cTitle = obj.country?.title || 'Неизвестно';
@@ -226,7 +244,7 @@ export default function Formular() {
         }).filter(obj => obj.actions && obj.actions.length > 0);
 
         return findAllIntersections(visibleForIntersections);
-    }, [showActionRadius, filteredObjects, selectedObj, actionZoneFilters]);
+    }, [showActionRadius, objects, selectedObj, actionZoneFilters]);
 
     // Мемоизируем ключ для отслеживания изменений пересечений
     const intersectionsKey = useMemo(() => {
@@ -272,9 +290,12 @@ export default function Formular() {
     };
 
     // === Логика панели управления Зонами действия (перенесена в sidebar) ===
+    // Используем полный список объектов (objects), а не filteredObjects.
+    // Это позволяет панели наполняться странами/типами зон для выбранных объектов,
+    // даже если их маркеры скрыты страновыми чекбоксами filterCountry.
     const actionZoneAvailableByCountry = useMemo(() => {
       const byCountry = {};
-      filteredObjects.forEach((obj) => {
+      objects.forEach((obj) => {
         if (!selectedObj.includes(obj.id) || !obj.actions || obj.actions.length === 0) return;
         const c = obj.country?.title || 'Неизвестно';
         if (!byCountry[c]) byCountry[c] = new Set();
@@ -284,7 +305,7 @@ export default function Formular() {
         });
       });
       return byCountry;
-    }, [filteredObjects, selectedObj]);
+    }, [objects, selectedObj]);
 
     const toggleActionType = useCallback((country, actionTitle) => {
       setActionZoneFilters((prev) => {
@@ -723,7 +744,7 @@ export default function Formular() {
                                         />
                                     )}
                                     <ObjectsTable 
-                                        data={filteredObjects}
+                                        data={tableObjects}
                                         selectedObj={selectedObj}
                                         onCheckboxChange={handleCheckboxChange}
                                         onObjectClick={handleObjectClick}
