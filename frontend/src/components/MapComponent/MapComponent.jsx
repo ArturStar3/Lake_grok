@@ -12,7 +12,6 @@ import EventsTable from "../Events/EventsTable";
 import EventsFilterPanel from "../Events/EventsFilterPanel";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import Features from "../Features/Features";
-import { ActionRadiusAnimation } from "./ActionRadiusAnimations";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
@@ -497,6 +496,18 @@ function MapComponent({
     onSelectAllIntersections,
     isFullscreen,
     setIsFullscreen,
+    // Подняты в Formular (sidebar панель управления)
+    actionZoneFilters = {},
+    showZoneIntersections = true,
+    // Дополнительные для полной поддержки панели "Настройка отображения" в fs map_sidebar (Features)
+    // (раньше не передавались в fs-ветку — слабое место, из-за которого панель не появлялась).
+    actionZoneAvailableByCountry = {},
+    setShowZoneIntersections,
+    toggleActionType,
+    toggleAllForCountry,
+    resetZoneFilters,
+    actionZoneViewMode = "displaySettings",
+    onActionZoneViewModeChange,
     // ...existing code...
     onMeasureModeChange,
     onMeasurePointsChange,
@@ -534,6 +545,8 @@ function MapComponent({
     const [measurePoints, setMeasurePoints] = useState([]);
     const [internalShowActionRadius, setInternalShowActionRadius] = useState(false);
     const [currentZoom, setCurrentZoom] = useState(4);
+    const [zoneContextMenu, setZoneContextMenu] = useState(null);
+    const [hoveredZoneTargetIds, setHoveredZoneTargetIds] = useState(new Set());
     const [geoData, setGeoData] = useState(null);
     const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [] });
     const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [] });
@@ -661,8 +674,6 @@ function MapComponent({
     const showActionRadius = isFullscreen ? internalShowActionRadius : externalShowActionRadius;
     const effectiveMeasureMode = isFullscreen ? isMeasureMode : measureMode;
     const effectiveMeasurePoints = isFullscreen ? measurePoints : measurements;
-    const isActionRadiusCoordsMode = showActionRadius && actionRadiusMode === "coords";
-    const isActionRadiusAnimationMode = showActionRadius && actionRadiusMode === "animation";
 
     const displayedObjects = objects.filter(obj => selectedObj.includes(obj.id));
 
@@ -701,10 +712,16 @@ function MapComponent({
       }
     }, [currentZoom]);
 
+    // Зоны действия: состояния фильтров (actionZoneFilters, showZoneIntersections) и UI панели
+    // теперь живут в Formular (sidebar). Здесь только потребление переданных props для рендера зон и точек.
+    // (логика toggle/синхронизации и доступные типы — в родителе)
+
     useEffect(() => {
         const handleEsc = (e) => {
             if (e.key === "Escape") {
-                if (pinnedGroupId) {
+                if (zoneContextMenu) {
+                    setZoneContextMenu(null);
+                } else if (pinnedGroupId) {
                     setPinnedGroupId(null);
                 } else if (isFullscreen) {
                     setIsFullscreen(false);
@@ -713,7 +730,18 @@ function MapComponent({
         };
         document.addEventListener("keydown", handleEsc);
         return () => document.removeEventListener("keydown", handleEsc)
-    }, [isFullscreen, pinnedGroupId]);
+    }, [isFullscreen, pinnedGroupId, zoneContextMenu]);
+
+    // Закрытие контекстного меню зон при клике вне (для req 6)
+    useEffect(() => {
+        if (!zoneContextMenu) return undefined;
+        const handleOutside = (e) => {
+            setZoneContextMenu(null);
+        };
+        // Используем capture чтобы поймать до других обработчиков
+        document.addEventListener('mousedown', handleOutside, true);
+        return () => document.removeEventListener('mousedown', handleOutside, true);
+    }, [zoneContextMenu]);
 
     useEffect(() => {
         const observer = new ResizeObserver((entries) => {
@@ -1372,7 +1400,22 @@ function MapComponent({
                                         type="button"
                                         className="map__measure-menu-item"
                                         onClick={() => {
-                                            setInternalShowActionRadius((prev) => !prev);
+                                            const next = !internalShowActionRadius;
+                                            setInternalShowActionRadius(next);
+                                            // Notify parent (Formular) so that its showActionRadius state updates.
+                                            // This is required for the intersections useMemo (in Formular) to run
+                                            // and provide the `intersections` + selectedIntersections lists to MapComponent.
+                                            // Without it, in fullscreen the fs-only internal toggle made zones visually active
+                                            // (via effective showActionRadius) but intersections calculation stayed empty
+                                            // → points never appeared despite checkbox checked.
+                                            if (onShowActionRadiusChange) {
+                                                onShowActionRadiusChange(next);
+                                            }
+                                            // When enabling from fs sidebar, default the sub-view to "Настройка отображения"
+                                            // (so the panel with "Показывать точки пересечения" checkbox appears, matching header tools behavior).
+                                            if (next && isFullscreen && onActionZoneViewModeChange) {
+                                                onActionZoneViewModeChange("displaySettings");
+                                            }
                                             setIsMeasureMenuOpen(false);
                                         }}
                                     >
@@ -1467,6 +1510,19 @@ function MapComponent({
                             selectedIntersections={selectedIntersections}
                             onIntersectionToggle={onIntersectionToggle}
                             onSelectAllIntersections={onSelectAllIntersections}
+                            // Ключевые пропсы для суб-UI "Зоны измерения" / "Настройка отображения":
+                            // isFullscreen=true (чтобы сработали гейты {isFullscreen && showActionRadius && ...} в Features),
+                            // viewMode + обработчики, полные данные/коллбеки фильтров.
+                            isFullscreen={true}
+                            actionZoneViewMode={actionZoneViewMode}
+                            onActionZoneViewModeChange={onActionZoneViewModeChange}
+                            actionZoneAvailableByCountry={actionZoneAvailableByCountry}
+                            actionZoneFilters={actionZoneFilters}
+                            showZoneIntersections={showZoneIntersections}
+                            setShowZoneIntersections={setShowZoneIntersections}
+                            toggleActionType={toggleActionType}
+                            toggleAllForCountry={toggleAllForCountry}
+                            resetZoneFilters={resetZoneFilters}
                         />
                     </div>
                 </div>
@@ -1823,7 +1879,7 @@ function MapComponent({
                         interactive={false}
                     />
                 ))}
-                {showActionRadius && intersections
+                {showActionRadius && showZoneIntersections && intersections
                     .filter(point => selectedIntersections.includes(point.id))
                     .map((point) => (
                     <Marker
@@ -1852,27 +1908,30 @@ function MapComponent({
                     
                     const allObjectsForRadius = [...flagObjects, ...nonFlagObjects];
 
-                    const animationColors = {
-                        gradient: '#8B0000',
-                        radar: '#00CED1',
-                        wave: '#FF8C00',
-                        pulse: '#9370DB',
-                        rings: '#32CD32',
-                        sector: '#4682B4',
-                        alert: '#DC143C',
-                        dashed_rotate: '#FFD700'
+                    // Фильтр по странам и типам зон (req 1)
+                    // Исправлено: пустой Set (после "Ничего" или снятия всех типов страны) теперь корректно прячет зоны.
+                    // Если для страны есть явная запись в actionZoneFilters (даже пустая) — используем её строго.
+                    // Отсутствие записи (до инициализации) — показываем (graceful default).
+                    const isActionVisible = (obj, action) => {
+                        const cTitle = obj.country?.title || 'Неизвестно';
+                        const aTitle = action.action_type?.title || 'Зона действия';
+                        const enabledSet = actionZoneFilters[cTitle];
+                        if (enabledSet !== undefined) {
+                            return enabledSet.has(aTitle);
+                        }
+                        return true;
                     };
 
                     const isObjectHovered = (obj) => {
+                        if (hoveredZoneTargetIds.has(obj.id)) return true;
                         if (isNonFlagMarker(obj) && obj.groupId) {
                             return hoveredGroupId === obj.groupId;
                         }
                         return hoveredMarkerId === obj.id;
                     };
 
-                    // Сначала собираем информацию о центрах для подсветки (по одному кругу на центр)
-                    const centerMap = new Map();
-
+                    // Собираем текущие видимые зоны (для hover/click hit-testing + рендера)
+                    const currentVisibleZones = [];
                     allObjectsForRadius
                         .filter(obj => selectedObj.includes(obj.id) && obj.actions && obj.actions.length > 0)
                         .forEach((obj) => {
@@ -1889,29 +1948,110 @@ function MapComponent({
                                 }
                             }
 
-                            const key = `${centerLat.toFixed(6)},${centerLng.toFixed(6)}`;
-                            const hovered = isObjectHovered(obj);
-
-                            // Цвет подсветки берём из первой зоны объекта (по типу анимации)
-                            const firstAction = obj.actions[0];
-                            const animationType = firstAction?.action_type?.animation || 'wave';
-                            const baseColor = animationColors[animationType] || '#3388ff';
-
-                            const existing = centerMap.get(key);
-                            if (!existing) {
-                                centerMap.set(key, {
-                                    lat: centerLat,
-                                    lng: centerLng,
-                                    color: baseColor,
-                                    hovered
+                            obj.actions.forEach((action) => {
+                                if (!isActionVisible(obj, action)) return;
+                                const radiusMeters = action.radius * 1000;
+                                const actionTitle = action.action_type?.title || 'Зона действия';
+                                currentVisibleZones.push({
+                                    obj,
+                                    action,
+                                    actionTitle,
+                                    centerLat,
+                                    centerLng,
+                                    radiusMeters
                                 });
-                            } else {
-                                // Если хоть один объект на этом центре в hover, считаем центр подсвеченным ярко
-                                if (hovered) {
-                                    existing.hovered = true;
-                                }
-                            }
+                            });
                         });
+
+                    // Цвета для зон — ВИЗУАЛЬНОЕ РАЗДЕЛЕНИЕ ПО action_type (ActionType.title), а не по стране.
+                    // Одна и та же action_type всегда имеет один и тот же цвет (стабильный хэш по title).
+                    // Это исправление по обратной связи пользователя.
+                    const getZoneColor = (obj, actionTitle) => {
+                        const title = actionTitle || 'default';
+                        // Стабильный хэш по названию типа действия
+                        let hash = 0;
+                        for (let i = 0; i < title.length; i++) {
+                            hash = (hash << 5) - hash + title.charCodeAt(i);
+                            hash |= 0;
+                        }
+                        hash = Math.abs(hash);
+                        // Спокойная, различимая палитра именно для типов зон (action_type)
+                        const palette = [
+                            '#2E86AB', // teal
+                            '#A23B72', // magenta
+                            '#F18F01', // orange
+                            '#3A7D44', // forest green
+                            '#6B4C9A', // purple
+                            '#C73E1D', // brick red
+                            '#4A6FA5', // steel blue
+                            '#E8871E'  // amber
+                        ];
+                        return palette[hash % palette.length];
+                    };
+
+                    // === Расширенные визуальные стили зон (по action_type.title) ===
+                    // Не только цвет (уже по типу), но и dashArray + специальные эффекты.
+                    // Запрос: радар — линии внутри как на экране РЛС; разная штриховка окружности для разных типов.
+                    const getZoneDashArray = (actionTitle, hovered) => {
+                      if (hovered) return undefined;
+                      const t = (actionTitle || '').toLowerCase();
+                      if (t.includes('радар') || t.includes('radar')) return undefined; // для радара основной круг сплошной, эффект дают спицы
+                      if (t.includes('пунктир') || t.includes('dash')) return '6,4';
+                      if (t.includes('точка') || t.includes('dot')) return '2,3,6,3';
+                      if (t.includes('тире') || t.includes('cross')) return '8,3,2,3';
+                      // разнообразие для остальных типов
+                      const hash = Math.abs((actionTitle || 'def').split('').reduce((s, ch) => (s << 5) - s + ch.charCodeAt(0), 0));
+                      const patterns = [undefined, '5,5', '10,5', '3,3'];
+                      return patterns[hash % patterns.length];
+                    };
+
+                    const getZoneSpecialEffect = (actionTitle) => {
+                      const t = (actionTitle || '').toLowerCase();
+                      if (t.includes('радар') || t.includes('radar')) return 'radar';
+                      return null;
+                    };
+
+                    // Статические радиальные линии для радара (по примеру экрана РЛС). Без анимации.
+                    const renderRadarSpokes = (centerLat, centerLng, radiusMeters, color) => {
+                      const spokes = [];
+                      const num = 10;
+                      for (let i = 0; i < num; i++) {
+                        const angleDeg = (i * (360 / num));
+                        const angle = angleDeg * Math.PI / 180;
+                        const dLat = (radiusMeters / 111320) * Math.cos(angle);
+                        const dLng = (radiusMeters / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angle);
+                        const endLat = centerLat + dLat;
+                        const endLng = centerLng + dLng;
+                        spokes.push(
+                          <Polyline
+                            key={`spoke-${i}`}
+                            positions={[[centerLat, centerLng], [endLat, endLng]]}
+                            pathOptions={{
+                              color,
+                              weight: 1.2,
+                              opacity: 0.48,
+                              interactive: false
+                            }}
+                          />
+                        );
+                      }
+                      return spokes;
+                    };
+
+                    // Подсветка центров (адаптировано под новый hover от зон)
+                    const centerMap = new Map();
+                    currentVisibleZones.forEach((z) => {
+                        const obj = z.obj;
+                        const key = `${z.centerLat.toFixed(6)},${z.centerLng.toFixed(6)}`;
+                        const hovered = isObjectHovered(obj);
+                        const color = getZoneColor(obj, z.actionTitle);
+                        const existing = centerMap.get(key);
+                        if (!existing) {
+                            centerMap.set(key, { lat: z.centerLat, lng: z.centerLng, color, hovered });
+                        } else if (hovered) {
+                            existing.hovered = true;
+                        }
+                    });
 
                     const highlightCircles = Array.from(centerMap.entries()).map(([key, info]) => {
                         const { lat, lng, color, hovered } = info;
@@ -1933,77 +2073,98 @@ function MapComponent({
                         );
                     });
 
-                    const radiusCircles = allObjectsForRadius
-                        .filter(obj => selectedObj.includes(obj.id))
-                        .map((obj) => {
-                            if (!obj.actions || obj.actions.length === 0) return null;
-                            
-                            let centerLat = obj.lat;
-                            let centerLng = obj.lng;
-                            
-                            // Для non-flag объектов: если есть группировка, используем координаты группы
-                            if (isNonFlagMarker(obj) && obj.isGrouped && obj.groupId) {
-                                const groupMarker = nonFlagData.groupedObjects.find(g => 
-                                    g.groupId === obj.groupId && g.isGroupIcon
-                                );
-                                if (groupMarker) {
-                                    centerLat = groupMarker.lat;
-                                    centerLng = groupMarker.lng;
-                                }
-                            }
+                    // Рендер зон — новый дизайн (чистый, низкая непрозрачность, визуально разделены по action_type.title, интерактивные) — исправлено по обратной связи
+                    const radiusCircles = currentVisibleZones.map((z, idx) => {
+                        const { obj, actionTitle, centerLat, centerLng, radiusMeters } = z;
+                        const circleColor = getZoneColor(obj, actionTitle);
+                        const hovered = isObjectHovered(obj);
 
-                            const hovered = isObjectHovered(obj);
-                            
-                            // Отображаем все зоны действия для объекта
-                            return obj.actions.map((action, actionIndex) => {
-                                const radiusMeters = action.radius * 1000;
-                                const animationType = action.action_type?.animation || 'wave';
-                                const actionTitle = action.action_type?.title || 'Зона действия';
-                                const circleColor = animationColors[animationType] || '#3388ff';
-                                
-                                return (
-                                    <React.Fragment key={`action-radius-${obj.id}-${actionIndex}`}>
-                                        {/* Анимированные круги зоны действия */}
-                                        {isActionRadiusAnimationMode && (
-                                            <ActionRadiusAnimation 
-                                                center={[centerLat, centerLng]}
-                                                radius={radiusMeters}
-                                                color={circleColor}
-                                                animationType={animationType}
-                                            />
-                                        )}
-                                        
-                                        {/* Основной круг зоны действия */}
-                                        <Circle
-                                            center={[centerLat, centerLng]}
-                                            radius={radiusMeters}
-                                            pathOptions={{
-                                                color: circleColor,
-                                                fillColor: circleColor,
-                                                fillOpacity: 0.1,
-                                                weight: hovered ? 4 : 2,
-                                                opacity: hovered ? 1 : 0.6,
-                                                dashArray: '5, 10',
-                                                className: 'action-radius-circle',
-                                                interactive: false
-                                            }}
-                                        >
-                                            <Popup>
-                                                <div>
-                                                    <strong>{obj.label || obj.title}</strong>
-                                                    <br />
-                                                    Тип зоны: {actionTitle}
-                                                    <br />
-                                                    Радиус: {action.radius} км
-                                                    <br />
-                                                    Анимация: {animationType}
-                                                </div>
-                                            </Popup>
-                                        </Circle>
-                                    </React.Fragment>
-                                );
-                            });
-                        });
+                        const dashArray = getZoneDashArray(actionTitle, hovered);
+                        const special = getZoneSpecialEffect(actionTitle);
+
+                        return (
+                            <React.Fragment key={`action-radius-${obj.id}-${idx}`}>
+                                {/* Основной круг зоны действия — статичный (анимации убраны по req 2).
+                                   Дополнительно: dashArray и спец.эффекты зависят от action_type.title. */}
+                                <Circle
+                                    center={[centerLat, centerLng]}
+                                    radius={radiusMeters}
+                                    pathOptions={{
+                                        color: circleColor,
+                                        fillColor: circleColor,
+                                        fillOpacity: 0.09,
+                                        weight: hovered ? 3.5 : 2,
+                                        opacity: hovered ? 0.95 : 0.65,
+                                        dashArray,
+                                        className: 'action-radius-circle',
+                                        interactive: true
+                                    }}
+                                    eventHandlers={{
+                                        mouseover: (e) => {
+                                            const ll = e.latlng;
+                                            const covered = new Set();
+                                            currentVisibleZones.forEach((zone) => {
+                                                const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(ll);
+                                                if (dist <= zone.radiusMeters + 1) {
+                                                    covered.add(zone.obj.id);
+                                                }
+                                            });
+                                            setHoveredZoneTargetIds(covered);
+                                        },
+                                        mouseout: () => {
+                                            setHoveredZoneTargetIds(new Set());
+                                        },
+                                        click: (e) => {
+                                            const ll = e.latlng;
+                                            const candidates = currentVisibleZones.filter((zone) => {
+                                                const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(ll);
+                                                return dist <= zone.radiusMeters + 1;
+                                            });
+                                            if (candidates.length === 0) return;
+
+                                            if (candidates.length === 1) {
+                                                const chosen = candidates[0].obj;
+                                                // Исправление бага "объекты пропадают при щелчке":
+                                                // onCheckboxChange — toggle. При повторном клике по уже выбранной зоне
+                                                // это снимало выбор → объект исчезал с карты.
+                                                // Теперь: ensure selected (добавляем, только если ещё не выбран).
+                                                if (onCheckboxChange && !selectedObj.includes(chosen.id)) {
+                                                    onCheckboxChange(chosen.id);
+                                                }
+                                                setZoneContextMenu(null);
+                                            } else {
+                                                // Несколько зон под курсором — контекстное меню (req 6)
+                                                const evt = e.originalEvent || {};
+                                                setZoneContextMenu({
+                                                    x: evt.clientX || 180,
+                                                    y: evt.clientY || 180,
+                                                    candidates: candidates.map((c) => ({
+                                                        obj: c.obj,
+                                                        actionTitle: c.actionTitle
+                                                    }))
+                                                });
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <Popup>
+                                        <div>
+                                            <strong>{obj.label || obj.title}</strong>
+                                            <br />
+                                            Тип зоны: {actionTitle}
+                                            <br />
+                                            Радиус: {Math.round((z.radiusMeters || 0) / 1000)} км
+                                            <br />
+                                            Страна: {obj.country?.title || ''}
+                                        </div>
+                                    </Popup>
+                                </Circle>
+
+                                {/* Специальные визуальные эффекты по action_type (например радар) */}
+                                {special === 'radar' && renderRadarSpokes(centerLat, centerLng, radiusMeters, circleColor)}
+                            </React.Fragment>
+                        );
+                    });
 
                     return (
                         <>
@@ -2015,6 +2176,62 @@ function MapComponent({
                 <CursorTracker />
             </MapContainer>
             {showActionRadius && <ActionRadiusLegendButton />}
+
+            {/* Панель управления зонами теперь в sidebar (Formular). Здесь только легенда на карте. */}
+
+            {/* Контекстное меню при клике на пересекающиеся зоны (req 6) */}
+            {zoneContextMenu && (
+                <div
+                    className="map__zone-context-menu"
+                    style={{
+                        position: 'absolute',
+                        left: zoneContextMenu.x,
+                        top: zoneContextMenu.y,
+                        background: 'white',
+                        border: '1px solid #3a4654',
+                        boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+                        zIndex: 700,
+                        minWidth: '180px',
+                        fontSize: '12px'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div style={{ padding: '4px 8px', fontWeight: 600, borderBottom: '1px solid #ddd', background: '#f4f6f7' }}>
+                        Выберите объект
+                    </div>
+                    {zoneContextMenu.candidates.map((cand, idx) => (
+                        <button
+                            key={idx}
+                            type="button"
+                            style={{
+                                display: 'block',
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '4px 8px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer'
+                            }}
+                            onClick={() => {
+                                // То же исправление бага исчезновения: только добавляем в selected, если отсутствует.
+                                if (onCheckboxChange && !selectedObj.includes(cand.obj.id)) {
+                                    onCheckboxChange(cand.obj.id);
+                                }
+                                setZoneContextMenu(null);
+                            }}
+                        >
+                            {cand.obj.label || cand.obj.title} <span style={{ color: '#555', fontSize: '11px' }}>({cand.actionTitle})</span>
+                        </button>
+                    ))}
+                    <button
+                        type="button"
+                        style={{ width: '100%', padding: '3px', fontSize: '10px', borderTop: '1px solid #eee' }}
+                        onClick={() => setZoneContextMenu(null)}
+                    >
+                        Отмена
+                    </button>
+                </div>
+            )}
             <FullscreenControl isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
             {isEventReady() && !isEventModalOpen && !isEventEditModeActive && (
                 <div className="map__event-actions">
@@ -2148,7 +2365,10 @@ function MapComponent({
                     </button>
                 </div>
             )}
-            {(cursorLatLng && (!showActionRadius || isActionRadiusCoordsMode)) && (
+            {/* Координаты курсора отображаются всегда (когда доступны), как было реализовано до введения
+                радио "Считывание координат" в контексте инструмента "Зона действия".
+                Ранее при активном showActionRadius координаты скрывались, если не был выбран специальный режим "coords". */}
+            {cursorLatLng && (
                 <div className="map__cursor-coords">
                     {cursorLatLng.lat.toFixed(6)}, {cursorLatLng.lng.toFixed(6)}
                 </div>
