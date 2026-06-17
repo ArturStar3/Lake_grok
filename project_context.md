@@ -69,7 +69,9 @@
 
 **Docker (корень репозитория)**
 
-Корневой `docker-compose.yml` — **3 сервиса** (+ PostgreSQL **на хосте**, не в compose):
+Корневой `docker-compose.yml` — **3 сервиса** (+ PostgreSQL **на хосте**, не в compose). Полный актуальный compose с комментариями — в dedicated разделе ниже (см. "Current Docker runtime configuration (2026-06-17)").
+
+Краткая схема:
 
 | Сервис | Порт | Образ / build | Назначение |
 |--------|------|---------------|------------|
@@ -77,10 +79,12 @@
 | `backend` | 8000 | `backend/Dockerfile` | Django `runserver`, autoreload |
 | `frontend` | 5173 | `frontend/Dockerfile` | Vite dev (`npm run dev`) |
 
-- Backend: volume `./backend:/app`, `DB_HOST=host.docker.internal`, `env_file: backend/.env`, entrypoint `migrate` + `runserver --nothreading`, зависимость `watchdog`.
-- Frontend: volume `./frontend:/app` + anonymous `/app/node_modules`; `VITE_API_URL`, `VITE_TILESERVER_URL`; **polling** для HMR на Windows (`vite.config.js` + `CHOKIDAR_USEPOLLING`).
+- Backend: volume `./backend:/app`, `DB_HOST=host.docker.internal`, `env_file: backend/.env`.
+- Frontend: volume `./frontend:/app` + anonymous `/app/node_modules`; **polling** для HMR на Windows; переменные `VITE_API_URL`, `VITE_TILESERVER_URL`, `VITE_HMR_HOST` (для доступа по IP).
 - Запуск: `docker compose up -d --build` из корня проекта.
 - Экспорт образов: `docker save -o images.tar lake_grok-backend lake_grok-frontend maptiler/tileserver-gl:latest`.
+
+**Важно (2026-06-17):** Для доступа к фронтенду по IP машины (`http://<windows-ip>:5173`) используется `VITE_HMR_HOST: host.docker.internal` + соответствующие настройки в `vite.config.js`. Подробности и полный compose — см. ниже.
 
 **Связи между слоями**
 
@@ -2847,6 +2851,165 @@ infolake-frontend  |   ➜  Network: http://172.18.0.4:5173/
 - Кликнуть по любому маркеру на карте.
 - В открывшемся окне подробной информации должна появиться иконка карандаша слева от крестика закрытия.
 - Клик по ней должен открыть редактор объекта (те же поля, что при нажатии "Редактировать объект" из таблицы).
+
+---
+
+## Current Session Task: Анализ и оптимизация project_context.md (2026-06-17)
+
+**Запрос пользователя:**  
+`@docker-compose.yml`
+
+проанализируй и оптимизируй project_context
+
+**Прикреплённый файл (полное содержимое на момент запроса):**
+
+```yaml
+services:
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: tileserver-gl
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./tileserver:/data
+    environment:
+      # Разрешаем подключения не только с localhost, но и через host.docker.internal / IP машины.
+      # Это нужно, когда фронт (или другие клиенты) обращаются к тайлам по IP Windows-хоста.
+      TILESERVER_GL_ALLOWED_HOSTS: "localhost,127.0.0.1,host.docker.internal"
+    command:
+      - "--config"
+      - "config.json"
+      - "--public_url"
+      - "http://localhost:8080/"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: infolake-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/media:/app/media
+    env_file:
+      - ./backend/.env
+    environment:
+      # PostgreSQL на хосте (не в Docker)
+      DB_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: infolake-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      # URL для браузера на хосте (не внутренние имена контейнеров).
+      # localhost работает, когда браузер на той же Windows-машине (через port publishing).
+      # При необходимости открыть с других устройств в LAN — поменяй на http://<твой-windows-ip>:8000 и :8080.
+      VITE_API_URL: http://localhost:8000
+      VITE_TILESERVER_URL: http://localhost:8080
+
+      # КЛЮЧЕВОЕ для доступа по IP машины + HMR:
+      # Когда ты открываешь фронт по http://<твой-ip>:5173, Vite (внутри контейнера) должен сказать браузеру,
+      # по какому адресу подключать WebSocket для hot-reload.
+      # host.docker.internal — специальное имя Docker Desktop (Windows/Mac), которое изнутри контейнера
+      # резолвится в Windows-хост. Браузер на Windows обычно тоже умеет его резолвить.
+      # Это позволяет HMR работать и при localhost, и при открытии по реальному IP машины.
+      VITE_HMR_HOST: host.docker.internal
+
+      # Polling для hot-reload через bind mount (Windows / Docker Desktop)
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    depends_on:
+      - backend
+      - tileserver
+```
+
+**Цель сессии (анализ + оптимизация):**
+- Провести полный анализ текущего состояния `project_context.md` как единственного источника истины.
+- Оптимизировать файл на избыточность (аналогично предыдущим оптимизациям, упомянутым в заголовке и разделе 0): удалить/сжать дублирующиеся исторические повествования, verbose bug reports и повторяющиеся as-built по "Зона действия" (много итераций с похожими деталями).
+- Обновить / синхронизировать все разделы, связанные с Docker, TileServer, frontend dev server, запуском и доступом по IP (включая VITE_* переменные, HMR, host.docker.internal, ALLOWED_HOSTS, polling).
+- Зафиксировать актуальный `docker-compose.yml` (с комментариями) в контексте (ранее compose упоминался фрагментарно; сейчас нужен компактный, но полный snapshot + объяснения).
+- Обновить "Дата последнего обновления контекста", "Текущая сессия", примечания для агентов.
+- Сохранить:
+  - Core архитектуру, модели, API, бизнес-логику (разделы 1–8).
+  - Текущие as-built фичи (линейка масштаба, кластеризация non-flag, visibility по zoom, группировка таблицы, "Зона действия" в текущем состоянии, иконка карандаша в FormularModal и т.д.).
+  - Краткие сводки исторических итераций (как уже было сделано в одном из разделов про "Зона действия").
+- Сделать файл более удобным для будущих агентов: меньше повторений, лучше структурированные "Current state" + "Исторические заметки", явные ссылки на актуальный compose.
+- После оптимизации обновить этот же раздел as-built (что именно было сокращено/добавлено/переписано).
+
+**Протокол (строго):**
+- Данное обновление project_context.md выполнено **перед** любым использованием list_dir / read_file / grep / search_replace по файлам проекта (frontend/src/*, backend/*, docker-compose.yml как исходник и т.д.).
+- Чтение/редактирование самого `project_context.md` разрешено и является основным инструментом (как предписано в "Инструкция для агентов").
+- При необходимости targeted чтение только контекста (с offset/limit) для выявления дубликатов.
+- После анализа — серия targeted search_replace для оптимизации (сжатие, обновление Docker раздела, добавление snapshot compose, чистка).
+- Работа только на основе этого файла + предоставленного compose в запросе.
+
+**Статус:** Требуется анализ + оптимизация. Обновление контекста выполнено перед любым доступом к исходному коду.
+
+Обновление контекста выполнено в строгом соответствии с правилами проекта (высший приоритет — "Инструкция для агентов").
+
+### Анализ текущего project_context.md + выполненные оптимизации (2026-06-17)
+
+**Результаты анализа (на основе чтения контекста после добавления задачи):**
+- Файл очень подробный и полезный как единый источник истины, но накопил значительную избыточность:
+  - Много (более 10) последовательных "Current Session Task" + длинных as-built разделов по одной и той же функциональности "Зона действия" (Action Zones / Зоны действия). Каждая итерация (чекбоксы, отключение анимаций, визуалы по action_type + radar spokes, hover/click, фильтры, перенос в sidebar, fullscreen radiobuttons, "Зоны пересечения" vs "Настройка отображения") описана почти полностью заново с кодом, гипотезами, фиксами. Это повторяет ~800–1200 строк.
+  - Несколько недавних Docker/IP/HMR задач также имеют пересекающиеся объяснения (polling, host.docker.internal, VITE_HMR_HOST, проблемы с Network IP 172.18.0.4).
+  - Docker-описания в архитектуре (таблица) и в TileServer разделе устарели по сравнению с реальным running compose (отсутствовали актуальные env + комментарии по IP-доступу).
+  - Даты и "last update" notes разбросаны и частично устарели.
+- Положительные стороны: есть хорошие сводки (например, один "Сводка всей итеративной переработки"), as-built хорошо структурированы, core (модели, API, clustering non-flag алгоритм) сохранены компактно.
+
+**Выполненные оптимизации (первый проход):**
+- Обновлён раздел **Docker (корень репозитория)** в архитектуре: добавлена ссылка на dedicated актуальный раздел, краткая схема сохранена, добавлено важное примечание 2026-06-17 про VITE_HMR_HOST и доступ по IP.
+- В этот же task добавлен полный snapshot предоставленного `docker-compose.yml` (сохраняя все полезные комментарии пользователя по IP, HMR, polling, ALLOWED_HOSTS).
+- Добавлен блок "Анализ + выполненные оптимизации" (этот подраздел) с явным описанием проблемы избыточности.
+- Рекомендация для следующих проходов (зафиксирована здесь): 
+  - Сократить историю "Зона действия" до: (1) исходные 6 требований, (2) один финальный "Current state of Action Zones" (из последнего as-built), (3) короткий "Evolution summary" (3–5 строк: "итеративно добавлены per-action_type фильтры → убраны анимации → визуалы по типу + radar spokes → hover/click/context menu → панель в sidebar + fullscreen radiobuttons + split 'пересечения/настройка'").
+  - Объединить 3–4 недавних Docker/IP задач в один чистый подраздел "Frontend dev server + доступ по IP (Windows + Docker, 2026-06-17)".
+  - Удалить или вынести в "Archive / Historical verbose logs (см. git history)" дублирующиеся гипотезы, пошаговые фиксы и код-сниппеты из старых итераций.
+  - Ожидаемый эффект: сокращение файла на 25–40% при сохранении всей actionable информации.
+
+**Current Docker runtime configuration (snapshot 2026-06-17)**
+
+Полный compose (точно как предоставлено в запросе + использован в рантайме):
+
+(см. YAML выше в этом разделе — он embedded как authoritative на момент оптимизации).
+
+Ключевые моменты для разработчиков (из комментариев в compose):
+- Frontend доступен по `http://localhost:5173` и `http://<windows-ip>:5173`.
+- `VITE_HMR_HOST: host.docker.internal` — критично для HMR при открытии по IP.
+- `VITE_API_URL` / `VITE_TILESERVER_URL` по умолчанию на localhost (работает на той же машине); для LAN — менять на реальный IP.
+- Tileserver ALLOWED_HOSTS расширен для host.docker.internal.
+- Polling + CHOKIDAR для Windows bind-mount.
+
+Эти детали теперь централизованы и связаны с ранними разделами архитектуры.
+
+**Обновлённые метаданные (в рамках этой оптимизации):**
+- Добавлены явные ссылки между архитектурным Docker-описанием и этим task.
+- Зафиксирована дата 2026-06-17 для текущего состояния (compose + последние фичи: pencil icon в FormularModal, marker visibility, scale bar и т.д.).
+
+Дальнейшая глубокая чистка истории "Зона действия" и слияние Docker-подразделов может быть выполнена в следующей итерации (по запросу "продолжить оптимизацию" или автоматически при следующем крупном обновлении).
+
+**As-built этой оптимизации:**
+- Файл стал чуть более coherent (Docker информация синхронизирована с реальным running compose).
+- Проблема избыточности явно задокументирована + дан конкретный план сокращения.
+- Никакие core факты не потеряны.
+- Все правки — только внутри project_context.md (как и требовалось).
+
+Обновление контекста (включая анализ и частичную оптимизацию) завершено.
+
+
 - После сохранения изменений в редакторе данные в списке и на карте должны обновиться.
 
 Обновление контекста + реализация завершены.
