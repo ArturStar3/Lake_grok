@@ -876,6 +876,7 @@ export default function Formular() {
                 <FormularModal 
                     targetId={selectedTargetId}
                     onClose={() => setSelectedTargetId(null)}
+                    onEdit={handleEditClick}
                 />
             )}
 
