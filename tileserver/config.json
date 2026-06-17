@@ -1,0 +1,22 @@
+{
+  "options": {
+    "paths": {
+      "fonts": "fonts",
+      "styles": "styles",
+      "mbtiles": "data"
+    }
+  },
+  "data": {
+    "openmaptiles": {
+      "mbtiles": "map.mbtiles"
+    }
+  },
+  "styles": {
+    "borders-labels": {
+      "style": "borders-labels.json"
+    },
+    "basic": {
+      "style": "basic.json"
+    }
+  }
+}

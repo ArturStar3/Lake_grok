@@ -654,6 +654,7 @@
 
 /* Родительский контейнер Leaflet для non-flag маркеров */
 .leaflet-marker-icon.non-flag-div-icon {
+    /* position: relative was not here, but related rules cleaned for consistency */
     z-index: 100 !important; /* Ниже, чем флаговые маркеры */
     transition: z-index 0s;
     pointer-events: none !important; /* По умолчанию не блокируем события */
@@ -681,7 +682,8 @@
 }
 
 .group-marker:hover {
-    transform: scale(1.15);
+    /* transform: scale(1.15); removed to prevent visual shift of the group icon when the hover circle appears.
+       Scaling was causing the group marker to appear lower relative to the positioned circle members. */
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
     z-index: 1000 !important;
 }
@@ -698,7 +700,7 @@
 
 /* Родительский контейнер Leaflet для групповых маркеров */
 .leaflet-marker-icon.group-div-icon {
-    position: relative !important;
+    /* position: relative !important; removed — it was interfering with Leaflet's absolute positioning + transform of the marker icon, causing the group graphic to render far from its intended geographic anchor (e.g. visual at ~32° while data at 36.5°). */
     z-index: 150 !important; /* Между non-flag и флаговыми маркерами */
     transition: z-index 0s;
 }
@@ -770,7 +772,7 @@
 
 /* Родительский контейнер Leaflet для элементов круга */
 .leaflet-marker-icon.circle-item-div-icon {
-    position: relative !important;
+    /* position: relative !important; removed — same reason as group icons: interferes with Leaflet marker placement */
     z-index: 300 !important; /* Выше всех остальных, так как это интерактивные элементы */
     transition: z-index 0s;
 }
@@ -855,4 +857,117 @@
 /* Подсветка маркера при включённом режиме зоны действия */
 .action-radius-marker-highlight {
     pointer-events: none;
+}
+
+/* === Линейка масштаба (топографическая, двухцветная) — только fullscreen, низ по центру === */
+.map-scale-bar {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 650;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.82);
+    padding: 2px 10px 4px;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    pointer-events: none; /* не мешает взаимодействию с картой */
+    font-family: inherit;
+    user-select: none;
+}
+
+.map-scale-numeric {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1f2a38;
+    line-height: 1;
+    margin-bottom: 2px;
+    letter-spacing: 0.3px;
+}
+
+.map-scale-ruler {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #3a4654;
+    overflow: hidden;
+    background: #fff; /* fallback */
+}
+
+.map-scale-labels {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 9px;
+    font-weight: 600;
+    color: #1f2a38;
+    margin-top: 2px;
+    padding: 0 1px;
+    white-space: nowrap;
+}
+
+.map-scale-labels span:first-child {
+    text-align: left;
+}
+
+.map-scale-labels span:last-child {
+    text-align: right;
+}
+
+/* === Интерактивный выбор масштаба (дропдаун по клику на numeric) === */
+.map-scale-bar {
+    /* Делаем контейнер containing block для абсолютного позиционирования дропдауна (вверх или вниз) */
+    position: absolute;
+}
+
+.map-scale-numeric {
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background-color 80ms ease, opacity 80ms ease;
+}
+
+.map-scale-numeric:hover {
+    background-color: rgba(31, 42, 56, 0.06);
+    border-radius: 2px;
+}
+
+.map-scale-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #3a4654;
+    border-radius: 3px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+    z-index: 670; /* выше самой линейки, но ниже попапов */
+    min-width: 92px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1f2a38;
+    pointer-events: auto;
+    user-select: none;
+}
+
+.map-scale-option {
+    padding: 3px 10px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.map-scale-option:hover {
+    background-color: #e8eaec;
+}
+
+.map-scale-option--active {
+    font-weight: 700;
+    background-color: #d4d8dc;
+}
+
+.map-scale-option--active:hover {
+    background-color: #c9ced3;
 }

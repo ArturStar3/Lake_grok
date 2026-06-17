@@ -1,0 +1,12 @@
+{
+  "overrides": [
+    {
+      "id": "astana",
+      "display": "Астана",
+      "match": {
+        "name": ["Nur-Sultan", "Nur Sultan"],
+        "name:ru": ["Нур-Султан", "Нур Султан"]
+      }
+    }
+  ]
+}

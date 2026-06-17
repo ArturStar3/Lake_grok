@@ -1,4 +1,5 @@
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup } from "react-leaflet";
+import { TILE_RASTER_URL } from "../../config/tiles";
 import { useEffect, useState, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -125,9 +126,10 @@ export default function MapComponent({ objects, selectedObj, mapRef, isFullscree
                 className={isFullscreen ? "map--fullscreen" : ""}
             >
                 <TileLayer
-                    url="/tiles/{z}/{x}/{y}.png"
+                    url={TILE_RASTER_URL}
                     minZoom={5}
-                    maxZoom={12}
+                    maxZoom={14}
+                    attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
                 />
                 {geoData && (
                         <GeoJSON

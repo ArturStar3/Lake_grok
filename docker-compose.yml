@@ -1,0 +1,70 @@
+services:
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: tileserver-gl
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./tileserver:/data
+    environment:
+      # Разрешаем подключения не только с localhost, но и через host.docker.internal / IP машины.
+      # Это нужно, когда фронт (или другие клиенты) обращаются к тайлам по IP Windows-хоста.
+      TILESERVER_GL_ALLOWED_HOSTS: "localhost,127.0.0.1,host.docker.internal"
+    command:
+      - "--config"
+      - "config.json"
+      - "--public_url"
+      - "http://localhost:8080/"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: infolake-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/media:/app/media
+    env_file:
+      - ./backend/.env
+    environment:
+      # PostgreSQL на хосте (не в Docker)
+      DB_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: infolake-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      # URL для браузера на хосте (не внутренние имена контейнеров).
+      # localhost работает, когда браузер на той же Windows-машине (через port publishing).
+      # При необходимости открыть с других устройств в LAN — поменяй на http://<твой-windows-ip>:8000 и :8080.
+      VITE_API_URL: http://localhost:8000
+      VITE_TILESERVER_URL: http://localhost:8080
+
+      # КЛЮЧЕВОЕ для доступа по IP машины + HMR:
+      # Когда ты открываешь фронт по http://<твой-ip>:5173, Vite (внутри контейнера) должен сказать браузеру,
+      # по какому адресу подключать WebSocket для hot-reload.
+      # host.docker.internal — специальное имя Docker Desktop (Windows/Mac), которое изнутри контейнера
+      # резолвится в Windows-хост. Браузер на Windows обычно тоже умеет его резолвить.
+      # Это позволяет HMR работать и при localhost, и при открытии по реальному IP машины.
+      VITE_HMR_HOST: host.docker.internal
+
+      # Polling для hot-reload через bind mount (Windows / Docker Desktop)
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    depends_on:
+      - backend
+      - tileserver
