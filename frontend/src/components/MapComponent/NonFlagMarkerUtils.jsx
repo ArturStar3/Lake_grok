@@ -38,12 +38,16 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
   useEffect(() => {
     if (!mapInstance) return;
     
-    const handleZoom = () => {
+    // Use zoomend (not continuous 'zoom') to avoid triggering heavy clustering
+    // on every tick of flyTo / animated zoom/pan which was causing the map to hang.
+    const handleZoomEnd = () => {
       setZoom(mapInstance.getZoom());
     };
     
-    mapInstance.on('zoom', handleZoom);
-    return () => mapInstance.off('zoom', handleZoom);
+    mapInstance.on('zoomend', handleZoomEnd);
+    setZoom(mapInstance.getZoom?.() || 0);
+    
+    return () => mapInstance.off('zoomend', handleZoomEnd);
   }, [mapInstance]);
 
   // Мемоизируем строку путей для стабильных зависимостей

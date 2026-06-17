@@ -513,7 +513,7 @@ function MapComponent({
     onMeasurePointsChange,
     onShowActionRadiusChange,
     onMarkerClick,
-    onMarkerHover,
+    onMarkerHover: _onMarkerHover,
     onEditClick,
     onDeleteClick,
     onEventSave,
@@ -565,6 +565,9 @@ function MapComponent({
     const [cursorLatLng, setCursorLatLng] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [markerVersion, setMarkerVersion] = useState(0);
+
+    // Stable Set for O(1) lookups in heavy filters / renders (avoids .includes on every item during flyTo re-renders etc)
+    const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
     const [fullscreenTab, setFullscreenTab] = useState("objects");
     const [eventMarkerSvgs, setEventMarkerSvgs] = useState(new Map());
     const eventMarkerFetchRef = useRef(new Set());
@@ -685,8 +688,6 @@ function MapComponent({
             setActiveZonePopup(null);
         }
     }, [showActionRadius]);
-
-    const displayedObjects = objects.filter(obj => selectedObj.includes(obj.id));
 
     // Zoom-based marker filtering (supplemented):
     // - For flag markers: graduated by zoom
@@ -1027,9 +1028,12 @@ function MapComponent({
 
     // Используем clusteredObjects для отображения маркеров (с примененными офсетами)
     // Исключаем non-flag объекты - они будут отображаться отдельно
-    const displayedObjectsForMarkers = markerData.clusteredObjects.filter(obj => 
-        selectedObj.includes(obj.id) && isFlagMarker(obj)
-    );
+    // Memoized + use a Set for O(1) selected check to reduce work on re-renders
+    const displayedObjectsForMarkers = useMemo(() => {
+        return (markerData.clusteredObjects || []).filter(obj => 
+            selectedSet.has(obj.id) && isFlagMarker(obj)
+        );
+    }, [markerData.clusteredObjects, selectedSet]);
 
     // Компонент для обработки кликов на карту и закрытия группы
     function MapClickHandler({ onMapClick }) {
@@ -1485,10 +1489,14 @@ function MapComponent({
                                     hoveredTargetId={hoveredTargetId}
                                     onRowHover={setHoveredTargetId}
                                     onObjectClick={(obj) => {
-                                        if (mapRef.current) {
-                                            mapRef.current.flyTo([obj.lat, obj.lng], 8, {
-                                                duration: 2.0,
-                                                easeLinearity: 0.2
+                                        if (mapRef.current && obj?.lat != null && obj?.lng != null) {
+                                            requestAnimationFrame(() => {
+                                                if (mapRef.current) {
+                                                    mapRef.current.flyTo([obj.lat, obj.lng], 8, {
+                                                        duration: 1.0,
+                                                        easeLinearity: 0.3
+                                                    });
+                                                }
                                             });
                                         }
                                     }}
@@ -1790,7 +1798,7 @@ function MapComponent({
                     // Additional guard: never render non-flags below zoom 6, even if nonFlagData has stale entries
                     if (currentZoom < 6) return null;
                     const allNonFlags = nonFlagData.groupedObjects;
-                    const visibleNonFlags = allNonFlags.filter(obj => !obj.isHidden && selectedObj.includes(obj.id));
+                    const visibleNonFlags = allNonFlags.filter(obj => !obj.isHidden && selectedSet.has(obj.id));
                     return visibleNonFlags.map((obj, idx) => {
                         const markerId = obj.marker?.id ?? 'no-marker';
                         const key = obj.isGroupIcon 
@@ -1945,7 +1953,7 @@ function MapComponent({
                     // Это обеспечивает "действительную картину" для зон, независимо от того, как отображаются маркеры.
                     const currentVisibleZones = [];
                     sourceObjectsForZones
-                        .filter(obj => selectedObj.includes(obj.id) && obj.actions && obj.actions.length > 0)
+                        .filter(obj => selectedSet.has(obj.id) && obj.actions && obj.actions.length > 0)
                         .forEach((obj) => {
                             // Реальные координаты объекта (независимо от группировки маркеров)
                             const centerLat = obj.lat;

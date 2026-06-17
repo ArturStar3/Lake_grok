@@ -16,6 +16,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         label: '',
         type: '',
         marker: '',
+        parent: '',
         lat: '',
         lng: '',
         actions: []
@@ -32,6 +33,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const [markers, setMarkers] = useState([]);
     const [actionTypes, setActionTypes] = useState([]);
     const [targetTypes, setTargetTypes] = useState([]);
+    const [targets, setTargets] = useState([]);  // для выбора parent
     const [markerSvgs, setMarkerSvgs] = useState(new Map());
     
     const [errors, setErrors] = useState({});
@@ -62,6 +64,18 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         }
     );
     
+    // Dropdown для parent (исключаем себя)
+    const parentOptions = targets.filter(t => t.id !== targetId);
+    const parentDropdown = useDropdownWithSearch(
+        parentOptions,
+        (id) => {
+            setFormData(prev => ({ ...prev, parent: id }));
+            if (errors.parent) {
+                setErrors(prev => ({ ...prev, parent: null }));
+            }
+        }
+    );
+    
     const selectedCountryColor = formData.country 
         ? countries.find(c => c.id === formData.country)?.color || 'blue'
         : 'blue';
@@ -82,14 +96,16 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 markersRes,
                 actionTypesRes,
                 targetTypesRes,
-                sectionsRes
+                sectionsRes,
+                targetsRes
             ] = await Promise.all([
                 axios.get(`${API_ROOT}/api/v1/targets/${targetId}/`),
                 axios.get(`${API_ROOT}/api/v1/countries`),
                 axios.get(`${API_ROOT}/api/v1/markers`),
                 axios.get(`${API_ROOT}/api/v1/action-types`),
                 axios.get(`${API_ROOT}/api/v1/target-types`),
-                axios.get(`${API_ROOT}/api/v1/formular-sections/`)
+                axios.get(`${API_ROOT}/api/v1/formular-sections/`),
+                axios.get(`${API_ROOT}/api/v1/targets/`)  // для выбора parent
             ]);
             
             const target = targetRes.data;
@@ -99,6 +115,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
             setMarkers(markersRes.data);
             setActionTypes(actionTypesRes.data);
             setTargetTypes(targetTypesRes.data);
+            setTargets(targetsRes.data || []);
             
             // Затем устанавливаем formData с корректными ID
             setFormData({
@@ -107,6 +124,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 label: target.label || '',
                 type: target.type?.id || '',
                 marker: target.marker?.id || '',
+                parent: target.parent || '',
                 lat: target.lat || '',
                 lng: target.lng || '',
                 actions: target.actions?.map(a => ({
@@ -346,6 +364,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 label: formData.label.trim() || null,
                 type: formData.type || null,
                 marker: formData.marker || null,
+                parent: formData.parent || null,
                 lat: parseFloat(formData.lat),
                 lng: parseFloat(formData.lng),
                 actions: formData.actions
@@ -760,6 +779,70 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* Выбор parent */}
+                                    <div className="edit-target-modal__field">
+                                        <label className="edit-target-modal__label">Вышестоящий объект (parent)</label>
+                                        <div className="edit-target-modal__marker-select" ref={parentDropdown.dropdownRef}>
+                                            <button
+                                                type="button"
+                                                className={`edit-target-modal__marker-trigger ${errors.parent ? 'edit-target-modal__input--error' : ''}`}
+                                                onClick={parentDropdown.handleToggle}
+                                            >
+                                                <span>{formData.parent ? parentOptions.find(p => p.id === formData.parent)?.title || 'Выберите вышестоящий' : 'Выберите вышестоящий (необязательно)'}</span>
+                                                <svg 
+                                                    className={`edit-target-modal__marker-arrow${parentDropdown.isOpen ? ' edit-target-modal__marker-arrow--open' : ''}`}
+                                                    width="20" 
+                                                    height="20" 
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path d="M5 7l5 5 5-5" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                                </svg>
+                                            </button>
+                                            
+                                            {parentDropdown.isOpen && (
+                                                <div className="edit-target-modal__marker-dropdown">
+                                                    <div className="edit-target-modal__search-wrapper">
+                                                        <input
+                                                            ref={parentDropdown.searchInputRef}
+                                                            type="text"
+                                                            className="edit-target-modal__search-input"
+                                                            placeholder="Поиск объекта..."
+                                                            value={parentDropdown.search}
+                                                            onChange={(e) => parentDropdown.setSearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    </div>
+                                                    <div className="edit-target-modal__marker-list">
+                                                        <button
+                                                            type="button"
+                                                            className={`edit-target-modal__marker-option${!formData.parent ? ' edit-target-modal__marker-option--selected' : ''}`}
+                                                            onClick={() => parentDropdown.handleSelect('')}
+                                                        >
+                                                            (нет)
+                                                        </button>
+                                                        {parentDropdown.filtered.length > 0 ? (
+                                                            parentDropdown.filtered.map(p => (
+                                                                <button
+                                                                    key={p.id}
+                                                                    type="button"
+                                                                    className={`edit-target-modal__marker-option${formData.parent === p.id ? ' edit-target-modal__marker-option--selected' : ''}`}
+                                                                    onClick={() => parentDropdown.handleSelect(p.id)}
+                                                                >
+                                                                    {p.title}
+                                                                </button>
+                                                            ))
+                                                        ) : (
+                                                            <div className="edit-target-modal__no-results">Ничего не найдено</div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {errors.parent && (
+                                            <span className="edit-target-modal__error">{errors.parent}</span>
+                                        )}
                                     </div>
                                     
                                     <div className="edit-target-modal__row">

@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import './FormularModal.css';
 import { API_URL } from '../../config/api';
 
-const FormularModal = ({ targetId, onClose, onEdit }) => {
+const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubordinateOpenDetails }) => {
   const [data, setData] = useState([]);
+  const [subordinates, setSubordinates] = useState([]);  // прямые подчинённые
   const [attachmentsBySection, setAttachmentsBySection] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,12 @@ const FormularModal = ({ targetId, onClose, onEdit }) => {
         }
         
         const result = await response.json();
-        setData(result);
+        // Поддержка как старого формата (массив), так и нового {formular, subordinates}
+        const formularData = Array.isArray(result) ? result : (result.formular || result);
+        setData(formularData);
+        if (!Array.isArray(result) && result.subordinates) {
+          setSubordinates(result.subordinates);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -158,7 +164,7 @@ const FormularModal = ({ targetId, onClose, onEdit }) => {
   if (!targetId) return null;
 
   return (
-    <div className="formular-modal-overlay">
+    <div className="formular-modal-overlay" onClick={handleOverlayClick}>
       <div className="formular-modal">
         <div className="formular-modal-header">
           <div className="formular-modal-title-wrap">
@@ -235,6 +241,54 @@ const FormularModal = ({ targetId, onClose, onEdit }) => {
                 </div>
               ))}
             </>
+          )}
+
+          {/* Список непосредственных подчинённых */}
+          {subordinates.length > 0 && (
+            <div className="formular-subordinates">
+              <h3>Непосредственно подчинённые подразделения ({subordinates.length})</h3>
+              <ul className="formular-subordinates-list">
+                {subordinates.map((sub) => (
+                  <li key={sub.id} className="formular-subordinate-item">
+                    <button
+                      type="button"
+                      className="formular-subordinate-icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSubordinateFlyTo && onSubordinateFlyTo(sub);
+                      }}
+                      title="Перейти на карте (flyTo)"
+                      aria-label={`Перейти к ${sub.title} на карте`}
+                    >
+                      {/* Map pin SVG - consistent with main objects table */}
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="formular-subordinate-text"
+                      onClick={() => onSubordinateOpenDetails && onSubordinateOpenDetails(sub)}
+                      title="Открыть подробную информацию"
+                    >
+                      <strong>{sub.title}</strong>
+                      {sub.label && ` (${sub.label})`}
+                      {sub.type && ` — ${sub.type.title}`}
+                      {sub.children_count > 0 && ` (ещё ${sub.children_count} вложенных)`}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>

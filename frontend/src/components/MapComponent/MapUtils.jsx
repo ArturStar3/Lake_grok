@@ -73,12 +73,18 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
   useEffect(() => {
     if (!mapInstance) return;
     
-    const handleZoom = () => {
+    // Use zoomend instead of 'zoom' — 'zoom' fires continuously during animations (including flyTo),
+    // causing expensive repeated clustering + icon rebuilds that freeze the map.
+    // zoomend fires once at the end of the animated transition.
+    const handleZoomEnd = () => {
       setZoom(mapInstance.getZoom());
     };
     
-    mapInstance.on('zoom', handleZoom);
-    return () => mapInstance.off('zoom', handleZoom);
+    mapInstance.on('zoomend', handleZoomEnd);
+    // Also set initial
+    setZoom(mapInstance.getZoom?.() || 0);
+    
+    return () => mapInstance.off('zoomend', handleZoomEnd);
   }, [mapInstance]);
 
   // Мемоизируем строку путей для стабильных зависимостей

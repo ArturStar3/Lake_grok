@@ -241,6 +241,88 @@
   border-radius: 8px;
 }
 
+.formular-subordinates {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.formular-subordinates h3 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  color: #374151;
+}
+
+.formular-subordinates-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.formular-subordinate-item {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.formular-subordinate-item:last-child {
+  border-bottom: none;
+}
+
+.formular-subordinate-icon {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #008dd2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s, transform 0.2s;
+}
+
+.formular-subordinate-icon:hover {
+  color: #005b95;
+  background-color: #f0f8ff;
+  transform: scale(1.1);
+}
+
+.formular-subordinate-icon:active {
+  transform: scale(0.95);
+}
+
+.formular-subordinate-icon svg {
+  display: block;
+}
+
+.formular-subordinate-text {
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex: 1;
+  text-align: left;
+  padding: 2px 4px;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
+
+.formular-subordinate-text:hover {
+  text-decoration: underline;
+}
+
+.formular-subordinate-text:focus-visible {
+  outline: 2px solid #008dd2;
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
 .formular-image-preview-close {
   position: absolute;
   top: 8px;

@@ -109,13 +109,39 @@ export default function Formular() {
     const mapRef = useRef(null);
 
     const handleObjectClick = (obj) => {
-        if (mapRef.current) {
-            mapRef.current.flyTo([obj.lat, obj.lng], 8, {
-                duration: 2.5,
-                easeLinearity: 0.2
+        if (mapRef.current && obj?.lat != null && obj?.lng != null) {
+            // Defer flyTo so it doesn't block current render/click handling
+            // Shorter duration to reduce perceived hang during animation
+            requestAnimationFrame(() => {
+                if (mapRef.current) {
+                    mapRef.current.flyTo([obj.lat, obj.lng], 8, {
+                        duration: 1.0,
+                        easeLinearity: 0.3
+                    });
+                }
             });
         }
     }
+
+    const handleSubordinateFlyTo = (sub) => {
+        if (!sub || !sub.id) return;
+        if (mapRef.current && sub.lat != null && sub.lng != null) {
+            // Defer + shorter duration to prevent jank/hang during long animations
+            requestAnimationFrame(() => {
+                if (mapRef.current) {
+                    mapRef.current.flyTo([sub.lat, sub.lng], 8, {
+                        duration: 1.0,
+                        easeLinearity: 0.3
+                    });
+                }
+            });
+        }
+    };
+
+    const handleSubordinateOpenDetails = (sub) => {
+        if (!sub || !sub.id) return;
+        setSelectedTargetId(sub.id);
+    };
 
     const getEventCenter = (eventItem) => {
         const shape = eventItem?.shape;
@@ -140,9 +166,13 @@ export default function Formular() {
     const handleEventFlyTo = (eventItem) => {
         const center = getEventCenter(eventItem);
         if (!center || !mapRef.current) return;
-        mapRef.current.flyTo(center, 8, {
-            duration: 2.5,
-            easeLinearity: 0.2
+        requestAnimationFrame(() => {
+            if (mapRef.current) {
+                mapRef.current.flyTo(center, 8, {
+                    duration: 1.0,
+                    easeLinearity: 0.3
+                });
+            }
         });
     };
 
@@ -227,7 +257,8 @@ export default function Formular() {
         if (!showActionRadius) {
             return [];
         }
-        const baseVisible = objects.filter(obj => selectedObj.includes(obj.id));
+        const selectedSet = new Set(selectedObj);
+        const baseVisible = objects.filter(obj => selectedSet.has(obj.id));
         const visibleForIntersections = baseVisible.map(obj => {
             if (!obj.actions || obj.actions.length === 0) return { ...obj, actions: [] };
             const cTitle = obj.country?.title || 'Неизвестно';
@@ -877,6 +908,8 @@ export default function Formular() {
                     targetId={selectedTargetId}
                     onClose={() => setSelectedTargetId(null)}
                     onEdit={handleEditClick}
+                    onSubordinateFlyTo={handleSubordinateFlyTo}
+                    onSubordinateOpenDetails={handleSubordinateOpenDetails}
                 />
             )}
 

@@ -17,13 +17,14 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
         label: '',
         type: '',
         marker: '',
+        parent: '',
         lat: '',
         lng: '',
         actions: []
     });
     
     // Используем хук для загрузки справочников
-    const { countries, markers, actionTypes, targetTypes, markerSvgs } = useTargetFormData(isOpen);
+    const { countries, markers, actionTypes, targetTypes, targets, markerSvgs } = useTargetFormData(isOpen);
     
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,6 +49,19 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
             setFormData(prev => ({ ...prev, marker: id }));
             if (errors.marker) {
                 setErrors(prev => ({ ...prev, marker: null }));
+            }
+        }
+    );
+    
+    // Dropdown для выбора parent (вышестоящий объект)
+    // Исключаем себя (для edit будет отдельно), но в add просто все
+    const parentOptions = targets;
+    const parentDropdown = useDropdownWithSearch(
+        parentOptions,
+        (id) => {
+            setFormData(prev => ({ ...prev, parent: id }));
+            if (errors.parent) {
+                setErrors(prev => ({ ...prev, parent: null }));
             }
         }
     );
@@ -128,6 +142,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                 label: formData.label.trim() || null,
                 type: formData.type || null,
                 marker: formData.marker || null,
+                parent: formData.parent || null,
                 lat: parseFloat(formData.lat),
                 lng: parseFloat(formData.lng),
                 actions: formData.actions
@@ -147,6 +162,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                 label: '',
                 type: '',
                 marker: '',
+                parent: '',
                 lat: '',
                 lng: '',
                 actions: []
@@ -181,6 +197,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
             label: '',
             type: '',
             marker: '',
+            parent: '',
             lat: '',
             lng: '',
             actions: []
@@ -287,6 +304,63 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                         </select>
                         {errors.type && (
                             <span className="add-target-modal__error">{errors.type}</span>
+                        )}
+                    </div>
+
+                    {/* Выбор вышестоящего объекта (parent) */}
+                    <div className="add-target-modal__field">
+                        <label className="add-target-modal__label">Вышестоящий объект (parent)</label>
+                        <div className="add-target-modal__country-select" ref={parentDropdown.dropdownRef}>
+                            <button
+                                type="button"
+                                className={`add-target-modal__country-trigger ${errors.parent ? 'add-target-modal__input--error' : ''}`}
+                                onClick={parentDropdown.handleToggle}
+                            >
+                                <span>{formData.parent ? parentOptions.find(p => p.id === formData.parent)?.title || 'Выберите вышестоящий' : 'Выберите вышестоящий (необязательно)'}</span>
+                                <svg 
+                                    className={`add-target-modal__country-arrow${parentDropdown.isOpen ? ' add-target-modal__country-arrow--open' : ''}`}
+                                    width="20" 
+                                    height="20" 
+                                    viewBox="0 0 20 20"
+                                >
+                                    <path d="M5 7l5 5 5-5" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                </svg>
+                            </button>
+                            
+                            {parentDropdown.isOpen && (
+                                <div className="add-target-modal__country-dropdown">
+                                    <div className="add-target-modal__search-wrapper">
+                                        <input
+                                            ref={parentDropdown.searchInputRef}
+                                            type="text"
+                                            className="add-target-modal__search-input"
+                                            placeholder="Поиск объекта..."
+                                            value={parentDropdown.search}
+                                            onChange={(e) => parentDropdown.setSearch(e.target.value)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="add-target-modal__country-list">
+                                        {parentDropdown.filtered.length > 0 ? (
+                                            parentDropdown.filtered.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    className={`add-target-modal__country-option${formData.parent === p.id ? ' add-target-modal__country-option--selected' : ''}`}
+                                                    onClick={() => parentDropdown.handleSelect(p.id)}
+                                                >
+                                                    {p.title}
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="add-target-modal__no-results">Ничего не найдено</div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {errors.parent && (
+                            <span className="add-target-modal__error">{errors.parent}</span>
                         )}
                     </div>
                     
