@@ -90,4 +90,37 @@ class FormularInlineAdmin(admin.TabularInline):
     raw_id_fields = ('section',)
     extra = 0
     show_change_link = True
-    
+
+
+class TargetChildrenInline(admin.TabularInline):
+    """Вложенная админка для просмотра непосредственно подчинённых объектов (по parent)"""
+
+    model = Target
+    fk_name = 'parent'
+    fields = (
+        'title',
+        'label',
+        'type',
+        'marker',
+        'lat',
+        'lng',
+        'action_radius',
+    )
+    readonly_fields = (
+        'title',
+        'label',
+        'type',
+        'marker',
+        'lat',
+        'lng',
+        'action_radius',
+    )
+    extra = 0
+    can_delete = False
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

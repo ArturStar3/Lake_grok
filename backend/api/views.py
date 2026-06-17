@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework import status
 from rest_framework.decorators import action
-from django.db.models import Q
+from django.db.models import Q, Count
 
 from .serializers import (
     TargetSerializer,
@@ -25,7 +25,8 @@ from .serializers import (
     TargetTypeSerializer,
     EventTypeSerializer,
     EventSerializer,
-    EventWriteSerializer
+    EventWriteSerializer,
+    TargetSubordinateSerializer,
 )
 from formular.models import (
     Target,
@@ -51,12 +52,22 @@ class TargetViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = Target.objects.select_related(
         'country', 'marker', 'type'
-    )
+    ).annotate(children_count=Count('children'))
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
             return TargetCreateSerializer
         return TargetSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        parent = self.request.query_params.get('parent')
+        if parent:
+            try:
+                qs = qs.filter(parent_id=int(parent))
+            except (ValueError, TypeError):
+                qs = qs.none()
+        return qs
     
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -200,8 +211,21 @@ class FormularView(APIView):
             target=target
         ).select_related('section', 'section__parent')
         
-        serializer = FormularSerializer(formular_items, many=True)
-        return Response(serializer.data)
+        formular_serializer = FormularSerializer(formular_items, many=True)
+
+        # Прямые подчинённые (непосредственные дети) + количество их детей через Count
+        direct_subordinates = (
+            Target.objects.filter(parent=target)
+            .select_related('type', 'marker')
+            .annotate(children_count=Count('children'))
+            .order_by('title')
+        )
+        subordinates_serializer = TargetSubordinateSerializer(direct_subordinates, many=True)
+
+        return Response({
+            'formular': formular_serializer.data,
+            'subordinates': subordinates_serializer.data,
+        })
 
 class FormularSectionsViewSet(viewsets.ReadOnlyModelViewSet):
     """Список разделов формуляра"""

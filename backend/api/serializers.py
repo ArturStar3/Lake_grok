@@ -150,6 +150,8 @@ class TargetSerializer(serializers.ModelSerializer):
     marker = MarkerSerializer()
     actions = TargetActionSerializer(many=True)
     type = TargetTypeSerializer()
+    children_count = serializers.IntegerField(read_only=True)
+    parent = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Target
@@ -164,7 +166,31 @@ class TargetSerializer(serializers.ModelSerializer):
             'lng',
             'country',
             'marker',
+            'parent',
+            'children_count',
         )
+
+
+class TargetSubordinateSerializer(serializers.ModelSerializer):
+    """Лёгкий сериализатор для прямых подчинённых объектов (в дереве подчинённости)"""
+
+    type = TargetTypeSerializer()
+    marker = MarkerSerializer()
+    children_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Target
+        fields = (
+            'id',
+            'title',
+            'label',
+            'type',
+            'marker',
+            'lat',
+            'lng',
+            'children_count',
+        )
+
 
 class TargetActionCreateSerializer(serializers.Serializer):
     """Сериализатор для создания действия объекта"""
@@ -189,6 +215,7 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'action_radius',
             'lat',
             'lng',
+            'parent',
             'actions',
         )
         read_only_fields = ('id',)

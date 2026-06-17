@@ -1,0 +1,6 @@
+# Ensure shell scripts always have LF line endings (prevents "exec ./docker-entrypoint.sh: no such file or directory" on Windows + Docker)
+*.sh text eol=lf
+
+# Dockerfiles and entrypoints
+Dockerfile text eol=lf
+docker-entrypoint.sh text eol=lf

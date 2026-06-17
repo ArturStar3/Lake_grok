@@ -4,7 +4,7 @@ import re
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 from django.conf import settings
 
 from .forms import CountryForm
@@ -27,7 +27,8 @@ from .admin_inlines import (
     TargetInlineAdmin_2,
     TargetActionInlineAdmin,
     CountryInfoInlineAdmin,
-    FormularInlineAdmin
+    FormularInlineAdmin,
+    TargetChildrenInline,
 )
 
 admin.site.site_header = 'Администрирование электронной разведывательной сводки'
@@ -54,6 +55,40 @@ class CountryAdmin(admin.ModelAdmin):
             obj.color,
         )
 
+
+class ChildrenCountFilter(admin.SimpleListFilter):
+    """Фильтр по количеству непосредственно подчинённых объектов (прямых детей)."""
+
+    title = 'Количество прямых подчинённых'
+    parameter_name = 'children_count'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('0', '0'),
+            ('1-5', '1-5'),
+            ('6-10', '6-10'),
+            ('11+', '11 и больше'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == '0':
+            return queryset.filter(direct_children_count=0)
+        elif value == '1-5':
+            return queryset.filter(
+                direct_children_count__gte=1,
+                direct_children_count__lte=5
+            )
+        elif value == '6-10':
+            return queryset.filter(
+                direct_children_count__gte=6,
+                direct_children_count__lte=10
+            )
+        elif value == '11+':
+            return queryset.filter(direct_children_count__gte=11)
+        return queryset
+
+
 @admin.register(Target)
 class TargetAdmin(admin.ModelAdmin):
     list_display = (
@@ -61,12 +96,14 @@ class TargetAdmin(admin.ModelAdmin):
         'label',
         'lat',
         'lng',
-        'action_radius'
+        'action_radius',
+        'direct_children_count',
     )
     raw_id_fields = (
         'country',
         'marker',
-        'type'
+        'type',
+        'parent',
     )
     search_fields = (
         'title',
@@ -75,6 +112,7 @@ class TargetAdmin(admin.ModelAdmin):
     )
     list_filter = (
         'country__title',
+        ChildrenCountFilter,
     )
     list_editable = (
         'lat',
@@ -83,7 +121,8 @@ class TargetAdmin(admin.ModelAdmin):
     )
     inlines = (
         TargetActionInlineAdmin,
-        FormularInlineAdmin
+        FormularInlineAdmin,
+        TargetChildrenInline,
     )
 
     def get_queryset(self, request):
@@ -98,7 +137,14 @@ class TargetAdmin(admin.ModelAdmin):
                     'action_type'
                 )
             )
+        ).annotate(
+            direct_children_count=Count('children')
         )
+
+    def direct_children_count(self, obj):
+        return getattr(obj, 'direct_children_count', 0)
+    direct_children_count.short_description = 'Прямых подчинённых'
+    direct_children_count.admin_order_field = 'direct_children_count'
     
 @admin.register(ActionType)
 class ActionTypeAdmin(admin.ModelAdmin):

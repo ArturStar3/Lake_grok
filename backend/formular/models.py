@@ -389,6 +389,15 @@ class Target(models.Model):
         null=True
     )
 
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name='Вышестоящий объект'
+    )
+
     lat = models.FloatField(
         verbose_name='Долгота'
     )
@@ -401,7 +410,8 @@ class Target(models.Model):
         verbose_name_plural = 'Объекты'
         indexes = [
             models.Index(fields=('title',)),
-            models.Index(fields=('label',))
+            models.Index(fields=('label',)),
+            models.Index(fields=('parent',)),
         ]
 
     def __str__(self):
