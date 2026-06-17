@@ -116,3 +116,6 @@ desktop.ini
 # - frontend/ (src/, public/, package.json, vite.config.js и т.д.)
 # - requirements.txt, manage.py и т.п.
 # ============================================
+tileserver/data/map.mbtiles
+_data_xlsx_report.txt
+Data.xlsx
