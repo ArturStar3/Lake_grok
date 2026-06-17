@@ -10,6 +10,18 @@ import { filterNonFlagMarkers } from "../../utils/markerFilters";
 
 const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 
+/** Ширина/высота иконки с учётом scale и пропорций viewBox SVG */
+function computeNonFlagIconSize(svg, markerScale) {
+  let iconWidth = ICON_WIDTH * markerScale;
+  let iconHeight = ICON_HEIGHT * markerScale;
+  const vb = getViewBoxSize(svg);
+  if (vb && vb.width > 0) {
+    const aspect = vb.height / vb.width;
+    iconHeight = iconWidth * aspect;
+  }
+  return { iconWidth, iconHeight };
+}
+
 /**
  * Компонент для генерации иконок non-flag объектов с группировкой
  */
@@ -133,16 +145,7 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
         const path = obj.marker?.path;
         const svg = path ? svgCache.get(path) ?? "" : "";
 
-        // Получаем размеры из viewBox, если есть
-        let iconWidth = ICON_WIDTH * markerScale;
-        let iconHeight = ICON_HEIGHT * markerScale;
-        const vb = getViewBoxSize(svg);
-        if (vb && vb.width > 0) {
-          // iconWidth = vb.width * markerScale;
-          // отношение высоты к ширине
-          const aspect = vb.height / vb.width;
-          iconHeight = vb.height * markerScale * aspect;
-        }
+        const { iconWidth, iconHeight } = computeNonFlagIconSize(svg, markerScale);
 
         const enrichedSvg = enrichSvg(svg, iconWidth, iconHeight, obj.id, markerColor);
 
@@ -195,13 +198,12 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
         }
 
         const markerScale = parseFloat(obj.marker?.scale) || 1;
-        const iconWidth = ICON_WIDTH * markerScale;
-        const iconHeight = ICON_HEIGHT * markerScale;
         const markerColor = obj.country?.color || "blue";
         
         // Получаем SVG из кэша если есть
         const path = obj.marker?.path;
         const svg = path ? svgCache.get(path) ?? "" : "";
+        const { iconWidth, iconHeight } = computeNonFlagIconSize(svg, markerScale);
         
         const enrichedSvg = enrichSvg(svg, iconWidth, iconHeight, obj.id, markerColor);
 
@@ -227,13 +229,12 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
       if (obj.isGroupIcon && !map[obj.id]) {
         // Главный объект группы - создаём для него иконку для круга при hover
         const markerScale = parseFloat(obj.marker?.scale) || 1;
-        const iconWidth = ICON_WIDTH * markerScale;
-        const iconHeight = ICON_HEIGHT * markerScale;
         const markerColor = obj.country?.color || "blue";
         
         // Получаем SVG из кэша если есть
         const path = obj.marker?.path;
         const svg = path ? svgCache.get(path) ?? "" : "";
+        const { iconWidth, iconHeight } = computeNonFlagIconSize(svg, markerScale);
         
         const enrichedSvg = enrichSvg(svg, iconWidth, iconHeight, obj.id, markerColor);
 

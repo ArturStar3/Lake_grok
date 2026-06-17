@@ -106,7 +106,8 @@ desktop.ini
 # Прочее (корневые файлы, не относящиеся к backend/frontend)
 # ----------------------------------------
 # Если не планируете коммитить эти папки/файлы:
-Данные.xlsx
+*.xlsx
+*.xlsm
 Значки/
 Значки событий/
 
@@ -149,3 +150,4 @@ tileserver/docker-compose.yml
 # - frontend/ (src/, public/, package.json, vite.config.js и т.д.)
 # - requirements.txt, manage.py и т.п.
 # ============================================
+_data_xlsx_report.txt

@@ -355,3 +355,145 @@
 .formular__action-btn svg {
     display: block;
 }
+
+/* === Группировка таблицы объектов по странам === */
+
+.formular__select-all-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #334155;
+}
+
+.select-all-label {
+    font-weight: 500;
+}
+
+.formular__country-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.country-group {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.country-group summary {
+    list-style: none;
+    outline: none;
+}
+
+.country-group summary::-webkit-details-marker {
+    display: none;
+}
+
+.country-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    font-size: 14px;
+    color: #0f172a;
+    transition: background-color 0.15s ease;
+}
+
+.country-header:hover {
+    background: #f1f5f9;
+}
+
+.country-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.country-count {
+    color: #64748b;
+    font-weight: 500;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.country-partial {
+    color: #d97706;
+    font-size: 12px;
+    white-space: nowrap;
+    margin-left: 4px;
+}
+
+.country-objects {
+    padding: 2px 0 4px;
+    background: #fff;
+}
+
+.object-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px 4px 30px; /* небольшой отступ под чекбокс группы */
+    border-top: 1px solid #f1f5f9;
+    font-size: 14px;
+}
+
+.object-row:first-child {
+    border-top: none;
+}
+
+.object-row .formular__table-data--clickable {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Небольшая адаптация hover для новых строк */
+.object-row:hover {
+    background-color: #f8fafc;
+}
+
+.object-row.formular__table-row--hovered {
+    background-color: #e8f4ff;
+}
+
+/* Кнопки Развернуть все / Свернуть все */
+.expand-controls {
+    display: flex;
+    gap: 8px;
+    padding: 4px 0 10px;
+    margin-bottom: 6px;
+}
+
+.expand-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.expand-btn:hover {
+    background: #e0e7ff;
+    border-color: #64748b;
+    color: #1e2937;
+}
+
+.expand-btn:active {
+    transform: translateY(1px);
+}

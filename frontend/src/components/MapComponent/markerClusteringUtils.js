@@ -304,11 +304,19 @@ export const processNonFlagClustering = (objects, mapInstance, selectedIds = [])
           });
         } else if (selectedInGroup.length === cluster.length) {
           // Выбраны ВСЕ объекты группы - показываем как группу
-          const mainObj = cluster[0]; // Главный объект группы для иконки
+          const mainObj = cluster[0]; // Главный объект группы — его позиция будет позицией иконки группировки (требование 1)
           
-          // Возвращаем один "главный" объект для иконки группы
+          // Базовая точка = координаты первого объекта кластера.
+          // Все записи группы (иконка + скрытые) будут иметь одинаковые lat/lng,
+          // чтобы центр окружности при hover всегда совпадал с позицией групповой иконки.
+          const baseLat = mainObj.lat;
+          const baseLng = mainObj.lng;
+
+          // Возвращаем один "главный" объект для иконки группы (явно фиксируем координаты)
           result.push({
             ...mainObj,
+            lat: baseLat,
+            lng: baseLng,
             isGrouped: true,
             groupSize: cluster.length,
             groupObjects: cluster,
@@ -316,10 +324,12 @@ export const processNonFlagClustering = (objects, mapInstance, selectedIds = [])
             isGroupIcon: true // Флаг что это иконка группы, а не обычный объект
           });
           
-          // Помечаем остальные объекты как скрытые (они не будут отображаться, только в круге)
+          // Помечаем остальные объекты как скрытые (они не будут отображаться как отдельные маркеры на карте, только в круге)
           cluster.slice(1).forEach(obj => {
             result.push({
               ...obj,
+              lat: baseLat,
+              lng: baseLng,
               isGrouped: true,
               groupSize: cluster.length,
               groupObjects: cluster,
@@ -337,12 +347,17 @@ export const processNonFlagClustering = (objects, mapInstance, selectedIds = [])
 };
 
 /**
- * Получить позиции элементов группы в круге (для отображения при hover)
+ * Получить относительные позиции элементов группы в круге (для отображения при hover).
+ * Используется для компактного размещения маркеров группы вокруг иконки группировки.
+ *
+ * По умолчанию радиус маленький, чтобы элементы располагались плотно ВОКРУГ маркера группировки
+ * (см. требования в project_context.md раздел 3.2-3.3).
+ *
  * @param {Array} groupObjects - Массив объектов в группе
- * @param {Number} radius - Радиус круга
- * @returns {Array} Массив объектов с позициями
+ * @param {Number} radius - Радиус круга в пикселях (рекомендуется 28-40 для компактности)
+ * @returns {Array} Массив объектов с относительными circleX/circleY (пиксели относительно центра)
  */
-export const getGroupCirclePositions = (groupObjects, radius = 80) => {
+export const getGroupCirclePositions = (groupObjects, radius = 40) => {
   if (!Array.isArray(groupObjects) || groupObjects.length === 0) return [];
 
   const count = groupObjects.length;

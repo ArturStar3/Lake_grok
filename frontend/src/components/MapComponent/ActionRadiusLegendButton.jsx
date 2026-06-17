@@ -2,14 +2,12 @@ import React from "react";
 import "./ActionRadiusLegendButton.css";
 
 const LEGEND_ITEMS = [
-  { type: "gradient", label: "Градиентная заливка", desc: "Радиция, химическое заражение" },
-  { type: "radar", label: "Радиальные лучи", desc: "Радар, зона обнаружения" },
-  { type: "wave", label: "Волновой эффект", desc: "Взрывная / сейсмическая волна" },
-  { type: "pulse", label: "Пульсация", desc: "Зона влияния" },
-  { type: "rings", label: "Кольца", desc: "Связь, многоуровневая защита" },
-  { type: "sector", label: "Сектор", desc: "Секторное сканирование / видимость" },
-  { type: "alert", label: "Тревога", desc: "Опасная зона" },
-  { type: "dashed_rotate", label: "Пунктир", desc: "Патрулирование, периметр" },
+  { type: "radar", label: "Радар", desc: "Зона обнаружения — круг + радиальные линии (как экран РЛС)" },
+  { type: "solid", label: "Сплошная", desc: "Базовый тип (сплошной контур)" },
+  { type: "dashed", label: "Пунктир", desc: "Патрулирование, периметр" },
+  { type: "dotdash", label: "Точка-тире", desc: "Комбинированные зоны" },
+  { type: "dashcross", label: "Тире-крест / вариации", desc: "Особые периметры и типы" },
+  { type: "other", label: "Другие типы", desc: "Разная штриховка по action_type (цвет + стиль)" },
 ];
 
 export default function ActionRadiusLegendButton() {
@@ -23,7 +21,7 @@ export default function ActionRadiusLegendButton() {
         <span className="action-radius-legend__icon">i</span>
       </button>
       <div className="action-radius-legend__panel">
-        <div className="action-radius-legend__title">Типы зон действия</div>
+        <div className="action-radius-legend__title">Визуальные стили зон (по action_type)</div>
         <ul className="action-radius-legend__list">
           {LEGEND_ITEMS.map((item) => (
             <li key={item.type} className="action-radius-legend__item">
