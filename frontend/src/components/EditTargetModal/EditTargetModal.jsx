@@ -16,6 +16,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         label: '',
         type: '',
         marker: '',
+        branch: '',
         parent: '',
         lat: '',
         lng: '',
@@ -33,6 +34,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const [markers, setMarkers] = useState([]);
     const [actionTypes, setActionTypes] = useState([]);
     const [targetTypes, setTargetTypes] = useState([]);
+    const [militaryBranches, setMilitaryBranches] = useState([]);
     const [targets, setTargets] = useState([]);  // для выбора parent
     const [markerSvgs, setMarkerSvgs] = useState(new Map());
     
@@ -47,9 +49,24 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const countryDropdown = useDropdownWithSearch(
         countries,
         (id) => {
-            setFormData(prev => ({ ...prev, country: id }));
+            const newCountryId = id;
+            const newCId = parseInt(newCountryId, 10);
+            let newBranch = formData.branch;
+            if (newBranch) {
+                const stillValid = militaryBranches.find(b =>
+                    b.id === newBranch &&
+                    (!b.countries || b.countries.length === 0 || b.countries.map(Number).includes(newCId))
+                );
+                if (!stillValid) {
+                    newBranch = '';
+                }
+            }
+            setFormData(prev => ({ ...prev, country: newCountryId, branch: newBranch }));
             if (errors.country) {
                 setErrors(prev => ({ ...prev, country: null }));
+            }
+            if (errors.branch && !newBranch) {
+                setErrors(prev => ({ ...prev, branch: null }));
             }
         }
     );
@@ -75,7 +92,28 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
             }
         }
     );
-    
+
+    // Динамический список branches в зависимости от выбранной страны
+    const getCountryId = (c) => c ? parseInt(c, 10) : null;
+    const currentCountryId = getCountryId(formData.country);
+    const availableBranches = (currentCountryId
+      ? militaryBranches.filter(b =>
+          !b.countries || b.countries.length === 0 || b.countries.map(Number).includes(currentCountryId)
+        )
+      : militaryBranches
+    );
+
+    // Dropdown для вида/рода войск (зависит от страны)
+    const branchDropdown = useDropdownWithSearch(
+      availableBranches,
+      (id) => {
+        setFormData(prev => ({ ...prev, branch: id }));
+        if (errors.branch) {
+          setErrors(prev => ({ ...prev, branch: null }));
+        }
+      }
+    );
+
     const selectedCountryColor = formData.country 
         ? countries.find(c => c.id === formData.country)?.color || 'blue'
         : 'blue';
@@ -104,6 +142,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 axios.get(`${API_ROOT}/api/v1/markers`),
                 axios.get(`${API_ROOT}/api/v1/action-types`),
                 axios.get(`${API_ROOT}/api/v1/target-types`),
+                axios.get(`${API_ROOT}/api/v1/military-branches`),
                 axios.get(`${API_ROOT}/api/v1/formular-sections/`),
                 axios.get(`${API_ROOT}/api/v1/targets/`)  // для выбора parent
             ]);
@@ -115,6 +154,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
             setMarkers(markersRes.data);
             setActionTypes(actionTypesRes.data);
             setTargetTypes(targetTypesRes.data);
+            setMilitaryBranches(branchesRes.data || []);
             setTargets(targetsRes.data || []);
             
             // Затем устанавливаем formData с корректными ID
@@ -124,6 +164,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 label: target.label || '',
                 type: target.type?.id || '',
                 marker: target.marker?.id || '',
+                branch: target.branch?.id || '',
                 parent: target.parent || '',
                 lat: target.lat || '',
                 lng: target.lng || '',
@@ -364,6 +405,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 label: formData.label.trim() || null,
                 type: formData.type || null,
                 marker: formData.marker || null,
+                branch: formData.branch || null,
                 parent: formData.parent || null,
                 lat: parseFloat(formData.lat),
                 lng: parseFloat(formData.lng),
@@ -657,6 +699,63 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                         </select>
                                         {errors.type && (
                                             <span className="edit-target-modal__error">{errors.type}</span>
+                                        )}
+                                    </div>
+
+                                    {/* Выбор Вида / рода войск (зависит от страны) */}
+                                    <div className="edit-target-modal__field">
+                                        <label className="edit-target-modal__label">Вид / род войск</label>
+                                        <div className="edit-target-modal__marker-select" ref={branchDropdown.dropdownRef}>
+                                            <button
+                                                type="button"
+                                                className={`edit-target-modal__marker-trigger ${errors.branch ? 'edit-target-modal__input--error' : ''}`}
+                                                onClick={branchDropdown.handleToggle}
+                                            >
+                                                <span>{formData.branch ? availableBranches.find(b => b.id === formData.branch)?.title || 'Выберите вид/род войск' : 'Выберите вид/род войск (необязательно)'}</span>
+                                                <svg 
+                                                    className={`edit-target-modal__marker-arrow${branchDropdown.isOpen ? ' edit-target-modal__marker-arrow--open' : ''}`}
+                                                    width="20" 
+                                                    height="20" 
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path d="M5 7l5 5 5-5" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                                </svg>
+                                            </button>
+                                            
+                                            {branchDropdown.isOpen && (
+                                                <div className="edit-target-modal__marker-dropdown">
+                                                    <div className="edit-target-modal__search-wrapper">
+                                                        <input
+                                                            ref={branchDropdown.searchInputRef}
+                                                            type="text"
+                                                            className="edit-target-modal__search-input"
+                                                            placeholder="Поиск вида/рода войск..."
+                                                            value={branchDropdown.search}
+                                                            onChange={(e) => branchDropdown.setSearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    </div>
+                                                    <div className="edit-target-modal__marker-list">
+                                                        {branchDropdown.filtered.length > 0 ? (
+                                                            branchDropdown.filtered.map(branchItem => (
+                                                                <button
+                                                                    key={branchItem.id}
+                                                                    type="button"
+                                                                    className={`edit-target-modal__marker-option${formData.branch === branchItem.id ? ' edit-target-modal__marker-option--selected' : ''}`}
+                                                                    onClick={() => branchDropdown.handleSelect(branchItem.id)}
+                                                                >
+                                                                    {branchItem.title}
+                                                                </button>
+                                                            ))
+                                                        ) : (
+                                                            <div className="edit-target-modal__no-results">Ничего не найдено (для выбранной страны)</div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {errors.branch && (
+                                            <span className="edit-target-modal__error">{errors.branch}</span>
                                         )}
                                     </div>
 

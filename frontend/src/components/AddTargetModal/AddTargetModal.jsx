@@ -17,6 +17,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
         label: '',
         type: '',
         marker: '',
+        branch: '',
         parent: '',
         lat: '',
         lng: '',
@@ -24,7 +25,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
     });
     
     // Используем хук для загрузки справочников
-    const { countries, markers, actionTypes, targetTypes, targets, markerSvgs } = useTargetFormData(isOpen);
+    const { countries, markers, actionTypes, targetTypes, militaryBranches, targets, markerSvgs } = useTargetFormData(isOpen);
     
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,9 +37,25 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
     const countryDropdown = useDropdownWithSearch(
         countries,
         (id) => {
-            setFormData(prev => ({ ...prev, country: id }));
+            const newCountryId = id;
+            const newCId = parseInt(newCountryId, 10);
+            // Сбрасываем branch если он не подходит под новую страну
+            let newBranch = formData.branch;
+            if (newBranch) {
+                const stillValid = militaryBranches.find(b =>
+                    b.id === newBranch &&
+                    (!b.countries || b.countries.length === 0 || b.countries.map(Number).includes(newCId))
+                );
+                if (!stillValid) {
+                    newBranch = '';
+                }
+            }
+            setFormData(prev => ({ ...prev, country: newCountryId, branch: newBranch }));
             if (errors.country) {
                 setErrors(prev => ({ ...prev, country: null }));
+            }
+            if (errors.branch && !newBranch) {
+                setErrors(prev => ({ ...prev, branch: null }));
             }
         }
     );
@@ -65,6 +82,30 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
             }
         }
     );
+
+    // Динамический список branches в зависимости от выбранной страны
+    const getCountryId = (c) => c ? parseInt(c, 10) : null;
+    const currentCountryId = getCountryId(formData.country);
+    const availableBranches = (currentCountryId
+      ? militaryBranches.filter(b =>
+          !b.countries || b.countries.length === 0 || b.countries.map(Number).includes(currentCountryId)
+        )
+      : militaryBranches
+    );
+
+    // Dropdown для вида/рода войск (зависит от страны)
+    const branchDropdown = useDropdownWithSearch(
+      availableBranches,
+      (id) => {
+        setFormData(prev => ({ ...prev, branch: id }));
+        if (errors.branch) {
+          setErrors(prev => ({ ...prev, branch: null }));
+        }
+      }
+    );
+
+    // При смене страны сбрасываем branch, если он больше не подходит
+    // (логика встроена через availableBranches + дополнительно в onSelect страны)
     
     // Получаем цвет выбранной страны
     const selectedCountryColor = formData.country 
@@ -142,6 +183,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                 label: formData.label.trim() || null,
                 type: formData.type || null,
                 marker: formData.marker || null,
+                branch: formData.branch || null,
                 parent: formData.parent || null,
                 lat: parseFloat(formData.lat),
                 lng: parseFloat(formData.lng),
@@ -162,6 +204,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                 label: '',
                 type: '',
                 marker: '',
+                branch: '',
                 parent: '',
                 lat: '',
                 lng: '',
@@ -304,6 +347,63 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                         </select>
                         {errors.type && (
                             <span className="add-target-modal__error">{errors.type}</span>
+                        )}
+                    </div>
+
+                    {/* Выбор Вида / рода войск (зависит от страны) */}
+                    <div className="add-target-modal__field">
+                        <label className="add-target-modal__label">Вид / род войск</label>
+                        <div className="add-target-modal__country-select" ref={branchDropdown.dropdownRef}>
+                            <button
+                                type="button"
+                                className={`add-target-modal__country-trigger ${errors.branch ? 'add-target-modal__input--error' : ''}`}
+                                onClick={branchDropdown.handleToggle}
+                            >
+                                <span>{formData.branch ? availableBranches.find(b => b.id === formData.branch)?.title || 'Выберите вид/род войск' : 'Выберите вид/род войск (необязательно)'}</span>
+                                <svg 
+                                    className={`add-target-modal__country-arrow${branchDropdown.isOpen ? ' add-target-modal__country-arrow--open' : ''}`}
+                                    width="20" 
+                                    height="20" 
+                                    viewBox="0 0 20 20"
+                                >
+                                    <path d="M5 7l5 5 5-5" stroke="currentColor" strokeWidth="2" fill="none"/>
+                                </svg>
+                            </button>
+                            
+                            {branchDropdown.isOpen && (
+                                <div className="add-target-modal__country-dropdown">
+                                    <div className="add-target-modal__search-wrapper">
+                                        <input
+                                            ref={branchDropdown.searchInputRef}
+                                            type="text"
+                                            className="add-target-modal__search-input"
+                                            placeholder="Поиск вида/рода войск..."
+                                            value={branchDropdown.search}
+                                            onChange={(e) => branchDropdown.setSearch(e.target.value)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="add-target-modal__country-list">
+                                        {branchDropdown.filtered.length > 0 ? (
+                                            branchDropdown.filtered.map(branch => (
+                                                <button
+                                                    key={branch.id}
+                                                    type="button"
+                                                    className={`add-target-modal__country-option${formData.branch === branch.id ? ' add-target-modal__country-option--selected' : ''}`}
+                                                    onClick={() => branchDropdown.handleSelect(branch.id)}
+                                                >
+                                                    {branch.title}
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="add-target-modal__no-results">Ничего не найдено (для выбранной страны)</div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {errors.branch && (
+                            <span className="add-target-modal__error">{errors.branch}</span>
                         )}
                     </div>
 

@@ -23,6 +23,7 @@ from .serializers import (
     FormularBulkUpdateSerializer,
     ActionTypeListSerializer,
     TargetTypeSerializer,
+    MilitaryBranchSerializer,
     EventTypeSerializer,
     EventSerializer,
     EventWriteSerializer,
@@ -42,6 +43,7 @@ from formular.models import (
     ActionType,
     TargetAction,
     TargetType,
+    MilitaryBranch,
     EventType,
     Event
 )
@@ -134,6 +136,15 @@ class TargetTypeViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TargetTypeSerializer
     permission_classes = [AllowAny]
     queryset = TargetType.objects.all().order_by('title')
+
+
+class MilitaryBranchViewSet(viewsets.ReadOnlyModelViewSet):
+    """Список видов и родов войск"""
+
+    serializer_class = MilitaryBranchSerializer
+    permission_classes = [AllowAny]
+    queryset = MilitaryBranch.objects.all().order_by('title')
+
 
 class EventTypeViewSet(viewsets.ModelViewSet):
     """CRUD типов событий"""

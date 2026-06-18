@@ -15,7 +15,8 @@ from formular.models import (
     Formular,
     FormularSections,
     FormularAttachment,
-    Event
+    Event,
+    MilitaryBranch
 )
 
 
@@ -133,6 +134,21 @@ class TargetTypeSerializer(serializers.ModelSerializer):
             'title'
         )
 
+
+class MilitaryBranchSerializer(serializers.ModelSerializer):
+    """Вид / род войск"""
+
+    countries = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = MilitaryBranch
+        fields = (
+            'id',
+            'title',
+            'countries'
+        )
+
+
 class EventTypeSerializer(serializers.ModelSerializer):
     """Тип события"""
 
@@ -150,6 +166,7 @@ class TargetSerializer(serializers.ModelSerializer):
     marker = MarkerSerializer()
     actions = TargetActionSerializer(many=True)
     type = TargetTypeSerializer()
+    branch = MilitaryBranchSerializer()
     children_count = serializers.IntegerField(read_only=True)
     parent = serializers.PrimaryKeyRelatedField(read_only=True)
 
@@ -161,6 +178,7 @@ class TargetSerializer(serializers.ModelSerializer):
             'label',
             'actions',
             'type',
+            'branch',
             'action_radius',
             'lat',
             'lng',
@@ -175,6 +193,7 @@ class TargetSubordinateSerializer(serializers.ModelSerializer):
     """Лёгкий сериализатор для прямых подчинённых объектов (в дереве подчинённости)"""
 
     type = TargetTypeSerializer()
+    branch = MilitaryBranchSerializer()
     marker = MarkerSerializer()
     children_count = serializers.IntegerField(read_only=True)
 
@@ -185,6 +204,7 @@ class TargetSubordinateSerializer(serializers.ModelSerializer):
             'title',
             'label',
             'type',
+            'branch',
             'marker',
             'lat',
             'lng',
@@ -212,6 +232,7 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'label',
             'marker',
             'type',
+            'branch',
             'action_radius',
             'lat',
             'lng',

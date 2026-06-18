@@ -336,6 +336,33 @@ class TargetType(models.Model):
         return self.title
 
 
+class MilitaryBranch(models.Model):
+    """Виды и рода войск (для объектов разведки)"""
+
+    title = models.CharField(
+        max_length=150,
+        verbose_name='Вид / род войск'
+    )
+    countries = models.ManyToManyField(
+        Country,
+        blank=True,
+        related_name='applicable_military_branches',
+        verbose_name='Применимо к странам',
+        help_text='Если список пуст — вид/род войск применим ко всем странам'
+    )
+
+    class Meta:
+        verbose_name = 'Вид / род войск'
+        verbose_name_plural = 'Виды и рода войск'
+        indexes = [
+            models.Index(fields=('title',)),
+        ]
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title
+
+
 class Target(models.Model):
     '''Объект разведки'''
     
@@ -378,7 +405,8 @@ class Target(models.Model):
                 message='Значение не может быть отрицательным'
             )
         ],
-        null=True
+        null=True,
+        blank=True
     )
 
     type = models.ForeignKey(
@@ -387,6 +415,15 @@ class Target(models.Model):
         verbose_name='Тип объекта разведки',
         related_name='target_types',
         null=True
+    )
+
+    branch = models.ForeignKey(
+        'MilitaryBranch',
+        on_delete=models.SET_NULL,
+        verbose_name='Вид / род войск',
+        related_name='targets',
+        null=True,
+        blank=True
     )
 
     parent = models.ForeignKey(
@@ -412,6 +449,7 @@ class Target(models.Model):
             models.Index(fields=('title',)),
             models.Index(fields=('label',)),
             models.Index(fields=('parent',)),
+            models.Index(fields=('branch',)),
         ]
 
     def __str__(self):
