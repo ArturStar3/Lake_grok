@@ -1292,6 +1292,44 @@ const flagObjectsForMap = useMemo(() => {
 
 Обновление контекста выполнено в строгом соответствии с правилами проекта.
 
+---
+
+## Реализация: Создан отчёт project_analysis.md (полный анализ проекта, 2026-06-18)
+
+**Выполнено:**
+
+1. **Протокол соблюдён на 100%**:
+   - Обновление этого файла (добавлен раздел 10 с полными требованиями) — **до** любых list_dir / read_file / grep по исходникам проекта.
+   - todo_write использован для всех этапов.
+   - **Ноль изменений** в исходном коде (py/jsx/yaml/Dockerfile и т.д.). Только создание нового файла-отчёта.
+
+2. **Проведён полный анализ**:
+   - Backend: models.py (отношения, опечатки, legacy), api/views.py + serializers.py (N+1, дубли, permissions), admin (prefetch + проблемы), settings, urls, management commands, тесты (пустые), formular/views.py (пустой).
+   - Frontend: Formular.jsx (дубли фильтров, большой стейт), MapComponent + кластеризация (флаг/non-flag), ObjectsTable (группировка), App.jsx (мёртвые импорты), utils (circleIntersection), hooks, data/objects.js (dummy).
+   - Конфиги + Docker (оффлайн режим уже хорошо описан).
+   - Использованы targeted grep (AllowAny, related_name/contries, select/prefetch, action_radius, imports, console.* и др.).
+
+3. **Результат** — файл `project_analysis.md` в корне:
+   - 18 проблем с точными указаниями файл + строка + описание + решение + эффект.
+   - Группировка по категориям: unused, duplication, errors, perf, best practices.
+   - Добавлены сильные стороны проекта и приоритетные рекомендации.
+   - Формат строго соответствует запросу пользователя.
+
+**Ключевые находки (кратко):**
+- **Unused/dead**: App.jsx imports, data/objects.js, formular/views.py, legacy action_radius + animation.
+- **Dupe**: создание actions (2 места), фильтры в Formular, части кластеризации.
+- **Bugs**: 'contries', list_filer, отсутствие atomic при update actions.
+- **Perf**: N+1 по actions (нет prefetch), отсутствие DRF pagination, клиент O(n) фильтры + intersections + svg I/O в админке.
+- **Best practices**: AllowAny везде, небезопасные settings, монолит Formular, нет тестов.
+
+**Файл отчёта** полностью соответствует всем пунктам запроса.
+
+**Расположение:** `project_analysis.md` (рядом с project_context.md и docker_instruction.md).
+
+**Протокол соблюдён:** обновление контекста → анализ → write отчёта → этот as-built.
+
+Обновление контекста выполнено. Анализ и отчёт готовы.
+
 **Пользователь (2026-06-16):** "используй вышеуказанную инструкцию как руководство к действию и примени все необходимые изменения"
 
 **Действия агента:**
@@ -1406,6 +1444,54 @@ const flagObjectsForMap = useMemo(() => {
 
 ---
 
+## 11. Исправление проблем из отчёта (пункты 1–4 project_analysis.md) — 2026-06-18
+
+**User query:** "исправь пункты с 1 по 4"
+
+**Контекст:**
+- Ранее создан `project_analysis.md` с полным отчётом.
+- Разделы отчёта:
+  - 1. Неиспользуемый / мёртвый код
+  - 2. Дублирование логики
+  - 3. Потенциальные ошибки и баги
+  - 4. Узкие места производительности
+- Пользователь просит исправить именно пункты из разделов 1–4 (не трогая best practices / security в этом проходе).
+
+**Что будет исправлено (приоритет и scope):**
+1. **Unused code (раздел 1):**
+   - Удалить неиспользуемые импорты в `frontend/src/App.jsx` (Sidebar, MapView, objects).
+   - Удалить или закомментировать dummy `frontend/src/data/objects.js` + убедиться, что он не используется.
+   - Оставить `formular/views.py` с комментарием (не удалять, чтобы не ломать возможные ссылки).
+
+2. **Duplication (раздел 2):**
+   - Устранить дублирование логики создания TargetAction (в `TargetCreateSerializer.create` и `TargetViewSet.update`).
+     - Вынести общую helper-функцию (например в `api/utils.py` или прямо в views/serializers).
+   - Устранить дублирование фильтрации title+type в `Formular.jsx` (filteredObjects vs tableObjects) — вынести утилиту.
+   - (Опционально) Упростить дублирующиеся if/elif для Q-фильтров событий.
+
+3. **Bugs (раздел 3):**
+   - Исправить опечатку `related_name='contries'` → `related_name='targets'` в `formular/models.py` (Target.country) + создать миграцию.
+   - Исправить `list_filer` → `list_filter` в `formular/admin.py`.
+   - Добавить `transaction.atomic()` вокруг удаления/создания actions в update/create Target.
+
+4. **Performance (раздел 4):**
+   - Добавить `prefetch_related('actions')` (с вложенным select_related action_type) в `TargetViewSet.queryset` и `get_queryset`.
+   - Добавить базовую пагинацию в DRF settings (LimitOffsetPagination, PAGE_SIZE=100) — чтобы избежать загрузки тысяч записей.
+   - (Лёгкий фикс) Улучшить комментарии или маленькую оптимизацию в других местах, если увидим.
+
+**Строгий протокол (ОБЯЗАТЕЛЬНО):**
+- Это обновление `project_context.md` делается **ПЕРЕД** любым чтением исходных файлов (кроме самого context) и **ПЕРЕД** любыми search_replace.
+- После этого обновления — можно делать targeted read_file + grep только по файлам, которые будут правиться.
+- Каждое исправление — только после targeted чтения.
+- После всех правок — обновить этот раздел as-built (что именно изменено, в каких файлах, какие строки).
+- Обновить `project_analysis.md`? Нет — лучше оставить отчёт как был, или добавить примечание в конце (но приоритет — исходный код).
+- Использовать todo_write.
+- Делать маленькие targeted правки.
+
+**Статус:** Требование зафиксировано. Обновление контекста выполнено **перед** началом исправлений.
+
+Готов к targeted анализу и правкам пунктов 1–4.
+
 ## Обратная связь по переработке "Зона действия" (новый запрос в сессии)
 
 **Дата:** 2026-06-16 (пользователь сослался на @backend/formular/models.py)
@@ -1481,6 +1567,68 @@ const flagObjectsForMap = useMemo(() => {
 Все правки выполнены строго по протоколу (обновления project_context.md перед/после доступов и edits). Сессия "Зона действия" продолжается.
 
 Обновление контекста выполнено в строгом соответствии с правилами проекта.
+
+---
+
+## 12. As-built: Исправлены пункты 1–4 из project_analysis.md (2026-06-18)
+
+**Что исправлено (по разделам отчёта):**
+
+**1. Неиспользуемый / мёртвый код**
+- `frontend/src/App.jsx`:
+  - Удалены неиспользуемые импорты: `Sidebar`, `MapView`, `objects from "./data/objects"`.
+  - Удалён неиспользуемый `useState`.
+- `frontend/src/data/objects.js` — импорт устранён (файл оставлен как неактивный dummy; реальные данные идут через API).
+
+**2. Дублирование логики**
+- Извлечена общая функция `create_target_actions(target, actions_data)` в `backend/api/serializers.py`.
+  - Используется в `TargetCreateSerializer.create` и `TargetViewSet.update`.
+- В `frontend/src/components/Formular/Formular.jsx`:
+  - Выделена утилита `filterByTitleAndType(obj)`.
+  - `filteredObjects` и `tableObjects` теперь используют общий фильтр (сохранена разница по `filterCountry`).
+
+**3. Потенциальные ошибки**
+- `backend/formular/models.py:380`:
+  - `related_name='contries'` → `related_name='targets'`.
+  - **Важно:** После этого изменения нужно выполнить:
+    ```bash
+    cd backend
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+- `backend/formular/admin.py:45`:
+  - `list_filer = ('color',)` → `list_filter = ('color',)`.
+- `backend/api/views.py` + `serializers.py`:
+  - Логика создания/обновления actions теперь обернута в `transaction.atomic()` (в обоих путях — create и update).
+
+**4. Узкие места производительности**
+- `backend/api/views.py` (TargetViewSet):
+  - Добавлен `.prefetch_related('actions__action_type')` к queryset (решает N+1 при вложенном actions в TargetSerializer).
+- `backend/infolake/settings.py`:
+  - Добавлена базовая пагинация:
+    ```python
+    REST_FRAMEWORK = {
+        'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+        'PAGE_SIZE': 100,
+    }
+    ```
+
+**Дополнительно:**
+- Устранено дублирование кода создания действий + добавлена транзакционность.
+- Фильтрация на фронте стала чище.
+- Эти правки напрямую адресовали самые критичные и безопасные пункты из разделов 1–4 отчёта.
+
+**Протокол:**
+- Обновление контекста (раздел 11) выполнено **перед** всеми чтениями и правками.
+- Все изменения — targeted search_replace.
+- После правок — этот as-built.
+
+**Следующие шаги (рекомендация):**
+- Сгенерировать и применить миграцию для related_name.
+- Протестировать создание/редактирование объектов с actions.
+- При необходимости доработать оставшиеся пункты из раздела 4 (оптимизация SVG в админке, client-side intersections и т.д.).
+
+Обновление контекста выполнено. Пункты 1–4 исправлены.
 
 ---
 
@@ -1726,6 +1874,392 @@ const flagObjectsForMap = useMemo(() => {
 - Термин "инструмент" / "Зоны действия" = только этот функционал.
 
 **Статус:** Баг зафиксирован в контексте. Готов к диагностике и исправлению.
+
+---
+
+## Новый баг: Данные из backend перестали отображаться во frontend (2026-06-18)
+
+**User query:** "данные из backend перестали отображатиься в frontend"
+
+**Контекст:**
+- Проблема появилась сразу после исправлений пунктов 1–4 из `project_analysis.md`.
+- До правок данные (Targets, страны, события и т.д.) нормально загружались и отображались.
+- Основные изменения, которые могли сломать отображение данных:
+  - Добавлена глобальная пагинация в `backend/infolake/settings.py` (`REST_FRAMEWORK` + `LimitOffsetPagination`, PAGE_SIZE=100).
+  - Изменён `related_name` у `Target.country` (`contries` → `targets`).
+  - Небольшие рефакторинги в fetch-логике Formular.jsx.
+  - Добавлены prefetch и helper-функции.
+
+**Симптом:**
+- Frontend делает `axios.get(...)` на `/api/v1/targets` (и другие эндпоинты).
+- Данные больше не появляются в таблице, на карте, в списках.
+
+**Протокол (строго):**
+- Данное обновление `project_context.md` выполнено **ПЕРЕД** любым чтением исходного кода, grep, list_dir или правками для диагностики и исправления этого бага.
+- Только после этой записи — можно делать targeted чтения релевантных файлов (в первую очередь `frontend/src/components/Formular/Formular.jsx` для fetchData, `backend/api/views.py`, `backend/infolake/settings.py`).
+- Все последующие шаги — targeted + документирование.
+- После исправления — добавить as-built в этот раздел.
+
+**Предполагаемые действия после обновления контекста:**
+- Проверить, как именно frontend обрабатывает ответ от `/targets`.
+- Проверить, возвращает ли DRF теперь `{count, results, ...}` вместо массива.
+- Принять решение: либо адаптировать frontend под пагинацию, либо отключить пагинацию для ключевых эндпоинтов (или полностью).
+- Проверить, не сломался ли доступ к `country` после related_name изменения (хотя reverse relation не должен влиять на forward FK).
+- Исправить так, чтобы данные снова отображались.
+- Обновить контекст as-built.
+
+**Статус:** Баг зафиксирован. Обновление контекста выполнено перед диагностикой.
+
+Готов к targeted исследованию проблемы.
+
+---
+
+## As-built: Исправлена проблема "данные из backend не отображаются" (2026-06-18)
+
+**Корневая причина:**
+Глобальная пагинация DRF (`REST_FRAMEWORK` в settings.py) изменила формат ответов всех ViewSet'ов с обычного массива `[]` на объект `{count, next, previous, results: [...]}`.
+
+Frontend в `Formular.jsx` и `useTargetFormData.js` ожидал массив напрямую:
+```js
+const data = resp.data;
+const rawArr = Array.isArray(data) ? data : [];
+```
+
+Из-за этого `setObjects([])`, `setCountriesList([])` и т.д. → данные исчезли с карты и из таблиц.
+
+Изменение `related_name` не повлияло (это только reverse relation, forward FK `country` работает).
+
+**Что исправлено:**
+
+**Frontend:**
+- `frontend/src/components/Formular/Formular.jsx`:
+  - Добавлена утилита `getDataArray(response)` — безопасно извлекает массив из `data` или `data.results`.
+  - Применена ко всем fetch (targets, countries, event-types, events).
+- `frontend/src/hooks/useTargetFormData.js`:
+  - Добавлена аналогичная безопасная распаковка для загрузки справочников в модалях добавления/редактирования объектов.
+
+**Backend:**
+- `backend/api/views.py`:
+  - На всех ViewSet, используемых фронтендом, явно выставлено `pagination_class = None`:
+    - `TargetViewSet`, `EventViewSet`
+    - `CountryViewSet`, `MarkerViewSet`, `EventMarkerViewSet`
+    - `ActionTypeViewSet`, `TargetTypeViewSet`, `MilitaryBranchViewSet`, `EventTypeViewSet`
+    - `CountrySectionsViewSet`, `FormularSectionsViewSet`
+  - Это возвращает поведение "все данные одним массивом", которое ожидает фронтенд (клиентская фильтрация, группировка по странам/ветвям, кластеризация, зоны действия).
+
+**Результат:**
+- Данные снова должны загружаться и отображаться.
+- Пагинация глобально оставлена в settings (на случай будущих ViewSet), но отключена там, где приложение рассчитывает на полный список.
+- Защита на фронтенде оставлена — на случай если в будущем кто-то включит пагинацию выборочно.
+
+**Рекомендация:**
+- Перезапусти backend + frontend (или `docker compose restart`).
+- Если данные всё ещё не появляются — проверь в браузере Network вкладку ответ `/api/v1/targets` (должен быть массив или `{results: [...]}`).
+
+Все правки сделаны после обновления контекста.
+
+---
+
+## Отмена всех изменений, связанных с оптимизацией (2026-06-18)
+
+**User query:** "Отмени все изменения связанные с оптимизацией."
+
+**Контекст:**
+- Ранее в рамках исправления пунктов 1-4 отчёта `project_analysis.md` (особенно раздел 4 "Узкие места производительности") были внесены оптимизации:
+  - Добавлена глобальная пагинация DRF в settings.py.
+  - Добавлен `prefetch_related('actions__action_type')` в TargetViewSet.
+  - В процессе восстановления данных после бага были добавлены `pagination_class = None` на множество ViewSet'ов.
+  - В frontend были добавлены `getDataArray` хелперы для поддержки пагинированных ответов.
+- Пользователь хочет полностью отменить всё, что было связано с этими оптимизациями.
+
+**Что нужно отменить:**
+1. Убрать блок `REST_FRAMEWORK` с пагинацией из `backend/infolake/settings.py` (вернуть как было — без явной пагинации).
+2. Убрать `.prefetch_related(...)` из queryset в `TargetViewSet` (`backend/api/views.py`).
+3. Убрать все добавленные `pagination_class = None` (восстановить состояние без явного отключения).
+4. Почистить defensive `getDataArray` хелперы во frontend (вернуть прямой доступ к `.data`, так как оптимизация отменяется).
+
+---
+
+## Отмена ВСЕХ изменений из пунктов 1–4 отчёта project_analysis.md (2026-06-18)
+
+**User query:** "Отмени все изменения с пункта 1 по 4 отчета"
+
+**Требование:**
+Полностью отменить все правки, которые были сделаны при выполнении "исправь пункты с 1 по 4" из отчёта project_analysis.md.
+
+Это включает (но не ограничивается) оптимизации — пользователь хочет откатить ВСЁ из разделов 1-4.
+
+**Что было сделано в рамках пунктов 1-4 (нужно вернуть в исходное состояние):**
+
+**Раздел 1 — Неиспользуемый код:**
+- Удалены неиспользуемые импорты в `frontend/src/App.jsx` (Sidebar, MapView, objects, useState).
+
+**Раздел 2 — Дублирование логики:**
+- Создана и использована `create_target_actions()` helper в `serializers.py` и `views.py`.
+- Рефакторинг фильтров в `Formular.jsx`: `filterByTitleAndType` helper + упрощённые filteredObjects/tableObjects.
+
+**Раздел 3 — Потенциальные ошибки:**
+- Изменён `related_name='contries'` → `'targets'` в `formular/models.py` (Target.country).
+- Исправлена опечатка `list_filer` → `list_filter` в `formular/admin.py`.
+- Добавлены `with transaction.atomic():` обёртки при создании/обновлении actions.
+
+**Раздел 4 — Производительность (и связанные):**
+- Добавлен `prefetch_related`.
+- Добавлена глобальная пагинация.
+- Позже добавлены `pagination_class = None` и getDataArray (частично отменены ранее).
+
+**Протокол (обязательно):**
+- Данное обновление project_context.md выполнено **ПЕРЕД** любыми чтениями исходников и правками.
+- Только после этого обновления — targeted чтение нужных файлов + search_replace для возврата к оригинальному коду.
+- Для каждого файла нужно восстановить состояние до правок (использовать оригинальные версии логики).
+- После реверта — обновить этот раздел as-built с деталями (что возвращено, в каких файлах).
+- Не трогать другие вещи (например, зоны действия, если они были до этого).
+
+**Статус:** Требование зафиксировано. Обновление контекста выполнено перед началом реверта.
+
+Готов к полному откату изменений 1–4.
+
+---
+
+## Ошибка после полного реверта 1-4: ReferenceError: branchesRes is not defined (2026-06-18)
+
+**User query:**
+"installHook.js:1 Ошибка загрузки данных: ReferenceError: branchesRes is not defined
+    at loadData (EditTargetModal.jsx:157:33)"
+
+**Контекст:**
+- Только что был выполнен полный реверт всех изменений из пунктов 1–4 отчёта `project_analysis.md`.
+- Ошибка возникает при открытии EditTargetModal (загрузка данных для редактирования цели).
+- "branchesRes is not defined" — это классическая регрессия после отката рефакторинга Promise.all в хуке/модале.
+- Скорее всего, в `EditTargetModal.jsx` (или в зависимом `useTargetFormData.js`) остался код, который ожидает деструктуризацию из Promise.all как в "исправленной" версии (где был `branchesRes`), но после реверта код вернулся к старой структуре или смешанному состоянию.
+
+**Протокол (строго):**
+- Данное обновление `project_context.md` выполнено **ПЕРЕД** любым чтением исходного кода (read_file, grep и т.д.) и **ПЕРЕД** любыми правками.
+- Только после этого обновления разрешено делать targeted чтения файлов `EditTargetModal.jsx`, `useTargetFormData.js` и связанных.
+- После диагностики и исправления — добавить as-built в этот раздел.
+- Цель: восстановить работоспособность загрузки данных в модале редактирования, используя только код, который был до правок 1-4 (или минимально необходимый фикс, не вносящий новые оптимизации).
+
+**Предполагаемые шаги (только после обновления контекста):**
+1. Targeted чтение EditTargetModal.jsx (особенно функция loadData вокруг строки 157).
+2. Проверка useTargetFormData.js на предмет деструктуризации branchesRes / militaryBranches.
+3. Исправить несоответствие (вероятно, в EditTargetModal остался код из "после-фикса" версии, а хук откатился).
+4. Обновить контекст as-built.
+
+**Статус:** Баг зарегистрирован. Обновление контекста выполнено перед диагностикой.
+
+Готов к targeted исправлению.
+
+---
+
+## Ошибка после реверта 1-4: TypeError: formularRes.data.forEach is not a function at loadData (EditTargetModal.jsx:198:34) (2026-06-18)
+
+**User query:**
+"Ошибка загрузки формуляра: TypeError: formularRes.data.forEach is not a function
+    at loadData (EditTargetModal.jsx:198:34)"
+
+**Контекст:**
+- Прямая последовательность предыдущей ошибки "branchesRes is not defined" (которая была исправлена targeted добавлением переменной в деструктуризацию).
+- Ошибка возникает в EditTargetModal при открытии редактирования объекта ("Ошибка загрузки формуляра").
+- В loadData (строка ~198) делается `formularRes.data.forEach(...)` — ожидается, что data является массивом sections формуляра.
+- После полного реверта пунктов 1-4 (убраны getDataArray, pagination_class=None, prefetch и т.д.) + предыдущий targeted фикс для branchesRes — в Promise.all вызовов и деструктуризации осталась несогласованность.
+- Возможные причины (аналогичные branchesRes):
+  - Количество вызовов в Promise.all (8 или больше) не совпадает с количеством переменных в деструктуризации.
+  - Переменная `formularRes` (или sectionsRes) не объявлена / присвоена в текущей версии после реверта.
+  - Один из запросов (скорее всего `/api/v1/formular-sections/`) возвращает не массив, а {results: ...} или undefined (остатки пагинации или неправильный порядок).
+  - В коде после .forEach ожидается массив sections, затем organizeIntoHierarchy или аналог.
+- Аналогично предыдущему: useTargetFormData.js может иметь правильный код, но локальный loadData в EditTargetModal имеет рассинхронизированную деструктуризацию (как было с branchesRes).
+- Во время реверта getDataArray был удалён, так что теперь прямой `.data` должен быть массивом.
+
+**Строгий протокол:**
+- Данное обновление `project_context.md` выполнено **ПЕРЕД** любыми чтениями исходного кода (read_file, grep, list_dir по frontend/src/... или backend) и **ПЕРЕД** правками.
+- Только после этой записи — targeted чтение EditTargetModal.jsx (loadData, Promise.all, строки ~130-220), возможно useTargetFormData.js и Formular.jsx.
+- Фикс должен быть минимальным (добавить/выровнять переменную в destructuring, исправить порядок или имена так, чтобы formular/sections response попал в правильную *Res и .data был массивом).
+- Не вносить новых оптимизаций, getDataArray и т.п. (только восстановить работоспособность).
+- После фикса — as-built в этом разделе + обновить todo.
+
+**Ожидаемая корневая причина (на основе истории branchesRes):**
+В предыдущем фиксе branchesRes был вставлен как 6-й элемент. Теперь вероятно "formular sections" запрос (или targets/sections) попадает на неправильную переменную, или есть 9-й запрос без переменной, и `formularRes` undefined → .data undefined → .forEach crash.
+
+**Статус:** Баг зарегистрирован. Обновление контекста выполнено перед диагностикой и правкой.
+
+Готов к targeted исправлению (только после этого обновления).
+
+---
+
+## As-built: Исправлена "Ошибка загрузки формуляра: TypeError: formularRes.data.forEach is not a function" (2026-06-18)
+
+**Корневая причина (targeted после обновления контекста):**
+
+В `EditTargetModal.jsx:196-198` (и идентично в `FormularEditor.jsx`):
+
+```js
+const formularRes = await axios.get(`${API_ROOT}/api/v1/formular/${targetId}/`);
+...
+formularRes.data.forEach(item => { ... })
+```
+
+Но эндпоинт `FormularView` (backend/api/views.py:209) всегда возвращает **объект**, а не массив:
+
+```python
+return Response({
+    'formular': formular_serializer.data,
+    'subordinates': subordinates_serializer.data,
+})
+```
+
+После реверта 1-4 (удалён getDataArray) и предыдущего branchesRes fix'а эта строка осталась с прямым `.data.forEach`, ожидая массив (как для ViewSet'ов). Результат — crash при открытии EditTargetModal.
+
+FormularModal.jsx уже имел defensive код (`Array.isArray(result) ? ... : result.formular`), поэтому там не ломалось.
+
+**Что исправлено (минимально):**
+
+1. `frontend/src/components/EditTargetModal/EditTargetModal.jsx` (loadData):
+   - Добавлен безопасный доступ: `const formularItems = formularRes.data.formular || (Array.isArray(formularRes.data) ? formularRes.data : []);`
+   - `.forEach` теперь по `formularItems`.
+   - Добавлен комментарий о реальном формате ответа.
+
+2. `frontend/src/components/FormularEditor/FormularEditor.jsx` (loadFormularStructure):
+   - Та же защитная распаковка + комментарий (чтобы не повторялся баг).
+
+Никаких изменений в backend (формат ответа /formular/<id>/ оставлен как был — он отдаёт и formular и subordinates, которые могут использоваться в других местах).
+
+**Результат:**
+- Открытие Edit (и редактор формуляра) больше не падает на forEach.
+- Данные формуляра (contents по section) загружаются и предзаполняются.
+- Совместимо с ревертом (никаких getDataArray, пагинации и т.д.).
+
+**Проверка (рекомендуется пользователю):**
+- Перезапустить (или HMR).
+- Открыть редактирование любого объекта → не должно быть "Ошибка загрузки формуляра".
+- Убедиться, что существующий формуляр (если есть) загрузился в редактор.
+
+Обновление контекста выполнено.
+
+---
+
+## As-built: Исправлена ReferenceError: branchesRes is not defined в EditTargetModal (2026-06-18)
+
+**Корневая причина (найдено targeted чтением):**
+В `EditTargetModal.jsx` функция `loadData` выполняла `Promise.all` из 8 запросов, но деструктуризация содержала только 7 переменных:
+```js
+const [targetRes, ..., sectionsRes, targetsRes] = await Promise.all([...]);
+...
+setMilitaryBranches(branchesRes.data || []);  // branchesRes undefined
+```
+
+Переменная `branchesRes` осталась от версии кода, когда использовался хук, но не была добавлена в локальную деструктуризацию модала. При полном реверте 1-4 это проявилось как ReferenceError.
+
+**Выполненное исправление:**
+Добавлена недостающая переменная в деструктуризацию:
+```js
+const [
+    targetRes,
+    countriesRes,
+    markersRes,
+    actionTypesRes,
+    targetTypesRes,
+    branchesRes,   // military-branches
+    sectionsRes,   // formular-sections
+    targetsRes     // parent targets list
+] = await Promise.all([ 8 вызовов ]);
+```
+
+Теперь:
+- `branchesRes` → `setMilitaryBranches(branchesRes.data)`
+- `sectionsRes` → `organizeIntoHierarchy(sectionsRes.data)`
+- `targetsRes` → `setTargets(targetsRes.data)`
+
+**Результат:**
+Ошибка устранена. Данные для EditTargetModal (включая виды войск / military branches) должны загружаться корректно.
+
+Изменение минимальное и не противоречит реверту пунктов 1-4.
+
+Обновление контекста выполнено.
+
+**Выполнен полный реверт:**
+
+**1. Неиспользуемый код:**
+- `frontend/src/App.jsx`: восстановлены импорты Sidebar, MapView, objects из data/objects и useState (с [selected, setSelected]).
+
+**2. Дублирование:**
+- `backend/api/serializers.py`:
+  - Удалена функция `create_target_actions`.
+  - `TargetCreateSerializer.create` восстановлен с оригинальным inline циклом создания actions (без helper и atomic).
+- `backend/api/views.py`:
+  - `TargetViewSet.update` восстановлен с оригинальным циклом (без helper, atomic и вызова create_target_actions).
+  - Удалены импорты transaction и create_target_actions.
+- `frontend/src/components/Formular/Formular.jsx`:
+  - Удалена `filterByTitleAndType`.
+  - Восстановлен дублированный код фильтрации в `filteredObjects` и `tableObjects`.
+
+**3. Ошибки:**
+- `backend/formular/models.py`: `related_name` возвращён на `'contries'`.
+- `backend/formular/admin.py`: `list_filer` возвращён (опечатка восстановлена).
+- Убраны все `with transaction.atomic()` обёртки.
+
+**4. Производительность:**
+- Ранее уже отменены prefetch, пагинация, pagination_class=None, getDataArray (подтверждено).
+- Дополнительно проверено отсутствие остатков.
+
+**Примечания:**
+- Код возвращён к состоянию до исправлений пунктов 1-4.
+- Для related_name='contries' в реальной БД может потребоваться обратная миграция при необходимости.
+- Другие части проекта (например, зоны действия) не затронуты.
+
+Все реверты выполнены строго после обновления project_context.md.
+
+Обновление контекста выполнено.
+5. Не трогать другие исправления (unused imports, related_name typo, list_filer, atomic, dupe helper для actions, filterByTitleAndType) — они не были оптимизацией производительности.
+
+**Протокол (строго):**
+- Это обновление `project_context.md` выполнено **ПЕРЕД** любыми чтениями и правками исходников.
+- Только после этого — targeted revert с помощью search_replace.
+- После реверта — обновить этот раздел as-built с перечнем отменённых изменений.
+- Использовать todo_write.
+
+**Статус:** Запрос зафиксирован. Обновление контекста выполнено перед отменой.
+
+Готов к revert оптимизаций.
+
+---
+
+## As-built: Отменены все изменения, связанные с оптимизацией (2026-06-18)
+
+**Отменённые изменения (только оптимизация):**
+
+1. **backend/infolake/settings.py**
+   - Удалён блок:
+     ```python
+     # Базовая пагинация ...
+     REST_FRAMEWORK = { ... }
+     ```
+   - Вернулось состояние без явной пагинации DRF.
+
+2. **backend/api/views.py**
+   - Удалён `prefetch_related('actions__action_type')` из `TargetViewSet.queryset`.
+   - Удалены все `pagination_class = None` (были добавлены на TargetViewSet, EventViewSet и все справочные ViewSet'ы).
+   - Queryset'ы вернулись к состоянию до оптимизаций.
+
+3. **frontend/src/components/Formular/Formular.jsx**
+   - Удалена `getDataArray` helper и связанный комментарий.
+   - Fetch-логика возвращена к прямому `const data = resp.data; const rawArr = Array.isArray(data) ? data : [];`
+
+4. **frontend/src/hooks/useTargetFormData.js**
+   - Удалена защитная `getArr` функция.
+   - Возвращён прямой доступ `setCountries(countriesRes.data)` и т.д.
+
+**Что НЕ отменялось (не было чистой оптимизацией):**
+- Исправление `related_name='contries'`
+- Исправление `list_filer`
+- `transaction.atomic()` вокруг создания actions
+- Вынос `create_target_actions` helper (дублирование)
+- Рефакторинг фильтрации в Formular (дубли)
+- Очистка неиспользуемых импортов в App.jsx
+
+**Результат:**
+Система возвращена к состоянию до внесения оптимизаций производительности. Данные должны отображаться как раньше (полные списки без пагинации).
+
+Обновление контекста выполнено.
 
 **Диагностика и исправление (выполнено после обновления контекста):**
 
@@ -6501,3 +7035,311 @@ docker compose down && docker compose up -d --build
 - API, карта, таблицы продолжают работать.
 
 Обновление контекста выполнено. HMR фикс завершён.
+
+---
+
+## Реализация: Добавление явных image: + подготовка к полностью оффлайн-развёртыванию (2026-06-18)
+
+**Запрос пользователя (verbatim):**
+"добавь везде строки image. На целевой машине нет интернета. Нужно сделать полностью готовую сборку и при необходимости подготовить Dockerfile для целевой машины чтобы он не искал обновления linux"
+
+**Цели:**
+1. Добавить явные `image:` для всех сервисов в `docker-compose.yml` (backend, frontend, и убедиться для tileserver).
+2. Обеспечить полностью самодостаточную сборку:
+   - Сборка и сохранение образов происходит **только** на машине с интернетом (dev).
+   - На целевой машине (без интернета) — только загрузка готовых образов + запуск.
+3. Сделать Dockerfiles максимально безопасными:
+   - Они не должны пытаться делать `apt-get update`, `pip install` (если без кэша) и т.п. при случайной пересборке на целевой машине.
+   - Добавить комментарии, рекомендации и best-practice для offline.
+4. Документировать точный workflow экспорта/импорта всех нужных образов (включая базовые слои).
+5. Обновить рекомендации по экспорту (`docker save`).
+
+**Текущие проблемы (на момент добавления требования):**
+- В `docker-compose.yml` у `backend` и `frontend` нет явного `image:`, имена образов генерируются Docker Compose автоматически (`<project>-backend`, `<project>-frontend`).
+- При `docker compose build` на машине без интернета базовые образы (python:3.12-slim и т.д.) и пакеты не скачаются.
+- `RUN apt-get update && ...` и `npm ci` внутри Dockerfile'ов требуют сеть во время сборки.
+- Нужно гарантировать, что после `docker load` можно запускать без rebuild.
+
+**Требования к реализации:**
+- Добавить в compose.yml:
+  ```yaml
+  backend:
+    build: ...
+    image: infolake-backend:latest   # явное имя
+  frontend:
+    ...
+    image: infolake-frontend:latest
+  ```
+- Для tileserver уже есть `image:`, оставить/подтвердить.
+- Прочитать `backend/Dockerfile` и `frontend/Dockerfile`.
+- В Dockerfiles:
+  - Добавить большие комментарии вверху о том, что сборка должна производиться только на машине с интернетом.
+  - По возможности объединить все сетевые команды (apt, pip, npm) в как можно меньше RUN-слоёв.
+  - Рекомендовать использование `--no-cache` только на dev-машине.
+  - Добавить советы по подготовке полностью offline-образа.
+- Добавить в compose комментарии про оффлайн-использование:
+  - `pull_policy: never` или явные инструкции использовать `--no-build`.
+- Обновить / добавить в project_context.md детальный "Оффлайн deployment workflow".
+- Рекомендуемая команда экспорта (сохраняет все слои, включая базовые):
+  ```powershell
+  docker compose build
+  docker save -o infolake_full_offline.tar infolake-backend:latest infolake-frontend:latest maptiler/tileserver-gl:latest
+  ```
+- На целевой машине:
+  ```powershell
+  docker load -i infolake_full_offline.tar
+  docker compose up -d --no-build
+  ```
+
+**Реализация (выполнена после обновления контекста):**
+
+**1. docker-compose.yml**
+- Добавлен большой блок комментариев в самом верху файла с полным пошаговым оффлайн-воркфлоу.
+- Для `backend` и `frontend` добавлены явные:
+  ```yaml
+  image: infolake-backend:latest
+  image: infolake-frontend:latest
+  ```
+- Добавлен `pull_policy: never` для всех трёх сервисов (tileserver, backend, frontend).
+- Добавлены русскоязычные комментарии с командами для целевой машины.
+
+**2. backend/Dockerfile**
+- В начало добавлен большой warning-комментарий (на русском).
+- Объяснено, что сборка только на машине с сетью.
+- Все apt-команды оставлены в одном RUN (как было) — после сохранения образа слой уже включён.
+
+**3. frontend/Dockerfile**
+- Аналогичный большой warning-комментарий вверху.
+- `npm install` явно помечен как требующий интернет.
+- Добавлено примечание про dev-режим (vite).
+
+**Файлы изменены:**
+- `docker-compose.yml`
+- `backend/Dockerfile`
+- `frontend/Dockerfile`
+- `project_context.md`
+
+**Рекомендуемый полный workflow для пользователя:**
+
+**На машине с интернетом (dev):**
+```powershell
+# 1. Собрать всё с последними изменениями
+docker compose build
+
+# 2. Сохранить все нужные образы (включая базовые слои)
+docker save -o infolake_full_offline.tar `
+  infolake-backend:latest `
+  infolake-frontend:latest `
+  maptiler/tileserver-gl:latest
+
+# 3. Скопировать файл на целевую машину (флешка / сеть / etc.)
+```
+
+**На целевой машине (без интернета):**
+```powershell
+# 1. Загрузить образы
+docker load -i infolake_full_offline.tar
+
+# 2. Запустить (ОБЯЗАТЕЛЬНО --no-build!)
+docker compose up -d --no-build
+
+# Проверить
+docker compose ps
+```
+
+Если нужно обновить код на целевой:
+- Перенести новый `.tar` и сделать `docker load` заново (он обновит теги).
+
+**Дополнительные меры безопасности:**
+- `pull_policy: never` — Compose не будет пытаться тянуть образы из registry.
+- Явные `image:` — если образ загружен, Compose его найдёт по имени.
+- `--no-build` — предотвращает попытку сборки.
+
+**Что не делали (и почему):**
+- Не стали делать полностью отдельные "production" Dockerfiles без dev-команд (vite) — пользователь не просил.
+- Не добавляли сложные multistage с предзакачкой (достаточно текущих мер + строгая инструкция).
+
+**Проверка после изменений:**
+- `docker compose config` должен валидироваться.
+- На dev-машине после `docker compose build` теги `infolake-backend:latest` и `infolake-frontend:latest` должны появиться (`docker images`).
+
+Обновление контекста + реализация оффлайн-подготовки выполнены.
+
+---
+
+**Протокол соблюдён полностью:**
+- Обновление требований в project_context.md выполнено **до** чтения Dockerfiles и правок compose / Dockerfiles.
+- Реализация проведена после.
+
+**Статус:** Готово. Полностью оффлайн workflow подготовлен.
+
+Обновление контекста выполнено.
+
+---
+
+## Новый запрос: Создать файл docker_instruction.md с инструкциями по импорту и экспорту образов (2026-06-18)
+
+**User query:**
+"Создай файл docker_instruction.md с инструкциями по импорту и экспорту образов"
+
+**Контекст и требования (на момент добавления):**
+- В проекте используется `docker-compose.yml` с тремя сервисами:
+  - `tileserver` — `maptiler/tileserver-gl:latest`
+  - `backend` — собирается, образ `infolake-backend:latest`
+  - `frontend` — собирается, образ `infolake-frontend:latest`
+- Недавно добавлены явные `image:` и `pull_policy: never`.
+- Добавлены большие предупреждения в `backend/Dockerfile` и `frontend/Dockerfile`.
+- В `docker-compose.yml` уже есть краткий блок комментариев про оффлайн.
+- Целевая машина **не имеет интернета**.
+- Полная сборка и сохранение образов выполняется на машине с интернетом.
+- На целевой машине — только `docker load` + запуск без сборки.
+- Пользователь ранее просил скрипты (`export-offline.ps1`, `import-and-start.ps1`).
+- Нужно создать отдельный, удобный, полный документ `docker_instruction.md` в корне проекта.
+
+**Что должно быть в файле `docker_instruction.md` (требования):**
+1. Заголовок и краткое введение (зачем нужен экспорт/импорт).
+2. Требования (Docker, PowerShell, Windows).
+3. Полный workflow:
+   - На машине разработчика (с интернетом)
+   - Перенос файла
+   - На целевой машине (без интернета)
+4. Точные команды `docker compose build`, `docker save`, `docker load`, `docker compose up -d --no-build`.
+5. Рекомендуемое имя файла архива (с датой/временем).
+6. Примеры PowerShell-скриптов (или ссылки/встраивание готовых скриптов):
+   - `export-offline.ps1`
+   - `import-and-start.ps1`
+7. Полезные диагностические команды (`docker images`, `docker compose ps`, `docker compose logs`).
+8. Важные замечания и частые ошибки:
+   - Обязательно использовать `--no-build`
+   - `pull_policy: never`
+   - Что делать при обновлении кода
+   - Размер архива
+   - Что включать в архив (все три образа)
+9. Как обновить образы на целевой машине.
+10. Дополнительно: советы по именованию тегов, использованию `docker compose down` перед загрузкой и т.д.
+
+**Протокол (строго):**
+- **Это обновление `project_context.md` выполнено ПЕРЕД любым созданием/редактированием файла `docker_instruction.md` и перед любыми новыми чтениями исходников.**
+- Создание файла будет выполнено с помощью инструмента `write` после этой записи.
+- После создания файла — обновить этот раздел as-built (что именно записано в `docker_instruction.md`, расположение файла).
+- Работа только на текущей ветке.
+
+**Статус:** Требование зафиксировано. Обновление контекста выполнено перед созданием документа.
+
+Обновление контекста выполнено в строгом соответствии с правилами проекта.
+
+---
+
+## Реализация: Создан файл docker_instruction.md (2026-06-18)
+
+**Что было сделано:**
+
+1. **Создан новый файл** `docker_instruction.md` в корне проекта.
+2. Файл содержит полный, самодостаточный гид по экспорту и импорту образов для оффлайн-развёртывания.
+3. Структура документа:
+   - Введение и список используемых образов (`infolake-backend:latest`, `infolake-frontend:latest`, `maptiler/tileserver-gl:latest`).
+   - Требования для dev- и целевой машины.
+   - Пошаговый workflow (сборка → экспорт → перенос → импорт → запуск).
+   - Точные команды для PowerShell.
+   - Два готовых PowerShell-скрипта:
+     - `export-offline.ps1` (с поддержкой `-NoCache` и указанием выходной папки).
+     - `import-and-start.ps1` (автоматически находит последний архив или принимает параметр).
+   - Раздел с полезными диагностическими командами.
+   - Подробный раздел "Важные замечания" (про `--no-build`, `pull_policy: never`, размер архива и т.д.).
+   - Таблица частых проблем и решений.
+   - Рекомендации по обновлению образов.
+
+**Содержимое файла полностью соответствует требованиям**, зафиксированным в разделе выше:
+- Ориентирован на Windows + PowerShell.
+- Учитывает текущие настройки compose (явные image + pull_policy).
+- Содержит предупреждения о недопустимости сборки на целевой машине.
+- Включает как ручные команды, так и готовые скрипты.
+
+**Расположение:**
+- `docker_instruction.md` (в корне репозитория, рядом с `docker-compose.yml`).
+
+**Дополнительно:**
+- В `docker-compose.yml` уже присутствует краткая версия инструкций (в шапке файла). `docker_instruction.md` является более подробной и рекомендуемой версией для пользователя.
+- Скрипты из предыдущих обсуждений были оформлены и включены в документ.
+
+**Протокол соблюдён:**
+- Обновление project_context.md выполнено **перед** созданием файла.
+- Создание выполнено с помощью инструмента `write`.
+- As-built добавлен сразу после создания.
+
+**Рекомендация пользователю:**
+- Использовать `docker_instruction.md` как основной документ при переносе на целевую машину.
+- При желании можно вынести скрипты в отдельную папку `scripts/`.
+
+Обновление контекста выполнено. Файл `docker_instruction.md` создан.
+
+---
+
+## 10. Анализ проекта (2026-06-18): Поиск неиспользуемого кода, дублирования логики, потенциальных ошибок, узких мест производительности и проверка best practices
+
+**User query (verbatim):**
+"проанализируй проект.
+Найди неиспользуемый код, дублирование логики и потенциальные ошибки.
+Выяви узкие места производительности.
+Проверь соответствие лучшим практикам Python/Django.
+Составь отчет в одном файле project_analysis.md.
+Для каждой проблемы укажи:
+файл;
+строку;
+описание проблемы;
+предлагаемое решение;
+ожидаемый эффект.
+Не изменяй код автоматически. Сначала подготовь полный отчет."
+
+**Строгие требования к процессу и результату:**
+- **Никаких изменений кода** (ни .py, ни .jsx, ни compose, ни Dockerfiles, ни миграций, ни конфигов). Только анализ и создание отчёта.
+- Отчёт **только** в одном файле: `project_analysis.md` (корень проекта).
+- Формат каждой проблемы (структурировано, легко парсить):
+  - **Файл:** ...
+  - **Строка(ы):** ...
+  - **Описание проблемы:** ...
+  - **Предлагаемое решение:** ...
+  - **Ожидаемый эффект:** ...
+- Категории проблем (группировать в отчёте):
+  1. Неиспользуемый / мёртвый код (unused imports, functions, components, legacy files)
+  2. Дублирование логики (одинаковая/похожая бизнес-логика в нескольких местах)
+  3. Потенциальные ошибки и баги (логика, типы, опечатки, edge cases, безопасность)
+  4. Узкие места производительности (N+1 queries, тяжёлые рендеры, клиентские вычисления на каждом move, отсутствие индексов, большие payloads)
+  5. Нарушения лучших практик Python/Django (и React/TSX где применимо)
+- Дополнительно: отметить области без проблем или с хорошей практикой.
+- Полностью полагаться на обновления этого файла перед любым использованием list_dir/read_file/grep по исходникам (кроме самого project_context.md).
+- Использовать todo_write для отслеживания шагов анализа.
+- После полного анализа — создать report через `write`, затем as-built обновление здесь.
+- Анализ должен быть глубоким, но честным (не выдумывать проблемы).
+
+**Известные из текущего контекста и предыдущих работ области повышенного риска (для приоритезации инспекции):**
+- Опечатка в related_name: Target.country related='contries' (см. раздел 2).
+- DRF: везде `permission_classes = [AllowAny]` (api/views.py и сериализаторы).
+- Модели: большое количество миграций (27+), возможны устаревшие поля (ActionType.animation всё ещё в модели?).
+- Frontend: Formular.jsx — монолитное состояние + десятки useEffect/useMemo; кластеризация и intersections — клиент-сайд heavy.
+- Дублирующиеся пути кластеризации: flag vs non-flag (markerClusteringUtils + NonFlagMarkerUtils).
+- Legacy/архивы: MapComponent — archive/, Sidebar.jsx (частично legacy), возможно неиспользуемые утилиты.
+- Backend: отсутствие/минимальные тесты (api/tests.py, formular/tests.py почти пусты).
+- ORM: в ViewSet и admin — нужно проверить использование prefetch/select_related повсеместно.
+- События: сложные Q-фильтры, работа с JSONField shape.
+- SVG: enrichSvg вызывается многократно, уникализация id — потенциально дорого.
+- Docker: offline режим требует строгого --no-build, но есть риск случайного build на целевой.
+- Нет явного кэширования, throttling на API; фронт делает много fetch при старте.
+- Дублирование фильтрации/группировки между ObjectsTable (страна+branch) и MapComponent.
+- Country.country_infos related, attachments, etc.
+
+**Области, которые должны быть покрыты инспекцией:**
+- backend/formular/models.py, admin*.py, api/{serializers,views}.py
+- backend/infolake/settings.py + urls
+- backend/formular/management/commands/...
+- frontend/src/components/{Formular,MapComponent,ObjectsTable,...}/*.jsx + hooks + utils/*
+- frontend/src/config/* , constants, data
+- docker-compose.yml , Dockerfiles
+- Любые другие .py / .js файлы в корне (analyze_data.py и т.п.)
+- Обратные зависимости и импорты (чтобы найти unused).
+
+**Статус на момент записи:** Требование зафиксировано. Обновление project_context.md выполнено **перед** любым targeted чтением/поиском исходного кода для этого анализа.
+
+Протокол будет соблюдаться: todo → targeted source inspection (после этого обновления) → структурированный отчёт → write project_analysis.md → финальное as-built здесь.
+
+Обновление контекста выполнено. Готов к анализу.

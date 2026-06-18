@@ -134,6 +134,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 markersRes,
                 actionTypesRes,
                 targetTypesRes,
+                branchesRes,
                 sectionsRes,
                 targetsRes
             ] = await Promise.all([
@@ -191,10 +192,12 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
             setSections(organized);
             
             // Загружаем существующие данные формуляра
+            // Примечание: /formular/<id>/ возвращает {formular: [...], subordinates: [...]}
             try {
                 const formularRes = await axios.get(`${API_ROOT}/api/v1/formular/${targetId}/`);
                 const existingData = {};
-                formularRes.data.forEach(item => {
+                const formularItems = formularRes.data.formular || (Array.isArray(formularRes.data) ? formularRes.data : []);
+                formularItems.forEach(item => {
                     existingData[item.section.id] = item.content || '';
                 });
                 setFormularData(existingData);

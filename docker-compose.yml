@@ -1,3 +1,33 @@
+# =============================================================================
+# Оффлайн-развёртывание (целевая машина БЕЗ интернета)
+# =============================================================================
+# 1. На машине с интернетом выполни:
+#      docker compose build
+#
+#      # PowerShell
+#      docker save -o infolake_full_offline.tar `
+#        infolake-backend:latest `
+#        infolake-frontend:latest `
+#        maptiler/tileserver-gl:latest
+#
+#      # Или cmd / bash
+#      docker save -o infolake_full_offline.tar \
+#        infolake-backend:latest \
+#        infolake-frontend:latest \
+#        maptiler/tileserver-gl:latest
+#
+# 2. Скопируй файл infolake_full_offline.tar на целевую машину.
+#
+# 3. На целевой машине (без интернета):
+#      docker load -i infolake_full_offline.tar
+#      docker compose up -d --no-build
+#
+# ВАЖНО:
+# - Никогда не запускай `docker compose build` на машине без интернета!
+# - Всегда используй флаг --no-build.
+# - Все слои (включая python:3.12-slim и node:20-alpine) сохраняются внутри .tar.
+# =============================================================================
+
 services:
   tileserver:
     image: maptiler/tileserver-gl:latest
@@ -16,12 +46,19 @@ services:
       - "config.json"
       - "--public_url"
       - "http://localhost:8080/"
+    pull_policy: never   # образ уже должен быть загружен через docker load
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    # Явное имя образа — обязательно для оффлайн-развёртывания
+    # Сборка только на машине с интернетом. На целевой без сети используй:
+    #   docker load -i infolake_full_offline.tar
+    #   docker compose up -d --no-build
+    image: infolake-backend:latest
     container_name: infolake-backend
+    pull_policy: never   # не пытаемся тянуть/собирать на оффлайн-машине
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -40,7 +77,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    # Явное имя образа — обязательно для оффлайн-развёртывания
+    # Сборка только на машине с интернетом. На целевой без сети используй:
+    #   docker load -i infolake_full_offline.tar
+    #   docker compose up -d --no-build
+    image: infolake-frontend:latest
     container_name: infolake-frontend
+    pull_policy: never   # не пытаемся тянуть/собирать на оффлайн-машине
     restart: unless-stopped
     ports:
       - "5173:5173"
