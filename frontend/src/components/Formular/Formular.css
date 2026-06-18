@@ -497,3 +497,66 @@
 .expand-btn:active {
     transform: translateY(1px);
 }
+
+/* === Группировка по Видам и родам войск (внутри стран) === */
+.branch-group {
+    margin: 4px 8px 2px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.branch-group summary {
+    list-style: none;
+    outline: none;
+}
+
+.branch-group summary::-webkit-details-marker {
+    display: none;
+}
+
+.branch-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #f1f5f9;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 500;
+    font-size: 13px;
+    color: #334155;
+    transition: background-color 0.15s ease;
+}
+
+.branch-header:hover {
+    background: #e0e7ff;
+}
+
+.branch-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.branch-count {
+    color: #64748b;
+    font-weight: 500;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.branch-partial {
+    color: #d97706;
+    font-size: 11px;
+    white-space: nowrap;
+    margin-left: 4px;
+}
+
+.branch-objects {
+    padding: 1px 0 2px;
+    background: #fff;
+}

@@ -13,10 +13,9 @@ export default defineConfig({
       interval: 1000,
     },
     // HMR host is configurable via VITE_HMR_HOST env (important for Docker + access by machine IP).
-    // - In Docker on Windows: set VITE_HMR_HOST=host.docker.internal so that when you open
-    //   the page by http://<your-windows-ip>:5173 the HMR WebSocket still works
-    //   (Docker Desktop resolves host.docker.internal back to the Windows host).
-    // - Default (no env) = 'localhost' for ordinary `npm run dev` or simple cases.
+    // Default = 'localhost' (works when opening http://localhost:5173 on the same machine).
+    // For LAN/IP access (http://<your-windows-ip>:5173) override in docker-compose:
+    //   VITE_HMR_HOST: <your-ip>   or try host.docker.internal .
     // server.host: '0.0.0.0' ensures the dev server accepts connections on all interfaces.
     hmr: {
       host: process.env.VITE_HMR_HOST || 'localhost',

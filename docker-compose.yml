@@ -54,13 +54,13 @@ services:
       VITE_API_URL: http://localhost:8000
       VITE_TILESERVER_URL: http://localhost:8080
 
-      # КЛЮЧЕВОЕ для доступа по IP машины + HMR:
-      # Когда ты открываешь фронт по http://<твой-ip>:5173, Vite (внутри контейнера) должен сказать браузеру,
-      # по какому адресу подключать WebSocket для hot-reload.
-      # host.docker.internal — специальное имя Docker Desktop (Windows/Mac), которое изнутри контейнера
-      # резолвится в Windows-хост. Браузер на Windows обычно тоже умеет его резолвить.
-      # Это позволяет HMR работать и при localhost, и при открытии по реальному IP машины.
-      VITE_HMR_HOST: host.docker.internal
+      # HMR host для Vite WebSocket (критично при Docker).
+      # ДЕФОЛТ: "localhost" — работает при обычном доступе http://localhost:5173 (или 127.0.0.1).
+      # Если открываешь фронт по IP машины (http://<windows-ip>:5173) из сети/LAN:
+      #   1) Поставь сюда реальный IP (например VITE_HMR_HOST: 192.168.1.42) ИЛИ
+      #   2) Попробуй VITE_HMR_HOST: host.docker.internal (Docker Desktop резолвит его на хост).
+      # После смены — обязательно пересобери фронтенд.
+      VITE_HMR_HOST: localhost
 
       # Polling для hot-reload через bind mount (Windows / Docker Desktop)
       CHOKIDAR_USEPOLLING: "true"

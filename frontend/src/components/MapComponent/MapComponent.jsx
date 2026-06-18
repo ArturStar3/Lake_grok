@@ -464,12 +464,6 @@ function ZoomTracker({ onZoomChange }) {
                     denom = c;
                 }
             }
-
-            console.log(
-                `[Tiles] Current zoom for tiles: ${zoom}, ` +
-                `approx scale 1:${denom} ` +
-                `(center lat: ${center.lat.toFixed(4)}, lng: ${center.lng.toFixed(4)})`
-            );
         }
     });
     return null;
