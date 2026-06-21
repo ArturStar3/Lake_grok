@@ -23,7 +23,7 @@
 - Карта (Leaflet + TileServer GL) с кластеризацией флагов и non-flag маркеров.
 - Объекты (Target): страна + вид/род войск + маркер + действия (несколько радиусов) + формуляр.
 - Иерархия объектов (parent/children).
-- Группировка в таблице: по странам + по MilitaryBranch.
+- Группировка в таблице: по странам + по TargetType (ранее MilitaryBranch, функционал консолидирован).
 - Зоны действия (Action Zones): статичные, с фильтрами по странам и action_type, радар-спицы, пересечения, hover/click.
 - Масштабная линейка (только fullscreen).
 - Полноценный редактор формуляров + attachments.
@@ -71,12 +71,12 @@
 - `EventMarker`
 - `ActionType` (title, animation — legacy)
 - `TargetType`, `EventType`
-- `MilitaryBranch` (title, M2M countries — применимо к странам)
+- `TargetType` (title, M2M countries — применимо к странам; поглотил функционал бывшего MilitaryBranch)
 
 **Основные:**
 - `Target`
   - `country` (FK → Country, related_name='contries')
-  - `branch` (FK → MilitaryBranch, null/blank)
+  - `branch` (FK → TargetType, null/blank; используется для группировки "вид/род войск")
   - `parent` (self FK, related_name='children')
   - `title`, `label`, `marker`, `type`
   - `lat`, `lng`, `action_radius` (legacy)
@@ -155,11 +155,11 @@
 - **Formular.jsx** — загрузка всех данных, фильтры, selected/hovered, передача в Map и таблицы, открытие модалов.
 - **EditTargetModal / FormularEditor** — свои `loadData` (Promise.all справочников + отдельный fetch формуляра).
 - **MapComponent** — рендер + все инструменты (зоны, кластеры, события, измерения).
-- **ObjectsTable** — группировка по country + branch (MilitaryBranch).
+- **ObjectsTable** — группировка по country + branch (TargetType).
 - Хуки: useTargetFormData, useActionsArray, useDropdownWithSearch.
 
 **Загрузка в модале редактирования (EditTargetModal):**
-Promise.all: target + countries + markers + action-types + target-types + military-branches + formular-sections + targets (для parent).
+Promise.all: target + countries + markers + action-types + target-types + formular-sections + targets (для parent). military-branches эндпоинт удалён (используй target-types).
 
 ---
 
@@ -188,7 +188,7 @@ Promise.all: target + countries + markers + action-types + target-types + milita
 ## 8. Текущие основные возможности (as-built)
 
 - **Иерархия объектов** — parent + отображение прямых подчинённых + счётчики в админке.
-- **Группировка по MilitaryBranch** в таблице объектов (после стран).
+- **Группировка по TargetType** (поле branch) в таблице объектов (после стран).
 - **Зоны действия** — полный набор фильтров + визуалы по типу + интерактивность (см. раздел 3).
 - **Масштабная линейка** — только fullscreen, военный стиль, dropdown выбора, точный Web Mercator расчёт.
 - **Редактирование с формуляром** — работает (в т.ч. после фикса `formularRes.data.formular`).
@@ -196,6 +196,30 @@ Promise.all: target + countries + markers + action-types + target-types + milita
 ---
 
 **Дата очистки:** 2026-06-18. Удалена вся промежуточная история сессий, дубли алгоритмов, verbose планы и as-built отдельных тикетов. Оставлено только то, что необходимо для понимания текущего состояния и безопасной работы с кодом.
+
+---
+
+## 9. Рефакторинг MilitaryBranch → TargetType (2026-06-21)
+
+**Решение:** модели TargetType и MilitaryBranch выполняли одну функцию. Консолидировано в TargetType.
+
+**Изменения:**
+- В `TargetType` добавлено поле `countries` (M2M на Country, с related_name='applicable_target_types').
+- Поле `Target.branch` теперь FK на `TargetType` (вместо MilitaryBranch).
+- Удалена модель `MilitaryBranch`, ViewSet, Serializer, эндпоинт `/api/v1/military-branches/`, админ-регистрация.
+- `TargetTypeSerializer` теперь возвращает `countries` (как раньше MilitaryBranchSerializer).
+- Frontend: загрузка militaryBranches теперь из `/target-types`. Логика фильтра по странам и dropdown'ы branch работают без изменений (данные идентичны по форме).
+- Группировка в ObjectsTable продолжает использовать `item.branch`, но источник — TargetType.
+- Создана миграция `0030_targettype_countries_remove_militarybranch.py`.
+
+**Влияние на данные:**
+- Применить миграцию: `python manage.py migrate`
+- Старые значения `branch` будут потеряны (нужно будет переназначить в админке или повторно импортировать).
+- В seed_test_targets branch не использовался.
+
+**API / Frontend:**
+- Используй `/api/v1/target-types/` для справочника "вид/род войск".
+- В модалях Add/EditTargetModal и хуке useTargetFormData — военные ветки теперь приходят как targetTypes.
 
 ---
 

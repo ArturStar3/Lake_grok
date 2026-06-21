@@ -48,10 +48,28 @@
    ```
 
 3. Сохраните все образы в архив:
+
+   **Рекомендуемый способ** — взять образы прямо из `docker-compose.yml` (самый надёжный):
    ```powershell
    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
    $tarName = "infolake_full_offline_$timestamp.tar"
 
+   $images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
+
+   docker save -o $tarName $images
+   ```
+
+   Альтернатива (через `docker compose images`):
+   ```powershell
+   $images = docker compose images --format json |
+             ConvertFrom-Json |
+             ForEach-Object { "$($_.Repository):$($_.Tag)" }
+
+   docker save -o $tarName $images
+   ```
+
+   Явно (жёстко заданный список):
+   ```powershell
    docker save -o $tarName `
        infolake-backend:latest `
        infolake-frontend:latest `
@@ -89,7 +107,9 @@
 
 ### export-offline.ps1 (на машине с интернетом)
 
-Создайте файл `export-offline.ps1` в корне проекта:
+Готовый скрипт уже лежит в корне проекта: [export-offline.ps1](export-offline.ps1)
+
+Или создайте вручную:
 
 ```powershell
 # export-offline.ps1
@@ -113,10 +133,15 @@ $fullPath = Join-Path $OutputDir $tarName
 
 Write-Host "`nСохраняем образы в файл: $fullPath" -ForegroundColor Yellow
 
-docker save -o $fullPath `
-    infolake-backend:latest `
-    infolake-frontend:latest `
-    maptiler/tileserver-gl:latest
+Write-Host "Получаем список образов из docker-compose.yml..." -ForegroundColor DarkGray
+$images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
+
+if (-not $images) {
+    Write-Host "Не удалось найти образы в docker-compose.yml" -ForegroundColor Red
+    exit 1
+}
+
+docker save -o $fullPath $images
 
 $size = (Get-Item $fullPath).Length / 1MB
 Write-Host "`nГотово!" -ForegroundColor Green
@@ -134,7 +159,9 @@ Write-Host "`nСкопируй этот .tar файл на целевую маш
 
 ### import-and-start.ps1 (на целевой машине)
 
-Создайте файл `import-and-start.ps1`:
+Готовый скрипт уже лежит в корне проекта: [import-and-start.ps1](import-and-start.ps1)
+
+Или создайте вручную:
 
 ```powershell
 # import-and-start.ps1
@@ -199,6 +226,44 @@ docker compose restart
 docker compose down
 ```
 
+### Получение списка образов (для docker save / скриптов)
+
+**Лучший способ (рекомендуется):** парсить прямо из `docker-compose.yml`
+
+**PowerShell:**
+```powershell
+$images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
+
+docker save -o backup.tar $images
+```
+
+**Bash:**
+```bash
+images=$(grep -E '^\s+image:' docker-compose.yml | sed -E 's/.*image:\s*//')
+docker save -o backup.tar $images
+```
+
+**Альтернатива — через `docker compose` (только если контейнеры/образы уже собраны):**
+
+**PowerShell:**
+```powershell
+$images = docker compose images --format json |
+          ConvertFrom-Json |
+          ForEach-Object { "$($_.Repository):$($_.Tag)" }
+
+docker save -o backup.tar $images
+```
+
+**Bash (требуется `jq`):**
+```bash
+images=$(docker compose images --format json | jq -r '.[].Image')
+docker save -o backup.tar $images
+```
+
+> **Предупреждение**:
+> - `docker compose images --format "{{.Image}}"` **не работает** (Compose поддерживает только `table` и `json`).
+> - Синтаксис `$var = command` работает **только в PowerShell**. В bash это вызывает `bash: =: command not found`.
+
 ### Обновление образов на целевой машине
 
 1. На машине с интернетом соберите и экспортируйте новые образы (новый `.tar`).
@@ -258,6 +323,8 @@ pull_policy: never
 | Ошибки с путями на Windows            | Используйте одинаковую структуру папок |
 | Frontend не видит API                 | Убедитесь, что `VITE_API_URL` был правильным во время сборки |
 | Нужно обновить только один сервис     | Загрузите весь архив заново (или сохраняйте отдельные образы) |
+| `bash: =: command not found` при `$images = ...` | Это синтаксис PowerShell. В bash: `images=$(grep ...)` или `images=$(docker compose images --format json \| jq ...)` |
+| `docker compose images --format "{{.Image}}"` не работает | Compose поддерживает только `--format json` или `--format table`. Лучше парсить `image:` из самого docker-compose.yml |
 
 ---
 

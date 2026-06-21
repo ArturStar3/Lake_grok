@@ -103,6 +103,45 @@ Thumbs.db
 desktop.ini
 
 # ----------------------------------------
+# Synology NAS (DSM + Synology Drive + File Station)
+# ----------------------------------------
+# Исключаем ВСЁ, что создаёт Synology автоматически:
+# - @eaDir (превью и extended attributes — появляются во всех папках)
+# - Synology Drive метаданные
+# - Корзина DSM (#recycle)
+# - Временные папки и прочий мусор
+#
+# Эти правила защищают репозиторий при работе с шарами Synology.
+
+# Extended attributes и превью (появляются рекурсивно в каждой папке)
+**/@eaDir/
+**/@eaDir/*
+
+# Synology Drive (клиент на ПК и синхронизация)
+SynologyWorkingDirectory/
+.SynologyDrive/
+SynologyDrive/
+**/.SynologyDrive/
+**/SynologyDrive/
+
+# Другие артефакты Synology
+.synology/
+.Synology/
+**/.synology/
+**/.Synology/
+
+# Корзина и временные папки Synology
+#recycle/
+@tmp/
+**/#recycle/
+**/@tmp/
+
+# Дополнительные мусорные файлы от Synology
+*.syno
+*._syno*
+**/.Synology*
+
+# ----------------------------------------
 # Прочее (корневые файлы, не относящиеся к backend/frontend)
 # ----------------------------------------
 # Если не планируете коммитить эти папки/файлы:
@@ -128,6 +167,17 @@ desktop.ini
 # Полный запрет на .mbtiles (в tileserver/ и везде в проекте)
 **/*.mbtiles
 
+# Tar archives (большие оффлайн-архивы Docker, экспорты и т.д.)
+# Эти файлы могут весить сотни МБ — ГБ и не должны попадать в git
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+
+# Специфичные для проекта оффлайн-архивы
+infolake_full_offline*.tar
+infolake_full_offline*.tar.gz
+infolake_full_offline*.tgz
+
 # Дополнительные большие/временные файлы из tileserver setup
 tileserver/test_data.zip
 tileserver/*.zip
@@ -152,4 +202,4 @@ tileserver/docker-compose.yml
 # ============================================
 
 # (Крупные бинарные файлы и исходные данные игнорируются правилами выше:
-#  *.xlsx, **/*.mbtiles, _data_xlsx_report.txt и т.п.)
+#  *.xlsx, **/*.mbtiles, **/*.tar, infolake_full_offline*.tar и т.п.)

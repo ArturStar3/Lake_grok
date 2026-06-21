@@ -4,17 +4,18 @@
 # 1. На машине с интернетом выполни:
 #      docker compose build
 #
-#      # PowerShell
-#      docker save -o infolake_full_offline.tar `
-#        infolake-backend:latest `
-#        infolake-frontend:latest `
-#        maptiler/tileserver-gl:latest
+#      # PowerShell — лучший способ (берёт образы из docker-compose.yml):
+#      $images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
+#      docker save -o infolake_full_offline.tar $images
 #
-#      # Или cmd / bash
-#      docker save -o infolake_full_offline.tar \
-#        infolake-backend:latest \
-#        infolake-frontend:latest \
-#        maptiler/tileserver-gl:latest
+#      # Альтернатива (если контейнеры уже запущены):
+#      # $images = docker compose images --format json | ConvertFrom-Json |
+#      #           ForEach-Object { "$($_.Repository):$($_.Tag)" }
+#      # docker save -o infolake_full_offline.tar $images
+#
+#      # Bash:
+#      # images=$(grep -E '^\s+image:' docker-compose.yml | sed -E 's/.*image:\s*//')
+#      # docker save -o infolake_full_offline.tar $images
 #
 # 2. Скопируй файл infolake_full_offline.tar на целевую машину.
 #

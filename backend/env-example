@@ -1,0 +1,5 @@
+DB_NAME=map
+DB_USER=map_user
+DB_PASSWORD=qwerty123~
+DB_HOST=localhost
+DB_PORT=5432

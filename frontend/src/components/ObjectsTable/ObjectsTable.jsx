@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onObjectClick, onTitleClick, hoveredTargetId, onRowHover, onEditClick, onDeleteClick }) {
     const selectedSet = new Set(selectedObj);
 
-    // Группировка по странам, затем по Видам и родам войск (branch)
-    const countryBranchGroups = useMemo(() => {
+    // Группировка по странам, затем по Типу объекта (type -> TargetType)
+    const countryTypeGroups = useMemo(() => {
         const byCountry = {};
         for (const item of data) {
             const countryTitle = item.country?.title || "Без страны";
@@ -21,54 +21,54 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
 
         return sortedCountries.map((country) => {
             const countryItems = byCountry[country];
-            const byBranch = {};
+            const byType = {};
             for (const item of countryItems) {
-                const branchTitle = item.branch?.title || "Без вида/рода";
-                if (!byBranch[branchTitle]) {
-                    byBranch[branchTitle] = [];
+                const typeTitle = item.type?.title || "Без типа";
+                if (!byType[typeTitle]) {
+                    byType[typeTitle] = [];
                 }
-                byBranch[branchTitle].push(item);
+                byType[typeTitle].push(item);
             }
 
-            const sortedBranches = Object.keys(byBranch).sort((a, b) =>
+            const sortedTypes = Object.keys(byType).sort((a, b) =>
                 a.localeCompare(b, "ru")
             );
 
-            const branches = sortedBranches.map((branch) => ({
-                branch,
-                items: byBranch[branch],
+            const types = sortedTypes.map((type) => ({
+                type,
+                items: byType[type],
             }));
 
             return {
                 country,
-                branches,
+                types,
                 // Для удобства: плоский список всех items страны
                 allItems: countryItems,
             };
         });
     }, [data]);
 
-    // Состояние для раскрытых групп: страны + ветви (ключ вида "Страна|||Вид")
+    // Состояние для раскрытых групп: страны + типы
     const [expandedCountries, setExpandedCountries] = useState(new Set());
-    const [expandedBranches, setExpandedBranches] = useState(new Set());
+    const [expandedTypes, setExpandedTypes] = useState(new Set());
 
-    const allCountryNames = countryBranchGroups.map(g => g.country);
+    const allCountryNames = countryTypeGroups.map(g => g.country);
 
     const expandAll = () => {
         setExpandedCountries(new Set(allCountryNames));
-        // Раскрываем все ветви
-        const allBranchKeys = [];
-        countryBranchGroups.forEach(cg => {
-            cg.branches.forEach(bg => {
-                allBranchKeys.push(`${cg.country}|||${bg.branch}`);
+        // Раскрываем все типы
+        const allTypeKeys = [];
+        countryTypeGroups.forEach(cg => {
+            cg.types.forEach(tg => {
+                allTypeKeys.push(`${cg.country}|||${tg.type}`);
             });
         });
-        setExpandedBranches(new Set(allBranchKeys));
+        setExpandedTypes(new Set(allTypeKeys));
     };
 
     const collapseAll = () => {
         setExpandedCountries(new Set());
-        setExpandedBranches(new Set());
+        setExpandedTypes(new Set());
     };
 
     // Глобальный "выбрать все видимые" (на все отфильтрованные объекты)
@@ -87,8 +87,8 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
         });
     };
 
-    // Выбрать/снять все объекты в конкретном виде/роде (внутри страны)
-    const handleBranchCheckbox = (items, checked) => {
+    // Выбрать/снять все объекты в конкретном типе (внутри страны)
+    const handleTypeCheckbox = (items, checked) => {
         items.forEach((item) => {
             onCheckboxChange(item.id, checked);
         });
@@ -128,7 +128,7 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
             </div>
 
             <div className="formular__country-groups">
-                {countryBranchGroups.map(({ country, branches, allItems }) => {
+                {countryTypeGroups.map(({ country, types, allItems }) => {
                     const countryItemIds = allItems.map((i) => i.id);
                     const selectedInCountry = countryItemIds.filter((id) => selectedSet.has(id));
                     const allInCountrySelected = allItems.length > 0 && selectedInCountry.length === allItems.length;
@@ -180,27 +180,27 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
                             </summary>
 
                             <div className="country-objects">
-                                {branches.map(({ branch, items: branchItems }) => {
-                                    const branchItemIds = branchItems.map((i) => i.id);
-                                    const selectedInBranch = branchItemIds.filter((id) => selectedSet.has(id));
-                                    const allInBranchSelected = branchItems.length > 0 && selectedInBranch.length === branchItems.length;
-                                    const someInBranchSelected = selectedInBranch.length > 0 && !allInBranchSelected;
+                                {types.map(({ type, items: typeItems }) => {
+                                    const typeItemIds = typeItems.map((i) => i.id);
+                                    const selectedInType = typeItemIds.filter((id) => selectedSet.has(id));
+                                    const allInTypeSelected = typeItems.length > 0 && selectedInType.length === typeItems.length;
+                                    const someInTypeSelected = selectedInType.length > 0 && !allInTypeSelected;
 
-                                    const branchKey = `${country}|||${branch}`;
+                                    const typeKey = `${country}|||${type}`;
 
                                     return (
                                         <details 
-                                            key={branchKey}
+                                            key={typeKey}
                                             className="branch-group"
-                                            open={expandedBranches.has(branchKey)}
+                                            open={expandedTypes.has(typeKey)}
                                             onToggle={(e) => {
                                                 const isOpen = e.currentTarget.open;
-                                                setExpandedBranches(prev => {
+                                                setExpandedTypes(prev => {
                                                     const next = new Set(prev);
                                                     if (isOpen) {
-                                                        next.add(branchKey);
+                                                        next.add(typeKey);
                                                     } else {
-                                                        next.delete(branchKey);
+                                                        next.delete(typeKey);
                                                     }
                                                     return next;
                                                 });
@@ -216,25 +216,25 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
                                             >
                                                 <input
                                                     type="checkbox"
-                                                    checked={allInBranchSelected}
+                                                    checked={allInTypeSelected}
                                                     ref={(el) => {
-                                                        if (el) el.indeterminate = someInBranchSelected;
+                                                        if (el) el.indeterminate = someInTypeSelected;
                                                     }}
                                                     onChange={(e) => {
                                                         e.stopPropagation();
-                                                        handleBranchCheckbox(branchItems, e.target.checked);
+                                                        handleTypeCheckbox(typeItems, e.target.checked);
                                                     }}
-                                                    aria-label={`Выбрать все объекты вида ${branch} в стране ${country}`}
+                                                    aria-label={`Выбрать все объекты типа ${type} в стране ${country}`}
                                                 />
-                                                <span className="branch-name">{branch}</span>
-                                                <span className="branch-count">({branchItems.length})</span>
-                                                {someInBranchSelected && (
-                                                    <span className="branch-partial">({selectedInBranch.length} выбрано)</span>
+                                                <span className="branch-name">{type}</span>
+                                                <span className="branch-count">({typeItems.length})</span>
+                                                {someInTypeSelected && (
+                                                    <span className="branch-partial">({selectedInType.length} выбрано)</span>
                                                 )}
                                             </summary>
 
                                             <div className="branch-objects">
-                                                {branchItems.map((item) => (
+                                                {typeItems.map((item) => (
                                                     <div
                                                         key={item.id}
                                                         className={`formular__table-row object-row${

@@ -21,7 +21,6 @@ from .models import (
     FormularSections,
     TargetType,
     FormularAttachment,
-    MilitaryBranch
 )
 from .admin_inlines import (
     TargetInlineAdmin,
@@ -96,7 +95,6 @@ class TargetAdmin(admin.ModelAdmin):
         'title',
         'label',
         'country',
-        'branch',
         'type',
         'lat',
         'lng',
@@ -107,7 +105,6 @@ class TargetAdmin(admin.ModelAdmin):
         'country',
         'marker',
         'type',
-        'branch',
         'parent',
     )
     search_fields = (
@@ -117,7 +114,6 @@ class TargetAdmin(admin.ModelAdmin):
     )
     list_filter = (
         'country__title',
-        'branch__title',
         ChildrenCountFilter,
     )
     list_editable = (
@@ -313,12 +309,5 @@ class TargetTypeAdmin(admin.ModelAdmin):
     list_display = (
         'title',
     )
-
-
-@admin.register(MilitaryBranch)
-class MilitaryBranchAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-    )
-    filter_horizontal = ('countries',)  # удобный виджет для ManyToMany
+    filter_horizontal = ('countries',)
     search_fields = ('title',)

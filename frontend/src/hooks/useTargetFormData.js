@@ -13,7 +13,6 @@ export const useTargetFormData = (isOpen) => {
   const [markers, setMarkers] = useState([]);
   const [actionTypes, setActionTypes] = useState([]);
   const [targetTypes, setTargetTypes] = useState([]);
-  const [militaryBranches, setMilitaryBranches] = useState([]);
   const [targets, setTargets] = useState([]);  // для выбора parent
   const [markerSvgs, setMarkerSvgs] = useState(new Map());
   const [loading, setLoading] = useState(false);
@@ -30,15 +29,13 @@ export const useTargetFormData = (isOpen) => {
       axios.get(`${API_URL}/api/v1/markers`),
       axios.get(`${API_URL}/api/v1/action-types`),
       axios.get(`${API_URL}/api/v1/target-types`),
-      axios.get(`${API_URL}/api/v1/military-branches`),
       axios.get(`${API_URL}/api/v1/targets`)  // для выбора parent
     ])
-      .then(([countriesRes, markersRes, actionTypesRes, targetTypesRes, branchesRes, targetsRes]) => {
+      .then(([countriesRes, markersRes, actionTypesRes, targetTypesRes, targetsRes]) => {
         setCountries(countriesRes.data);
         setMarkers(markersRes.data);
         setActionTypes(actionTypesRes.data);
         setTargetTypes(targetTypesRes.data);
-        setMilitaryBranches(branchesRes.data || []);
         setTargets(targetsRes.data || []);
 
         // Загружаем SVG для каждого маркера
@@ -62,5 +59,5 @@ export const useTargetFormData = (isOpen) => {
       });
   }, [isOpen]);
 
-  return { countries, markers, actionTypes, targetTypes, militaryBranches, targets, markerSvgs, loading, error };
+  return { countries, markers, actionTypes, targetTypes, targets, markerSvgs, loading, error };
 };

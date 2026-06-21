@@ -8,7 +8,6 @@ from .views import (
     EventMarkerViewSet,
     ActionTypeViewSet,
     TargetTypeViewSet,
-    MilitaryBranchViewSet,
     EventTypeViewSet,
     EventViewSet,
     CountryInfoView,
@@ -57,12 +56,6 @@ router.register(
     r'target-types',
     TargetTypeViewSet,
     basename='target-types'
-)
-
-router.register(
-    r'military-branches',
-    MilitaryBranchViewSet,
-    basename='military-branches'
 )
 
 router.register(

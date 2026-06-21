@@ -324,36 +324,17 @@ class TargetType(models.Model):
         max_length=150,
         verbose_name='Тип объекта разведки'
     )
+    countries = models.ManyToManyField(
+        Country,
+        blank=True,
+        related_name='applicable_target_types',
+        verbose_name='Применимо к странам',
+        help_text='Если список пуст — тип применим ко всем странам'
+    )
 
     class Meta:
         verbose_name = 'Тип объекта разведки'
         verbose_name_plural = 'Типы объектов разведки'
-        indexes = [
-            models.Index(fields=('title',)),
-        ]
-    
-    def __str__(self):
-        return self.title
-
-
-class MilitaryBranch(models.Model):
-    """Виды и рода войск (для объектов разведки)"""
-
-    title = models.CharField(
-        max_length=150,
-        verbose_name='Вид / род войск'
-    )
-    countries = models.ManyToManyField(
-        Country,
-        blank=True,
-        related_name='applicable_military_branches',
-        verbose_name='Применимо к странам',
-        help_text='Если список пуст — вид/род войск применим ко всем странам'
-    )
-
-    class Meta:
-        verbose_name = 'Вид / род войск'
-        verbose_name_plural = 'Виды и рода войск'
         indexes = [
             models.Index(fields=('title',)),
         ]
@@ -417,15 +398,6 @@ class Target(models.Model):
         null=True
     )
 
-    branch = models.ForeignKey(
-        'MilitaryBranch',
-        on_delete=models.SET_NULL,
-        verbose_name='Вид / род войск',
-        related_name='targets',
-        null=True,
-        blank=True
-    )
-
     parent = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -449,7 +421,6 @@ class Target(models.Model):
             models.Index(fields=('title',)),
             models.Index(fields=('label',)),
             models.Index(fields=('parent',)),
-            models.Index(fields=('branch',)),
         ]
 
     def __str__(self):
@@ -730,4 +701,3 @@ class FormularAttachment(models.Model):
 
     def __str__(self):
         return f"{self.target.title} - {self.section.title} - {self.title}"
-# Create your models here.
