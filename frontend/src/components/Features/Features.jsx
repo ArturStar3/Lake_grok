@@ -145,7 +145,8 @@ export default function Features({
                                 - при "Зона пересечения" показываем таблицу точек пересечения (функционал привязан к выбору).
                                 Фильтры (когда были в "Настройка отображения") продолжают влиять на расчёт пересечений в любом случае.
                                 В обычном режиме (!isFullscreen) таблица показывается как раньше (при showActionRadius). */}
-                            {isFullscreen && showActionRadius && actionZoneViewMode === "displaySettings" && (
+                            {/* Настройка отображения зон: в обычном режиме — в footer панели; в fullscreen — по выбору радиокнопки */}
+                            {showActionRadius && (!isFullscreen || actionZoneViewMode === "displaySettings") && (
                                 <ActionZoneFilters
                                     actionZoneAvailableByCountry={actionZoneAvailableByCountry}
                                     actionZoneFilters={actionZoneFilters}

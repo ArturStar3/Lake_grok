@@ -497,6 +497,11 @@
     display: none;
 }
 
+/* Масштаб: ниже бургер-меню (12px + 44px кнопка + 8px зазор) */
+.map .leaflet-top.leaflet-left .leaflet-control-zoom {
+    margin-top: 54px;
+}
+
 :root {
     --white-middle-color: #FEFEFE;
     --green-middle-color: #5aad73;

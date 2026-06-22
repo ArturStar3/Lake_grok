@@ -25,7 +25,9 @@ WORKDIR /app
 
 COPY package.json package-lock.json* ./
 # Эта команда требует интернет. Выполняется только на машине со сборкой.
-RUN npm install
+RUN npm install \
+    && mkdir -p public/leaflet \
+    && cp node_modules/leaflet/dist/images/* public/leaflet/
 
 COPY . .
 

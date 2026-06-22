@@ -2,9 +2,13 @@
 # Оффлайн-развёртывание (целевая машина БЕЗ интернета)
 # =============================================================================
 # 1. На машине с интернетом выполни:
-#      docker compose build
+#      .\scripts\prepare-offline.ps1
+#    или (Linux/macOS):
+#      ./scripts/prepare-offline.sh
 #
-#      # PowerShell — лучший способ (берёт образы из docker-compose.yml):
+#    Подробности: offline/README.md
+#
+#    Вручную (PowerShell):
 #      $images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
 #      docker save -o infolake_full_offline.tar $images
 #

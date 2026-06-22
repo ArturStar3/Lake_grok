@@ -1,0 +1,21 @@
+/* Design tokens — Figma GIS System (offline, no CDN) */
+:root {
+  --gis-primary: #0052b4;
+  --gis-primary-light: #629df3;
+  --gis-primary-sky: #56bae1;
+  --gis-text: #1a2332;
+  --gis-text-muted: #646464;
+  --gis-text-secondary: #5c6b7a;
+  --gis-surface: #ffffff;
+  --gis-surface-glass: rgba(255, 255, 255, 0.72);
+  --gis-surface-muted: #f4f6f8;
+  --gis-border: #e2e8f0;
+  --gis-border-strong: #d8dee6;
+  --gis-shadow-soft: 0 0 30px rgba(0, 0, 0, 0.1);
+  --gis-shadow-panel: 0 0 15px rgba(0, 0, 0, 0.12);
+  --gis-radius-panel: 16px;
+  --gis-radius-pill: 50px;
+  --gis-panel-width: 460px;
+  --gis-gradient-sidebar: linear-gradient(180deg, #56bae1 0%, #629df3 100%);
+  --gis-font-ui: "Roboto", "Segoe UI", system-ui, sans-serif;
+}

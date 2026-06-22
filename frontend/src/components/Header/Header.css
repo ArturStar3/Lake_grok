@@ -1,30 +1,179 @@
-.header {
-    padding: 20px 40px;
-    border-radius: 0 0 30px 30px;
-    box-shadow: 0 4px 12px rgba(71,80,9,0.2);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #FEFEFE;
+/* Floating burger menu — Figma GIS logo pill, map overlay */
+
+.app-menu {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 1200;
 }
 
-.header__wraper {
+.app-menu__trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--gis-border, #e2e8f0);
+    border-radius: 50%;
+    background: var(--gis-surface-glass, rgba(255, 255, 255, 0.82));
+    backdrop-filter: blur(8px);
+    box-shadow: var(--gis-shadow-panel, 0 0 15px rgba(0, 0, 0, 0.12));
+    color: var(--gis-primary, #0052b4);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+}
+
+.app-menu__trigger:hover {
+    background: var(--gis-surface, #fff);
+}
+
+.app-menu--open .app-menu__trigger {
+    background: var(--gis-surface, #fff);
+}
+
+.app-menu__burger {
     display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 18px;
+}
+
+.app-menu__burger span {
+    display: block;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+.app-menu--open .app-menu__burger span:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+}
+
+.app-menu--open .app-menu__burger span:nth-child(2) {
+    opacity: 0;
+}
+
+.app-menu--open .app-menu__burger span:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+}
+
+.app-menu__backdrop {
+    position: fixed;
+    inset: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: rgba(15, 23, 42, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: -1;
+}
+
+.app-menu--open .app-menu__backdrop {
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1190;
+}
+
+.app-menu__panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(300px, 86vw);
+    padding: 20px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background: var(--gis-surface, #fff);
+    box-shadow: var(--gis-shadow-soft, 0 0 30px rgba(0, 0, 0, 0.1));
+    transform: translateX(calc(-100% - 12px));
+    transition: transform 0.22s ease;
+    z-index: 1195;
+}
+
+.app-menu--open .app-menu__panel {
+    transform: translateX(0);
+}
+
+.app-menu__brand {
+    display: flex;
+    align-items: center;
     gap: 12px;
-    align-items: center;
+    padding-top: 8px;
 }
 
-.header__user-img {
+.app-menu__logo {
     width: 40px;
     height: 40px;
-    background-color: #FEFEFE;
     border-radius: 50%;
-    border: 1px solid #808080;
+    object-fit: cover;
 }
 
-.footer__title {
+.app-menu__brand-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gis-primary, #0052b4);
+}
+
+.app-menu__brand-subtitle {
+    margin: 2px 0 0;
+    font-size: 0.75rem;
+    color: var(--gis-text-muted, #646464);
+}
+
+.app-menu__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.app-menu__nav-item {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--gis-border, #e2e8f0);
+    border-radius: 10px;
+    background: var(--gis-surface-muted, #f4f6f8);
+    color: var(--gis-text, #1a2332);
+    font-size: 0.875rem;
     font-weight: 500;
-    font-size: 13px;
-    line-height: 120%;
-    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+}
+
+.app-menu__nav-item--active {
+    border-color: var(--gis-primary-sky, #56bae1);
+    background: rgba(0, 82, 180, 0.08);
+    color: var(--gis-primary, #0052b4);
+}
+
+.app-menu__footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gis-border, #e2e8f0);
+}
+
+.app-menu__user {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--gis-border, #e2e8f0);
+    object-fit: cover;
+}
+
+.app-menu__user-label {
+    font-size: 0.8125rem;
+    color: var(--gis-text-secondary, #5c6b7a);
+}
+
+body.app-menu-open {
+    overflow: hidden;
 }

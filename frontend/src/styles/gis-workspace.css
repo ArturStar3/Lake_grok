@@ -1,0 +1,415 @@
+/* Map-first workspace + floating data panel (Figma GIS layout) */
+
+.gis-workspace {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #dfe3e8;
+}
+
+.gis-workspace__map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.gis-workspace__map .map {
+  height: 100%;
+  width: 100%;
+  border-radius: 0;
+}
+
+.gis-workspace__map--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  height: 100vh;
+}
+
+/* ——— Data panel (right, 460px) ——— */
+
+.gis-data-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--gis-panel-width), 100%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--gis-surface);
+  border-radius: 0;
+  box-shadow: var(--gis-shadow-soft);
+  border-left: 1px solid var(--gis-border);
+  overflow: hidden;
+  transform: translateX(0);
+  transition: transform 0.25s ease;
+}
+
+.gis-data-panel--collapsed {
+  transform: translateX(100%);
+  pointer-events: none;
+}
+
+.gis-data-panel__edge-collapse {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--gis-border);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  background: var(--gis-surface);
+  color: var(--gis-text-muted);
+  cursor: pointer;
+  transform: translate(-100%, -50%);
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.06);
+  transition: background 0.15s, color 0.15s;
+}
+
+.gis-data-panel__edge-collapse:hover {
+  background: var(--gis-surface-muted);
+  color: var(--gis-primary);
+}
+
+.gis-data-panel--collapsed .gis-data-panel__edge-collapse {
+  visibility: hidden;
+}
+
+.gis-data-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--gis-border);
+  flex-shrink: 0;
+}
+
+.gis-data-panel__heading {
+  min-width: 0;
+}
+
+.gis-data-panel__title {
+  margin: 0;
+  font-family: var(--gis-font-ui);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gis-primary);
+}
+
+.gis-data-panel__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--gis-text-muted);
+}
+
+.gis-data-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.gis-data-panel__toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--gis-border);
+  border-radius: 10px;
+  background: var(--gis-surface);
+  color: var(--gis-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.gis-data-panel__toolbar-btn:hover {
+  background: var(--gis-surface-muted);
+  border-color: var(--gis-primary-sky);
+}
+
+.gis-data-panel__toolbar-btn--text {
+  width: auto;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.gis-data-panel__toolbar-btn--active {
+  background: rgba(0, 82, 180, 0.08);
+  border-color: var(--gis-primary);
+}
+
+.gis-data-panel__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gis-text-muted);
+  cursor: pointer;
+}
+
+.gis-data-panel__close:hover {
+  background: var(--gis-surface-muted);
+  color: var(--gis-text);
+}
+
+.gis-data-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gis-data-panel--tools .gis-data-panel__body {
+  flex: 1 1 52%;
+}
+
+.gis-data-panel__table-scroll {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.gis-data-panel__footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--gis-border);
+  padding: 12px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--gis-surface-muted);
+}
+
+.gis-data-panel--tools .gis-data-panel__footer {
+  flex: 1 1 48%;
+  min-height: 220px;
+  max-height: 48%;
+}
+
+.gis-data-panel__toggle {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 101;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 36px;
+  min-height: 88px;
+  padding: 10px 6px;
+  border: 1px solid var(--gis-border);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  background: var(--gis-surface-glass);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--gis-shadow-panel);
+  color: var(--gis-primary);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background 0.15s, opacity 0.2s, transform 0.25s ease;
+}
+
+.gis-data-panel__toggle:hover {
+  background: var(--gis-surface);
+}
+
+.gis-data-panel__toggle--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(100%, -50%);
+}
+
+.gis-data-panel__toggle-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* ——— Panel tabs ——— */
+
+.gis-panel-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--gis-surface-muted);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.gis-panel-tabs__tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: var(--gis-font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--gis-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.gis-panel-tabs__tab:hover {
+  color: var(--gis-text);
+}
+
+.gis-panel-tabs__tab--active {
+  background: var(--gis-surface);
+  color: var(--gis-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.gis-panel-tabs__badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  background: rgba(0, 82, 180, 0.1);
+  color: var(--gis-primary);
+}
+
+/* ——— Status messages ——— */
+
+.gis-status {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+.gis-status--loading {
+  color: var(--gis-text-secondary);
+  background: var(--gis-surface-muted);
+}
+
+.gis-status--error {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+/* ——— Tools dropdown in panel header ——— */
+
+.gis-tools-menu-wrap {
+  position: relative;
+}
+
+.gis-tools-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--gis-surface);
+  border: 1px solid var(--gis-border);
+  border-radius: 12px;
+  box-shadow: var(--gis-shadow-soft);
+  z-index: 200;
+}
+
+.gis-tools-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 0.875rem;
+  color: var(--gis-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.gis-tools-menu__item:hover {
+  background: var(--gis-surface-muted);
+}
+
+.gis-tools-menu__item--active {
+  color: var(--gis-primary);
+  background: rgba(0, 82, 180, 0.06);
+}
+
+/* ——— Table overrides inside panel ——— */
+
+.gis-data-panel .filter-panel__header,
+.gis-data-panel .events-filter-panel {
+  border-radius: 10px;
+  border-color: var(--gis-border);
+}
+
+.gis-data-panel .objects-table,
+.gis-data-panel .events-table {
+  font-size: 0.8125rem;
+}
+
+.gis-data-panel .objects-table__row:hover,
+.gis-data-panel .events-table tr:hover {
+  background: rgba(0, 82, 180, 0.04);
+}
+
+/* ——— Tools block in panel footer ——— */
+
+.gis-data-panel__footer .features {
+  height: auto;
+  overflow: visible;
+  min-height: 0;
+  gap: 8px;
+}
+
+.gis-data-panel__footer .action-zone-filters {
+  flex-shrink: 0;
+  margin: 0;
+  max-height: none;
+  min-height: 140px;
+  overflow-y: auto;
+}
+
+.gis-data-panel__footer .intersection-table {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.gis-data-panel__footer .intersection-table__wrapper {
+  flex: 0 1 auto;
+  min-height: 100px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.gis-data-panel__footer .features__table-wrapper {
+  flex: 0 1 auto;
+  min-height: 100px;
+  max-height: 220px;
+}

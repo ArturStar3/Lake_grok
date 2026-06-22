@@ -177,6 +177,8 @@ SynologyDrive/
 infolake_full_offline*.tar
 infolake_full_offline*.tar.gz
 infolake_full_offline*.tgz
+offline/infolake_full_offline.tar
+offline/python-wheels/
 
 # Дополнительные большие/временные файлы из tileserver setup
 tileserver/test_data.zip

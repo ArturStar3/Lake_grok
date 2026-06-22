@@ -7,19 +7,21 @@
     "dev": "vite --host",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vendor:assets": "node ../scripts/copy-vendor-assets.mjs"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "axios": "1.4.0",
     "leaflet": "1.9.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-leaflet": "4.2.1",
     "react-leaflet-cluster": "3.0.0",
     "react-router-dom": "6.14.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tailwindcss/vite": "^4.3.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
@@ -27,6 +29,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "tailwindcss": "^4.3.1",
     "vite": "^7.2.4"
   }
 }

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import "./Formular.css";
+import DataPanel from "../layout/DataPanel";
+import PanelTabs from "../layout/PanelTabs";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import ObjectsTable from "../ObjectsTable/ObjectsTable";
 import EventsTable from "../Events/EventsTable";
 import EventsFilterPanel from "../Events/EventsFilterPanel";
 import MapComponent from "../MapComponent/MapComponent";
 import Features from "../Features/Features";
-import ActionZoneFilters from "../Features/ActionZoneFilters";
 import FormularModal from "../FormularModal/FormularModal";
 import AddTargetModal from "../AddTargetModal/AddTargetModal";
 import FormularEditor from "../FormularEditor/FormularEditor";
@@ -75,6 +76,7 @@ export default function Formular() {
     const mountAbortRef = useRef(null);
 // Это удалить если будет жопа
     const [isFullscreen, setFullscreen] = useState(false);
+    const [dataPanelOpen, setDataPanelOpen] = useState(true);
 
     const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
 
@@ -702,170 +704,104 @@ export default function Formular() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isToolsOpen]);
 
-    return (
-        <section className="formular">
-            <h1 className="visually-hidden">О</h1>
-            <div className="container">
-                <div className="formular__wraper">
-                    <div className={`formular__content${isFullscreen ? " formular__content--map-fullscreen" : ""}`}>
-                        <div className="formular__heading-wraper">
-                            <h2 className="formular__title">ОР</h2>
-                            <div className="formular__heading-actions">
-                                <button 
-                                    className="btn" 
-                                    type="button" 
-                                    onClick={() => setIsAddTargetModalOpen(true)}
-                                    aria-label="Добавить новый объект"
-                                >
-                                    <svg className="formular__icon" width="24" height="24">
-                                        <use href={"/sprite.svg#new-file"} />
-                                    </svg>
-                                </button>
-                                <div className="formular__tools" ref={toolsRef}>
-                                    <button
-                                        className={`btn button__tools${isToolsOpen ? " button__tools--active" : ""}`}
-                                        type="button"
-                                        onClick={handleToggleTools}
-                                        aria-label="Инструменты"
-                                    >
-                                        Инструменты
-                                    </button>
-                                    {isToolsOpen && (
-                                        <div className="formular__tools-menu">
-                                            <button
-                                                className={`tools-menu__item${isMeasureMode ? " tools-menu__item--active" : ""}`}
-                                                type="button"
-                                                onClick={handleToggleMeasure}
-                                            >
-                                                <span className="tools-menu__label">Режим измерения</span>
-                                                <svg className="formular__icon" width="20" height="20" aria-hidden="true">
-                                                    <use href={"/sprite.svg#measure"} />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                className={`tools-menu__item${showActionRadius ? " tools-menu__item--active" : ""}`}
-                                                type="button"
-                                                onClick={() => {
-                                                    setShowActionRadius((prev) => {
-                                                        const next = !prev;
-                                                        if (next) {
-                                                            // В fullScreen сразу активируем radiobutton для панели в features/map_sidebar
-                                                            setActionRadiusMode(isFullscreen ? "zones" : "animation");
-                                                            // Важно: при активации "Зона действия" выключаем "Режим измерения",
-                                                            // чтобы в Features (в fullScreen как map_sidebar) сработала ветка !isMeasureMode
-                                                            // и появилась новая radiobutton "Зоны действия" (кнопка для выбора отображаемых зон)
-                                                            // + панель ActionZoneFilters с чекбоксами по государствам и типам зон.
-                                                            setIsMeasureMode(false);
+    const panelSubtitle =
+        activeTab === "objects"
+            ? `${tableObjects.length} объектов`
+            : `${events.length} событий`;
 
-                                                            // Новый под-режим для блока в features: при активации "Зона измерения" в fullScreen
-                                                            // показываем новый блок радиокнопок ("Зоны пересечения" / "Настройка отображения")
-                                                            if (isFullscreen) {
-                                                                setActionZoneViewMode("displaySettings");
-                                                            }
-                                                        }
-                                                        return next;
-                                                    });
-                                                    setIsToolsOpen(false);
-                                                }}
-                                            >
-                                                <span className="tools-menu__label">Зона действия</span>
-                                                <svg className="formular__icon" width="20" height="20" aria-hidden="true">
-                                                    <use href={"/sprite.svg#measure"} />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="formular__data-wraper">
-                            <div className="formular__tabs">
-                                <button
-                                    type="button"
-                                    className={`formular__tab${activeTab === "objects" ? " formular__tab--active" : ""}`}
-                                    onClick={() => setActiveTab("objects")}
-                                >
-                                    Объекты
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`formular__tab${activeTab === "events" ? " formular__tab--active" : ""}`}
-                                    onClick={() => setActiveTab("events")}
-                                >
-                                    События
-                                </button>
-                            </div>
-                            {activeTab === "objects" && (
-                                <>
-                                    {objectsLoading && (
-                                        <p className="formular__status formular__status--loading">Загрузка объектов…</p>
-                                    )}
-                                    {objectsError && (
-                                        <p className="formular__status formular__status--error">{objectsError}</p>
-                                    )}
-                                    <FilterPanel 
-                                        objects={objects}
-                                        filterCountry={filterCountry}
-                                        onFilterCountryChange={setFilterCountry}
-                                        filterType={filterType}
-                                        onFilterTypeChange={setFilterType}
-                                        filterTitle={filterTitle}
-                                        onFilterTitleChange={setFilterTitle}
-                                    />
-                                    {/* Панель управления Зонами действия — в sidebar (обычный режим). Компонент также используется в features для fullScreen (map_sidebar). */}
-                                    {showActionRadius && (
-                                        <ActionZoneFilters
-                                            actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                                            actionZoneFilters={actionZoneFilters}
-                                            showZoneIntersections={showZoneIntersections}
-                                            setShowZoneIntersections={setShowZoneIntersections}
-                                            toggleActionType={toggleActionType}
-                                            toggleAllForCountry={toggleAllForCountry}
-                                            resetZoneFilters={resetZoneFilters}
-                                        />
-                                    )}
-                                    <ObjectsTable 
-                                        data={tableObjects}
-                                        selectedObj={selectedObj}
-                                        onCheckboxChange={handleCheckboxChange}
-                                        onObjectClick={handleObjectClick}
-                                        hoveredTargetId={hoveredTargetId}
-                                        onTitleClick={setSelectedTargetId}
-                                        onRowHover={setHoveredTargetId}
-                                        onEditClick={handleEditClick}
-                                        onDeleteClick={handleDeleteClick}
-                                    />
-                                </>
-                            )}
-                            {activeTab === "events" && (
-                                <>
-                                    {eventsLoading && (
-                                        <p className="formular__status formular__status--loading">Загрузка событий…</p>
-                                    )}
-                                    {eventsError && (
-                                        <p className="formular__status formular__status--error">{eventsError}</p>
-                                    )}
-                                    <EventsFilterPanel
-                                        countries={countriesList}
-                                        eventTypes={eventTypesList}
-                                        filters={eventsFilters}
-                                        onChange={setEventsFilters}
-                                    />
-                                    <EventsTable
-                                        data={events}
-                                        selectedEvents={selectedEvents}
-                                        onCheckboxChange={handleEventCheckboxChange}
-                                        onFlyTo={handleEventFlyTo}
-                                        onEdit={handleEventEdit}
-                                        onDelete={handleEventDelete}
-                                    />
-                                </>
-                            )}
-                        </div>
+    const dataPanelToolbar = (
+        <>
+            <button
+                type="button"
+                className="gis-data-panel__toolbar-btn"
+                onClick={() => setIsAddTargetModalOpen(true)}
+                aria-label="Добавить новый объект"
+            >
+                <svg width="20" height="20" aria-hidden="true">
+                    <use href="/sprite.svg#new-file" />
+                </svg>
+            </button>
+            <div className="gis-tools-menu-wrap" ref={toolsRef}>
+                <button
+                    type="button"
+                    className={`gis-data-panel__toolbar-btn gis-data-panel__toolbar-btn--text${isToolsOpen ? " gis-data-panel__toolbar-btn--active" : ""}`}
+                    onClick={handleToggleTools}
+                    aria-label="Инструменты"
+                >
+                    Инструменты
+                </button>
+                {isToolsOpen && (
+                    <div className="gis-tools-menu">
+                        <button
+                            className={`gis-tools-menu__item${isMeasureMode ? " gis-tools-menu__item--active" : ""}`}
+                            type="button"
+                            onClick={handleToggleMeasure}
+                        >
+                            <span>Режим измерения</span>
+                            <svg width="20" height="20" aria-hidden="true">
+                                <use href="/sprite.svg#measure" />
+                            </svg>
+                        </button>
+                        <button
+                            className={`gis-tools-menu__item${showActionRadius ? " gis-tools-menu__item--active" : ""}`}
+                            type="button"
+                            onClick={() => {
+                                setShowActionRadius((prev) => {
+                                    const next = !prev;
+                                    if (next) {
+                                        setActionRadiusMode(isFullscreen ? "zones" : "animation");
+                                        setIsMeasureMode(false);
+                                        if (isFullscreen) {
+                                            setActionZoneViewMode("displaySettings");
+                                        }
+                                    }
+                                    return next;
+                                });
+                                setIsToolsOpen(false);
+                            }}
+                        >
+                            <span>Зона действия</span>
+                            <svg width="20" height="20" aria-hidden="true">
+                                <use href="/sprite.svg#measure" />
+                            </svg>
+                        </button>
                     </div>
-                    <div className="formular__features-wraper">
-                        <div className="formular__map">
-                            <MapComponent 
+                )}
+            </div>
+        </>
+    );
+
+    const dataPanelFooter = (
+        <Features
+            isMeasureMode={isMeasureMode}
+            measurements={measurements}
+            onRemovePoint={handleRemoveMeasurePoint}
+            showActionRadius={showActionRadius}
+            actionRadiusMode={actionRadiusMode}
+            onActionRadiusModeChange={setActionRadiusMode}
+            intersections={intersections}
+            selectedIntersections={selectedIntersections}
+            onIntersectionToggle={handleIntersectionToggle}
+            onSelectAllIntersections={handleSelectAllIntersections}
+            isFullscreen={isFullscreen}
+            actionZoneFilters={actionZoneFilters}
+            actionZoneAvailableByCountry={actionZoneAvailableByCountry}
+            showZoneIntersections={showZoneIntersections}
+            setShowZoneIntersections={setShowZoneIntersections}
+            toggleActionType={toggleActionType}
+            toggleAllForCountry={toggleAllForCountry}
+            resetZoneFilters={resetZoneFilters}
+            actionZoneViewMode={actionZoneViewMode}
+            onActionZoneViewModeChange={setActionZoneViewMode}
+        />
+    );
+
+    return (
+        <section className="formular formular--gis">
+            <h1 className="visually-hidden">ОР</h1>
+            <div className="gis-workspace">
+                <div className={`gis-workspace__map${isFullscreen ? " gis-workspace__map--fullscreen" : ""}`}>
+                    <MapComponent
                                 objects={filteredObjects}
                                 objectsAll={objects}
                                 selectedObj={selectedObj}
@@ -925,37 +861,87 @@ export default function Formular() {
                                 resetZoneFilters={resetZoneFilters}
                                 actionZoneViewMode={actionZoneViewMode}
                                 onActionZoneViewModeChange={setActionZoneViewMode}
-                            />
-                        </div>
-                        <div className="formular__features">
-                            <Features 
-                                isMeasureMode={isMeasureMode}
-                                measurements={measurements}
-                                onRemovePoint={handleRemoveMeasurePoint}
-                                showActionRadius={showActionRadius}
-                                actionRadiusMode={actionRadiusMode}
-                                onActionRadiusModeChange={setActionRadiusMode}
-                                intersections={intersections}
-                                selectedIntersections={selectedIntersections}
-                                onIntersectionToggle={handleIntersectionToggle}
-                                onSelectAllIntersections={handleSelectAllIntersections}
-                                // Для fullScreen: панель зон в features (map_sidebar) через отдельную radiobutton; state общий
-                                isFullscreen={isFullscreen}
-                                actionZoneFilters={actionZoneFilters}
-                                actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                                showZoneIntersections={showZoneIntersections}
-                                setShowZoneIntersections={setShowZoneIntersections}
-                                toggleActionType={toggleActionType}
-                                toggleAllForCountry={toggleAllForCountry}
-                                resetZoneFilters={resetZoneFilters}
-                                // Новый под-режим для блока радиокнопок в features (fullScreen map_sidebar)
-                                actionZoneViewMode={actionZoneViewMode}
-                                onActionZoneViewModeChange={setActionZoneViewMode}
-                            />
-                        </div>
-                    </div>
-                    
+                    />
                 </div>
+
+                {!isFullscreen && (
+                    <DataPanel
+                        title="ОР"
+                        subtitle={panelSubtitle}
+                        open={dataPanelOpen}
+                        onOpenChange={setDataPanelOpen}
+                        toolbar={dataPanelToolbar}
+                        footer={isMeasureMode || showActionRadius ? dataPanelFooter : null}
+                        toolsActive={isMeasureMode || showActionRadius}
+                    >
+                        <PanelTabs
+                            tabs={[
+                                { id: "objects", label: "Объекты", badge: tableObjects.length },
+                                { id: "events", label: "События", badge: events.length },
+                            ]}
+                            activeId={activeTab}
+                            onChange={setActiveTab}
+                        />
+                        {activeTab === "objects" && (
+                            <>
+                                {objectsLoading && (
+                                    <p className="gis-status gis-status--loading">Загрузка объектов…</p>
+                                )}
+                                {objectsError && (
+                                    <p className="gis-status gis-status--error">{objectsError}</p>
+                                )}
+                                <FilterPanel
+                                    objects={objects}
+                                    filterCountry={filterCountry}
+                                    onFilterCountryChange={setFilterCountry}
+                                    filterType={filterType}
+                                    onFilterTypeChange={setFilterType}
+                                    filterTitle={filterTitle}
+                                    onFilterTitleChange={setFilterTitle}
+                                />
+                                <div className="gis-data-panel__table-scroll">
+                                    <ObjectsTable
+                                    data={tableObjects}
+                                    selectedObj={selectedObj}
+                                    onCheckboxChange={handleCheckboxChange}
+                                    onObjectClick={handleObjectClick}
+                                    hoveredTargetId={hoveredTargetId}
+                                    onTitleClick={setSelectedTargetId}
+                                    onRowHover={setHoveredTargetId}
+                                    onEditClick={handleEditClick}
+                                    onDeleteClick={handleDeleteClick}
+                                    />
+                                </div>
+                            </>
+                        )}
+                        {activeTab === "events" && (
+                            <>
+                                {eventsLoading && (
+                                    <p className="gis-status gis-status--loading">Загрузка событий…</p>
+                                )}
+                                {eventsError && (
+                                    <p className="gis-status gis-status--error">{eventsError}</p>
+                                )}
+                                <EventsFilterPanel
+                                    countries={countriesList}
+                                    eventTypes={eventTypesList}
+                                    filters={eventsFilters}
+                                    onChange={setEventsFilters}
+                                />
+                                <div className="gis-data-panel__table-scroll">
+                                    <EventsTable
+                                    data={events}
+                                    selectedEvents={selectedEvents}
+                                    onCheckboxChange={handleEventCheckboxChange}
+                                    onFlyTo={handleEventFlyTo}
+                                    onEdit={handleEventEdit}
+                                    onDelete={handleEventDelete}
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </DataPanel>
+                )}
             </div>
 
             {/* Модальное окно формуляра */}

@@ -1,4 +1,6 @@
 /* Global */
+@import "./styles/tokens.css";
+@import "./styles/gis-workspace.css";
 @import "assets/css/global/reboot.css";
 @import "assets/css/global/fonts.css";
 @import "assets/css/global/container.css";
