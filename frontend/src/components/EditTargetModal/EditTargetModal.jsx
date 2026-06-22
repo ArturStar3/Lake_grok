@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { addColorClassToSvg } from '../../utils/svgUtils';
 import { useActionsArray } from '../../hooks/useActionsArray';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
+import { fetchReferenceData } from '../../hooks/useReferenceData';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
 
 const API_ROOT = API_URL;
 
-export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpdated }) {
+export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpdated, cachedTargets = null }) {
     const [activeTab, setActiveTab] = useState('target');
     const [formData, setFormData] = useState({
         country: '',
@@ -80,117 +81,122 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const selectedCountryColor = formData.country 
         ? countries.find(c => c.id === formData.country)?.color || 'blue'
         : 'blue';
+
+    const loadSeqRef = useRef(0);
+    const cachedTargetsRef = useRef(cachedTargets);
+    cachedTargetsRef.current = cachedTargets;
     
     useEffect(() => {
-        if (isOpen && targetId) {
-            loadData();
-        }
-    }, [isOpen, targetId]);
-    
-    const loadData = async () => {
-        setLoading(true);
-        
-        try {
-            const [
-                targetRes,
-                countriesRes,
-                markersRes,
-                actionTypesRes,
-                targetTypesRes,
-                sectionsRes,
-                targetsRes
-            ] = await Promise.all([
-                axios.get(`${API_ROOT}/api/v1/targets/${targetId}/`),
-                axios.get(`${API_ROOT}/api/v1/countries`),
-                axios.get(`${API_ROOT}/api/v1/markers`),
-                axios.get(`${API_ROOT}/api/v1/action-types`),
-                axios.get(`${API_ROOT}/api/v1/target-types`),
-                axios.get(`${API_ROOT}/api/v1/formular-sections/`),
-                axios.get(`${API_ROOT}/api/v1/targets/`)  // для выбора parent
-            ]);
-            
-            const target = targetRes.data;
-            
-            // Сначала устанавливаем справочники
-            setCountries(countriesRes.data);
-            setMarkers(markersRes.data);
-            setActionTypes(actionTypesRes.data);
-            setTargetTypes(targetTypesRes.data);
-            setTargets(targetsRes.data || []);
-            
-            // Затем устанавливаем formData с корректными ID
-            setFormData({
-                country: target.country?.id || '',
-                title: target.title || '',
-                label: target.label || '',
-                type: target.type?.id || '',
-                marker: target.marker?.id || '',
-                parent: target.parent || '',
-                lat: target.lat || '',
-                lng: target.lng || '',
-                actions: target.actions?.map(a => ({
-                    action_type_id: a.action_type?.id || '',
-                    radius: a.radius || 0
-                })) || []
-            });
-            
-            // Загрузка SVG маркеров
-            markersRes.data.forEach(async (marker) => {
-                if (marker.path) {
-                    try {
-                        const res = await axios.get(marker.path, { responseType: 'text' });
-                        setMarkerSvgs(prev => new Map(prev).set(marker.id, res.data));
-                    } catch (err) {
-                        console.warn('Не удалось загрузить SVG маркера:', marker.path, err);
-                    }
-                }
-            });
-            
-            // Организуем разделы в иерархию
-            const organized = organizeIntoHierarchy(sectionsRes.data);
-            setSections(organized);
-            
-            // Загружаем существующие данные формуляра
-            // Примечание: /formular/<id>/ возвращает {formular: [...], subordinates: [...]}
-            try {
-                const formularRes = await axios.get(`${API_ROOT}/api/v1/formular/${targetId}/`);
-                const existingData = {};
-                const formularItems = formularRes.data.formular || (Array.isArray(formularRes.data) ? formularRes.data : []);
-                formularItems.forEach(item => {
-                    existingData[item.section.id] = item.content || '';
-                });
-                setFormularData(existingData);
-            } catch (err) {
-                if (err.response?.status !== 404) {
-                    console.warn('Ошибка загрузки формуляра:', err);
-                }
-                setFormularData({});
-            }
+        if (!isOpen || !targetId) return undefined;
 
-            // Загружаем изображения формуляра
+        const controller = new AbortController();
+        const seq = ++loadSeqRef.current;
+
+        const loadData = async () => {
+            setLoading(true);
             try {
-                const attachmentsRes = await axios.get(`${API_ROOT}/api/v1/formular-attachments/`, {
-                    params: { target: targetId }
+                const refs = await fetchReferenceData({ signal: controller.signal });
+
+                const [
+                    targetRes,
+                    sectionsRes,
+                ] = await Promise.all([
+                    axios.get(`${API_ROOT}/api/v1/targets/${targetId}/`, { signal: controller.signal }),
+                    axios.get(`${API_ROOT}/api/v1/formular-sections/`, { signal: controller.signal }),
+                ]);
+
+                if (seq !== loadSeqRef.current) return;
+
+                const target = targetRes.data;
+
+                setCountries(refs.countries);
+                setMarkers(refs.markers);
+                setActionTypes(refs.actionTypes);
+                setTargetTypes(refs.targetTypes);
+                setMarkerSvgs(refs.markerSvgs);
+
+                const cachedParents = cachedTargetsRef.current;
+                if (cachedParents && cachedParents.length > 0) {
+                    setTargets(cachedParents.map((t) => ({ id: t.id, title: t.title, label: t.label })));
+                } else {
+                    const parentsRes = await axios.get(`${API_ROOT}/api/v1/targets/parent-options/`, {
+                        signal: controller.signal,
+                    });
+                    if (seq !== loadSeqRef.current) return;
+                    setTargets(parentsRes.data || []);
+                }
+            
+                setFormData({
+                    country: target.country?.id || '',
+                    title: target.title || '',
+                    label: target.label || '',
+                    type: target.type?.id || '',
+                    marker: target.marker?.id || '',
+                    parent: target.parent || '',
+                    lat: target.lat || '',
+                    lng: target.lng || '',
+                    actions: target.actions?.map(a => ({
+                        action_type_id: a.action_type?.id || '',
+                        radius: a.radius || 0
+                    })) || []
                 });
-                const grouped = {};
-                (attachmentsRes.data || []).forEach((item) => {
-                    if (!grouped[item.section]) {
-                        grouped[item.section] = [];
+            
+                const organized = organizeIntoHierarchy(sectionsRes.data);
+                setSections(organized);
+            
+                try {
+                    const formularRes = await axios.get(`${API_ROOT}/api/v1/formular/${targetId}/`, {
+                        signal: controller.signal,
+                    });
+                    if (seq !== loadSeqRef.current) return;
+                    const existingData = {};
+                    const formularItems = formularRes.data.formular || (Array.isArray(formularRes.data) ? formularRes.data : []);
+                    formularItems.forEach(item => {
+                        existingData[item.section.id] = item.content || '';
+                    });
+                    setFormularData(existingData);
+                } catch (err) {
+                    if (err?.code === 'ERR_CANCELED' || axios.isCancel?.(err)) return;
+                    if (err.response?.status !== 404) {
+                        console.warn('Ошибка загрузки формуляра:', err);
                     }
-                    grouped[item.section].push(item);
-                });
-                setAttachmentsBySection(grouped);
-            } catch (err) {
-                console.warn('Ошибка загрузки изображений формуляра:', err);
-                setAttachmentsBySection({});
+                    setFormularData({});
+                }
+
+                try {
+                    const attachmentsRes = await axios.get(`${API_ROOT}/api/v1/formular-attachments/`, {
+                        params: { target: targetId },
+                        signal: controller.signal,
+                    });
+                    if (seq !== loadSeqRef.current) return;
+                    const grouped = {};
+                    (attachmentsRes.data || []).forEach((item) => {
+                        if (!grouped[item.section]) {
+                            grouped[item.section] = [];
+                        }
+                        grouped[item.section].push(item);
+                    });
+                    setAttachmentsBySection(grouped);
+                } catch (err) {
+                    if (err?.code === 'ERR_CANCELED' || axios.isCancel?.(err)) return;
+                    console.warn('Ошибка загрузки изображений формуляра:', err);
+                    setAttachmentsBySection({});
+                }
+            } catch (error) {
+                if (error?.code === 'ERR_CANCELED' || axios.isCancel?.(error)) return;
+                if (seq !== loadSeqRef.current) return;
+                console.error('Ошибка загрузки данных:', error);
+                setErrors({ general: 'Не удалось загрузить данные объекта' });
+            } finally {
+                if (seq === loadSeqRef.current) {
+                    setLoading(false);
+                }
             }
-        } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
-            setErrors({ general: 'Не удалось загрузить данные объекта' });
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
+
+        loadData();
+        return () => controller.abort();
+    }, [isOpen, targetId]);
     
     const organizeIntoHierarchy = (sections) => {
         const sectionMap = {};

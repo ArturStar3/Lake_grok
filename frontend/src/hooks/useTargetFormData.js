@@ -1,63 +1,75 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config/api';
+import { fetchReferenceData } from './useReferenceData';
 
 /**
- * Хук для загрузки справочников (countries, markers, actionTypes) с SVG маркеров
- * @param {boolean} isOpen - Флаг открытия модального окна
- * @returns {Object} Состояние загрузки и данные справочников
+ * Справочники для форм объектов разведки.
+ * @param {boolean} isOpen — модальное окно открыто
+ * @param {Array|null} cachedTargets — кэш объектов из Formular (избегает лишнего GET /targets/)
  */
-export const useTargetFormData = (isOpen) => {
-  const [countries, setCountries] = useState([]);
-  const [markers, setMarkers] = useState([]);
-  const [actionTypes, setActionTypes] = useState([]);
-  const [targetTypes, setTargetTypes] = useState([]);
-  const [targets, setTargets] = useState([]);  // для выбора parent
-  const [markerSvgs, setMarkerSvgs] = useState(new Map());
+export const useTargetFormData = (isOpen, cachedTargets = null) => {
+  const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [refData, setRefData] = useState(null);
+  const cachedTargetsRef = useRef(cachedTargets);
+  cachedTargetsRef.current = cachedTargets;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
-    setLoading(true);
-    setError(null);
+    const controller = new AbortController();
+    let cancelled = false;
 
-    Promise.all([
-      axios.get(`${API_URL}/api/v1/countries`),
-      axios.get(`${API_URL}/api/v1/markers`),
-      axios.get(`${API_URL}/api/v1/action-types`),
-      axios.get(`${API_URL}/api/v1/target-types`),
-      axios.get(`${API_URL}/api/v1/targets`)  // для выбора parent
-    ])
-      .then(([countriesRes, markersRes, actionTypesRes, targetTypesRes, targetsRes]) => {
-        setCountries(countriesRes.data);
-        setMarkers(markersRes.data);
-        setActionTypes(actionTypesRes.data);
-        setTargetTypes(targetTypesRes.data);
-        setTargets(targetsRes.data || []);
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const refs = await fetchReferenceData({ signal: controller.signal });
+        if (cancelled) return;
+        setRefData(refs);
 
-        // Загружаем SVG для каждого маркера
-        markersRes.data.forEach(async (marker) => {
-          if (marker.path) {
-            try {
-              const res = await axios.get(marker.path, { responseType: 'text' });
-              setMarkerSvgs(prev => new Map(prev).set(marker.id, res.data));
-            } catch (err) {
-              console.warn('Не удалось загрузить SVG маркера:', marker.path, err);
-            }
-          }
-        });
+        const cachedParents = cachedTargetsRef.current;
+        if (cachedParents && cachedParents.length > 0) {
+          setTargets(
+            cachedParents.map((t) => ({
+              id: t.id,
+              title: t.title,
+              label: t.label,
+            }))
+          );
+        } else {
+          const targetsRes = await axios.get(`${API_URL}/api/v1/targets/parent-options/`, {
+            signal: controller.signal,
+          });
+          if (!cancelled) setTargets(targetsRes.data || []);
+        }
+      } catch (err) {
+        if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
+        if (!cancelled) {
+          console.error('Ошибка загрузки данных:', err);
+          setError(err);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
 
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Ошибка загрузки данных:', err);
-        setError(err);
-        setLoading(false);
-      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [isOpen]);
 
-  return { countries, markers, actionTypes, targetTypes, targets, markerSvgs, loading, error };
+  return {
+    countries: refData?.countries ?? [],
+    markers: refData?.markers ?? [],
+    actionTypes: refData?.actionTypes ?? [],
+    targetTypes: refData?.targetTypes ?? [],
+    targets,
+    markerSvgs: refData?.markerSvgs ?? new Map(),
+    loading,
+    error,
+  };
 };

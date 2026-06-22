@@ -560,3 +560,16 @@
     padding: 1px 0 2px;
     background: #fff;
 }
+
+.formular__status {
+    margin: 8px 16px 0;
+    font-size: 13px;
+}
+
+.formular__status--loading {
+    color: #64748b;
+}
+
+.formular__status--error {
+    color: #dc2626;
+}

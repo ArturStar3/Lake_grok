@@ -4,10 +4,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework import status
 from rest_framework.decorators import action
-from django.db.models import Q, Count
+from django.db import transaction
+from django.db.models import Q, Count, Prefetch
 
 from .serializers import (
     TargetSerializer,
+    TargetParentPickerSerializer,
     TargetCreateSerializer,
     TargetActionCreateSerializer,
     CountryInfoSerializer,
@@ -46,13 +48,26 @@ from formular.models import (
     Event
 )
 
+def _target_list_queryset():
+    """Оптимизированный queryset для списка/детали Target (без N+1 на actions и M2M countries)."""
+    return (
+        Target.objects.select_related('country', 'marker', 'type')
+        .prefetch_related(
+            Prefetch(
+                'actions',
+                queryset=TargetAction.objects.select_related('action_type'),
+            ),
+            'type__countries',
+        )
+        .annotate(children_count=Count('children'))
+    )
+
+
 class TargetViewSet(viewsets.ModelViewSet):
     """Объект разведки"""
 
     permission_classes = [AllowAny]
-    queryset = Target.objects.select_related(
-        'country', 'marker', 'type'
-    ).annotate(children_count=Count('children'))
+    queryset = _target_list_queryset()
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -68,37 +83,43 @@ class TargetViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 qs = qs.none()
         return qs
-    
+
+    @action(detail=False, methods=['get'], url_path='parent-options')
+    def parent_options(self, request):
+        """Лёгкий список объектов для выбора родителя (без вложенных actions/country)."""
+        qs = Target.objects.only('id', 'title', 'label').order_by('title')
+        return Response(TargetParentPickerSerializer(qs, many=True).data)
+
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        
-        # Обработка действий при обновлении
-        actions_data = serializer.validated_data.pop('actions', [])
-        
-        # Обновляем основные поля Target
+
+        actions_data = serializer.validated_data.pop('actions', None)
+
         self.perform_update(serializer)
-        
-        # Удаляем старые действия и создаем новые
-        instance.actions.all().delete()
-        
-        for action_data in actions_data:
-            action_type_id = action_data.get('action_type_id')
-            radius = action_data.get('radius')
-            
-            try:
-                action_type = ActionType.objects.get(id=action_type_id)
-                TargetAction.objects.create(
-                    target=instance,
-                    action_type=action_type,
-                    radius=radius
-                )
-            except ActionType.DoesNotExist:
-                continue
-        
-        return Response(serializer.data)
+
+        if actions_data is not None:
+            instance.actions.all().delete()
+            if actions_data:
+                type_ids = [a['action_type_id'] for a in actions_data]
+                types_by_id = ActionType.objects.in_bulk(type_ids)
+                to_create = [
+                    TargetAction(
+                        target=instance,
+                        action_type=types_by_id[action_data['action_type_id']],
+                        radius=action_data.get('radius'),
+                    )
+                    for action_data in actions_data
+                    if action_data.get('action_type_id') in types_by_id
+                ]
+                if to_create:
+                    TargetAction.objects.bulk_create(to_create)
+
+        instance = self.get_queryset().get(pk=instance.pk)
+        return Response(TargetSerializer(instance).data)
 
 class CountryViewSet(viewsets.ModelViewSet):
     """Список стран с полным CRUD"""
@@ -133,7 +154,7 @@ class TargetTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = TargetTypeSerializer
     permission_classes = [AllowAny]
-    queryset = TargetType.objects.all().order_by('title')
+    queryset = TargetType.objects.prefetch_related('countries').order_by('title')
 
 
 class EventTypeViewSet(viewsets.ModelViewSet):
@@ -153,7 +174,9 @@ class CountryInfoView(APIView):
             return Response({'detail': 'Country not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Получаем все CountryInfo для этой страны
-        infos = CountryInfo.objects.filter(country=country)
+        infos = CountryInfo.objects.filter(country=country).select_related(
+            'section', 'section__parent'
+        )
         serializer = CountryInfoSerializer(infos, many=True)
         return Response(serializer.data)
 
@@ -162,13 +185,13 @@ class CountrySectionsViewSet(viewsets.ReadOnlyModelViewSet):
     
     serializer_class = CountrySectionsSerializer
     permission_classes = [AllowAny]
-    queryset = CountrySections.objects.all().order_by('order', 'title')
+    queryset = CountrySections.objects.select_related('parent').order_by('order', 'title')
 
 class CountryInfoViewSet(viewsets.ModelViewSet):
     """CRUD для информации по странам"""
     
     permission_classes = [AllowAny]
-    queryset = CountryInfo.objects.all().select_related('country', 'section')
+    queryset = CountryInfo.objects.all().select_related('country', 'section', 'section__parent')
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -188,6 +211,9 @@ class CountryAttachmentViewSet(viewsets.ModelViewSet):
         params = self.request.query_params
         country_id = params.get('country')
         section_id = params.get('section')
+
+        if self.action == 'list' and not country_id and not section_id:
+            return qs.none()
 
         if country_id:
             qs = qs.filter(country_id=country_id)
@@ -218,6 +244,7 @@ class FormularView(APIView):
         direct_subordinates = (
             Target.objects.filter(parent=target)
             .select_related('type', 'marker')
+            .prefetch_related('type__countries')
             .annotate(children_count=Count('children'))
             .order_by('title')
         )
@@ -251,27 +278,43 @@ class FormularBulkUpdateView(APIView):
         if not isinstance(items, list):
             return Response({'detail': 'items must be a list'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Валидация данных
         for item in items:
             serializer = FormularBulkUpdateSerializer(data=item)
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Обновление/создание записей
-        for item in items:
-            section_id = item['section_id']
-            content = item.get('content', '')
-            
-            try:
-                section = FormularSections.objects.get(id=section_id)
-            except FormularSections.DoesNotExist:
-                continue
-
-            Formular.objects.update_or_create(
-                target=target,
-                section=section,
-                defaults={'content': content}
+        section_ids = [item['section_id'] for item in items]
+        sections_by_id = FormularSections.objects.in_bulk(section_ids)
+        missing = sorted(set(section_ids) - set(sections_by_id.keys()))
+        if missing:
+            return Response(
+                {'detail': 'Unknown section_id', 'ids': missing},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        with transaction.atomic():
+            existing = {
+                f.section_id: f
+                for f in Formular.objects.filter(target=target, section_id__in=section_ids)
+            }
+            to_create = []
+            to_update = []
+            for item in items:
+                section_id = item['section_id']
+                content = item.get('content', '')
+                if section_id in existing:
+                    row = existing[section_id]
+                    if row.content != content:
+                        row.content = content
+                        to_update.append(row)
+                else:
+                    to_create.append(
+                        Formular(target=target, section_id=section_id, content=content)
+                    )
+            if to_create:
+                Formular.objects.bulk_create(to_create)
+            if to_update:
+                Formular.objects.bulk_update(to_update, ['content'])
 
         return Response({'detail': 'Formular updated successfully'}, status=status.HTTP_200_OK)
 
@@ -288,6 +331,9 @@ class FormularAttachmentViewSet(viewsets.ModelViewSet):
         params = self.request.query_params
         target_id = params.get('target')
         section_id = params.get('section')
+
+        if self.action == 'list' and not target_id and not section_id:
+            return qs.none()
 
         if target_id:
             qs = qs.filter(target_id=target_id)
@@ -325,14 +371,14 @@ class EventViewSet(viewsets.ModelViewSet):
                 country_ids = [int(cid) for cid in countries.split(',') if cid.strip()]
                 qs = qs.filter(country_id__in=country_ids)
             except ValueError:
-                pass
+                return qs.none()
 
         if event_types:
             try:
                 type_ids = [int(tid) for tid in event_types.split(',') if tid.strip()]
                 qs = qs.filter(event_type_id__in=type_ids)
             except ValueError:
-                pass
+                return qs.none()
 
         if title:
             qs = qs.filter(title__icontains=title)

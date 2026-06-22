@@ -175,6 +175,14 @@ class TargetSerializer(serializers.ModelSerializer):
         )
 
 
+class TargetParentPickerSerializer(serializers.ModelSerializer):
+    """Минимальный сериализатор для выбора родительского объекта."""
+
+    class Meta:
+        model = Target
+        fields = ('id', 'title', 'label')
+
+
 class TargetSubordinateSerializer(serializers.ModelSerializer):
     """Лёгкий сериализатор для прямых подчинённых объектов (в дереве подчинённости)"""
 
@@ -227,22 +235,22 @@ class TargetCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         actions_data = validated_data.pop('actions', [])
         target = Target.objects.create(**validated_data)
-        
-        # Создаем действия
-        for action_data in actions_data:
-            action_type_id = action_data.get('action_type_id')
-            radius = action_data.get('radius')
-            
-            try:
-                action_type = ActionType.objects.get(id=action_type_id)
-                TargetAction.objects.create(
+
+        if actions_data:
+            type_ids = [a['action_type_id'] for a in actions_data]
+            types_by_id = ActionType.objects.in_bulk(type_ids)
+            to_create = [
+                TargetAction(
                     target=target,
-                    action_type=action_type,
-                    radius=radius
+                    action_type=types_by_id[action_data['action_type_id']],
+                    radius=action_data.get('radius'),
                 )
-            except ActionType.DoesNotExist:
-                continue
-        
+                for action_data in actions_data
+                if action_data.get('action_type_id') in types_by_id
+            ]
+            if to_create:
+                TargetAction.objects.bulk_create(to_create)
+
         return target
 
 class CountrySectionsSerializer(serializers.ModelSerializer):

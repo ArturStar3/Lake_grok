@@ -10,7 +10,7 @@ import { API_URL } from '../../config/api';
 
 const API_ROOT = API_URL;
 
-export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTargetAddedWithFormular }) {
+export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTargetAddedWithFormular, cachedTargets = null }) {
     const [formData, setFormData] = useState({
         country: '',
         title: '',
@@ -24,7 +24,7 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
     });
     
     // Используем хук для загрузки справочников
-    const { countries, markers, actionTypes, targetTypes, targets, markerSvgs } = useTargetFormData(isOpen);
+    const { countries, markers, actionTypes, targetTypes, targets, markerSvgs } = useTargetFormData(isOpen, cachedTargets);
     
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);

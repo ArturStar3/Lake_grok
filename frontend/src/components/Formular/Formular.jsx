@@ -27,7 +27,11 @@ export default function Formular() {
     const [filterType, setFilterType] = useState([]);
     const [filterTitle, setFilterTitle] = useState("");
     const [objects, setObjects] = useState([]);
+    const [objectsLoading, setObjectsLoading] = useState(true);
+    const [objectsError, setObjectsError] = useState(null);
     const [events, setEvents] = useState([]);
+    const [eventsLoading, setEventsLoading] = useState(false);
+    const [eventsError, setEventsError] = useState(null);
     const [selectedEvents, setSelectedEvents] = useState([]);
     const [eventsFilters, setEventsFilters] = useState({
         title: "",
@@ -66,8 +70,13 @@ export default function Formular() {
     const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
     const intersectionsInitialized = useRef(false);
     const toolsRef = useRef(null);
+    const eventsFetchAbortRef = useRef(null);
+    const eventsFetchSeqRef = useRef(0);
+    const mountAbortRef = useRef(null);
 // Это удалить если будет жопа
     const [isFullscreen, setFullscreen] = useState(false);
+
+    const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
 
     const filteredObjects = useMemo(() => {
         return objects.filter((obj) => {
@@ -327,7 +336,7 @@ export default function Formular() {
     const actionZoneAvailableByCountry = useMemo(() => {
       const byCountry = {};
       objects.forEach((obj) => {
-        if (!selectedObj.includes(obj.id) || !obj.actions || obj.actions.length === 0) return;
+        if (!selectedSet.has(obj.id) || !obj.actions || obj.actions.length === 0) return;
         const c = obj.country?.title || 'Неизвестно';
         if (!byCountry[c]) byCountry[c] = new Set();
         obj.actions.forEach((a) => {
@@ -336,7 +345,7 @@ export default function Formular() {
         });
       });
       return byCountry;
-    }, [objects, selectedObj]);
+    }, [objects, selectedSet]);
 
     const toggleActionType = useCallback((country, actionTitle) => {
       setActionZoneFilters((prev) => {
@@ -442,38 +451,53 @@ export default function Formular() {
         setMeasurePoints((prev) => prev.filter((p) => p.id !== id));
     };
 
-    const fetchData = async () => {
+    const fetchData = async (signal) => {
+        setObjectsLoading(true);
+        setObjectsError(null);
         try {
-            const resp = await axios.get(API_URL);
+            const resp = await axios.get(API_URL, { signal });
             const data = resp.data;
             const rawArr = Array.isArray(data) ? data : [];
             setObjects(rawArr);
         } catch(err) {
+            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
             console.error("Не удалось загрузить данные по объектам", err);
+            setObjectsError("Не удалось загрузить объекты. Проверьте подключение к серверу.");
+        } finally {
+            setObjectsLoading(false);
         }
     };
 
-    const fetchCountries = async () => {
+    const fetchCountries = async (signal) => {
         try {
-            const resp = await axios.get(COUNTRIES_API_URL);
+            const resp = await axios.get(COUNTRIES_API_URL, { signal });
             const data = Array.isArray(resp.data) ? resp.data : [];
             setCountriesList(data);
         } catch (err) {
+            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
             console.error("Не удалось загрузить список стран", err);
         }
     };
 
-    const fetchEventTypes = async () => {
+    const fetchEventTypes = async (signal) => {
         try {
-            const resp = await axios.get(EVENT_TYPES_API_URL);
+            const resp = await axios.get(EVENT_TYPES_API_URL, { signal });
             const data = Array.isArray(resp.data) ? resp.data : [];
             setEventTypesList(data);
         } catch (err) {
+            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
             console.error("Не удалось загрузить список типов событий", err);
         }
     };
 
     const fetchEvents = async () => {
+        eventsFetchAbortRef.current?.abort();
+        const controller = new AbortController();
+        eventsFetchAbortRef.current = controller;
+        const seq = ++eventsFetchSeqRef.current;
+
+        setEventsLoading(true);
+        setEventsError(null);
         try {
             const params = {};
             if (eventsFilters.title?.trim()) params.title = eventsFilters.title.trim();
@@ -484,23 +508,43 @@ export default function Formular() {
             if (eventsFilters.countries.length > 0) params.countries = eventsFilters.countries.join(",");
             if (eventsFilters.eventTypes.length > 0) params.event_types = eventsFilters.eventTypes.join(",");
 
-            const resp = await axios.get(EVENTS_API_URL, { params });
+            const resp = await axios.get(EVENTS_API_URL, { params, signal: controller.signal });
+            if (seq !== eventsFetchSeqRef.current) return;
             const data = Array.isArray(resp.data) ? resp.data : [];
             setEvents(data);
         } catch (err) {
+            if (axios.isCancel?.(err) || err?.code === "ERR_CANCELED") return;
+            if (seq !== eventsFetchSeqRef.current) return;
             console.error("Не удалось загрузить события", err);
+            setEventsError("Не удалось загрузить события.");
+        } finally {
+            if (seq === eventsFetchSeqRef.current) {
+                setEventsLoading(false);
+            }
         }
     };
 
     useEffect(() => {
-        fetchData();
-        fetchCountries();
-        fetchEventTypes();
+        mountAbortRef.current?.abort();
+        const controller = new AbortController();
+        mountAbortRef.current = controller;
+        const { signal } = controller;
+        fetchData(signal);
+        fetchCountries(signal);
+        fetchEventTypes(signal);
+        return () => controller.abort();
     }, []);
 
     useEffect(() => {
-        fetchEvents();
-    }, [eventsFilters]);
+        if (activeTab !== "events") return undefined;
+        const timer = setTimeout(() => {
+            fetchEvents();
+        }, 350);
+        return () => {
+            clearTimeout(timer);
+            eventsFetchAbortRef.current?.abort();
+        };
+    }, [activeTab, eventsFilters]);
 
     const handleTargetAdded = (newTarget) => {
         // Перезагружаем список объектов после добавления
@@ -753,6 +797,12 @@ export default function Formular() {
                             </div>
                             {activeTab === "objects" && (
                                 <>
+                                    {objectsLoading && (
+                                        <p className="formular__status formular__status--loading">Загрузка объектов…</p>
+                                    )}
+                                    {objectsError && (
+                                        <p className="formular__status formular__status--error">{objectsError}</p>
+                                    )}
                                     <FilterPanel 
                                         objects={objects}
                                         filterCountry={filterCountry}
@@ -789,6 +839,12 @@ export default function Formular() {
                             )}
                             {activeTab === "events" && (
                                 <>
+                                    {eventsLoading && (
+                                        <p className="formular__status formular__status--loading">Загрузка событий…</p>
+                                    )}
+                                    {eventsError && (
+                                        <p className="formular__status formular__status--error">{eventsError}</p>
+                                    )}
                                     <EventsFilterPanel
                                         countries={countriesList}
                                         eventTypes={eventTypesList}
@@ -919,6 +975,7 @@ export default function Formular() {
                 onClose={() => setIsAddTargetModalOpen(false)}
                 onTargetAdded={handleTargetAdded}
                 onTargetAddedWithFormular={handleTargetAddedWithFormular}
+                cachedTargets={objects}
             />
             
             {/* Редактор формуляра */}
@@ -936,6 +993,7 @@ export default function Formular() {
                 isOpen={!!editTargetId}
                 onClose={() => setEditTargetId(null)}
                 onTargetUpdated={handleTargetUpdated}
+                cachedTargets={objects}
             />
 
             {isEditEventModalOpen && (

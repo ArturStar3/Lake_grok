@@ -34,9 +34,12 @@ import { filterFlagMarkers, isFlagMarker } from "../../utils/markerFilters";
 
 const { ICON_WIDTH, ICON_HEIGHT, MAX_DISTANCE_PX } = MAP_CONSTANTS;
 
+let _fontMeasureCanvas = null;
 function calcFontSize(text, maxWidth, maxFont = 14, minFont = 6) {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+  if (!_fontMeasureCanvas) {
+    _fontMeasureCanvas = document.createElement('canvas');
+  }
+  const ctx = _fontMeasureCanvas.getContext('2d');
   let fontSize = maxFont;
   const measure = size => {
     ctx.font = `${size}px Arial, Helvetica, sans-serif`;
@@ -117,10 +120,9 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     
     if (pathsToLoad.length === 0) return;
 
-    // СРАЗУ помечаем пути как "загружаются"
+    // СРАЗУ помечаем пути как "загружаются" (loaded — только после успешной загрузки)
     pathsToLoad.forEach(path => {
       loadingPathsRef.current.add(path);
-      loadedPathsRef.current.add(path);
     });
 
     const loadSvgs = async () => {
@@ -128,6 +130,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
             pathsToLoad.map(async (path) => {
                 try {
                     const res = await axios.get(path, { responseType: "text" });
+                    loadedPathsRef.current.add(path);
                     return [path, res.data];
                 } catch (err) {
                     console.warn("Не удалось загрузить SVG:", path, err);
@@ -252,10 +255,13 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     return map;
   }, [clusteredObjects, svgCache]);
 
-  // Вызываем callback когда иконки готовы
+  // Вызываем callback когда иконки готовы (или когда список пуст — сброс маркеров)
   useEffect(() => {
-    if (onMarkersReady && Object.keys(iconsById).length > 0) {
+    if (!onMarkersReady) return;
+    if (Object.keys(iconsById).length > 0) {
       onMarkersReady({ iconsById, clusteredObjects });
+    } else if (!clusteredObjects || clusteredObjects.length === 0) {
+      onMarkersReady({ iconsById: {}, clusteredObjects: [] });
     }
   }, [iconsById, clusteredObjects, onMarkersReady]);
 

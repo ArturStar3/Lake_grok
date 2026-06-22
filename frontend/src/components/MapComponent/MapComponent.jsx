@@ -321,7 +321,11 @@ function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds }) {
 // Компонент для отображения элементов группы в круге при наведении.
 // Оптимизация: React.memo + вычисления зависят только от displayGroupId + groupedObjects.
 const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, onMarkerClick, measureMode, onMarkerHover }) {
-    const mapInstance = useMapEvents({});
+    const [mapRevision, setMapRevision] = React.useState(0);
+    const mapInstance = useMapEvents({
+        zoomend: () => setMapRevision((v) => v + 1),
+        moveend: () => setMapRevision((v) => v + 1),
+    });
     const [circleMarkers, setCircleMarkers] = React.useState([]);
     const [circleCenter, setCircleCenter] = React.useState(null);
 
@@ -385,7 +389,7 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
 
         setCircleMarkers(positionsWithCircle);
         setCircleCenter({ lat: centerLat, lng: centerLng });
-    }, [displayGroupId, groupedObjects, mapInstance]);
+    }, [displayGroupId, groupedObjects, mapInstance, mapRevision]);
 
     if (!circleCenter || circleMarkers.length === 0 || !displayGroupId) return null;
 
@@ -507,7 +511,7 @@ function MapComponent({
     onMeasurePointsChange,
     onShowActionRadiusChange,
     onMarkerClick,
-    onMarkerHover: _onMarkerHover,
+    onMarkerHover,
     onEditClick,
     onDeleteClick,
     onEventSave,
@@ -596,13 +600,19 @@ function MapComponent({
         );
     }, [isEventEditModeActive, onEditEventDrawPointsChange]);
 
-    // Отслеживаем изменения в объектах и инкрементируем версию
+    // Пересоздаём маркеры только при изменении данных объектов, а не при фильтрации на карте
+    const objectsDataKey = useMemo(() => {
+        const source = objectsAll.length > 0 ? objectsAll : objects;
+        return source
+            .map((o) => `${o.id}:${o.marker?.id ?? ''}:${o.lat}:${o.lng}`)
+            .join('|');
+    }, [objectsAll, objects]);
+
     useEffect(() => {
         setMarkerVersion(prev => prev + 1);
-        // Сбрасываем данные маркеров, чтобы принудительно очистить старые
         setMarkerData({ iconsById: {}, clusteredObjects: [] });
         setNonFlagData({ iconsById: {}, groupedObjects: [] });
-    }, [objects]);
+    }, [objectsDataKey]);
 
     useEffect(() => {
         const markersToFetch = new Map();
@@ -743,21 +753,18 @@ function MapComponent({
     }, [isFullscreen, pinnedGroupId, zoneContextMenu]);
 
     // Закрытие контекстного меню зон при клике вне (для req 6)
-    // Исправлено: предыдущая версия на 'mousedown' + capture=true закрывала меню (и сбрасывала activeZonePopup)
-    // даже при mousedown по самим кнопкам меню → кнопки казались не кликабельными, onClick не успевал
-    // или state сбрасывался до обновления controlled popup.
     useEffect(() => {
         if (!zoneContextMenu) return undefined;
         const handleOutside = (e) => {
-            // Не закрываем, если клик (mousedown) случился внутри самого меню
             if (zoneMenuRef.current && zoneMenuRef.current.contains(e.target)) {
                 return;
             }
             setZoneContextMenu(null);
             setActiveZonePopup(null);
         };
-        document.addEventListener('mousedown', handleOutside);
-        return () => document.removeEventListener('mousedown', handleOutside);
+        // click (не mousedown) — чтобы не закрыть меню в том же цикле событий, что и открытие
+        document.addEventListener('click', handleOutside, true);
+        return () => document.removeEventListener('click', handleOutside, true);
     }, [zoneContextMenu]);
 
     useEffect(() => {
@@ -818,8 +825,12 @@ function MapComponent({
 
     useEffect(() => {
         fetch("/geo/custom.geo.json")
-            .then(res => res.json())
+            .then((res) => {
+                if (!res.ok) throw new Error(`GeoJSON HTTP ${res.status}`);
+                return res.json();
+            })
             .then(setGeoData)
+            .catch((err) => console.warn("Не удалось загрузить границы стран:", err));
     }, []);
 
     const onEachCountry = useCallback((feature, layer) => {
@@ -1120,16 +1131,11 @@ function MapComponent({
         setMeasurePoints((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, lat, lng }]);
     };
 
-    // Новый обработчик hover: только меняет hoveredMarkerId
+    // Новый обработчик hover: синхронизирует локальное состояние и родительский callback
     const handleMarkerHover = (targetId) => {
         setHoveredMarkerId(targetId);
-        // Выделение строки в таблице можно реализовать через hoveredMarkerId
+        onMarkerHover?.(targetId);
     };
-        // Логируем изменение hoveredMarkerId
-        useEffect(() => {
-            if (hoveredMarkerId !== null) {
-            }
-        }, [hoveredMarkerId]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1582,6 +1588,12 @@ function MapComponent({
                 <MeasureHandler isActive={effectiveMeasureMode} onAddPoint={isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint} />
                 <EventContextMenuHandler />
                 <PolygonContextMenuHandler />
+                <TileLayer
+                    url={TILE_RASTER_URL}
+                    minZoom={2}
+                    maxZoom={14}
+                    attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
+                />
                 {/* <CursorTracker /> */}
                 <MarkerInitializer 
                     key={`markers-v${markerVersion}`}
@@ -1604,12 +1616,6 @@ function MapComponent({
                     onMarkerClick={onMarkerClick}
                     measureMode={effectiveMeasureMode}
                     onMarkerHover={handleMarkerHover}
-                />
-                <TileLayer
-                    url={TILE_RASTER_URL}
-                    minZoom={2}
-                    maxZoom={14}
-                    attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
                 />
                 {geoData && (
                         <MemoGeoJSON
@@ -2120,6 +2126,14 @@ function MapComponent({
                                             setHoveredZoneTargetIds(new Set());
                                         },
                                         click: (e) => {
+                                            L.DomEvent.stopPropagation(e.originalEvent);
+                                            if (e.target?.closePopup) {
+                                                e.target.closePopup();
+                                            }
+                                            if (mapRef.current?.closePopup) {
+                                                mapRef.current.closePopup();
+                                            }
+
                                             const ll = e.latlng;
                                             const candidates = currentVisibleZones.filter((zone) => {
                                                 const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(ll);
@@ -2127,61 +2141,43 @@ function MapComponent({
                                             });
                                             if (candidates.length === 0) return;
 
+                                            const toPopupPayload = (c) => ({
+                                                label: c.obj.label || c.obj.title,
+                                                actionTitle: c.actionTitle,
+                                                centerLat: c.centerLat,
+                                                centerLng: c.centerLng,
+                                                radiusMeters: c.radiusMeters,
+                                                countryTitle: c.obj.country?.title || '',
+                                            });
+
                                             if (candidates.length === 1) {
-                                                const chosen = candidates[0].obj;
-                                                // Исправление бага "объекты пропадают при щелчке":
-                                                // onCheckboxChange — toggle. При повторном клике по уже выбранной зоне
-                                                // это снимало выбор → объект исчезал с карты.
-                                                // Теперь: ensure selected (добавляем, только если ещё не выбран).
-                                                if (onCheckboxChange && !selectedObj.includes(chosen.id)) {
-                                                    onCheckboxChange(chosen.id);
+                                                const chosen = candidates[0];
+                                                if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
+                                                    onCheckboxChange(chosen.obj.id);
                                                 }
                                                 setZoneContextMenu(null);
-                                                // Для single — не сетим active здесь (child Popup ниже откроет описание нативно).
-                                                // active + controlled используем только для случая меню (чтобы показать именно выбранную зону).
+                                                setActiveZonePopupVersion((v) => v + 1);
+                                                setActiveZonePopup(toPopupPayload(chosen));
                                             } else {
-                                                // Несколько зон под курсором — контекстное меню (req 6)
-                                                // Clear any previous forced tooltip so the menu appears clean;
-                                                // the choice inside the menu will set a new activeZonePopup.
                                                 setActiveZonePopup(null);
-                                                const evt = e.originalEvent || {};
+                                                const { x, y } = getMenuPosition(e.originalEvent || {});
                                                 setZoneContextMenu({
-                                                    x: evt.clientX || 180,
-                                                    y: evt.clientY || 180,
+                                                    x,
+                                                    y,
                                                     candidates: candidates.map((c) => ({
                                                         obj: c.obj,
                                                         actionTitle: c.actionTitle,
-                                                        // Захватываем полные данные для tooltip в момент клика (центры, радиус и т.д.).
-                                                        // Это позволяет показывать правильный tooltip даже если rebuild
-                                                        // currentVisibleZones или selectedObj обновится асинхронно из родителя.
                                                         centerLat: c.centerLat,
                                                         centerLng: c.centerLng,
                                                         radiusMeters: c.radiusMeters,
                                                         label: c.obj.label || c.obj.title,
-                                                        countryTitle: c.obj.country?.title || ''
-                                                    }))
+                                                        countryTitle: c.obj.country?.title || '',
+                                                    })),
                                                 });
                                             }
                                         }
                                     }}
-                                >
-                                    <Popup>
-                                        <div>
-                                            <strong>{obj.label || obj.title}</strong>
-                                            <br />
-                                            Тип зоны: {actionTitle}
-                                            <br />
-                                            Радиус: {Math.round((z.radiusMeters || 0) / 1000)} км
-                                            <br />
-                                            Страна: {obj.country?.title || ''}
-                                        </div>
-                                    </Popup>
-                                </Circle>
-
-                                {/* Примечание: child <Popup> восстановлен для базового случая (клик по зоне/маркеру).
-                                   Описание открывается нативно Leaflet'ом для кликнутого Circle.
-                                   Для случая overlapping + выбор в контекстном меню — используем controlled popup ниже
-                                   (с захваченным payload и version в key), чтобы показать именно выбранную зону. */}
+                                />
 
                                 {/* Специальные визуальные эффекты по action_type (например радар) */}
                                 {special === 'radar' && renderRadarSpokes(centerLat, centerLng, radiusMeters, circleColor)}
@@ -2197,13 +2193,7 @@ function MapComponent({
                     );
                 })()}
 
-                {/* Controlled popup for zone description — используется **только** для случая overlapping зон + выбор в контекстном меню.
-                   Для обычного клика по зоне/маркеру описание открывается нативно через child <Popup> внутри Circle (восстановлено).
-                   Этот controlled рендерится на высоком уровне внутри MapContainer.
-                   При выборе в меню: бампится version + сетится payload (с центрами, захваченными в момент клика по зонам).
-                   Key с version гарантирует новый экземпляр Popup → свежий .leaflet-popup-content-wrapper с контентом выбранной зоны.
-                   autoPan помогает гарантировать видимость.
-                */}
+                {/* Controlled popup для описания зоны (одиночный клик и выбор из контекстного меню) */}
                 {showActionRadius && activeZonePopup && activeZonePopup.centerLat != null && (
                     <Popup
                         key={`active-zone-popup-v${activeZonePopupVersion}-${activeZonePopup.actionTitle}-${activeZonePopup.centerLat.toFixed(5)}-${activeZonePopup.centerLng.toFixed(5)}`}
@@ -2242,7 +2232,7 @@ function MapComponent({
                         background: 'white',
                         border: '1px solid #3a4654',
                         boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
-                        zIndex: 700,
+                        zIndex: 2000,
                         minWidth: '180px',
                         fontSize: '12px'
                     }}

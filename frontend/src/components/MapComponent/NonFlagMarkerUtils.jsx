@@ -82,10 +82,9 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
     
     if (pathsToLoad.length === 0) return;
 
-    // СРАЗУ помечаем пути как "загружаются"
+    // СРАЗУ помечаем пути как "загружаются" (loaded — только после успешной загрузки)
     pathsToLoad.forEach(path => {
       loadingPathsRef.current.add(path);
-      loadedPathsRef.current.add(path);
     });
 
     const loadSvgs = async () => {
@@ -93,6 +92,7 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
             pathsToLoad.map(async (path) => {
                 try {
                     const res = await axios.get(path, { responseType: "text" });
+                    loadedPathsRef.current.add(path);
                     return [path, res.data];
                 } catch (err) {
                     console.warn("Не удалось загрузить SVG для non-flag:", path, err);
@@ -264,8 +264,11 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
 
   // Вызываем callback когда иконки готовы
   useEffect(() => {
-    if (onMarkersReady && Object.keys(iconsById).length > 0) {
+    if (!onMarkersReady) return;
+    if (Object.keys(iconsById).length > 0) {
       onMarkersReady({ iconsById, groupedObjects });
+    } else if (!groupedObjects || groupedObjects.length === 0) {
+      onMarkersReady({ iconsById: {}, groupedObjects: [] });
     }
   }, [iconsById, groupedObjects, onMarkersReady]);
 
