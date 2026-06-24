@@ -7,7 +7,7 @@ from django.utils.safestring import mark_safe
 from django.db.models import Prefetch, Count
 from django.conf import settings
 
-from .forms import CountryForm
+from .forms import CountryForm, ActionTypeForm
 from .models import (
     Country,
     Target,
@@ -150,11 +150,28 @@ class TargetAdmin(admin.ModelAdmin):
     
 @admin.register(ActionType)
 class ActionTypeAdmin(admin.ModelAdmin):
+    form = ActionTypeForm
     list_display = (
         'title',
-        'animation'
+        'color_display',
+        'line_type',
     )
-    list_editable = ('animation',)
+    list_editable = ('line_type',)
+
+    @admin.display(description='Цвет зоны')
+    def color_display(self, obj):
+        return format_html(
+            '<span style="display:inline-flex;align-items:center;gap:8px;">'
+            '<span style="display:inline-block;width:22px;height:22px;'
+            'background:{};border:1px solid #333;border-radius:4px;'
+            'box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25);" '
+            'title="{}"></span>'
+            '<span style="color:#666;font-size:12px;">{}</span>'
+            '</span>',
+            obj.color,
+            obj.color,
+            obj.color,
+        )
     
 @admin.register(Marker)
 class MarkerAdmin(admin.ModelAdmin):

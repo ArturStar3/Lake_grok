@@ -126,7 +126,6 @@ export function findAllIntersections(objects) {
             objectTitle: obj.title,
             actionIndex: actionIndex,
             actionTitle: action.action_type?.title || 'Зона действия',
-            animationType: action.action_type?.animation || 'wave',
             lat: obj.lat,
             lng: obj.lng,
             radius: action.radius

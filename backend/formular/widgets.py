@@ -1,4 +1,5 @@
 # widgets.py
+from django import forms
 from django.forms.widgets import RadioSelect
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -48,3 +49,20 @@ class ColorRadioSelect(RadioSelect):
         # label уже SafeString (помечен mark_safe), но на всякий случай:
         option['label'] = mark_safe(option['label'])
         return option
+
+
+class HexColorInput(forms.TextInput):
+    """HTML5 color picker для полей с hex-цветом (#RRGGBB)."""
+
+    input_type = 'color'
+
+    def __init__(self, attrs=None):
+        default_attrs = {
+            'style': (
+                'width: 48px; height: 28px; padding: 0; '
+                'border: 1px solid #ccc; border-radius: 4px; cursor: pointer;'
+            ),
+        }
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(attrs=default_attrs)

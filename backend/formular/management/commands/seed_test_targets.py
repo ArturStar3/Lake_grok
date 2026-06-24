@@ -7,7 +7,7 @@ from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from formular.enums import ActionAnimations, Colors
+from formular.enums import ActionLineTypes, Colors
 from formular.models import (
     ActionType,
     Country,
@@ -73,10 +73,10 @@ COUNTRY_BOUNDS = {
 }
 
 ACTION_TYPES = [
-    ("Разведка", ActionAnimations.RADAR),
-    ("Патрулирование", ActionAnimations.WAVE),
-    ("Огневая поддержка", ActionAnimations.PULSE),
-    ("Блокада", ActionAnimations.RINGS),
+    ("Разведка", "#00ced1", ActionLineTypes.SOLID),
+    ("Патрулирование", "#ff8c00", ActionLineTypes.DASHED),
+    ("Огневая поддержка", "#9370db", ActionLineTypes.DASH_DOT),
+    ("Блокада", "#dc143c", ActionLineTypes.DASH_X),
 ]
 
 
@@ -296,10 +296,10 @@ class Command(BaseCommand):
 
     def _ensure_action_types(self):
         result = []
-        for title, animation in ACTION_TYPES:
+        for title, color, line_type in ACTION_TYPES:
             action_type, _ = ActionType.objects.get_or_create(
                 title=title,
-                defaults={"animation": animation},
+                defaults={"color": color, "line_type": line_type},
             )
             result.append(action_type)
         return result

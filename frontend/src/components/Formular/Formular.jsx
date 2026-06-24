@@ -20,6 +20,7 @@ const API_URL = `${API_ROOT}/api/v1/targets`;
 const EVENTS_API_URL = `${API_ROOT}/api/v1/events`;
 const COUNTRIES_API_URL = `${API_ROOT}/api/v1/countries`;
 const EVENT_TYPES_API_URL = `${API_ROOT}/api/v1/event-types`;
+const ACTION_TYPES_API_URL = `${API_ROOT}/api/v1/action-types`;
 
 export default function Formular() {
     const [activeTab, setActiveTab] = useState("objects");
@@ -44,6 +45,7 @@ export default function Formular() {
     });
     const [countriesList, setCountriesList] = useState([]);
     const [eventTypesList, setEventTypesList] = useState([]);
+    const [actionTypesList, setActionTypesList] = useState([]);
     const [selectedObj, setSelectedObj] = useState([]);
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
@@ -61,6 +63,10 @@ export default function Formular() {
     const [actionZoneViewMode, setActionZoneViewMode] = useState("displaySettings");
     const [selectedTargetId, setSelectedTargetId] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
+
+    const handleMarkerHoverFromMap = useCallback((targetId) => {
+        setHoveredTargetId((prev) => (prev === targetId ? prev : targetId));
+    }, []);
     const [isAddTargetModalOpen, setIsAddTargetModalOpen] = useState(false);
     const [formularEditorTarget, setFormularEditorTarget] = useState(null);
     const [editTargetId, setEditTargetId] = useState(null);
@@ -490,6 +496,17 @@ export default function Formular() {
         }
     };
 
+    const fetchActionTypes = async (signal) => {
+        try {
+            const resp = await axios.get(ACTION_TYPES_API_URL, { signal });
+            const data = Array.isArray(resp.data) ? resp.data : [];
+            setActionTypesList(data);
+        } catch (err) {
+            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
+            console.error("Не удалось загрузить список типов действий", err);
+        }
+    };
+
     const fetchEvents = async () => {
         eventsFetchAbortRef.current?.abort();
         const controller = new AbortController();
@@ -532,6 +549,7 @@ export default function Formular() {
         fetchData(signal);
         fetchCountries(signal);
         fetchEventTypes(signal);
+        fetchActionTypes(signal);
         return () => controller.abort();
     }, []);
 
@@ -877,6 +895,7 @@ export default function Formular() {
                                 onAddMeasurePoint={handleAddMeasurePoint}
                                 onCheckboxChange={handleCheckboxChange}
                                 showActionRadius={showActionRadius}
+                                actionTypes={actionTypesList}
                                 actionRadiusMode={actionRadiusMode}
                                 onActionRadiusModeChange={setActionRadiusMode}
                                 intersections={intersections}
@@ -891,7 +910,7 @@ export default function Formular() {
                                 onMeasureModeChange={setIsMeasureMode}
                                 onMeasurePointsChange={setMeasurePoints}
                                 onShowActionRadiusChange={setShowActionRadius}
-                                onMarkerHover={setHoveredTargetId}
+                                onMarkerHover={handleMarkerHoverFromMap}
                                 onMarkerClick={setSelectedTargetId}
                                 onEditClick={handleEditClick}
                                 onDeleteClick={handleDeleteClick}
@@ -933,6 +952,7 @@ export default function Formular() {
                                 measurements={measurements}
                                 onRemovePoint={handleRemoveMeasurePoint}
                                 showActionRadius={showActionRadius}
+                                actionTypes={actionTypesList}
                                 actionRadiusMode={actionRadiusMode}
                                 onActionRadiusModeChange={setActionRadiusMode}
                                 intersections={intersections}

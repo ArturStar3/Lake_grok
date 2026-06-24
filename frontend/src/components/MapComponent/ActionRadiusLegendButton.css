@@ -36,7 +36,7 @@
   left: 0;
   bottom: 40px;
   min-width: 220px;
-  max-width: 280px;
+  max-width: 300px;
   background: rgba(255, 255, 255, 0.98);
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.12);
@@ -61,6 +61,11 @@
   margin-bottom: 8px;
 }
 
+.action-radius-legend__empty {
+  font-size: 12px;
+  color: #666;
+}
+
 .action-radius-legend__list {
   list-style: none;
   margin: 0;
@@ -79,11 +84,12 @@
 }
 
 .action-radius-legend__sample {
+  flex-shrink: 0;
   width: 18px;
   height: 18px;
   border-radius: 50%;
   border: 2px solid #3388ff;
-  opacity: 0.9;
+  box-sizing: border-box;
 }
 
 .action-radius-legend__text {
@@ -102,75 +108,32 @@
   color: #666;
 }
 
-/* Цвета с привязкой к типам анимаций */
-.action-radius-legend__sample--gradient {
-  border-color: #8b0000;
-  background: radial-gradient(circle, rgba(139, 0, 0, 0.7) 0%, rgba(139, 0, 0, 0.2) 60%, transparent 100%);
+/* Тире-крест: пунктирное кольцо + символ × в центре превью */
+.action-radius-legend__sample--dash_x {
+  position: relative;
 }
 
-.action-radius-legend__sample--radar {
-  border-color: #00ced1;
+.action-radius-legend__sample--dash_x::before,
+.action-radius-legend__sample--dash_x::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 50%;
+  height: 2px;
+  background: var(--sample-color, #3388ff);
+  pointer-events: none;
 }
 
-.action-radius-legend__sample--wave {
-  border-color: #ff8c00;
+.action-radius-legend__sample--dash_x::before {
+  transform: translateY(-50%) rotate(45deg);
 }
 
-.action-radius-legend__sample--pulse {
-  border-color: #9370db;
+.action-radius-legend__sample--dash_x::after {
+  transform: translateY(-50%) rotate(-45deg);
 }
 
-.action-radius-legend__sample--rings {
-  border-color: #32cd32;
+/* Тире-точка: комбинированный пунктир */
+.action-radius-legend__sample--dash_dot {
+  border-style: dashed;
 }
-
-.action-radius-legend__sample--sector {
-  border-color: #4682b4;
-}
-
-.action-radius-legend__sample--alert {
-  border-color: #dc143c;
-}
-
-.action-radius-legend__sample--dashed_rotate {
-  border-color: #ffd700;
-}
-
-/* Обновлённые сэмплы под новые визуальные эффекты зон (по action_type).
-   Показывают разную штриховку + намёк на радар-эффект (линии внутри).
-   Легенда приведена в соответствие с текущей реализацией Map (цвет по типу + dash + спец.эффекты).
-*/
-.action-radius-legend__sample--radar {
-  border-color: #00ced1;
-  /* Намёк на линии радара внутри круга */
-  background: 
-    radial-gradient(circle at 50% 50%, transparent 55%, rgba(0, 206, 209, 0.35) 56%, transparent 58%),
-    conic-gradient(from 0deg, transparent 0 22.5deg, rgba(0, 206, 209, 0.45) 22.5deg 45deg, transparent 45deg 67.5deg, rgba(0, 206, 209, 0.45) 67.5deg 90deg, transparent 90deg);
-  background-size: 100% 100%, 100% 100%;
-}
-
-.action-radius-legend__sample--solid {
-  border: 2px solid #3a6b9c;
-  background: rgba(58, 107, 156, 0.12);
-}
-
-.action-radius-legend__sample--dashed {
-  border: 2px dashed #ffd700;
-  background: rgba(255, 215, 0, 0.1);
-}
-
-.action-radius-legend__sample--dotdash {
-  border: 2px dotted #f18f01;
-  background: rgba(241, 143, 1, 0.1);
-}
-
-.action-radius-legend__sample--dashcross {
-  border: 2px dashed #c73e1d;
-  background: rgba(199, 62, 29, 0.1);
-}
-
-.action-radius-legend__sample--other {
-  border: 2px solid #6b4c9a;
-  background: linear-gradient(45deg, rgba(107, 76, 154, 0.15) 25%, transparent 25%, transparent 50%, rgba(107, 76, 154, 0.15) 50%, rgba(107, 76, 154, 0.15) 75%, transparent 75%);
-}
-

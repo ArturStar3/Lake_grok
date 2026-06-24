@@ -13,6 +13,9 @@ import EventsFilterPanel from "../Events/EventsFilterPanel";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import Features from "../Features/Features";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
+import ActionZonesLayer from "./ActionZonesLayer";
+import ZoneActionPopupManager from "./ZoneActionPopupManager";
+import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
 import { isFlagMarker, isNonFlagMarker } from "../../utils/markerFilters";
@@ -486,6 +489,7 @@ function MapComponent({
     onAddMeasurePoint,
     onCheckboxChange = () => {},
     showActionRadius: externalShowActionRadius = false,
+    actionTypes = [],
     actionRadiusMode = "animation",
     onActionRadiusModeChange,
     intersections = [],
@@ -535,8 +539,6 @@ function MapComponent({
     isEditEventMode = false,
     tableTab
 }) {
-    const [hoveredMarkerId, setHoveredMarkerId] = useState(null);
-    // const [isFullscreen, setIsFullscreen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
@@ -546,7 +548,6 @@ function MapComponent({
     const [zoneContextMenu, setZoneContextMenu] = useState(null);
     const [activeZonePopup, setActiveZonePopup] = useState(null);
     const [activeZonePopupVersion, setActiveZonePopupVersion] = useState(0);
-    const [hoveredZoneTargetIds, setHoveredZoneTargetIds] = useState(new Set());
     const zoneMenuRef = useRef(null);
     const [geoData, setGeoData] = useState(null);
     const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [] });
@@ -560,7 +561,6 @@ function MapComponent({
     const [eventDrawPoints, setEventDrawPoints] = useState([]);
     const [polygonContextMenu, setPolygonContextMenu] = useState(null);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-    const [cursorLatLng, setCursorLatLng] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [markerVersion, setMarkerVersion] = useState(0);
 
@@ -572,15 +572,22 @@ function MapComponent({
     const hoverTimeoutRef = useRef(null);
     const isEventPointDraggingRef = useRef(false);
     const isEventPointPointerDownRef = useRef(false);
-    const cursorRafRef = useRef(null);
-    const cursorLatLngRef = useRef(null);
-    const cursorLastUpdateRef = useRef(0);
-    const cursorLastValueRef = useRef(null);
+    const cursorCoordsRef = useRef(null);
+    const skipZoneHoverUpdatesRef = useRef(false);
+    const zoneHoverControllerRef = useRef(null);
+    if (!zoneHoverControllerRef.current) {
+        zoneHoverControllerRef.current = createZoneHoverController();
+    }
+    const lastMarkerHoverRef = useRef(null);
     const prevIsFullscreenRef = useRef(false);
     const center = [51.1833, 71.4167];
     const containerRef = useRef(null);
     const sidebarRef = useRef(null);
     const measureMenuRef = useRef(null);
+
+    useEffect(() => {
+        skipZoneHoverUpdatesRef.current = Boolean(activeZonePopup || zoneContextMenu);
+    }, [activeZonePopup, zoneContextMenu]);
 
     // Ограничение движения карты по оси Y (чтобы нельзя было уехать за полюса)
     const mapMaxBounds = [[-85.0511287798, -180], [85.0511287798, 180]];
@@ -1059,25 +1066,17 @@ function MapComponent({
     function CursorTracker() {
         useMapEvents({
             mousemove: (e) => {
-                // Можно добавить условия для отключения в спец. режимах, если нужно
                 if (isEventPointDraggingRef.current) return;
                 if (isEventPointPointerDownRef.current) return;
-                cursorLatLngRef.current = { lat: e.latlng.lat, lng: e.latlng.lng };
-                if (cursorRafRef.current) return;
-                cursorRafRef.current = requestAnimationFrame(() => {
-                    cursorRafRef.current = null;
-                    if (!cursorLatLngRef.current) return;
-                    if (
-                        cursorLastValueRef.current &&
-                        Math.abs(cursorLastValueRef.current.lat - cursorLatLngRef.current.lat) < 1e-6 &&
-                        Math.abs(cursorLastValueRef.current.lng - cursorLatLngRef.current.lng) < 1e-6
-                    ) {
-                        return;
-                    }
-                    cursorLastValueRef.current = cursorLatLngRef.current;
-                    setCursorLatLng(cursorLatLngRef.current);
-                });
-            }
+                const el = cursorCoordsRef.current;
+                if (!el) return;
+                el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                el.style.display = 'block';
+            },
+            mouseout: () => {
+                const el = cursorCoordsRef.current;
+                if (el) el.style.display = 'none';
+            },
         });
         return null;
     }
@@ -1132,10 +1131,76 @@ function MapComponent({
     };
 
     // Новый обработчик hover: синхронизирует локальное состояние и родительский callback
-    const handleMarkerHover = (targetId) => {
-        setHoveredMarkerId(targetId);
+    const handleMarkerHover = useCallback((targetId) => {
+        if (skipZoneHoverUpdatesRef.current) return;
+        if (lastMarkerHoverRef.current === targetId) return;
+        lastMarkerHoverRef.current = targetId;
+        zoneHoverControllerRef.current?.setHovered(targetId ? [targetId] : []);
         onMarkerHover?.(targetId);
-    };
+    }, [onMarkerHover]);
+
+    const updateGroupHover = useCallback((groupId) => {
+        if (skipZoneHoverUpdatesRef.current) return;
+        setHoveredGroupId(groupId);
+        if (!groupId) {
+            zoneHoverControllerRef.current?.clear();
+            return;
+        }
+        const memberIds = (nonFlagData.groupedObjects || [])
+            .filter((o) => o.groupId === groupId && !o.isGroupIcon && o.id)
+            .map((o) => o.id);
+        zoneHoverControllerRef.current?.setHovered(memberIds);
+    }, [nonFlagData.groupedObjects]);
+
+    const handleZonePopupClose = useCallback(() => {
+        setActiveZonePopup(null);
+    }, []);
+
+    const handleZoneClickAt = useCallback((e, candidates) => {
+        if (e.target?.closePopup) {
+            e.target.closePopup();
+        }
+        if (mapRef.current?.closePopup) {
+            mapRef.current.closePopup();
+        }
+        if (!candidates?.length) return;
+
+        const toPopupPayload = (c) => ({
+            label: c.obj.label || c.obj.title,
+            actionTitle: c.actionTitle,
+            centerLat: c.centerLat,
+            centerLng: c.centerLng,
+            radiusMeters: c.radiusMeters,
+            countryTitle: c.obj.country?.title || '',
+        });
+
+        if (candidates.length === 1) {
+            const chosen = candidates[0];
+            if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
+                onCheckboxChange(chosen.obj.id);
+            }
+            setZoneContextMenu(null);
+            setActiveZonePopupVersion((v) => v + 1);
+            setActiveZonePopup(toPopupPayload(chosen));
+            return;
+        }
+
+        setActiveZonePopup(null);
+        const { x, y } = getMenuPosition(e.originalEvent || {});
+        setZoneContextMenu({
+            x,
+            y,
+            candidates: candidates.map((c) => ({
+                obj: c.obj,
+                actionTitle: c.actionTitle,
+                centerLat: c.centerLat,
+                centerLng: c.centerLng,
+                radiusMeters: c.radiusMeters,
+                label: c.obj.label || c.obj.title,
+                countryTitle: c.obj.country?.title || '',
+            })),
+        });
+    }, [mapRef, onCheckboxChange, selectedObj]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1814,7 +1879,7 @@ function MapComponent({
                                 eventHandlers={{
                                 mouseover: () => {
                                     if (obj.isGroupIcon) {
-                                        setHoveredGroupId(obj.groupId);
+                                        updateGroupHover(obj.groupId);
                                     } else {
                                         // Обычный non-flag маркер
                                         if (obj.id) {
@@ -1826,7 +1891,7 @@ function MapComponent({
                                     if (obj.isGroupIcon) {
                                         // Сбрасываем hover только если группа не закреплена
                                         if (pinnedGroupId !== obj.groupId) {
-                                            setHoveredGroupId(null);
+                                            updateGroupHover(null);
                                         }
                                     } else {
                                         // Обычный non-flag маркер
@@ -1839,7 +1904,7 @@ function MapComponent({
                                         // Если уже закреплена - закрываем, если нет - закрепляем
                                         if (pinnedGroupId === obj.groupId) {
                                             setPinnedGroupId(null);
-                                            setHoveredGroupId(null);
+                                            updateGroupHover(null);
                                         } else {
                                             setPinnedGroupId(obj.groupId);
                                         }
@@ -1919,304 +1984,31 @@ function MapComponent({
                         interactive={false}
                     />
                 ))}
-                {showActionRadius && (() => {
-                    // Зоны действия — независимо от видимости маркеров.
-                    // Используем полный список объектов (objectsAll если передан, иначе objects).
-                    // Фильтруем только по selectedObj + наличию actions. Не идём через clusteredObjects / displayedObjects / groupedObjects
-                    // (эти коллекции — только для рендера маркеров и подчиняются страновым чекбоксам, зуму, order, кластеризации).
-                    const sourceObjectsForZones = (objectsAll && objectsAll.length > 0) ? objectsAll : objects;
+                {showActionRadius && (
+                    <ActionZonesLayer
+                        objects={objects}
+                        objectsAll={objectsAll}
+                        selectedSet={selectedSet}
+                        actionZoneFilters={actionZoneFilters}
+                        hoverController={zoneHoverControllerRef.current}
+                        skipHoverRef={skipZoneHoverUpdatesRef}
+                        onZoneClickAt={handleZoneClickAt}
+                    />
+                )}
 
-                    // Фильтр по странам и типам зон (req 1)
-                    // Исправлено: пустой Set (после "Ничего" или снятия всех типов страны) теперь корректно прячет зоны.
-                    // Если для страны есть явная запись в actionZoneFilters (даже пустая) — используем её строго.
-                    // Отсутствие записи (до инициализации) — показываем (graceful default).
-                    const isActionVisible = (obj, action) => {
-                        const cTitle = obj.country?.title || 'Неизвестно';
-                        const aTitle = action.action_type?.title || 'Зона действия';
-                        const enabledSet = actionZoneFilters[cTitle];
-                        if (enabledSet !== undefined) {
-                            return enabledSet.has(aTitle);
-                        }
-                        return true;
-                    };
-
-                    const isObjectHovered = (obj) => {
-                        if (hoveredZoneTargetIds.has(obj.id)) return true;
-                        if (isNonFlagMarker(obj) && obj.groupId) {
-                            return hoveredGroupId === obj.groupId;
-                        }
-                        return hoveredMarkerId === obj.id;
-                    };
-
-                    // Собираем текущие видимые зоны (для hover/click hit-testing + рендера)
-                    // Всегда используем реальные координаты объекта (obj.lat / obj.lng) — без смещений группировки/кластеризации.
-                    // Это обеспечивает "действительную картину" для зон, независимо от того, как отображаются маркеры.
-                    const currentVisibleZones = [];
-                    sourceObjectsForZones
-                        .filter(obj => selectedSet.has(obj.id) && obj.actions && obj.actions.length > 0)
-                        .forEach((obj) => {
-                            // Реальные координаты объекта (независимо от группировки маркеров)
-                            const centerLat = obj.lat;
-                            const centerLng = obj.lng;
-
-                            obj.actions.forEach((action) => {
-                                if (!isActionVisible(obj, action)) return;
-                                const radiusMeters = action.radius * 1000;
-                                const actionTitle = action.action_type?.title || 'Зона действия';
-                                currentVisibleZones.push({
-                                    obj,
-                                    action,
-                                    actionTitle,
-                                    centerLat,
-                                    centerLng,
-                                    radiusMeters
-                                });
-                            });
-                        });
-
-                    // Цвета для зон — ВИЗУАЛЬНОЕ РАЗДЕЛЕНИЕ ПО action_type (ActionType.title), а не по стране.
-                    // Одна и та же action_type всегда имеет один и тот же цвет (стабильный хэш по title).
-                    // Это исправление по обратной связи пользователя.
-                    const getZoneColor = (obj, actionTitle) => {
-                        const title = actionTitle || 'default';
-                        // Стабильный хэш по названию типа действия
-                        let hash = 0;
-                        for (let i = 0; i < title.length; i++) {
-                            hash = (hash << 5) - hash + title.charCodeAt(i);
-                            hash |= 0;
-                        }
-                        hash = Math.abs(hash);
-                        // Спокойная, различимая палитра именно для типов зон (action_type)
-                        const palette = [
-                            '#2E86AB', // teal
-                            '#A23B72', // magenta
-                            '#F18F01', // orange
-                            '#3A7D44', // forest green
-                            '#6B4C9A', // purple
-                            '#C73E1D', // brick red
-                            '#4A6FA5', // steel blue
-                            '#E8871E'  // amber
-                        ];
-                        return palette[hash % palette.length];
-                    };
-
-                    // === Расширенные визуальные стили зон (по action_type.title) ===
-                    // Не только цвет (уже по типу), но и dashArray + специальные эффекты.
-                    // Запрос: радар — линии внутри как на экране РЛС; разная штриховка окружности для разных типов.
-                    const getZoneDashArray = (actionTitle, hovered) => {
-                      if (hovered) return undefined;
-                      const t = (actionTitle || '').toLowerCase();
-                      if (t.includes('радар') || t.includes('radar')) return undefined; // для радара основной круг сплошной, эффект дают спицы
-                      if (t.includes('пунктир') || t.includes('dash')) return '6,4';
-                      if (t.includes('точка') || t.includes('dot')) return '2,3,6,3';
-                      if (t.includes('тире') || t.includes('cross')) return '8,3,2,3';
-                      // разнообразие для остальных типов
-                      const hash = Math.abs((actionTitle || 'def').split('').reduce((s, ch) => (s << 5) - s + ch.charCodeAt(0), 0));
-                      const patterns = [undefined, '5,5', '10,5', '3,3'];
-                      return patterns[hash % patterns.length];
-                    };
-
-                    const getZoneSpecialEffect = (actionTitle) => {
-                      const t = (actionTitle || '').toLowerCase();
-                      if (t.includes('радар') || t.includes('radar')) return 'radar';
-                      return null;
-                    };
-
-                    // Статические радиальные линии для радара (по примеру экрана РЛС). Без анимации.
-                    const renderRadarSpokes = (centerLat, centerLng, radiusMeters, color) => {
-                      const spokes = [];
-                      const num = 10;
-                      for (let i = 0; i < num; i++) {
-                        const angleDeg = (i * (360 / num));
-                        const angle = angleDeg * Math.PI / 180;
-                        const dLat = (radiusMeters / 111320) * Math.cos(angle);
-                        const dLng = (radiusMeters / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angle);
-                        const endLat = centerLat + dLat;
-                        const endLng = centerLng + dLng;
-                        spokes.push(
-                          <Polyline
-                            key={`spoke-${i}`}
-                            positions={[[centerLat, centerLng], [endLat, endLng]]}
-                            pathOptions={{
-                              color,
-                              weight: 1.2,
-                              opacity: 0.48,
-                              interactive: false
-                            }}
-                          />
-                        );
-                      }
-                      return spokes;
-                    };
-
-                    // Подсветка центров (адаптировано под новый hover от зон)
-                    const centerMap = new Map();
-                    currentVisibleZones.forEach((z) => {
-                        const obj = z.obj;
-                        const key = `${z.centerLat.toFixed(6)},${z.centerLng.toFixed(6)}`;
-                        const hovered = isObjectHovered(obj);
-                        const color = getZoneColor(obj, z.actionTitle);
-                        const existing = centerMap.get(key);
-                        if (!existing) {
-                            centerMap.set(key, { lat: z.centerLat, lng: z.centerLng, color, hovered });
-                        } else if (hovered) {
-                            existing.hovered = true;
-                        }
-                    });
-
-                    const highlightCircles = Array.from(centerMap.entries()).map(([key, info]) => {
-                        const { lat, lng, color, hovered } = info;
-                        return (
-                            <CircleMarker
-                                key={`zone-highlight-${key}`}
-                                center={[lat, lng]}
-                                radius={11}
-                                pathOptions={{
-                                    color: hovered ? color : `${color}`,
-                                    fillColor: hovered ? color : color,
-                                    fillOpacity: hovered ? 0.28 : 0.18,
-                                    weight: hovered ? 4 : 2,
-                                    opacity: 0.9,
-                                    className: 'action-radius-marker-highlight',
-                                    interactive: false
-                                }}
-                            />
-                        );
-                    });
-
-                    // Рендер зон — новый дизайн (чистый, низкая непрозрачность, визуально разделены по action_type.title, интерактивные) — исправлено по обратной связи
-                    const radiusCircles = currentVisibleZones.map((z, idx) => {
-                        const { obj, actionTitle, centerLat, centerLng, radiusMeters } = z;
-                        const circleColor = getZoneColor(obj, actionTitle);
-                        const hovered = isObjectHovered(obj);
-
-                        const dashArray = getZoneDashArray(actionTitle, hovered);
-                        const special = getZoneSpecialEffect(actionTitle);
-
-                        return (
-                            <React.Fragment key={`action-radius-${obj.id}-${idx}`}>
-                                {/* Основной круг зоны действия — статичный (анимации убраны по req 2).
-                                   Дополнительно: dashArray и спец.эффекты зависят от action_type.title. */}
-                                <Circle
-                                    center={[centerLat, centerLng]}
-                                    radius={radiusMeters}
-                                    pathOptions={{
-                                        color: circleColor,
-                                        fillColor: circleColor,
-                                        fillOpacity: 0.09,
-                                        weight: hovered ? 3.5 : 2,
-                                        opacity: hovered ? 0.95 : 0.65,
-                                        dashArray,
-                                        className: 'action-radius-circle',
-                                        interactive: true
-                                    }}
-                                    eventHandlers={{
-                                        mouseover: (e) => {
-                                            const ll = e.latlng;
-                                            const covered = new Set();
-                                            currentVisibleZones.forEach((zone) => {
-                                                const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(ll);
-                                                if (dist <= zone.radiusMeters + 1) {
-                                                    covered.add(zone.obj.id);
-                                                }
-                                            });
-                                            setHoveredZoneTargetIds(covered);
-                                        },
-                                        mouseout: () => {
-                                            setHoveredZoneTargetIds(new Set());
-                                        },
-                                        click: (e) => {
-                                            L.DomEvent.stopPropagation(e.originalEvent);
-                                            if (e.target?.closePopup) {
-                                                e.target.closePopup();
-                                            }
-                                            if (mapRef.current?.closePopup) {
-                                                mapRef.current.closePopup();
-                                            }
-
-                                            const ll = e.latlng;
-                                            const candidates = currentVisibleZones.filter((zone) => {
-                                                const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(ll);
-                                                return dist <= zone.radiusMeters + 1;
-                                            });
-                                            if (candidates.length === 0) return;
-
-                                            const toPopupPayload = (c) => ({
-                                                label: c.obj.label || c.obj.title,
-                                                actionTitle: c.actionTitle,
-                                                centerLat: c.centerLat,
-                                                centerLng: c.centerLng,
-                                                radiusMeters: c.radiusMeters,
-                                                countryTitle: c.obj.country?.title || '',
-                                            });
-
-                                            if (candidates.length === 1) {
-                                                const chosen = candidates[0];
-                                                if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
-                                                    onCheckboxChange(chosen.obj.id);
-                                                }
-                                                setZoneContextMenu(null);
-                                                setActiveZonePopupVersion((v) => v + 1);
-                                                setActiveZonePopup(toPopupPayload(chosen));
-                                            } else {
-                                                setActiveZonePopup(null);
-                                                const { x, y } = getMenuPosition(e.originalEvent || {});
-                                                setZoneContextMenu({
-                                                    x,
-                                                    y,
-                                                    candidates: candidates.map((c) => ({
-                                                        obj: c.obj,
-                                                        actionTitle: c.actionTitle,
-                                                        centerLat: c.centerLat,
-                                                        centerLng: c.centerLng,
-                                                        radiusMeters: c.radiusMeters,
-                                                        label: c.obj.label || c.obj.title,
-                                                        countryTitle: c.obj.country?.title || '',
-                                                    })),
-                                                });
-                                            }
-                                        }
-                                    }}
-                                />
-
-                                {/* Специальные визуальные эффекты по action_type (например радар) */}
-                                {special === 'radar' && renderRadarSpokes(centerLat, centerLng, radiusMeters, circleColor)}
-                            </React.Fragment>
-                        );
-                    });
-
-                    return (
-                        <>
-                            {highlightCircles}
-                            {radiusCircles}
-                        </>
-                    );
-                })()}
 
                 {/* Controlled popup для описания зоны (одиночный клик и выбор из контекстного меню) */}
                 {showActionRadius && activeZonePopup && activeZonePopup.centerLat != null && (
-                    <Popup
-                        key={`active-zone-popup-v${activeZonePopupVersion}-${activeZonePopup.actionTitle}-${activeZonePopup.centerLat.toFixed(5)}-${activeZonePopup.centerLng.toFixed(5)}`}
-                        position={[activeZonePopup.centerLat, activeZonePopup.centerLng]}
-                        onClose={() => setActiveZonePopup(null)}
-                        autoPan={true}
-                        closeButton={true}
-                    >
-                        <div>
-                            <strong>{activeZonePopup.label}</strong>
-                            <br />
-                            Тип зоны: {activeZonePopup.actionTitle}
-                            <br />
-                            Радиус: {Math.round((activeZonePopup.radiusMeters || 0) / 1000)} км
-                            <br />
-                            Страна: {activeZonePopup.countryTitle || ''}
-                        </div>
-                    </Popup>
+                    <ZoneActionPopupManager
+                        popup={activeZonePopup}
+                        version={activeZonePopupVersion}
+                        onClose={handleZonePopupClose}
+                    />
                 )}
 
                 <CursorTracker />
             </MapContainer>
-            {showActionRadius && <ActionRadiusLegendButton />}
+            {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
 
             {/* Панель управления зонами теперь в sidebar (Formular). Здесь только легенда на карте. */}
 
@@ -2425,11 +2217,7 @@ function MapComponent({
             {/* Координаты курсора отображаются всегда (когда доступны), как было реализовано до введения
                 радио "Считывание координат" в контексте инструмента "Зона действия".
                 Ранее при активном showActionRadius координаты скрывались, если не был выбран специальный режим "coords". */}
-            {cursorLatLng && (
-                <div className="map__cursor-coords">
-                    {cursorLatLng.lat.toFixed(6)}, {cursorLatLng.lng.toFixed(6)}
-                </div>
-            )}
+            <div ref={cursorCoordsRef} className="map__cursor-coords" style={{ display: 'none' }} />
         </div>
     );
 }

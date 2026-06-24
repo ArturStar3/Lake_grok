@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 
 from .enums import (
     Colors,
-    ActionAnimations
+    ActionLineTypes,
 )
 from .validators import (
     validate_svg
@@ -300,11 +300,17 @@ class ActionType(models.Model):
         max_length=150,
         verbose_name='Тип действия'
     )
-    animation = models.CharField(
+    color = models.CharField(
+        max_length=7,
+        verbose_name='Цвет зоны',
+        default='#3388ff',
+        help_text='Цвет контура и заливки зоны (формат #RRGGBB)',
+    )
+    line_type = models.CharField(
         max_length=20,
-        choices=ActionAnimations.choices,
-        default=ActionAnimations.WAVE,
-        verbose_name='Анимация действия'
+        choices=ActionLineTypes.choices,
+        default=ActionLineTypes.SOLID,
+        verbose_name='Тип линии',
     )
 
     class Meta:

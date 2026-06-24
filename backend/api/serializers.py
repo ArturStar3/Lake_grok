@@ -97,7 +97,8 @@ class ActionTypeSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'title',
-            'animation',
+            'color',
+            'line_type',
         )
 
 class ActionTypeListSerializer(serializers.ModelSerializer):
@@ -108,7 +109,8 @@ class ActionTypeListSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'title',
-            'animation',
+            'color',
+            'line_type',
         )
 
 class TargetActionSerializer(serializers.ModelSerializer):

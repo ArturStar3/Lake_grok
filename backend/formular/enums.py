@@ -10,14 +10,10 @@ class Colors(BaseEnum):
     yellow = 'желтый'
     marine = 'морской'
 
-class ActionAnimations(models.TextChoices):
-    """Типы анимаций для действий на карте"""
+class ActionLineTypes(models.TextChoices):
+    """Стили линии контура зоны действия"""
 
-    GRADIENT = 'gradient', 'Градиент'
-    RADAR = 'radar', 'Радар'
-    WAVE = 'wave', 'Волна'
-    PULSE = 'pulse', 'Пульсация'
-    RINGS = 'rings', 'Кольца'
-    SECTOR = 'sector', 'Сектор'
-    ALERT = 'alert', 'Тревога'
-    DASHED_ROTATE = 'dashed_rotate', 'Вращающийся пунктир'
+    SOLID = 'solid', 'Сплошная линия'
+    DASHED = 'dashed', 'Пунктирная линия'
+    DASH_DOT = 'dash_dot', 'Тире точка'
+    DASH_X = 'dash_x', 'Тире крест'
