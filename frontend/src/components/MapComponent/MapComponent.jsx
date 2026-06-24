@@ -1853,7 +1853,7 @@ function MapComponent({
                     if (currentZoom < 6) return null;
                     const allNonFlags = nonFlagData.groupedObjects;
                     const visibleNonFlags = allNonFlags.filter(obj => !obj.isHidden && selectedSet.has(obj.id));
-                    return visibleNonFlags.map((obj, idx) => {
+                    return visibleNonFlags.map((obj) => {
                         const markerId = obj.marker?.id ?? 'no-marker';
                         const key = obj.isGroupIcon 
                             ? `non-flag-group-${obj.groupId}`
@@ -2090,7 +2090,7 @@ function MapComponent({
             {isFullscreen && (
                 <button
                     className="map__objects-btn"
-                    onClick={() => setIsObjectsPanelOpen(!isObjectsPanelOpen)}
+                    onClick={() => setIsSidebarOpen((prev) => !prev)}
                     aria-label="Показать/скрыть объекты"
                 >
                     📋

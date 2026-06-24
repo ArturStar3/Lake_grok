@@ -598,6 +598,14 @@
 
 /* Только текстовая подпись интерактивна */
 .marker-label {
+    position: absolute;
+    display: block;
+    right: 5px;
+    box-sizing: border-box;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
     pointer-events: auto;
     cursor: pointer;
 }
@@ -612,22 +620,6 @@
 
 .leaflet-marker-icon.custom-div-icon:hover {
     z-index: 1000 !important;
-}
-
-/* Дополнительные стили для marker-label определены выше в секции флаговых маркеров */
-.marker-label {
-    position: absolute;
-    display: flex;
-    justify-content: flex-end;
-    align-items: flex-end;
-    right: 5px;
-    width: 95%;
-    height: 50%;
-    font-weight: 700;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: right;
 }
 
 /* Стили для non-flag маркеров */

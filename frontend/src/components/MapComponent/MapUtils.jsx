@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import axios from "axios";
-import { processMarkerClustering, calculateMarkerPosition, processNonFlagClustering, getGroupCirclePositions } from "./markerClusteringUtils";
+import { processMarkerClustering, calculateMarkerPosition } from "./markerClusteringUtils";
 import { enrichSvg } from "../../utils/svgUtils";
 import { getViewBoxSize } from "../../utils/svgUtils";
 
@@ -30,25 +30,58 @@ function enrichMarkersWithSvgSize(objects, svgCache) {
   });
 }
 import { MAP_CONSTANTS } from "../../constants/mapConstants";
-import { filterFlagMarkers, isFlagMarker } from "../../utils/markerFilters";
+import { filterFlagMarkers } from "../../utils/markerFilters";
 
 const { ICON_WIDTH, ICON_HEIGHT, MAX_DISTANCE_PX } = MAP_CONSTANTS;
 
+const LABEL_FONT_MAX = 14;
+const LABEL_FONT_MIN = 9;
+
 let _fontMeasureCanvas = null;
-function calcFontSize(text, maxWidth, maxFont = 14, minFont = 6) {
+
+function measureTextWidth(text, fontSize) {
+  if (!text) return 0;
   if (!_fontMeasureCanvas) {
     _fontMeasureCanvas = document.createElement('canvas');
   }
   const ctx = _fontMeasureCanvas.getContext('2d');
-  let fontSize = maxFont;
-  const measure = size => {
-    ctx.font = `${size}px Arial, Helvetica, sans-serif`;
-    return ctx.measureText(text).width;
-  };
-  while (fontSize > minFont && measure(fontSize) > maxWidth) {
-    fontSize -= 1;
+  ctx.font = `${fontSize}px Arial, Helvetica, sans-serif`;
+  return ctx.measureText(text).width;
+}
+
+/** Укорачивает строку с одной точкой в конце, чтобы влезла в maxWidth при fontSize. */
+function truncateWithDot(text, maxWidth, fontSize) {
+  if (!text) return '';
+  if (measureTextWidth(text, fontSize) <= maxWidth) return text;
+
+  let truncated = text;
+  while (truncated.length > 0) {
+    const candidate = `${truncated}.`;
+    if (measureTextWidth(candidate, fontSize) <= maxWidth) {
+      return candidate;
+    }
+    truncated = truncated.slice(0, -1);
   }
-  return Math.max(fontSize, minFont);
+  return measureTextWidth('.', fontSize) <= maxWidth ? '.' : '';
+}
+
+/**
+ * Подбирает размер шрифта (от max до min). Обрезка с точкой — только на min,
+ * если уменьшение шрифта не помогло.
+ */
+function fitMarkerLabel(text, maxWidthPx, maxFont = LABEL_FONT_MAX, minFont = LABEL_FONT_MIN) {
+  if (!text) return { text: '', fontSize: maxFont };
+
+  for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 1) {
+    if (measureTextWidth(text, fontSize) <= maxWidthPx) {
+      return { text, fontSize };
+    }
+  }
+
+  return {
+    text: truncateWithDot(text, maxWidthPx, minFont),
+    fontSize: minFont,
+  };
 }
 
 // const latLngToPixel = (map, lat, lng) => {
@@ -201,7 +234,11 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
         const top = `${iconHeight * (labelTop / 100)}px`;
         const height = `${iconHeight * (labelHeight / 100)}px`;
         const width = `${iconWidth * (labelWidth / 100)}px`;
-        const fontSize = calcFontSize(label, iconWidth * 0.8, 14, 9);
+        const labelBoxWidthPx = iconWidth * (labelWidth / 100);
+        const { text: labelText, fontSize: labelFontSize } = fitMarkerLabel(
+          label,
+          labelBoxWidthPx,
+        );
 
         const html = `
           <div class="custom-marker-label"
@@ -224,14 +261,10 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
                 width:${width};
                 height:${height};
                 line-height:${height};
-                font-size:${fontSize - 1}px;
-                text-align:center;
-                display:flex;
-                align-items:center;
-                justify-content:flex-end;
+                font-size:${labelFontSize}px;
               "
             >
-              ${label}
+              ${labelText}
             </span>
           </div>
         `;
