@@ -1,0 +1,33 @@
+.action-zone-filters--tab {
+    padding: 0 4px;
+}
+
+.action-zone-filters--tab .formular__select-all-bar {
+    margin-bottom: 12px;
+}
+
+.action-zone-filters__empty {
+    padding: 12px 4px;
+    font-size: 13px;
+    color: #64748b;
+    font-style: italic;
+}
+
+.action-zone-filters__type-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px 6px 30px;
+    border-top: 1px solid #f1f5f9;
+    font-size: 14px;
+    color: #334155;
+    cursor: pointer;
+}
+
+.action-zone-filters__type-row:first-child {
+    border-top: none;
+}
+
+.action-zone-filters__type-row:hover {
+    background-color: #f8fafc;
+}

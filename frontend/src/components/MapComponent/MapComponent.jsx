@@ -12,6 +12,8 @@ import EventsTable from "../Events/EventsTable";
 import EventsFilterPanel from "../Events/EventsFilterPanel";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import Features from "../Features/Features";
+import ActionZoneFilters from "../Features/ActionZoneFilters";
+import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import ActionZonesLayer from "./ActionZonesLayer";
 import ZoneActionPopupManager from "./ZoneActionPopupManager";
@@ -479,7 +481,7 @@ function ZoomTracker({ onZoomChange }) {
 function MapComponent({
     // ...existing code...
     objects,
-    objectsAll = [],
+    zoneObjects = [],
     selectedObj,
     events = [],
     selectedEventIds = [],
@@ -500,7 +502,7 @@ function MapComponent({
     setIsFullscreen,
     // Подняты в Formular (sidebar панель управления)
     actionZoneFilters = {},
-    showZoneIntersections = true,
+    showZoneIntersections = false,
     // Дополнительные для полной поддержки панели "Настройка отображения" в fs map_sidebar (Features)
     // (раньше не передавались в fs-ветку — слабое место, из-за которого панель не появлялась).
     actionZoneAvailableByCountry = {},
@@ -514,6 +516,7 @@ function MapComponent({
     onMeasureModeChange,
     onMeasurePointsChange,
     onShowActionRadiusChange,
+    onTableTabChange,
     onMarkerClick,
     onMarkerHover,
     onEditClick,
@@ -543,7 +546,6 @@ function MapComponent({
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
-    const [internalShowActionRadius, setInternalShowActionRadius] = useState(false);
     const [currentZoom, setCurrentZoom] = useState(4);
     const [zoneContextMenu, setZoneContextMenu] = useState(null);
     const [activeZonePopup, setActiveZonePopup] = useState(null);
@@ -565,6 +567,11 @@ function MapComponent({
     const [markerVersion, setMarkerVersion] = useState(0);
 
     // Stable Set for O(1) lookups in heavy filters / renders (avoids .includes on every item during flyTo re-renders etc)
+    const handleFullscreenTabChange = useCallback((tab) => {
+        setFullscreenTab(tab);
+        onTableTabChange?.(tab);
+    }, [onTableTabChange]);
+
     const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
     const [fullscreenTab, setFullscreenTab] = useState("objects");
     const [eventMarkerSvgs, setEventMarkerSvgs] = useState(new Map());
@@ -607,13 +614,13 @@ function MapComponent({
         );
     }, [isEventEditModeActive, onEditEventDrawPointsChange]);
 
-    // Пересоздаём маркеры только при изменении данных объектов, а не при фильтрации на карте
+    // Пересоздаём маркеры только при изменении полного набора объектов, а не при filterCountry на карте
     const objectsDataKey = useMemo(() => {
-        const source = objectsAll.length > 0 ? objectsAll : objects;
+        const source = zoneObjects.length > 0 ? zoneObjects : objects;
         return source
             .map((o) => `${o.id}:${o.marker?.id ?? ''}:${o.lat}:${o.lng}`)
             .join('|');
-    }, [objectsAll, objects]);
+    }, [zoneObjects, objects]);
 
     useEffect(() => {
         setMarkerVersion(prev => prev + 1);
@@ -656,30 +663,18 @@ function MapComponent({
     // Синхронизация состояний при переключении режимов
     useEffect(() => {
         if (isFullscreen && !prevIsFullscreenRef.current) {
-            // При входе в полноэкранный режим - копируем все внешние состояния
-            setInternalShowActionRadius(externalShowActionRadius);
             setIsMeasureMode(measureMode);
             setMeasurePoints(measurements);
         } else if (!isFullscreen && prevIsFullscreenRef.current) {
-            // При выходе из полноэкранного режима - синхронизируем обратно
             if (onMeasureModeChange) {
                 onMeasureModeChange(isMeasureMode);
             }
             if (onMeasurePointsChange) {
                 onMeasurePointsChange(measurePoints);
             }
-            if (onShowActionRadiusChange) {
-                onShowActionRadiusChange(internalShowActionRadius);
-            }
         }
         prevIsFullscreenRef.current = isFullscreen;
-    }, [isFullscreen, externalShowActionRadius, measureMode, measurements, isMeasureMode, measurePoints, internalShowActionRadius, onMeasureModeChange, onMeasurePointsChange, onShowActionRadiusChange]);
-
-    useEffect(() => {
-        if (isFullscreen) {
-            setInternalShowActionRadius(externalShowActionRadius);
-        }
-    }, [isFullscreen, externalShowActionRadius]);
+    }, [isFullscreen, measureMode, measurements, isMeasureMode, measurePoints, onMeasureModeChange, onMeasurePointsChange]);
 
     useEffect(() => {
         if (isFullscreen && tableTab) {
@@ -687,8 +682,7 @@ function MapComponent({
         }
     }, [isFullscreen, tableTab]);
 
-    // Используем внешнее значение для миниатюры, внутреннее для fullscreen
-    const showActionRadius = isFullscreen ? internalShowActionRadius : externalShowActionRadius;
+    const showActionRadius = externalShowActionRadius;
     const effectiveMeasureMode = isFullscreen ? isMeasureMode : measureMode;
     const effectiveMeasurePoints = isFullscreen ? measurePoints : measurements;
 
@@ -1491,26 +1485,11 @@ function MapComponent({
                                         type="button"
                                         className="map__measure-menu-item"
                                         onClick={() => {
-                                            const next = !internalShowActionRadius;
-                                            setInternalShowActionRadius(next);
-                                            // Notify parent (Formular) so that its showActionRadius state updates.
-                                            // This is required for the intersections useMemo (in Formular) to run
-                                            // and provide the `intersections` + selectedIntersections lists to MapComponent.
-                                            // Without it, in fullscreen the fs-only internal toggle made zones visually active
-                                            // (via effective showActionRadius) but intersections calculation stayed empty
-                                            // → points never appeared despite checkbox checked.
-                                            if (onShowActionRadiusChange) {
-                                                onShowActionRadiusChange(next);
-                                            }
-                                            // When enabling from fs sidebar, default the sub-view to "Настройка отображения"
-                                            // (so the panel with "Показывать точки пересечения" checkbox appears, matching header tools behavior).
-                                            if (next && isFullscreen && onActionZoneViewModeChange) {
-                                                onActionZoneViewModeChange("displaySettings");
-                                            }
+                                            handleFullscreenTabChange("zones");
                                             setIsMeasureMenuOpen(false);
                                         }}
                                     >
-                                        {internalShowActionRadius ? '✓ ' : ''}Зона действия
+                                        Зоны действия
                                     </button>
                                 </div>
                             )}
@@ -1522,23 +1501,30 @@ function MapComponent({
                             <button
                                 type="button"
                                 className={`formular__tab${fullscreenTab === "objects" ? " formular__tab--active" : ""}`}
-                                onClick={() => setFullscreenTab("objects")}
+                                onClick={() => handleFullscreenTabChange("objects")}
                             >
                                 Объекты
                             </button>
                             <button
                                 type="button"
                                 className={`formular__tab${fullscreenTab === "events" ? " formular__tab--active" : ""}`}
-                                onClick={() => setFullscreenTab("events")}
+                                onClick={() => handleFullscreenTabChange("events")}
                             >
                                 События
+                            </button>
+                            <button
+                                type="button"
+                                className={`formular__tab${fullscreenTab === "zones" ? " formular__tab--active" : ""}`}
+                                onClick={() => handleFullscreenTabChange("zones")}
+                            >
+                                Зоны действия
                             </button>
                         </div>
 
                         {fullscreenTab === "objects" && (
                             <>
                                 <FilterPanel
-                                    objects={objectsAll}
+                                    objects={zoneObjects.length > 0 ? zoneObjects : objects}
                                     filterCountry={filterCountry}
                                     onFilterCountryChange={onFilterCountryChange}
                                     filterType={filterType}
@@ -1589,6 +1575,29 @@ function MapComponent({
                                 />
                             </>
                         )}
+
+                        {fullscreenTab === "zones" && (
+                            <>
+                                <ActionZoneFilters
+                                    actionZoneAvailableByCountry={actionZoneAvailableByCountry}
+                                    actionZoneFilters={actionZoneFilters}
+                                    showZoneIntersections={showZoneIntersections}
+                                    setShowZoneIntersections={setShowZoneIntersections}
+                                    toggleActionType={toggleActionType}
+                                    toggleAllForCountry={toggleAllForCountry}
+                                    resetZoneFilters={resetZoneFilters}
+                                    variant="tab"
+                                />
+                                {showZoneIntersections && (
+                                    <IntersectionTable
+                                        intersections={intersections}
+                                        selectedIntersections={selectedIntersections}
+                                        onIntersectionToggle={onIntersectionToggle}
+                                        onSelectAllIntersections={onSelectAllIntersections}
+                                    />
+                                )}
+                            </>
+                        )}
                     </div>
 
                     <div className="map__sidebar-section map__features-section">
@@ -1598,26 +1607,6 @@ function MapComponent({
                             onRemovePoint={(id) => {
                                 setMeasurePoints((prev) => prev.filter((p) => p.id !== id));
                             }}
-                            showActionRadius={internalShowActionRadius}
-                            actionRadiusMode={actionRadiusMode}
-                            onActionRadiusModeChange={onActionRadiusModeChange}
-                            intersections={intersections}
-                            selectedIntersections={selectedIntersections}
-                            onIntersectionToggle={onIntersectionToggle}
-                            onSelectAllIntersections={onSelectAllIntersections}
-                            // Ключевые пропсы для суб-UI "Зоны измерения" / "Настройка отображения":
-                            // isFullscreen=true (чтобы сработали гейты {isFullscreen && showActionRadius && ...} в Features),
-                            // viewMode + обработчики, полные данные/коллбеки фильтров.
-                            isFullscreen={true}
-                            actionZoneViewMode={actionZoneViewMode}
-                            onActionZoneViewModeChange={onActionZoneViewModeChange}
-                            actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                            actionZoneFilters={actionZoneFilters}
-                            showZoneIntersections={showZoneIntersections}
-                            setShowZoneIntersections={setShowZoneIntersections}
-                            toggleActionType={toggleActionType}
-                            toggleAllForCountry={toggleAllForCountry}
-                            resetZoneFilters={resetZoneFilters}
                         />
                     </div>
                 </div>
@@ -1986,9 +1975,7 @@ function MapComponent({
                 ))}
                 {showActionRadius && (
                     <ActionZonesLayer
-                        objects={objects}
-                        objectsAll={objectsAll}
-                        selectedSet={selectedSet}
+                        zoneObjects={zoneObjects.length > 0 ? zoneObjects : objects}
                         actionZoneFilters={actionZoneFilters}
                         hoverController={zoneHoverControllerRef.current}
                         skipHoverRef={skipZoneHoverUpdatesRef}

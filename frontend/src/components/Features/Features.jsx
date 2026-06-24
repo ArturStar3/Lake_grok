@@ -1,6 +1,4 @@
 import "./Features.css";
-import IntersectionTable from "../IntersectionTable/IntersectionTable";
-import ActionZoneFilters from "./ActionZoneFilters";
 
 const formatDistance = (meters) => {
     if (!meters) return "0 м";
@@ -13,25 +11,6 @@ export default function Features({
   isMeasureMode, 
   measurements = [], 
   onRemovePoint, 
-  showActionRadius, 
-  actionRadiusMode = "animation", 
-  onActionRadiusModeChange, 
-  intersections = [], 
-  selectedIntersections = [], 
-  onIntersectionToggle, 
-  onSelectAllIntersections,
-  // props for zone display panel in fullScreen (map_sidebar via separate radiobutton in features block)
-  isFullscreen = false,
-  actionZoneFilters = {},
-  actionZoneAvailableByCountry = {},
-  showZoneIntersections = true,
-  setShowZoneIntersections,
-  toggleActionType,
-  toggleAllForCountry,
-  resetZoneFilters,
-  // New sub-mode for zones measurement tool in fullScreen features (only visible when zones mode active)
-  actionZoneViewMode = "displaySettings",
-  onActionZoneViewModeChange
 }) {
     const totalDistance = measurements.reduce((sum, point) => sum + point.distance, 0);
     return (
@@ -102,80 +81,7 @@ export default function Features({
                     </div>
                 </>
             ) : (
-                <>
-                    {showActionRadius ? (
-                        <>
-                            {/* Второй блок радиокнопок (только в fullScreen при активном инструменте "Зона действия").
-                                Появляется в map_sidebar (Features) когда showActionRadius && isFullscreen.
-                                Выбор здесь напрямую определяет, какой функционал показан ниже:
-                                - "Зона пересечения": отображается функционал точек пересечения (IntersectionTable + точки на карте).
-                                - "Настройка отображения": отображается панель с чекбоксами по странам и типам зон.
-                                (Первый блок legacy радио "Отображение анимации" / "Считывание координат" полностью убран по запросу.) */}
-                            {isFullscreen && showActionRadius && (
-                                <div className="features__action-mode">
-                                    <label className="features__action-mode-item">
-                                        <input
-                                            type="radio"
-                                            name="actionZoneViewMode"
-                                            value="intersections"
-                                            checked={actionZoneViewMode === "intersections"}
-                                            onChange={() => {
-                                                onActionZoneViewModeChange?.("intersections");
-                                                // При выборе "Зона пересечения" включаем отображение точек на карте
-                                                setShowZoneIntersections?.(true);
-                                            }}
-                                        />
-                                        <span>Зона пересечения</span>
-                                    </label>
-                                    <label className="features__action-mode-item">
-                                        <input
-                                            type="radio"
-                                            name="actionZoneViewMode"
-                                            value="displaySettings"
-                                            checked={actionZoneViewMode === "displaySettings"}
-                                            onChange={() => onActionZoneViewModeChange?.("displaySettings")}
-                                        />
-                                        <span>Настройка отображения</span>
-                                    </label>
-                                </div>
-                            )}
-
-                            {/* В fullScreen:
-                                - при "Настройка отображения" показываем панель с чекбоксами стран/типов зон (без внутреннего чекбокса пересечений).
-                                - при "Зона пересечения" показываем таблицу точек пересечения (функционал привязан к выбору).
-                                Фильтры (когда были в "Настройка отображения") продолжают влиять на расчёт пересечений в любом случае.
-                                В обычном режиме (!isFullscreen) таблица показывается как раньше (при showActionRadius). */}
-                            {isFullscreen && showActionRadius && actionZoneViewMode === "displaySettings" && (
-                                <ActionZoneFilters
-                                    actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                                    actionZoneFilters={actionZoneFilters}
-                                    showZoneIntersections={showZoneIntersections}
-                                    setShowZoneIntersections={setShowZoneIntersections}
-                                    toggleActionType={toggleActionType}
-                                    toggleAllForCountry={toggleAllForCountry}
-                                    resetZoneFilters={resetZoneFilters}
-                                    // Вернули checkbox "Показывать точки пересечения" (showIntersectionsControl=true).
-                                    // Теперь в режиме "Настройка отображения" пользователь может управлять видимостью
-                                    // точек пересечения на карте для текущих выбранных (видимые по фильтрам) зон.
-                                    // Таблица IntersectionTable остаётся привязанной к радио "Зона пересечения"
-                                    // (как просил пользователь в предыдущем запросе).
-                                    showIntersectionsControl={true}
-                                />
-                            )}
-
-                            {( !isFullscreen || actionZoneViewMode === "intersections" ) && (
-                                <IntersectionTable 
-                                    intersections={intersections}
-                                    selectedIntersections={selectedIntersections}
-                                    onIntersectionToggle={onIntersectionToggle}
-                                    onSelectAllIntersections={onSelectAllIntersections}
-                                />
-                            )}
-                        </>
-                    ) : (
-                        <p className="features__placeholder">Выберите инструмент, чтобы начать.</p>
-                    )}
-                </>
+                <p className="features__placeholder">Выберите инструмент, чтобы начать.</p>
             )}
         </div>
     );

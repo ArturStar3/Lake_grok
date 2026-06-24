@@ -8,12 +8,14 @@ import EventsFilterPanel from "../Events/EventsFilterPanel";
 import MapComponent from "../MapComponent/MapComponent";
 import Features from "../Features/Features";
 import ActionZoneFilters from "../Features/ActionZoneFilters";
+import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import FormularModal from "../FormularModal/FormularModal";
 import AddTargetModal from "../AddTargetModal/AddTargetModal";
 import FormularEditor from "../FormularEditor/FormularEditor";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { findAllIntersections } from "../../utils/circleIntersection";
+import { buildActionZoneCatalog, filterObjectsForZones, hasEnabledZoneFilters } from "../../utils/buildVisibleZones";
 
 import { API_URL as API_ROOT } from '../../config/api';
 const API_URL = `${API_ROOT}/api/v1/targets`;
@@ -50,13 +52,12 @@ export default function Formular() {
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
-    const [showActionRadius, setShowActionRadius] = useState(false);
     const [actionRadiusMode, setActionRadiusMode] = useState("animation");
     const [selectedIntersections, setSelectedIntersections] = useState([]);
 
     // Состояния для панели управления "Зона действия" (перенесены в sidebar из MapComponent)
     const [actionZoneFilters, setActionZoneFilters] = useState({}); // { [countryTitle]: Set<string action titles> }
-    const [showZoneIntersections, setShowZoneIntersections] = useState(true);
+    const [showZoneIntersections, setShowZoneIntersections] = useState(false);
     // Под-режим отображения зон в fullScreen features (только для блока "Зона измерения" / "Зоны действия")
     // "intersections" — фокус на зонах пересечения (сохранён функционал расчёта/отображения)
     // "displaySettings" — чекбоксы по странам и типам зон (Настройка отображения)
@@ -82,7 +83,27 @@ export default function Formular() {
 // Это удалить если будет жопа
     const [isFullscreen, setFullscreen] = useState(false);
 
-    const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
+    const hasEnabledZones = useMemo(
+        () => hasEnabledZoneFilters(actionZoneFilters),
+        [actionZoneFilters],
+    );
+
+    const handleTabChange = useCallback((tab) => {
+        setActiveTab(tab);
+        if (tab === "zones") {
+            setIsMeasureMode(false);
+            if (isFullscreen) {
+                setActionRadiusMode("zones");
+                setActionZoneViewMode("displaySettings");
+            }
+        }
+    }, [isFullscreen]);
+
+    const handleShowActionRadiusChange = useCallback((enabled) => {
+        if (enabled) {
+            handleTabChange("zones");
+        }
+    }, [handleTabChange]);
 
     const filteredObjects = useMemo(() => {
         return objects.filter((obj) => {
@@ -265,32 +286,13 @@ export default function Formular() {
         });
     }, [measurePoints]);
 
-    // Вычисление точек пересечения зон действия
-    // Теперь базируемся на полном списке объектов + selectedObj (независимо от filterCountry / видимости маркеров).
-    // Зоны действия должны быть доступны для изучения даже если маркер объекта скрыт страновым чекбоксом.
-    const intersections = useMemo(() => {
-        if (!showActionRadius) {
+      const intersections = useMemo(() => {
+        if (!showZoneIntersections || !hasEnabledZones) {
             return [];
         }
-        const selectedSet = new Set(selectedObj);
-        const baseVisible = objects.filter(obj => selectedSet.has(obj.id));
-        const visibleForIntersections = baseVisible.map(obj => {
-            if (!obj.actions || obj.actions.length === 0) return { ...obj, actions: [] };
-            const cTitle = obj.country?.title || 'Неизвестно';
-            const enabledSet = actionZoneFilters[cTitle];
-            if (enabledSet === undefined) {
-                // Нет явного фильтра для страны — используем все действия объекта
-                return obj;
-            }
-            const filteredActions = obj.actions.filter(a => {
-                const t = a.action_type?.title || 'Зона действия';
-                return enabledSet.has(t);
-            });
-            return { ...obj, actions: filteredActions };
-        }).filter(obj => obj.actions && obj.actions.length > 0);
-
+        const visibleForIntersections = filterObjectsForZones(objects, actionZoneFilters);
         return findAllIntersections(visibleForIntersections);
-    }, [showActionRadius, objects, selectedObj, actionZoneFilters]);
+    }, [showZoneIntersections, hasEnabledZones, objects, actionZoneFilters]);
 
     // Мемоизируем ключ для отслеживания изменений пересечений
     const intersectionsKey = useMemo(() => {
@@ -299,8 +301,7 @@ export default function Formular() {
 
     // Инициализируем выбор точек только при первом появлении или сбросе
     useEffect(() => {
-        if (!showActionRadius) {
-            // При выключении инструмента сбрасываем флаг инициализации
+        if (!showZoneIntersections || !hasEnabledZones) {
             intersectionsInitialized.current = false;
             setSelectedIntersections([]);
             return;
@@ -317,7 +318,7 @@ export default function Formular() {
                 return prev.filter(id => currentIds.includes(id));
             });
         }
-    }, [showActionRadius, intersectionsKey]);
+    }, [showZoneIntersections, hasEnabledZones, intersectionsKey]);
 
     const handleIntersectionToggle = (id) => {
         setSelectedIntersections(prev => 
@@ -335,28 +336,16 @@ export default function Formular() {
         }
     };
 
-    // === Логика панели управления Зонами действия (перенесена в sidebar) ===
-    // Используем полный список объектов (objects), а не filteredObjects.
-    // Это позволяет панели наполняться странами/типами зон для выбранных объектов,
-    // даже если их маркеры скрыты страновыми чекбоксами filterCountry.
-    const actionZoneAvailableByCountry = useMemo(() => {
-      const byCountry = {};
-      objects.forEach((obj) => {
-        if (!selectedSet.has(obj.id) || !obj.actions || obj.actions.length === 0) return;
-        const c = obj.country?.title || 'Неизвестно';
-        if (!byCountry[c]) byCountry[c] = new Set();
-        obj.actions.forEach((a) => {
-          const t = a.action_type?.title || 'Зона действия';
-          byCountry[c].add(t);
-        });
-      });
-      return byCountry;
-    }, [objects, selectedSet]);
+    // Каталог зон для панели фильтров: все объекты с actions, без привязки к таблице / filterCountry.
+    const actionZoneAvailableByCountry = useMemo(
+      () => buildActionZoneCatalog(objects),
+      [objects],
+    );
 
     const toggleActionType = useCallback((country, actionTitle) => {
       setActionZoneFilters((prev) => {
         const next = { ...prev };
-        const currentSet = next[country] ? new Set(next[country]) : new Set(actionZoneAvailableByCountry[country] || []);
+        const currentSet = next[country] ? new Set(next[country]) : new Set();
         if (currentSet.has(actionTitle)) currentSet.delete(actionTitle);
         else currentSet.add(actionTitle);
         next[country] = currentSet;
@@ -380,34 +369,18 @@ export default function Formular() {
       setActionZoneFilters(next);
     }, [actionZoneAvailableByCountry]);
 
-    // Синхронизация фильтров (добавление новых стран/типов при изменении выбора)
+    // Инициализация каталога стран (пустые наборы — зоны выключены по умолчанию).
     useEffect(() => {
-      if (!showActionRadius) return;
       if (Object.keys(actionZoneAvailableByCountry).length === 0) return;
 
       setActionZoneFilters((prev) => {
         const next = { ...prev };
         let changed = false;
 
-        Object.entries(actionZoneAvailableByCountry).forEach(([c, typesSet]) => {
-          const types = Array.from(typesSet);
+        Object.keys(actionZoneAvailableByCountry).forEach((c) => {
           if (!next[c]) {
-            next[c] = new Set(types);
+            next[c] = new Set();
             changed = true;
-          } else {
-            const current = next[c];
-            const updated = new Set(current);
-            let localChanged = false;
-            types.forEach((t) => {
-              if (!updated.has(t)) {
-                updated.add(t);
-                localChanged = true;
-              }
-            });
-            if (localChanged) {
-              next[c] = updated;
-              changed = true;
-            }
           }
         });
 
@@ -420,21 +393,15 @@ export default function Formular() {
 
         return changed ? next : prev;
       });
-    }, [showActionRadius, actionZoneAvailableByCountry]);
+    }, [actionZoneAvailableByCountry]);
 
-    // Force clean state for "Зона действия" tool in fullScreen (ensures !isMeasureMode branch in Features for map_sidebar).
-    // Note: actionZoneViewMode is now user-controlled via the second radio block ("Зона пересечения" / "Настройка отображения")
-    // in fs Features — do NOT force it back here (would prevent selecting "Зона пересечения").
-    // Default "displaySettings" is set on tool enable in the tools-menu onClick (for fs).
-    // actionRadiusMode force kept for backward (no longer drives any UI after removal of first legacy radio block).
     useEffect(() => {
-      if (showActionRadius && isFullscreen) {
+      if (activeTab === "zones" && isFullscreen) {
         if (actionRadiusMode !== "zones") {
           setActionRadiusMode("zones");
         }
-        // Intentionally do not force actionZoneViewMode — user choice via radios must persist.
       }
-    }, [showActionRadius, isFullscreen, actionRadiusMode]);
+    }, [activeTab, isFullscreen, actionRadiusMode]);
 
     const handleToggleMeasure = () => {
         setIsMeasureMode((prev) => {
@@ -760,37 +727,6 @@ export default function Formular() {
                                                     <use href={"/sprite.svg#measure"} />
                                                 </svg>
                                             </button>
-                                            <button
-                                                className={`tools-menu__item${showActionRadius ? " tools-menu__item--active" : ""}`}
-                                                type="button"
-                                                onClick={() => {
-                                                    setShowActionRadius((prev) => {
-                                                        const next = !prev;
-                                                        if (next) {
-                                                            // В fullScreen сразу активируем radiobutton для панели в features/map_sidebar
-                                                            setActionRadiusMode(isFullscreen ? "zones" : "animation");
-                                                            // Важно: при активации "Зона действия" выключаем "Режим измерения",
-                                                            // чтобы в Features (в fullScreen как map_sidebar) сработала ветка !isMeasureMode
-                                                            // и появилась новая radiobutton "Зоны действия" (кнопка для выбора отображаемых зон)
-                                                            // + панель ActionZoneFilters с чекбоксами по государствам и типам зон.
-                                                            setIsMeasureMode(false);
-
-                                                            // Новый под-режим для блока в features: при активации "Зона измерения" в fullScreen
-                                                            // показываем новый блок радиокнопок ("Зоны пересечения" / "Настройка отображения")
-                                                            if (isFullscreen) {
-                                                                setActionZoneViewMode("displaySettings");
-                                                            }
-                                                        }
-                                                        return next;
-                                                    });
-                                                    setIsToolsOpen(false);
-                                                }}
-                                            >
-                                                <span className="tools-menu__label">Зона действия</span>
-                                                <svg className="formular__icon" width="20" height="20" aria-hidden="true">
-                                                    <use href={"/sprite.svg#measure"} />
-                                                </svg>
-                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -801,16 +737,23 @@ export default function Formular() {
                                 <button
                                     type="button"
                                     className={`formular__tab${activeTab === "objects" ? " formular__tab--active" : ""}`}
-                                    onClick={() => setActiveTab("objects")}
+                                    onClick={() => handleTabChange("objects")}
                                 >
                                     Объекты
                                 </button>
                                 <button
                                     type="button"
                                     className={`formular__tab${activeTab === "events" ? " formular__tab--active" : ""}`}
-                                    onClick={() => setActiveTab("events")}
+                                    onClick={() => handleTabChange("events")}
                                 >
                                     События
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`formular__tab${activeTab === "zones" ? " formular__tab--active" : ""}`}
+                                    onClick={() => handleTabChange("zones")}
+                                >
+                                    Зоны действия
                                 </button>
                             </div>
                             {activeTab === "objects" && (
@@ -830,18 +773,6 @@ export default function Formular() {
                                         filterTitle={filterTitle}
                                         onFilterTitleChange={setFilterTitle}
                                     />
-                                    {/* Панель управления Зонами действия — в sidebar (обычный режим). Компонент также используется в features для fullScreen (map_sidebar). */}
-                                    {showActionRadius && (
-                                        <ActionZoneFilters
-                                            actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                                            actionZoneFilters={actionZoneFilters}
-                                            showZoneIntersections={showZoneIntersections}
-                                            setShowZoneIntersections={setShowZoneIntersections}
-                                            toggleActionType={toggleActionType}
-                                            toggleAllForCountry={toggleAllForCountry}
-                                            resetZoneFilters={resetZoneFilters}
-                                        />
-                                    )}
                                     <ObjectsTable 
                                         data={tableObjects}
                                         selectedObj={selectedObj}
@@ -853,6 +784,28 @@ export default function Formular() {
                                         onEditClick={handleEditClick}
                                         onDeleteClick={handleDeleteClick}
                                     />
+                                </>
+                            )}
+                            {activeTab === "zones" && (
+                                <>
+                                    <ActionZoneFilters
+                                        actionZoneAvailableByCountry={actionZoneAvailableByCountry}
+                                        actionZoneFilters={actionZoneFilters}
+                                        showZoneIntersections={showZoneIntersections}
+                                        setShowZoneIntersections={setShowZoneIntersections}
+                                        toggleActionType={toggleActionType}
+                                        toggleAllForCountry={toggleAllForCountry}
+                                        resetZoneFilters={resetZoneFilters}
+                                        variant="tab"
+                                    />
+                                    {showZoneIntersections && (
+                                        <IntersectionTable
+                                            intersections={intersections}
+                                            selectedIntersections={selectedIntersections}
+                                            onIntersectionToggle={handleIntersectionToggle}
+                                            onSelectAllIntersections={handleSelectAllIntersections}
+                                        />
+                                    )}
                                 </>
                             )}
                             {activeTab === "events" && (
@@ -885,7 +838,7 @@ export default function Formular() {
                         <div className="formular__map">
                             <MapComponent 
                                 objects={filteredObjects}
-                                objectsAll={objects}
+                                zoneObjects={objects}
                                 selectedObj={selectedObj}
                                 events={events}
                                 selectedEventIds={selectedEvents}
@@ -894,7 +847,7 @@ export default function Formular() {
                                 measurements={measurements}
                                 onAddMeasurePoint={handleAddMeasurePoint}
                                 onCheckboxChange={handleCheckboxChange}
-                                showActionRadius={showActionRadius}
+                                showActionRadius={hasEnabledZones}
                                 actionTypes={actionTypesList}
                                 actionRadiusMode={actionRadiusMode}
                                 onActionRadiusModeChange={setActionRadiusMode}
@@ -909,7 +862,8 @@ export default function Formular() {
                                 showZoneIntersections={showZoneIntersections}
                                 onMeasureModeChange={setIsMeasureMode}
                                 onMeasurePointsChange={setMeasurePoints}
-                                onShowActionRadiusChange={setShowActionRadius}
+                                onShowActionRadiusChange={handleShowActionRadiusChange}
+                                onTableTabChange={handleTabChange}
                                 onMarkerHover={handleMarkerHoverFromMap}
                                 onMarkerClick={setSelectedTargetId}
                                 onEditClick={handleEditClick}
@@ -951,26 +905,6 @@ export default function Formular() {
                                 isMeasureMode={isMeasureMode}
                                 measurements={measurements}
                                 onRemovePoint={handleRemoveMeasurePoint}
-                                showActionRadius={showActionRadius}
-                                actionTypes={actionTypesList}
-                                actionRadiusMode={actionRadiusMode}
-                                onActionRadiusModeChange={setActionRadiusMode}
-                                intersections={intersections}
-                                selectedIntersections={selectedIntersections}
-                                onIntersectionToggle={handleIntersectionToggle}
-                                onSelectAllIntersections={handleSelectAllIntersections}
-                                // Для fullScreen: панель зон в features (map_sidebar) через отдельную radiobutton; state общий
-                                isFullscreen={isFullscreen}
-                                actionZoneFilters={actionZoneFilters}
-                                actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                                showZoneIntersections={showZoneIntersections}
-                                setShowZoneIntersections={setShowZoneIntersections}
-                                toggleActionType={toggleActionType}
-                                toggleAllForCountry={toggleAllForCountry}
-                                resetZoneFilters={resetZoneFilters}
-                                // Новый под-режим для блока радиокнопок в features (fullScreen map_sidebar)
-                                actionZoneViewMode={actionZoneViewMode}
-                                onActionZoneViewModeChange={setActionZoneViewMode}
                             />
                         </div>
                     </div>

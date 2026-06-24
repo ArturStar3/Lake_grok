@@ -16,10 +16,10 @@ export default function IntersectionTable({ intersections, selectedIntersections
         <div className="intersection-table">
             <h3 className="intersection-table__title">Точки пересечения зон действия</h3>
             <div className="intersection-table__wrapper">
-                <table className="intersection-table__content">
+                <table className="intersection-table__content events__table">
                     <thead>
-                        <tr>
-                            <th>
+                        <tr className="events__table-row">
+                            <th className="events__head-cell events__head-cell--select-all">
                                 <input 
                                     type="checkbox" 
                                     checked={allSelected}
@@ -32,16 +32,16 @@ export default function IntersectionTable({ intersections, selectedIntersections
                                     aria-label="Выбрать все точки"
                                 />
                             </th>
-                            <th>Название</th>
-                            <th>Широта</th>
-                            <th>Долгота</th>
-                            <th>Пересечение объектов</th>
+                            <th className="events__head-cell">Название</th>
+                            <th className="events__head-cell">Широта</th>
+                            <th className="events__head-cell">Долгота</th>
+                            <th className="events__head-cell">Пересечение объектов</th>
                         </tr>
                     </thead>
                     <tbody>
                         {intersections.map((intersection) => (
-                            <tr key={intersection.id}>
-                                <td>
+                            <tr key={intersection.id} className="events__table-row">
+                                <td className="events__table-data">
                                     <input 
                                         type="checkbox" 
                                         checked={selectedIntersections.includes(intersection.id)}
@@ -49,10 +49,10 @@ export default function IntersectionTable({ intersections, selectedIntersections
                                         aria-label={`Показать ${intersection.label} на карте`}
                                     />
                                 </td>
-                                <td>{intersection.label}</td>
-                                <td>{intersection.lat.toFixed(6)}</td>
-                                <td>{intersection.lng.toFixed(6)}</td>
-                                <td>
+                                <td className="events__table-data">{intersection.label}</td>
+                                <td className="events__table-data">{intersection.lat.toFixed(6)}</td>
+                                <td className="events__table-data">{intersection.lng.toFixed(6)}</td>
+                                <td className="events__table-data">
                                     <div className="intersection-table__objects">
                                         {intersection.objects.map((objName, idx) => (
                                             <span key={idx} className="intersection-table__object-name">

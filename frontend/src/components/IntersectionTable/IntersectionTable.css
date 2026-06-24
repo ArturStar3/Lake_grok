@@ -1,79 +1,44 @@
 .intersection-table {
     width: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: visible;
-    flex: 1;
+    margin-top: 12px;
 }
 
 .intersection-table__title {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
-    color: #333;
-    flex-shrink: 0;
+    display: none;
 }
 
 .intersection-table__wrapper {
-    flex: 1;
-    overflow-y: auto;
     overflow-x: auto;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    min-height: 0;
 }
 
 .intersection-table__content {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
-}
-
-.intersection-table__content thead {
-    position: sticky;
-    top: 0;
-    background-color: #f5f5f5;
-    z-index: 10;
 }
 
 .intersection-table__content th {
-    padding: 10px 8px;
     text-align: left;
+    padding: 8px 6px;
+    color: #475569;
     font-weight: 600;
-    border-bottom: 2px solid #ddd;
-    white-space: nowrap;
+    font-size: 14px;
+    line-height: 16px;
 }
 
 .intersection-table__content th:first-child {
     width: 40px;
-    text-align: center;
+    text-align: left;
 }
 
 .intersection-table__content td {
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-}
-
-.intersection-table__content tbody tr:nth-child(odd) td {
-    background-color: #ffffff;
-}
-
-.intersection-table__content tbody tr:nth-child(even) td {
-    background-color: #f9f9f9;
+    padding: 8px 6px;
+    border-top: 1px solid #eef2f7;
+    font-size: 14px;
+    line-height: 16px;
 }
 
 .intersection-table__content tbody tr:hover td {
-    background-color: #e8f4f8;
-}
-
-.intersection-table__content td:first-child {
-    text-align: center;
-}
-
-.intersection-table__content input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
+    background-color: #f8fafc;
 }
 
 .intersection-table__objects {
@@ -85,14 +50,16 @@
 .intersection-table__object-name {
     display: inline-block;
     padding: 2px 6px;
-    background-color: #e3f2fd;
-    border-radius: 3px;
+    background-color: #e8f4ff;
+    border-radius: 4px;
     font-size: 12px;
+    color: #0b5073;
 }
 
 .intersection-table__empty {
-    padding: 20px;
-    text-align: center;
-    color: #666;
+    margin-top: 12px;
+    padding: 12px 4px;
+    font-size: 13px;
+    color: #64748b;
     font-style: italic;
 }

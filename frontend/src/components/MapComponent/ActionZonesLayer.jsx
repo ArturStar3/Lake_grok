@@ -64,19 +64,15 @@ function ZoneCircleLayer({
 }
 
 const ActionZonesLayer = React.memo(function ActionZonesLayer({
-  objects,
-  objectsAll,
-  selectedSet,
+  zoneObjects = [],
   actionZoneFilters,
   hoverController,
   skipHoverRef,
   onZoneClickAt,
 }) {
-  const sourceObjects = objectsAll?.length > 0 ? objectsAll : objects;
-
   const visibleZones = useMemo(
-    () => buildVisibleZones(sourceObjects, selectedSet, actionZoneFilters),
-    [sourceObjects, selectedSet, actionZoneFilters],
+    () => buildVisibleZones(zoneObjects, actionZoneFilters),
+    [zoneObjects, actionZoneFilters],
   );
 
   const visibleZonesRef = useRef(visibleZones);

@@ -1,32 +1,28 @@
 import React from "react";
+import "./ActionZoneFilters.css";
 
 export default function ActionZoneFilters({
   actionZoneAvailableByCountry = {},
   actionZoneFilters = {},
-  showZoneIntersections = true,
+  showZoneIntersections = false,
   setShowZoneIntersections,
   toggleActionType,
   toggleAllForCountry,
   resetZoneFilters,
-  // When false, hides the top "Показывать точки пересечения" checkbox
-  // (used in fullScreen Features when the "Настройка отображения" submode is active)
-  showIntersectionsControl = true
+  showIntersectionsControl = true,
+  variant = "tab",
 }) {
-  // Local controlled state for collapsed/expanded country groups.
-  // Default: all collapsed (empty set) to keep long lists manageable.
   const [expanded, setExpanded] = React.useState(() => new Set());
 
-  // Clean up countries that are no longer present (e.g. after changing selection)
   const currentCountries = React.useMemo(
     () => Object.keys(actionZoneAvailableByCountry),
-    [actionZoneAvailableByCountry]
+    [actionZoneAvailableByCountry],
   );
 
   React.useEffect(() => {
     setExpanded((prev) => {
       const valid = new Set(currentCountries);
-      const next = new Set([...prev].filter((c) => valid.has(c)));
-      return next;
+      return new Set([...prev].filter((c) => valid.has(c)));
     });
   }, [currentCountries]);
 
@@ -35,134 +31,100 @@ export default function ActionZoneFilters({
   const toggleExpanded = (cTitle) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(cTitle)) {
-        next.delete(cTitle);
-      } else {
-        next.add(cTitle);
-      }
+      if (next.has(cTitle)) next.delete(cTitle);
+      else next.add(cTitle);
       return next;
     });
   };
 
-  const expandAllCountries = () => {
-    setExpanded(new Set(currentCountries));
-  };
+  const expandAllCountries = () => setExpanded(new Set(currentCountries));
+  const collapseAllCountries = () => setExpanded(new Set());
 
-  const collapseAllCountries = () => {
-    setExpanded(new Set());
-  };
+  const rootClass = variant === "tab"
+    ? "action-zone-filters action-zone-filters--tab"
+    : "action-zone-filters";
 
   return (
-    <div className="action-zone-filters">
-      <div className="action-zone-filters__header">
-        Зоны действия — отображение
-      </div>
-
+    <div className={rootClass}>
       {showIntersectionsControl && (
-        <label className="action-zone-filters__checkbox">
-          <input
-            type="checkbox"
-            checked={showZoneIntersections}
-            onChange={(e) => setShowZoneIntersections?.(e.target.checked)}
-          />{' '}
-          Показывать точки пересечения
-        </label>
+        <div className="formular__select-all-bar">
+          <label className="select-all-label">
+            <input
+              type="checkbox"
+              checked={showZoneIntersections}
+              onChange={(e) => setShowZoneIntersections?.(e.target.checked)}
+            />{' '}
+            Показывать точки пересечения
+          </label>
+        </div>
       )}
 
-      <div className="action-zone-filters__section">
-        По странам и типам зон:
-      </div>
-
-      {currentCountries.length === 0 && (
-        <div className="action-zone-filters__empty">Нет зон у выбранных объектов</div>
-      )}
-
-      {Object.entries(actionZoneAvailableByCountry).map(([cTitle, typesSet]) => {
-        const types = Array.from(typesSet).sort();
-        const enabledSet = actionZoneFilters[cTitle] || new Set(types);
-        const allOn = types.length > 0 && types.every((t) => enabledSet.has(t));
-        const someOn = types.some((t) => enabledSet.has(t));
-        const open = isExpanded(cTitle);
-
-        return (
-          <details
-            key={cTitle}
-            className="action-zone-filters__country"
-            open={open}
-          >
-            <summary
-              className="action-zone-filters__country-label"
-              onClick={(e) => {
-                // Do not toggle collapse when clicking the country checkbox itself
-                if (e.target.closest('input[type="checkbox"]')) {
-                  return;
-                }
-                e.preventDefault();
-                toggleExpanded(cTitle);
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={allOn}
-                ref={(el) => {
-                  if (el) el.indeterminate = !allOn && someOn;
-                }}
-                onChange={() => toggleAllForCountry?.(cTitle, types, !allOn)}
-                onClick={(e) => e.stopPropagation()}
-              />{' '}
-              {cTitle} <span className="action-zone-filters__count">({types.length})</span>
-            </summary>
-
-            <div className="action-zone-filters__types">
-              {types.map((t) => (
-                <label key={t} className="action-zone-filters__type">
-                  <input
-                    type="checkbox"
-                    checked={enabledSet.has(t)}
-                    onChange={() => toggleActionType?.(cTitle, t)}
-                  />{' '}
-                  {t}
-                </label>
-              ))}
-            </div>
-          </details>
-        );
-      })}
-
-      <div className="action-zone-filters__buttons">
-        <button
-          type="button"
-          className="action-zone-filters__btn"
-          onClick={expandAllCountries}
-          title="Развернуть все страны"
-        >
+      <div className="expand-controls">
+        <button type="button" className="expand-btn" onClick={expandAllCountries}>
           Развернуть
         </button>
-        <button
-          type="button"
-          className="action-zone-filters__btn"
-          onClick={collapseAllCountries}
-          title="Свернуть все страны"
-        >
+        <button type="button" className="expand-btn" onClick={collapseAllCountries}>
           Свернуть
         </button>
-        <button
-          type="button"
-          className="action-zone-filters__btn"
-          onClick={() => resetZoneFilters?.(true)}
-        >
+        <button type="button" className="expand-btn" onClick={() => resetZoneFilters?.(true)}>
           Всё
         </button>
-        <button
-          type="button"
-          className="action-zone-filters__btn"
-          onClick={() => resetZoneFilters?.(false)}
-        >
+        <button type="button" className="expand-btn" onClick={() => resetZoneFilters?.(false)}>
           Ничего
         </button>
       </div>
-      <div className="action-zone-filters__hint">
-        Наведи/кликни на зону на карте для подсветки и выбора объекта
+
+      {currentCountries.length === 0 && (
+        <div className="action-zone-filters__empty">Нет зон действия в данных</div>
+      )}
+
+      <div className="formular__country-groups">
+        {Object.entries(actionZoneAvailableByCountry).map(([cTitle, typesSet]) => {
+          const types = Array.from(typesSet).sort();
+          const enabledSet = actionZoneFilters[cTitle] ?? new Set();
+          const allOn = types.length > 0 && types.every((t) => enabledSet.has(t));
+          const someOn = types.some((t) => enabledSet.has(t));
+          const open = isExpanded(cTitle);
+
+          return (
+            <details key={cTitle} className="country-group" open={open}>
+              <summary
+                className="country-header"
+                onClick={(e) => {
+                  if (e.target.closest('input[type="checkbox"]')) return;
+                  e.preventDefault();
+                  toggleExpanded(cTitle);
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={allOn}
+                  ref={(el) => {
+                    if (el) el.indeterminate = !allOn && someOn;
+                  }}
+                  onChange={() => toggleAllForCountry?.(cTitle, types, !allOn)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span className="country-name">{cTitle}</span>
+                <span className="country-count">({types.length})</span>
+                {!allOn && someOn && <span className="country-partial">частично</span>}
+              </summary>
+
+              <div className="country-objects">
+                {types.map((t) => (
+                  <label key={t} className="action-zone-filters__type-row">
+                    <input
+                      type="checkbox"
+                      checked={enabledSet.has(t)}
+                      onChange={() => toggleActionType?.(cTitle, t)}
+                    />
+                    <span>{t}</span>
+                  </label>
+                ))}
+              </div>
+            </details>
+          );
+        })}
       </div>
     </div>
   );
