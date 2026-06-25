@@ -9,9 +9,9 @@ from django.db.models import Q, Count, Prefetch
 
 from .serializers import (
     TargetSerializer,
+    TargetListSerializer,
     TargetParentPickerSerializer,
     TargetCreateSerializer,
-    TargetActionCreateSerializer,
     CountryInfoSerializer,
     CountryInfoWriteSerializer,
     CountrySectionsSerializer,
@@ -57,34 +57,48 @@ from equipment.models import (
     Equipment,
     EquipmentParameterValue,
 )
+from .target_utils import replace_target_actions
 
-def _target_list_queryset():
-    """Оптимизированный queryset для списка/детали Target (без N+1 на actions и M2M countries)."""
-    return (
-        Target.objects.select_related('country', 'marker', 'type')
-        .prefetch_related(
-            Prefetch(
-                'actions',
-                queryset=TargetAction.objects.select_related('action_type'),
-            ),
-            Prefetch(
-                'equipment_links',
-                queryset=TargetEquipment.objects.select_related(
-                    'equipment',
-                    'equipment__category',
-                ).prefetch_related(
-                    Prefetch(
-                        'equipment__parameter_values',
-                        queryset=EquipmentParameterValue.objects.filter(
-                            parameter__action_type__isnull=False,
-                            value__gt=0,
-                        ).select_related(
-                            'parameter',
-                            'parameter__action_type',
-                        ),
+def _target_zones_prefetch():
+    """Prefetch actions и техники с зонами (общий для list и detail)."""
+    return [
+        Prefetch(
+            'actions',
+            queryset=TargetAction.objects.select_related('action_type'),
+        ),
+        Prefetch(
+            'equipment_links',
+            queryset=TargetEquipment.objects.select_related('equipment').prefetch_related(
+                Prefetch(
+                    'equipment__parameter_values',
+                    queryset=EquipmentParameterValue.objects.filter(
+                        parameter__action_type__isnull=False,
+                        value__gt=0,
+                    ).select_related(
+                        'parameter',
+                        'parameter__action_type',
                     ),
                 ),
             ),
+        ),
+    ]
+
+
+def _target_list_queryset():
+    """Список targets: без Count(children) и без type__countries."""
+    return (
+        Target.objects.select_related('country', 'marker', 'type')
+        .prefetch_related(*_target_zones_prefetch())
+        .order_by('title')
+    )
+
+
+def _target_detail_queryset():
+    """Детали target: полный prefetch + children_count."""
+    return (
+        Target.objects.select_related('country', 'marker', 'type')
+        .prefetch_related(
+            *_target_zones_prefetch(),
             'type__countries',
         )
         .annotate(children_count=Count('children'))
@@ -100,10 +114,15 @@ class TargetViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
             return TargetCreateSerializer
+        if self.action == 'list':
+            return TargetListSerializer
         return TargetSerializer
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        if self.action == 'retrieve':
+            qs = _target_detail_queryset()
+        else:
+            qs = _target_list_queryset()
         parent = self.request.query_params.get('parent')
         if parent:
             try:
@@ -129,24 +148,9 @@ class TargetViewSet(viewsets.ModelViewSet):
 
         self.perform_update(serializer)
 
-        if actions_data is not None:
-            instance.actions.all().delete()
-            if actions_data:
-                type_ids = [a['action_type_id'] for a in actions_data]
-                types_by_id = ActionType.objects.in_bulk(type_ids)
-                to_create = [
-                    TargetAction(
-                        target=instance,
-                        action_type=types_by_id[action_data['action_type_id']],
-                        radius=action_data.get('radius'),
-                    )
-                    for action_data in actions_data
-                    if action_data.get('action_type_id') in types_by_id
-                ]
-                if to_create:
-                    TargetAction.objects.bulk_create(to_create)
+        replace_target_actions(instance, actions_data)
 
-        instance = self.get_queryset().get(pk=instance.pk)
+        instance = _target_detail_queryset().get(pk=instance.pk)
         return Response(TargetSerializer(instance).data)
 
 

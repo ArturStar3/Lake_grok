@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from decimal import Decimal
 
 from formular.models import (
     Target,
@@ -24,6 +25,7 @@ from equipment.models import (
     Equipment,
     EquipmentParameterValue,
 )
+from .target_utils import create_target_actions, serialize_deployed_equipment
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -264,6 +266,14 @@ class TargetDeployedEquipmentSerializer(serializers.Serializer):
     quantity = serializers.IntegerField()
     zones = CatalogEquipmentZoneSerializer(many=True)
 
+class TargetTypeBriefSerializer(serializers.ModelSerializer):
+    """Краткий тип объекта (без M2M countries) — для списка targets."""
+
+    class Meta:
+        model = TargetType
+        fields = ('id', 'title')
+
+
 class TargetTypeSerializer(serializers.ModelSerializer):
     """Тип объекта разведки"""
 
@@ -287,6 +297,37 @@ class EventTypeSerializer(serializers.ModelSerializer):
             'id',
             'title'
         )
+
+class TargetListSerializer(serializers.ModelSerializer):
+    """
+    Облегчённый список объектов разведки (GET /targets/).
+    Без parent, children_count, action_radius и countries у type.
+    """
+
+    country = CountrySerializer()
+    marker = MarkerSerializer()
+    actions = TargetActionSerializer(many=True)
+    deployed_equipment = serializers.SerializerMethodField()
+    type = TargetTypeBriefSerializer()
+
+    class Meta:
+        model = Target
+        fields = (
+            'id',
+            'title',
+            'label',
+            'actions',
+            'deployed_equipment',
+            'type',
+            'lat',
+            'lng',
+            'country',
+            'marker',
+        )
+
+    def get_deployed_equipment(self, obj):
+        return serialize_deployed_equipment(obj)
+
 
 class TargetSerializer(serializers.ModelSerializer):
     """Объект разведки"""
@@ -318,22 +359,7 @@ class TargetSerializer(serializers.ModelSerializer):
         )
 
     def get_deployed_equipment(self, obj):
-        items = [
-            {
-                'equipment': link.equipment,
-                'quantity': link.quantity,
-                'zones': [
-                    {
-                        'parameter_title': pv.parameter.title,
-                        'action_type': pv.parameter.action_type,
-                        'radius_km': pv.value,
-                    }
-                    for pv in link.equipment.catalog_zone_values()
-                ],
-            }
-            for link in obj.equipment_links.all()
-        ]
-        return TargetDeployedEquipmentSerializer(items, many=True).data
+        return serialize_deployed_equipment(obj)
 
 
 class TargetParentPickerSerializer(serializers.ModelSerializer):
@@ -369,7 +395,7 @@ class TargetActionCreateSerializer(serializers.Serializer):
     """Сериализатор для создания действия объекта"""
     
     action_type_id = serializers.IntegerField()
-    radius = serializers.FloatField(min_value=0)
+    radius = serializers.FloatField(min_value=Decimal('0'))
 
 class TargetCreateSerializer(serializers.ModelSerializer):
     """Сериализатор для создания объекта разведки"""
@@ -396,22 +422,7 @@ class TargetCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         actions_data = validated_data.pop('actions', [])
         target = Target.objects.create(**validated_data)
-
-        if actions_data:
-            type_ids = [a['action_type_id'] for a in actions_data]
-            types_by_id = ActionType.objects.in_bulk(type_ids)
-            to_create = [
-                TargetAction(
-                    target=target,
-                    action_type=types_by_id[action_data['action_type_id']],
-                    radius=action_data.get('radius'),
-                )
-                for action_data in actions_data
-                if action_data.get('action_type_id') in types_by_id
-            ]
-            if to_create:
-                TargetAction.objects.bulk_create(to_create)
-
+        create_target_actions(target, actions_data)
         return target
 
 class CountrySectionsSerializer(serializers.ModelSerializer):

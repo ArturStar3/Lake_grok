@@ -345,8 +345,9 @@ Target 0..1──* Target (parent/children)
 | **Назначение** | Список / создание объектов разведки |
 | **Query (list)** | `?parent=<id>` — фильтр по родителю |
 | **POST body** | `country`, `title`, `label`, `marker`, `type`, `lat`, `lng`, `parent`, `action_radius`, `actions: [{action_type_id, radius}]` |
-| **Ответ** | `TargetSerializer`: country, marker, type, actions, **`deployed_equipment[]`** (`equipment`, `quantity`, `zones[]`), children_count |
-| **Сервисы** | `TargetViewSet`, `TargetCreateSerializer`, `_target_list_queryset()` |
+| **Ответ (list)** | `TargetListSerializer`: без `parent`, `children_count`, `action_radius`; `type` без `countries`; `deployed_equipment[].equipment` без `category` |
+| **Ответ (retrieve)** | `TargetSerializer`: полный объект + `deployed_equipment[]`, `children_count` |
+| **Сервисы** | `TargetViewSet`, `TargetListSerializer`, `_target_list_queryset()` |
 
 #### `GET/PUT/PATCH/DELETE /api/v1/targets/{uuid}/`
 
@@ -724,6 +725,7 @@ AI обязан:
 | `backend/infolake/urls.py` | Корневые URL (admin, api, media) | Критическая |
 | `backend/api/urls.py` | Маршруты REST API | Критическая |
 | `backend/api/views.py` | ViewSets, бизнес-логика API | Критическая |
+| `backend/api/target_utils.py` | Зоны техники, bulk actions для Target | Высокая |
 | `backend/api/serializers.py` | Сериализация / десериализация | Критическая |
 | `backend/formular/models.py` | ОР, события, формуляры, TargetEquipment | Критическая |
 | `backend/equipment/models.py` | Каталог техники и ТТХ | Критическая |
