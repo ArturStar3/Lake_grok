@@ -71,6 +71,8 @@ services:
     environment:
       # PostgreSQL на хосте (не в Docker)
       DB_HOST: host.docker.internal
+      # Ссылка «Открыть сайт» в Django admin → карта (Vite dev / production frontend).
+      FRONTEND_URL: http://localhost:5173
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

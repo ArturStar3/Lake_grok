@@ -17,6 +17,13 @@ from formular.models import (
     FormularAttachment,
     Event,
 )
+from equipment.models import (
+    EquipmentCategory,
+    UnitOfMeasure,
+    EquipmentParameterDefinition,
+    Equipment,
+    EquipmentParameterValue,
+)
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -125,6 +132,138 @@ class TargetActionSerializer(serializers.ModelSerializer):
             'radius',
         )
 
+
+class EquipmentCategorySerializer(serializers.ModelSerializer):
+    """Категория техники"""
+
+    parent = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = EquipmentCategory
+        fields = (
+            'id',
+            'title',
+            'parent',
+            'order',
+        )
+
+
+class UnitOfMeasureSerializer(serializers.ModelSerializer):
+    """Единица измерения"""
+
+    class Meta:
+        model = UnitOfMeasure
+        fields = (
+            'id',
+            'title',
+            'symbol',
+        )
+
+
+class EquipmentParameterDefinitionSerializer(serializers.ModelSerializer):
+    """Определение параметра ТТХ"""
+
+    unit = UnitOfMeasureSerializer(read_only=True)
+    action_type = ActionTypeSerializer(read_only=True)
+
+    class Meta:
+        model = EquipmentParameterDefinition
+        fields = (
+            'id',
+            'title',
+            'code',
+            'unit',
+            'action_type',
+            'help_text',
+        )
+
+
+class EquipmentParameterValueSerializer(serializers.ModelSerializer):
+    """Значение ТТХ образца"""
+
+    parameter = EquipmentParameterDefinitionSerializer(read_only=True)
+    parameter_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentParameterDefinition.objects.all(),
+        source='parameter',
+        write_only=True,
+    )
+
+    class Meta:
+        model = EquipmentParameterValue
+        fields = (
+            'id',
+            'parameter',
+            'parameter_id',
+            'value',
+        )
+
+
+class EquipmentListSerializer(serializers.ModelSerializer):
+    """Краткая информация об образце техники"""
+
+    category = EquipmentCategorySerializer(read_only=True)
+
+    class Meta:
+        model = Equipment
+        fields = (
+            'id',
+            'title',
+            'designation',
+            'category',
+        )
+
+
+class EquipmentSerializer(serializers.ModelSerializer):
+    """Образец техники с ТТХ"""
+
+    category = EquipmentCategorySerializer(read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentCategory.objects.all(),
+        source='category',
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    origin_country = CountryListSerializer(read_only=True)
+    origin_country_id = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        source='origin_country',
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    parameter_values = EquipmentParameterValueSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Equipment
+        fields = (
+            'id',
+            'title',
+            'designation',
+            'category',
+            'category_id',
+            'origin_country',
+            'origin_country_id',
+            'description',
+            'parameter_values',
+        )
+
+
+class CatalogEquipmentZoneSerializer(serializers.Serializer):
+    """Зона из каталога ТТХ (без отдельного хранения на площадке)"""
+
+    parameter_title = serializers.CharField()
+    action_type = ActionTypeSerializer()
+    radius_km = serializers.FloatField()
+
+
+class TargetDeployedEquipmentSerializer(serializers.Serializer):
+    """Техника на объекте, зоны — из каталога."""
+
+    equipment = EquipmentListSerializer()
+    quantity = serializers.IntegerField()
+    zones = CatalogEquipmentZoneSerializer(many=True)
+
 class TargetTypeSerializer(serializers.ModelSerializer):
     """Тип объекта разведки"""
 
@@ -155,6 +294,7 @@ class TargetSerializer(serializers.ModelSerializer):
     country = CountrySerializer()
     marker = MarkerSerializer()
     actions = TargetActionSerializer(many=True)
+    deployed_equipment = serializers.SerializerMethodField()
     type = TargetTypeSerializer()
     children_count = serializers.IntegerField(read_only=True)
     parent = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -166,6 +306,7 @@ class TargetSerializer(serializers.ModelSerializer):
             'title',
             'label',
             'actions',
+            'deployed_equipment',
             'type',
             'action_radius',
             'lat',
@@ -175,6 +316,24 @@ class TargetSerializer(serializers.ModelSerializer):
             'parent',
             'children_count',
         )
+
+    def get_deployed_equipment(self, obj):
+        items = [
+            {
+                'equipment': link.equipment,
+                'quantity': link.quantity,
+                'zones': [
+                    {
+                        'parameter_title': pv.parameter.title,
+                        'action_type': pv.parameter.action_type,
+                        'radius_km': pv.value,
+                    }
+                    for pv in link.equipment.catalog_zone_values()
+                ],
+            }
+            for link in obj.equipment_links.all()
+        ]
+        return TargetDeployedEquipmentSerializer(items, many=True).data
 
 
 class TargetParentPickerSerializer(serializers.ModelSerializer):

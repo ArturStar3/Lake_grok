@@ -29,6 +29,9 @@ from .serializers import (
     EventSerializer,
     EventWriteSerializer,
     TargetSubordinateSerializer,
+    EquipmentCategorySerializer,
+    EquipmentParameterDefinitionSerializer,
+    EquipmentSerializer,
 )
 from formular.models import (
     Target,
@@ -43,9 +46,16 @@ from formular.models import (
     FormularSections,
     ActionType,
     TargetAction,
+    TargetEquipment,
     TargetType,
     EventType,
-    Event
+    Event,
+)
+from equipment.models import (
+    EquipmentCategory,
+    EquipmentParameterDefinition,
+    Equipment,
+    EquipmentParameterValue,
 )
 
 def _target_list_queryset():
@@ -56,6 +66,24 @@ def _target_list_queryset():
             Prefetch(
                 'actions',
                 queryset=TargetAction.objects.select_related('action_type'),
+            ),
+            Prefetch(
+                'equipment_links',
+                queryset=TargetEquipment.objects.select_related(
+                    'equipment',
+                    'equipment__category',
+                ).prefetch_related(
+                    Prefetch(
+                        'equipment__parameter_values',
+                        queryset=EquipmentParameterValue.objects.filter(
+                            parameter__action_type__isnull=False,
+                            value__gt=0,
+                        ).select_related(
+                            'parameter',
+                            'parameter__action_type',
+                        ),
+                    ),
+                ),
             ),
             'type__countries',
         )
@@ -120,6 +148,59 @@ class TargetViewSet(viewsets.ModelViewSet):
 
         instance = self.get_queryset().get(pk=instance.pk)
         return Response(TargetSerializer(instance).data)
+
+
+class EquipmentCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """Категории техники"""
+
+    serializer_class = EquipmentCategorySerializer
+    permission_classes = [AllowAny]
+    queryset = EquipmentCategory.objects.select_related('parent').order_by('order', 'title')
+
+
+class EquipmentParameterDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
+    """Определения параметров ТТХ"""
+
+    serializer_class = EquipmentParameterDefinitionSerializer
+    permission_classes = [AllowAny]
+    queryset = (
+        EquipmentParameterDefinition.objects
+        .select_related('unit', 'action_type')
+        .order_by('title')
+    )
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        maps_to_zone = self.request.query_params.get('maps_to_zone')
+        if maps_to_zone and maps_to_zone.lower() in ('1', 'true', 'yes'):
+            qs = qs.filter(action_type__isnull=False)
+        category_id = self.request.query_params.get('category')
+        if category_id:
+            qs = qs.filter(categories__id=category_id)
+        return qs.distinct()
+
+
+class EquipmentViewSet(viewsets.ModelViewSet):
+    """Каталог образцов техники"""
+
+    serializer_class = EquipmentSerializer
+    permission_classes = [AllowAny]
+    queryset = (
+        Equipment.objects
+        .select_related('category', 'origin_country')
+        .prefetch_related(
+            Prefetch(
+                'parameter_values',
+                queryset=EquipmentParameterValue.objects.select_related(
+                    'parameter',
+                    'parameter__unit',
+                    'parameter__action_type',
+                ),
+            ),
+        )
+        .order_by('title')
+    )
+
 
 class CountryViewSet(viewsets.ModelViewSet):
     """Список стран с полным CRUD"""

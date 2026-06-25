@@ -5,12 +5,14 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.db.models import Prefetch, Count
-from django.conf import settings
+
+from infolake.admin_base import ModelAdmin
 
 from .forms import CountryForm, ActionTypeForm
 from .models import (
     Country,
     Target,
+    TargetEquipment,
     Marker,
     EventType,
     EventMarker,
@@ -26,25 +28,25 @@ from .admin_inlines import (
     TargetInlineAdmin,
     TargetInlineAdmin_2,
     TargetActionInlineAdmin,
+    TargetEquipmentInlineAdmin,
     CountryInfoInlineAdmin,
     FormularInlineAdmin,
     TargetChildrenInline,
 )
 
-admin.site.site_header = 'Администрирование электронной разведывательной сводки'
 EMPTY_VALUE_DISPLAY = '<пусто>'
 
+
 @admin.register(Country)
-class CountryAdmin(admin.ModelAdmin):
+class CountryAdmin(ModelAdmin):
     form = CountryForm
-    list_display = (
-        'title',
-        'color_display'
-    )
-    list_filer = ('color',)
+    list_display = ('title', 'color_display')
+    list_filter = ('color',)
+    search_fields = ('title', 'title_short', 'iso_code')
+    list_per_page = 50
     inlines = (
         TargetInlineAdmin,
-        CountryInfoInlineAdmin
+        CountryInfoInlineAdmin,
     )
 
     @admin.display(description='Цвет')
@@ -77,12 +79,12 @@ class ChildrenCountFilter(admin.SimpleListFilter):
         elif value == '1-5':
             return queryset.filter(
                 direct_children_count__gte=1,
-                direct_children_count__lte=5
+                direct_children_count__lte=5,
             )
         elif value == '6-10':
             return queryset.filter(
                 direct_children_count__gte=6,
-                direct_children_count__lte=10
+                direct_children_count__lte=10,
             )
         elif value == '11+':
             return queryset.filter(direct_children_count__gte=11)
@@ -90,7 +92,7 @@ class ChildrenCountFilter(admin.SimpleListFilter):
 
 
 @admin.register(Target)
-class TargetAdmin(admin.ModelAdmin):
+class TargetAdmin(ModelAdmin):
     list_display = (
         'title',
         'label',
@@ -101,62 +103,56 @@ class TargetAdmin(admin.ModelAdmin):
         'action_radius',
         'direct_children_count',
     )
-    raw_id_fields = (
+    autocomplete_fields = (
         'country',
         'marker',
         'type',
         'parent',
     )
-    search_fields = (
-        'title',
-        'country__title',
-        'label'
-    )
-    list_filter = (
-        'country__title',
-        ChildrenCountFilter,
-    )
-    list_editable = (
-        'lat',
-        'lng',
-        'action_radius'
-    )
+    exclude = ('equipment',)
+    search_fields = ('title', 'label', 'country__title')
+    list_filter = ('country', ChildrenCountFilter)
+    list_editable = ('lat', 'lng', 'action_radius')
+    list_select_related = ('country', 'type', 'marker')
+    list_per_page = 50
+    show_full_result_count = False
     inlines = (
         TargetActionInlineAdmin,
+        TargetEquipmentInlineAdmin,
         FormularInlineAdmin,
         TargetChildrenInline,
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(
-            request
-        ).select_related(
-                'country'
-        ).prefetch_related(
-            Prefetch(
-                'actions',
-                queryset=TargetAction.objects.select_related(
-                    'action_type'
-                )
+        return (
+            super()
+            .get_queryset(request)
+            .select_related('country', 'type', 'marker')
+            .prefetch_related(
+                Prefetch(
+                    'actions',
+                    queryset=TargetAction.objects.select_related('action_type'),
+                ),
+                Prefetch(
+                    'equipment_links',
+                    queryset=TargetEquipment.objects.select_related('equipment'),
+                ),
             )
-        ).annotate(
-            direct_children_count=Count('children')
+            .annotate(direct_children_count=Count('children'))
         )
 
+    @admin.display(description='Прямых подчинённых', ordering='direct_children_count')
     def direct_children_count(self, obj):
         return getattr(obj, 'direct_children_count', 0)
-    direct_children_count.short_description = 'Прямых подчинённых'
-    direct_children_count.admin_order_field = 'direct_children_count'
-    
+
+
 @admin.register(ActionType)
-class ActionTypeAdmin(admin.ModelAdmin):
+class ActionTypeAdmin(ModelAdmin):
     form = ActionTypeForm
-    list_display = (
-        'title',
-        'color_display',
-        'line_type',
-    )
+    list_display = ('title', 'color_display', 'line_type')
     list_editable = ('line_type',)
+    search_fields = ('title',)
+    list_per_page = 50
 
     @admin.display(description='Цвет зоны')
     def color_display(self, obj):
@@ -172,9 +168,10 @@ class ActionTypeAdmin(admin.ModelAdmin):
             obj.color,
             obj.color,
         )
-    
+
+
 @admin.register(Marker)
-class MarkerAdmin(admin.ModelAdmin):
+class MarkerAdmin(ModelAdmin):
     list_display = (
         'title',
         'svg_thumbnail',
@@ -183,26 +180,21 @@ class MarkerAdmin(admin.ModelAdmin):
         'height',
         'scale',
         'order',
-        'is_flag'
+        'is_flag',
     )
-    list_editable = (
-        'top',
-        'width',
-        'height',
-        'scale',
-        'order',
-        'is_flag'
-    )
+    list_editable = ('top', 'width', 'height', 'scale', 'order', 'is_flag')
+    search_fields = ('title',)
+    list_per_page = 50
     inlines = (TargetInlineAdmin_2,)
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related(
             Prefetch(
                 'markers',
-                queryset=Target.objects.select_related('country')
-            )
+                queryset=Target.objects.select_related('country'),
+            ),
         )
-    
+
     def svg_thumbnail(self, obj):
         file_url = obj.path.url
         file_path = getattr(obj.path, 'path', None)
@@ -221,110 +213,103 @@ class MarkerAdmin(admin.ModelAdmin):
                         original_id = match.group(1)
                         return f'id="{id_map.get(original_id, original_id)}"'
 
-                    svg_content = re.sub(r'\bid="([^"]+)"', replace_id_attr, svg_content)
+                    svg_content = re.sub(
+                        r'\bid="([^"]+)"',
+                        replace_id_attr,
+                        svg_content,
+                    )
 
                     for original_id, new_id in id_map.items():
                         svg_content = re.sub(
                             rf'url\(#\s*{re.escape(original_id)}\s*\)',
                             f'url(#{new_id})',
-                            svg_content
+                            svg_content,
                         )
                         svg_content = re.sub(
                             rf'(^|[\"\'\s])#{re.escape(original_id)}(?!-)',
                             rf'\1#{new_id}',
-                            svg_content
+                            svg_content,
                         )
                 if '<svg' in svg_content:
-                    svg_content = svg_content.replace('<svg', '<svg class="marker-admin__svg"', 1)
+                    svg_content = svg_content.replace(
+                        '<svg',
+                        '<svg class="marker-admin__svg"',
+                        1,
+                    )
                 return format_html(
                     '<div class="marker-admin__svg-wrap" style="width:85px;height:85px;">{}</div>',
-                    mark_safe(svg_content)
+                    mark_safe(svg_content),
                 )
             except OSError:
                 pass
         return format_html(
             '<img src="{}" width="40" height="40" style="object-fit:contain" alt="icon">',
-            file_url
+            file_url,
         )
-    svg_thumbnail.short_description = "Флажок"
-    svg_thumbnail.allow_tags = True
+
+    svg_thumbnail.short_description = 'Флажок'
 
     class Media:
         css = {
-            'all': ('admin/css/marker_admin.css',)
+            'all': ('admin/css/marker_admin.css',),
         }
 
+
 @admin.register(EventType)
-class EventTypeAdmin(admin.ModelAdmin):
+class EventTypeAdmin(ModelAdmin):
     list_display = ('title',)
+    search_fields = ('title',)
+    list_per_page = 50
+
 
 @admin.register(EventMarker)
-class EventMarkerAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-        'path'
-    )
+class EventMarkerAdmin(ModelAdmin):
+    list_display = ('title', 'path')
+    search_fields = ('title',)
+    list_per_page = 50
+
 
 @admin.register(CountrySections)
-class CountrySectionsAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-        'parent',
-        'order'
-    )
+class CountrySectionsAdmin(ModelAdmin):
+    list_display = ('title', 'parent', 'order')
     list_editable = ('order',)
-    raw_id_fields = ('parent',)
+    autocomplete_fields = ('parent',)
+    search_fields = ('title',)
+    list_per_page = 50
+
 
 @admin.register(FormularSections)
-class FormularSectionsAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-        'parent',
-        'order'
-    )
+class FormularSectionsAdmin(ModelAdmin):
+    list_display = ('title', 'parent', 'order')
     list_editable = ('order',)
-    raw_id_fields = ('parent',)
+    autocomplete_fields = ('parent',)
+    search_fields = ('title',)
+    list_per_page = 50
 
 
 @admin.register(FormularAttachment)
-class FormularAttachmentAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-        'target',
-        'section',
-        'created_at'
-    )
-    search_fields = (
-        'title',
-        'target__title',
-        'section__title'
-    )
-    list_filter = (
-        'section',
-    )
+class FormularAttachmentAdmin(ModelAdmin):
+    list_display = ('title', 'target', 'section', 'created_at')
+    search_fields = ('title', 'target__title', 'section__title')
+    list_filter = ('section',)
+    autocomplete_fields = ('target', 'section')
+    list_select_related = ('target', 'section')
+    list_per_page = 50
 
 
 @admin.register(CountryAttachment)
-class CountryAttachmentAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-        'country',
-        'section',
-        'created_at'
-    )
-    search_fields = (
-        'title',
-        'country__title',
-        'section__title'
-    )
-    list_filter = (
-        'section',
-    )
+class CountryAttachmentAdmin(ModelAdmin):
+    list_display = ('title', 'country', 'section', 'created_at')
+    search_fields = ('title', 'country__title', 'section__title')
+    list_filter = ('section',)
+    autocomplete_fields = ('country', 'section')
+    list_select_related = ('country', 'section')
+    list_per_page = 50
+
 
 @admin.register(TargetType)
-class TargetTypeAdmin(admin.ModelAdmin):
-    list_display = (
-        'title',
-    )
-    filter_horizontal = ('countries',)
+class TargetTypeAdmin(ModelAdmin):
+    list_display = ('title',)
+    autocomplete_fields = ('countries',)
     search_fields = ('title',)
+    list_per_page = 50

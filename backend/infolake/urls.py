@@ -20,8 +20,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from api import urls as api_urls
+from equipment.admin_redirects import equipment_admin_redirect_urlpatterns
 
 urlpatterns = [
+    *equipment_admin_redirect_urlpatterns(),
     path('admin/', admin.site.urls),
     path('api/v1/', include(api_urls))
 ]

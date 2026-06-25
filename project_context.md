@@ -34,10 +34,12 @@
 | Просмотр объектов на карте | Загрузка targets, фильтрация по стране/типу/названию, кластеризация маркеров, fly-to |
 | CRUD объекта | Создание/редактирование через модальные окна; привязка маркера, типа, родителя, actions |
 | Формуляр объекта | Просмотр и массовое редактирование разделов; вложения по разделам |
-| Зоны действия | Отображение окружностей по `TargetAction`; фильтр по типам действий; расчёт пересечений |
+| Зоны действия | Отображение окружностей по `TargetAction` **и** по технике на объекте (`deployed_equipment`); фильтр по типам действий |
 | События | Вкладка «События»: таблица + оверлеи на карте; CRUD с геометрией в JSON |
 | Информация по стране | Клик по стране на карте → модальное окно; редактирование разделов и вложений |
-| Оффлайн-развёртывание | Сборка образов на машине с интернетом → `docker save` → перенос → `docker load` → `docker compose up -d --no-build` |
+| Каталог техники | Справочник образцов (авиация, танки, ЗРК) с ТТХ; привязка к объекту с количеством; зоны дальности из каталога |
+
+**Текущая ветка:** `develop-weaponlist` — каталог вооружения и зоны из ТТХ. Детальный план: [`weaponlist_plan.md`](weaponlist_plan.md).
 
 ---
 
@@ -56,10 +58,12 @@
 | CORS | django-cors-headers 4.9.0 |
 | Медиа | Pillow 12.2.0 |
 | Утилиты | openpyxl 3.1.5 (seed), watchdog 6.0.0 |
+| Админка UI | django-unfold 0.67.0 (оффлайн: без CDN, локальная статика) |
+| Статика prod | whitenoise 6.9.0 (`collectstatic` в `docker-entrypoint.sh`) |
 | Драйвер БД | psycopg2-binary 2.9.12 |
 | Очереди | Не используются |
 | Внешние сервисы | Нет (self-hosted) |
-| Сборка/деплой | Docker (`python:3.12-slim`), `docker-entrypoint.sh` (migrate + runserver) |
+| Сборка/деплой | Docker (`python:3.12-slim`), `docker-entrypoint.sh` (migrate + collectstatic + runserver) |
 
 ### Frontend (`frontend/`)
 
@@ -98,9 +102,10 @@
 ```
 Lake_grok/
 ├── backend/                 # Django API + Admin + доменные модели
-│   ├── infolake/            # Настройки проекта (settings, urls, wsgi)
+│   ├── infolake/            # settings, urls, unfold_settings, admin_base
 │   ├── api/                 # REST-слой: views, serializers, urls
-│   ├── formular/            # Доменные модели, admin, migrations, seed
+│   ├── formular/            # ОР, события, формуляры, TargetEquipment (through)
+│   ├── equipment/           # Каталог техники (таблицы formular_*)
 │   ├── media/               # Загруженные файлы (маркеры, вложения)
 │   ├── manage.py
 │   ├── Dockerfile
@@ -128,6 +133,7 @@ Lake_grok/
 ├── export-offline.ps1       # Экспорт Docker-образов
 ├── import-and-start.ps1     # Импорт и запуск оффлайн
 ├── docker_instruction.md    # Подробная инструкция оффлайн-деплоя
+├── weaponlist_plan.md       # План и статус: каталог техники + зоны (ветка develop-weaponlist)
 ├── project_analysis.md      # Аудит кода (проблемы, рекомендации)
 └── project_context.md       # Этот файл
 ```
@@ -137,7 +143,8 @@ Lake_grok/
 | Папка | Назначение | Связи |
 |-------|------------|-------|
 | `backend/infolake/` | Конфигурация Django-проекта | Подключает `api`, `formular`; точка входа WSGI |
-| `backend/formular/` | Доменный слой (модели, admin, миграции) | Используется `api/`; данные в PostgreSQL |
+| `backend/formular/` | Объекты, события, формуляры, **TargetEquipment** (through) | Используется `api/`; M2M к `equipment` |
+| `backend/equipment/` | Каталог техники и ТТХ (`db_table=formular_*`) | FK из `formular`; admin + seed |
 | `backend/api/` | REST API (тонкий слой над моделями) | Вызывается фронтендом по `/api/v1/` |
 | `frontend/src/components/Formular/` | Главный orchestrator UI (~1000 строк) | axios → backend; props → MapComponent |
 | `frontend/src/components/MapComponent/` | Leaflet-карта, маркеры, зоны, события | Тайлы ← tileserver; данные ← Formular |
@@ -258,7 +265,7 @@ FormularEditor → POST /api/v1/formular/{uuid}/bulk/ → FormularBulkUpdateView
 
 ## 5. Модели данных
 
-Все модели в `backend/formular/models.py`. 17 сущностей.
+Модели разделены между **`formular`** (ОР, события, формуляры) и **`equipment`** (каталог техники). Таблицы каталога в БД: префикс `formular_*` (`db_table` в `equipment/models.py`).
 
 ### ER-описание (текст)
 
@@ -267,57 +274,59 @@ Country 1──* Target
 Country 1──* CountryInfo
 Country 1──* CountryAttachment
 Country 1──* Event
-Country *──* TargetType (M2M: applicable_target_types)
+Country *──* TargetType (M2M)
 
-CountrySections 1──* CountryInfo
-CountrySections 1──* CountryAttachment
-CountrySections 0..1──* CountrySections (parent/children)
+Target *──* Equipment (M2M through TargetEquipment: target, equipment, quantity)
+Equipment 1──* EquipmentParameterValue
+EquipmentParameterDefinition 1──* EquipmentParameterValue
+EquipmentParameterDefinition *──o| ActionType (maps_to_zone)
+EquipmentCategory 0..1──* EquipmentCategory (parent)
+EquipmentCategory 1──* Equipment
 
-Marker 1──* Target
-EventMarker 1──* Event
-
-TargetType 1──* Target
-Target 0..1──* Target (parent/children, self-FK)
 Target 1──* TargetAction
 Target 1──* Formular
-Target 1──* FormularAttachment
+Target 0..1──* Target (parent/children)
 
-ActionType 1──* TargetAction
-
-EventType 1──* Event
-
-FormularSections 1──* Formular
-FormularSections 1──* FormularAttachment
-FormularSections 0..1──* FormularSections (parent/children)
+… (события, формуляры, разделы — без изменений, см. ниже)
 ```
 
-### Основные сущности
+### Каталог техники (`backend/equipment/models.py`)
 
-| Модель | Назначение | Ключевые поля | Связи |
-|--------|------------|---------------|-------|
-| **Country** | Справочник стран | `title`, `title_short`, `iso_code`, `color` | → targets, infos, events |
-| **CountrySections** | Дерево разделов инфо по стране | `title`, `order`, `parent`, `is_hidden` | self-FK, → infos, attachments |
-| **CountryInfo** | Текст раздела для страны | `content` | FK country, section |
-| **CountryAttachment** | Изображение раздела страны | `title`, `image`, UUID PK | FK country, section |
-| **Marker** | SVG-маркер объекта | `path`, `top/width/height`, `scale`, `is_flag`, `order` | → targets |
-| **EventMarker** | SVG-маркер события | `path` | → events |
-| **ActionType** | Тип действия (зона) | `title`, `animation` (legacy) | → TargetAction |
-| **TargetType** | Тип объекта разведки | `title` | M2M countries; → targets |
-| **Target** | Объект разведки (ОР) | UUID PK, `title`, `label`, `lat`, `lng`, `action_radius` (legacy) | FK country, marker, type, parent; → actions, formular |
-| **TargetAction** | Радиус действия по типу | `radius` (км) | FK target, action_type |
-| **EventType** | Тип события | `title` | → events |
-| **Event** | Событие на карте | `title`, даты/время, `color`, `shape` (JSON) | FK event_type, country, marker |
-| **FormularSections** | Раздел формуляра | `title`, `order`, `parent`, `is_hidden` | self-FK; → formular, attachments |
-| **Formular** | Пункт формуляра | `content` | FK target, section |
-| **FormularAttachment** | Вложение формуляра | `title`, `image`, UUID PK | FK target, section |
+| Модель | Назначение | Ключевые поля |
+|--------|------------|---------------|
+| **EquipmentCategory** | Дерево категорий (ВВС, танки, ЗРК) | `title`, `parent`, `order` |
+| **UnitOfMeasure** | Единицы ТТХ | `title`, `symbol` |
+| **EquipmentParameterDefinition** | Шаблон показателя | `code`, `unit`, M2M `categories`, FK `action_type` |
+| **Equipment** | Образец техники | `title`, `designation`, `category`, `origin_country` |
+| **EquipmentParameterValue** | Значение ТТХ | `equipment`, `parameter`, `value` (float) |
+
+**Зоны из каталога:** `Equipment.catalog_zone_values()` — параметры с `action_type` и `value > 0`.
+
+### Размещение на объекте (`formular/models.py`)
+
+| Модель | Назначение | Ключевые поля |
+|--------|------------|---------------|
+| **TargetEquipment** | Through M2M: техника на площадке | `target`, `equipment`, **`quantity`** (≥1) |
+| **Target.equipment** | M2M через `TargetEquipment` | `related_name='targets'` на Equipment |
+
+`quantity` не умножает круги на карте — один набор зон на образец.
+
+### Основные сущности formular (кратко)
+
+| Модель | Назначение |
+|--------|------------|
+| **Country**, **Marker**, **TargetType**, **ActionType** | Справочники |
+| **Target** | Объект разведки: `lat`, `lng`, FK country/marker/type/parent |
+| **TargetAction** | Ручная зона: `action_type`, `radius` (км) |
+| **Event**, **Formular**, **CountryInfo** | События и текстовый контент |
 
 ### Важные замечания по моделям
 
 - Поля `Target.lat` / `Target.lng` в verbose_name подписаны как «Долгота» / «Широта» — **возможна путаница**; фронт использует их как lat/lng Leaflet.
-- `Target.country.related_name = 'contries'` — опечатка (должно быть `targets`).
-- `action_radius` на Target и `animation` на ActionType — **legacy**, основная логика зон в `TargetAction`.
-- `Country.iso_code` — unique закомментирован.
-- `Event.shape` — JSON: `{type: 'point'|'circle'|'polygon', coordinates: ...}`.
+- `Target.country.related_name = 'contries'` — опечатка.
+- `action_radius` на Target — **legacy**; зоны: `TargetAction` + техника.
+- **`ActionType`:** `color`, `line_type` (solid/dashed/…); поле `animation` удалено.
+- **Нет** `TargetEquipmentZone` и переопределения радиуса на площадке — только каталог.
 
 ---
 
@@ -336,7 +345,7 @@ FormularSections 0..1──* FormularSections (parent/children)
 | **Назначение** | Список / создание объектов разведки |
 | **Query (list)** | `?parent=<id>` — фильтр по родителю |
 | **POST body** | `country`, `title`, `label`, `marker`, `type`, `lat`, `lng`, `parent`, `action_radius`, `actions: [{action_type_id, radius}]` |
-| **Ответ** | `TargetSerializer`: вложенные country, marker, type, actions, children_count |
+| **Ответ** | `TargetSerializer`: country, marker, type, actions, **`deployed_equipment[]`** (`equipment`, `quantity`, `zones[]`), children_count |
 | **Сервисы** | `TargetViewSet`, `TargetCreateSerializer`, `_target_list_queryset()` |
 
 #### `GET/PUT/PATCH/DELETE /api/v1/targets/{uuid}/`
@@ -379,7 +388,27 @@ FormularSections 0..1──* FormularSections (parent/children)
 | | |
 |---|---|
 | **Назначение** | Типы действий (read-only) |
-| **Ответ** | `{id, title, animation}` |
+| **Ответ** | `{id, title, color, line_type}` |
+
+#### `GET /api/v1/equipment-categories/`
+
+| | |
+|---|---|
+| **Назначение** | Категории техники (read-only) |
+
+#### `GET /api/v1/equipment-parameters/`
+
+| | |
+|---|---|
+| **Назначение** | Определения параметров ТТХ (read-only) |
+| **Query** | `?maps_to_zone=true` — только с `action_type`; `?category=<id>` |
+
+#### `GET/POST/PUT/PATCH/DELETE /api/v1/equipment/`
+
+| | |
+|---|---|
+| **Назначение** | CRUD каталога образцов |
+| **Ответ** | `parameter_values[]`, category, origin_country |
 
 #### `GET /api/v1/target-types/`
 
@@ -462,7 +491,10 @@ FormularSections 0..1──* FormularSections (parent/children)
 
 ### Django Admin
 
-- `/admin/` — полное управление моделями (кроме Event, CountryInfo, Formular — только через inline).
+- `/admin/` — **django-unfold** (русская навигация, вкладки inline, autocomplete).
+- Отдельный раздел **«Техника»** (`equipment` app); редиректы со старых URL: `equipment/admin_redirects.py`.
+- **Target** — вкладки: общее, действия, **вооружение и техника** (`TargetEquipment` + `quantity`), формуляр, подчинённые.
+- Ссылка «Открыть сайт» → `FRONTEND_URL` (карта, по умолчанию `http://localhost:5173`).
 
 ---
 
@@ -477,10 +509,14 @@ FormularSections 0..1──* FormularSections (parent/children)
 
 ### Зоны действия
 
-- Каждый `TargetAction` задаёт окружность: центр = координаты target, радиус в км.
-- На карте зоны фильтруются по типам действий (чекбоксы по странам).
-- **Пересечения** двух зон вычисляются на клиенте (`calculateCircleIntersections`, `findAllIntersections`) — O(n²) по видимым зонам.
-- Legacy: поле `action_radius` на Target — не основной источник зон.
+- **Два источника кругов** (центр = `Target.lat/lng`, радиус в км):
+  1. `TargetAction` — ручные зоны объекта.
+  2. `deployed_equipment[].zones[]` — из каталога ТТХ (`EquipmentParameterValue` + `parameter.action_type`).
+- На карте объединяются в `buildVisibleZones.js` (`getObjectZoneActions`).
+- Фильтр по стране + `action_type.title` (`actionZoneFilters`).
+- `quantity` на зоны **не влияет** (один набор кругов на образец).
+- Пересечения — на клиенте (`circleIntersection.js`), O(n²).
+- Legacy: `Target.action_radius` — не основной источник.
 
 ### События
 
@@ -534,6 +570,7 @@ FormularSections 0..1──* FormularSections (parent/children)
 | `DB_PASSWORD` | Пароль БД | *(секрет)* |
 | `DB_HOST` | Хост БД | `localhost` / `host.docker.internal` |
 | `DB_PORT` | Порт БД | `5432` |
+| `FRONTEND_URL` | URL фронта для ссылки «Открыть сайт» в admin | `http://localhost:5173` |
 
 #### Frontend (docker-compose / Vite)
 
@@ -562,7 +599,8 @@ FormularSections 0..1──* FormularSections (parent/children)
 | Файл | Назначение |
 |------|------------|
 | `docker-compose.yml` | Оркестрация 3 сервисов, env, volumes |
-| `backend/infolake/settings.py` | Django: apps, DB, CORS, MEDIA |
+| `backend/infolake/settings.py` | Django: apps, DB, CORS, MEDIA, UNFOLD, WhiteNoise |
+| `backend/infolake/unfold_settings.py` | Тема админки, sidebar, оффлайн (без CDN) |
 | `backend/infolake/urls.py` | admin + api + media |
 | `backend/api/urls.py` | Маршруты API |
 | `frontend/vite.config.js` | Dev server, HMR, polling |
@@ -575,6 +613,7 @@ FormularSections 0..1──* FormularSections (parent/children)
 - `DEBUG = True`, `ALLOWED_HOSTS = ['*']`, `CORS_ALLOW_ALL_ORIGINS = True` — **не для production без доработки**.
 - `LANGUAGE_CODE = 'ru-ru'`, `TIME_ZONE = 'UTC'`.
 - `MEDIA_ROOT = backend/media`, `MEDIA_URL = '/media/'`.
+- `STATIC_ROOT = backend/staticfiles`, `collectstatic` в `docker-entrypoint.sh`.
 - PostgreSQL `CONN_MAX_AGE = 60`.
 
 ---
@@ -595,7 +634,8 @@ FormularSections 0..1──* FormularSections (parent/children)
 | TileServer GL | `tileserver/styles/`, `fonts/` | Стили и подписи |
 | docker-compose | 3 образа | Единый стек разработки/оффлайн |
 | seed_test_targets | Data.xlsx, Значки/ | Генерация тестовых targets |
-| Django Admin | formular.models | Ручное управление контентом |
+| seed_equipment_demo | `equipment/management/commands/` | Каталог техники + 6 демо-площадок (`seed:equipment:*`) |
+| Django Admin | formular + equipment | Unfold UI, каталог и размещение техники |
 
 ---
 
@@ -660,7 +700,8 @@ AI обязан:
 |--------|-------|
 | Новое поле объекта | `formular/models.py` → migration → `serializers.py` → `Formular.jsx`, модалки |
 | Новый API endpoint | `api/views.py` → `api/urls.py` → `frontend/src/config` + вызов в компоненте |
-| Логика зон / пересечений | `circleIntersection.js`, `MapComponent/`, `Formular.jsx` |
+| Каталог техники / ТТХ | `equipment/models.py` → migration → `api/` → admin; `TargetEquipment` в formular |
+| Логика зон техники | `buildVisibleZones.js`, `TargetSerializer.get_deployed_equipment` |
 | Справочник | модель + ViewSet + `useReferenceData.js` |
 | Оффлайн-деплой | `docker-compose.yml`, Dockerfiles, `docker_instruction.md` |
 
@@ -684,7 +725,13 @@ AI обязан:
 | `backend/api/urls.py` | Маршруты REST API | Критическая |
 | `backend/api/views.py` | ViewSets, бизнес-логика API | Критическая |
 | `backend/api/serializers.py` | Сериализация / десериализация | Критическая |
-| `backend/formular/models.py` | Все доменные модели | Критическая |
+| `backend/formular/models.py` | ОР, события, формуляры, TargetEquipment | Критическая |
+| `backend/equipment/models.py` | Каталог техники и ТТХ | Критическая |
+| `backend/equipment/admin.py` | Админка каталога | Высокая |
+| `backend/equipment/management/commands/seed_equipment_demo.py` | Демо-данные техники | Средняя |
+| `backend/infolake/unfold_settings.py` | Настройки django-unfold | Высокая |
+| `backend/infolake/admin_base.py` | Базовый ModelAdmin / TabularInline | Средняя |
+| `weaponlist_plan.md` | План ветки develop-weaponlist | Высокая |
 | `backend/formular/admin.py` | Django Admin | Высокая |
 | `backend/formular/admin_inlines.py` | Inline-редакторы в admin | Высокая |
 | `backend/formular/enums.py` | Colors, ActionAnimations | Средняя |
@@ -704,6 +751,7 @@ AI обязан:
 | `frontend/src/hooks/useTargetFormData.js` | Данные для форм target | Высокая |
 | `frontend/src/config/api.js` | Базовый URL API | Критическая |
 | `frontend/src/config/tiles.js` | URL тайлов TileServer | Критическая |
+| `frontend/src/utils/buildVisibleZones.js` | Сбор зон: `actions[]` + `deployed_equipment[].zones[]` | Высокая |
 | `frontend/src/utils/circleIntersection.js` | Геометрия пересечений зон | Высокая |
 | `frontend/src/utils/markerFilters.js` | Фильтрация маркеров | Средняя |
 | `frontend/vite.config.js` | Vite dev/HMR | Высокая |
@@ -719,4 +767,50 @@ AI обязан:
 
 ---
 
-*Документ сгенерирован на основе анализа репозитория Lake_grok (infolake). Дата: 2026-06-24.*
+## 13. Направление develop-weaponlist (продолжение работ)
+
+### Сделано
+
+| Область | Результат |
+|---------|-----------|
+| Каталог | App `equipment`, 12 демо-образцов (авиация, танки, БМП, артиллерия, ЗРК) |
+| ТТХ | Float-параметры, привязка к `ActionType` для зон (км) |
+| Размещение | `TargetEquipment` (through) + **`quantity`** |
+| API | `deployed_equipment[]` в targets; CRUD `/equipment/` |
+| Карта | `buildVisibleZones.js` — зоны из каталога + ручные actions |
+| Админка | django-unfold, вкладка «Вооружение и техника», autocomplete |
+| Seed | `python manage.py seed_equipment_demo` |
+
+### Не сделано (фаза 2)
+
+1. **Frontend UI** — управление техникой и количеством в `EditTargetModal` / отображение ТТХ в `FormularModal`.
+2. **API write** — запись `deployed_equipment` при PATCH/POST Target (сейчас только чтение + admin).
+3. **weaponlist_plan.md** — синхронизировать при изменении контракта.
+
+### Команды для старта сессии
+
+```bash
+docker compose up -d
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py seed_equipment_demo
+```
+
+Демо-объекты на карте: фильтр зон для **России**, метки `seed:equipment:*`.
+
+### Ключевые контракты для фронта
+
+```json
+"deployed_equipment": [
+  {
+    "equipment": { "id", "designation", "title", "category" },
+    "quantity": 12,
+    "zones": [
+      { "parameter_title", "action_type": { "title", "color", "line_type" }, "radius_km" }
+    ]
+  }
+]
+```
+
+---
+
+*Документ обновлён под ветку `develop-weaponlist`. Дата: 2026-06-24.*

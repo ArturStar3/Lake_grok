@@ -419,6 +419,13 @@ class Target(models.Model):
     lng = models.FloatField(
         verbose_name='Широта'
     )
+    equipment = models.ManyToManyField(
+        'equipment.Equipment',
+        through='TargetEquipment',
+        blank=True,
+        related_name='targets',
+        verbose_name='Техника на объекте',
+    )
 
     class Meta:
         verbose_name = 'Объект'
@@ -431,6 +438,52 @@ class Target(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class TargetEquipment(models.Model):
+    """Связь объекта разведки с образцом техники и количеством."""
+
+    target = models.ForeignKey(
+        Target,
+        on_delete=models.CASCADE,
+        related_name='equipment_links',
+        verbose_name='Объект разведки',
+    )
+    equipment = models.ForeignKey(
+        'equipment.Equipment',
+        on_delete=models.CASCADE,
+        related_name='target_links',
+        verbose_name='Образец техники',
+    )
+    quantity = models.PositiveIntegerField(
+        default=1,
+        validators=[
+            MinValueValidator(1, message='Количество должно быть не меньше 1'),
+        ],
+        verbose_name='Количество',
+    )
+
+    class Meta:
+        db_table = 'formular_target_equipment'
+        verbose_name = 'Техника на объекте'
+        verbose_name_plural = 'Вооружение и техника'
+        constraints = [
+            models.UniqueConstraint(
+                fields=('target', 'equipment'),
+                name='formular_target_equipment_unique',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('target',)),
+            models.Index(fields=('equipment',)),
+        ]
+
+    def __str__(self):
+        label = self.equipment.designation or self.equipment.title
+        if self.quantity > 1:
+            return f'{label} × {self.quantity}'
+        return label
+
     
 class EventType(models.Model):
     """Тип события"""
@@ -707,3 +760,4 @@ class FormularAttachment(models.Model):
 
     def __str__(self):
         return f"{self.target.title} - {self.section.title} - {self.title}"
+

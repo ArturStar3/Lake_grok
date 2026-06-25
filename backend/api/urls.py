@@ -17,7 +17,10 @@ from .views import (
     FormularView,
     FormularSectionsViewSet,
     FormularBulkUpdateView,
-    FormularAttachmentViewSet
+    FormularAttachmentViewSet,
+    EquipmentCategoryViewSet,
+    EquipmentParameterDefinitionViewSet,
+    EquipmentViewSet,
 )
 
 router = DefaultRouter()
@@ -98,6 +101,24 @@ router.register(
     r'formular-attachments',
     FormularAttachmentViewSet,
     basename='formular-attachments'
+)
+
+router.register(
+    r'equipment-categories',
+    EquipmentCategoryViewSet,
+    basename='equipment-categories'
+)
+
+router.register(
+    r'equipment-parameters',
+    EquipmentParameterDefinitionViewSet,
+    basename='equipment-parameters'
+)
+
+router.register(
+    r'equipment',
+    EquipmentViewSet,
+    basename='equipment'
 )
 
 urlpatterns = [

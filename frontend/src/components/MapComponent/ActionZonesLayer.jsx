@@ -123,7 +123,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         />
       ))}
       {visibleZones.map((zone, idx) => {
-        const entryId = `zone-${zone.obj.id}-${zone.actionTypeId ?? zone.actionIndex}-${idx}`;
+        const entryId = `zone-${zone.obj.id}-${zone.equipmentDeploymentId ?? 'm'}-${zone.actionTypeId ?? zone.actionIndex}-${idx}`;
         if (usesDashCrossMarkers(zone.lineType)) {
           return (
             <DashCrossZoneLayer
