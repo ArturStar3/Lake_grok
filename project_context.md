@@ -354,7 +354,8 @@ Target 0..1──* Target (parent/children)
 | | |
 |---|---|
 | **Назначение** | Детали / обновление / удаление объекта |
-| **PUT/PATCH** | При передаче `actions` — атомарная замена всех TargetAction |
+| **PUT/PATCH** | При передаче `actions` — атомарная замена всех TargetAction; при `deployed_equipment` — замена TargetEquipment |
+| **PUT/PATCH body** | + `deployed_equipment: [{equipment_id, quantity}]` |
 | **Сервисы** | `TargetViewSet.update` (@transaction.atomic) |
 
 #### `GET /api/v1/targets/parent-options/`
@@ -384,11 +385,12 @@ Target 0..1──* Target (parent/children)
 |---|---|
 | **Назначение** | Маркеры событий (read-only) |
 
-#### `GET /api/v1/action-types/`
+#### `GET/POST/PUT/PATCH/DELETE /api/v1/action-types/`
 
 | | |
 |---|---|
-| **Назначение** | Типы действий (read-only) |
+| **Назначение** | CRUD типов зон действия |
+| **Тело** | `{title, color, line_type}` |
 | **Ответ** | `{id, title, color, line_type}` |
 
 #### `GET /api/v1/equipment-categories/`
@@ -785,9 +787,18 @@ AI обязан:
 
 ### Не сделано (фаза 2)
 
-1. **Frontend UI** — управление техникой и количеством в `EditTargetModal` / отображение ТТХ в `FormularModal`.
-2. **API write** — запись `deployed_equipment` при PATCH/POST Target (сейчас только чтение + admin).
+1. ~~**Frontend UI** — управление техникой и количеством в `EditTargetModal` / отображение ТТХ в `FormularModal`.~~ **Готово**
+2. ~~**API write** — запись `deployed_equipment` при PATCH/POST Target.~~ **Готово**
 3. **weaponlist_plan.md** — синхронизировать при изменении контракта.
+
+### Сделано в фазе 2
+
+| Область | Результат |
+|---------|-----------|
+| API write | `deployed_equipment: [{equipment_id, quantity}]` в POST/PUT/PATCH |
+| Detail specs | `specs[]` в `deployed_equipment` только в `TargetSerializer` (retrieve) |
+| EditTargetModal | Вкладка «Вооружение и техника», `TargetEquipmentEditor` |
+| FormularModal | `DeployedEquipmentDisplay` — quantity, ТТХ, зоны |
 
 ### Команды для старта сессии
 

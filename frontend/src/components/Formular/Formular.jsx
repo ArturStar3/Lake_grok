@@ -13,6 +13,7 @@ import AddTargetModal from "../AddTargetModal/AddTargetModal";
 import FormularEditor from "../FormularEditor/FormularEditor";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
+import ReferenceDataModal from "../ReferenceData/ReferenceDataModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
@@ -39,12 +40,13 @@ export default function Formular() {
     const [editEventDrawMode, setEditEventDrawMode] = useState(null);
     const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
     const [isFullscreen, setFullscreen] = useState(false);
+    const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
 
     const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
-    const { countriesList, eventTypesList, actionTypesList } = useFormularReferenceLists();
+    const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();
     const {
         filterCountry, setFilterCountry,
         filterType, setFilterType,
@@ -209,6 +211,13 @@ export default function Formular() {
                                     <svg className="formular__icon" width="24" height="24">
                                         <use href={"/sprite.svg#new-file"} />
                                     </svg>
+                                </button>
+                                <button
+                                    className="btn button__tools"
+                                    type="button"
+                                    onClick={() => setReferenceDataOpen(true)}
+                                >
+                                    Справочники
                                 </button>
                                 <div className="formular__tools" ref={toolsRef}>
                                     <button
@@ -455,6 +464,12 @@ export default function Formular() {
                     onSave={handleEventUpdate}
                 />
             )}
+
+            <ReferenceDataModal
+                isOpen={isReferenceDataOpen}
+                onClose={() => setReferenceDataOpen(false)}
+                onActionTypesChanged={reloadReferenceLists}
+            />
         </section>
     );
 }

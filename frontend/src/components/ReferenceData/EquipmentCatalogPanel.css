@@ -1,0 +1,274 @@
+.equipment-catalog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.equipment-catalog-panel__toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.equipment-catalog-panel__search {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ccd6e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.equipment-catalog-panel__create {
+  border: 1px solid #3d5a80;
+  background: #3d5a80;
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.equipment-catalog-panel__create:hover {
+  background: #2f4763;
+}
+
+.equipment-catalog-panel__body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.equipment-catalog-panel__list-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 58vh;
+  background: #fafbfc;
+}
+
+.equipment-catalog-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+}
+
+.equipment-catalog-panel__list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.equipment-catalog-panel__list-item:hover,
+.equipment-catalog-panel__list-item--active {
+  background: #e8eef5;
+}
+
+.equipment-catalog-panel__list-title {
+  color: #1f2a38;
+  font-size: 0.9rem;
+}
+
+.equipment-catalog-panel__list-meta {
+  color: #666;
+  font-size: 0.78rem;
+}
+
+.equipment-catalog-panel__editor {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  overflow: auto;
+  max-height: 58vh;
+}
+
+.equipment-catalog-panel__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #666;
+}
+
+.equipment-catalog-panel__editor-title {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  color: #1f2a38;
+}
+
+.equipment-catalog-panel__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.equipment-catalog-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.equipment-catalog-panel__field--full {
+  margin-top: 12px;
+}
+
+.equipment-catalog-panel__field input,
+.equipment-catalog-panel__field select,
+.equipment-catalog-panel__field textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccd6e0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.equipment-catalog-panel__params {
+  margin-top: 16px;
+}
+
+.equipment-catalog-panel__params-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+.equipment-catalog-panel__params-header button {
+  border: 1px solid #c5d0dc;
+  background: #f7f9fc;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.equipment-catalog-panel__param-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 32px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.equipment-catalog-panel__param-row select,
+.equipment-catalog-panel__param-row input {
+  padding: 8px;
+  border: 1px solid #ccd6e0;
+  border-radius: 4px;
+}
+
+.equipment-catalog-panel__param-remove {
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.equipment-catalog-panel__param-remove:hover {
+  color: #c0392b;
+}
+
+.equipment-catalog-panel__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.equipment-catalog-panel__save {
+  border: 1px solid #3d5a80;
+  background: #3d5a80;
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+
+.equipment-catalog-panel__delete {
+  border: 1px solid #c0392b;
+  background: #fff;
+  color: #c0392b;
+  border-radius: 6px;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+
+.equipment-catalog-panel__error {
+  margin: 0;
+  color: #c0392b;
+  font-size: 0.88rem;
+}
+
+.equipment-catalog-panel__hint {
+  padding: 12px;
+  color: #666;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+  .equipment-catalog-panel__body {
+    grid-template-columns: 1fr;
+  }
+
+  .equipment-catalog-panel__form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.action-types-panel__list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-types-panel__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.action-types-panel__color-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.action-types-panel__color-row input[type='color'] {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid #ccd6e0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.action-types-panel__color-row input[type='text'] {
+  flex: 1;
+}
+
+.action-types-panel__preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 0.88rem;
+  color: #555;
+}
+
+.action-types-panel__line-preview {
+  flex-shrink: 0;
+}

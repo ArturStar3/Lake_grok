@@ -25,7 +25,7 @@ from equipment.models import (
     Equipment,
     EquipmentParameterValue,
 )
-from .target_utils import create_target_actions, serialize_deployed_equipment
+from .target_utils import create_target_actions, replace_target_equipment, serialize_deployed_equipment
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -122,6 +122,15 @@ class ActionTypeListSerializer(serializers.ModelSerializer):
             'line_type',
         )
 
+    def validate_color(self, value):
+        if not isinstance(value, str) or len(value) != 7 or value[0] != '#':
+            raise serializers.ValidationError('Цвет должен быть в формате #RRGGBB')
+        try:
+            int(value[1:], 16)
+        except ValueError as exc:
+            raise serializers.ValidationError('Цвет должен быть в формате #RRGGBB') from exc
+        return value
+
 class TargetActionSerializer(serializers.ModelSerializer):
     """Действие над объектом разведки"""
 
@@ -198,6 +207,66 @@ class EquipmentParameterValueSerializer(serializers.ModelSerializer):
             'parameter_id',
             'value',
         )
+
+
+class EquipmentParameterValueWriteSerializer(serializers.Serializer):
+    """Запись значения ТТХ."""
+
+    parameter_id = serializers.IntegerField()
+    value = serializers.FloatField()
+
+
+class EquipmentWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление образца техники с ТТХ."""
+
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentCategory.objects.all(),
+        source='category',
+        required=False,
+        allow_null=True,
+    )
+    origin_country_id = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        source='origin_country',
+        required=False,
+        allow_null=True,
+    )
+    parameter_values = EquipmentParameterValueWriteSerializer(many=True, required=False)
+
+    class Meta:
+        model = Equipment
+        fields = (
+            'id',
+            'title',
+            'designation',
+            'category_id',
+            'origin_country_id',
+            'description',
+            'parameter_values',
+        )
+        read_only_fields = ('id',)
+
+    def create(self, validated_data):
+        from .equipment_utils import replace_equipment_parameter_values
+
+        values_data = validated_data.pop('parameter_values', None)
+        equipment = Equipment.objects.create(**validated_data)
+        replace_equipment_parameter_values(
+            equipment,
+            values_data if values_data is not None else [],
+        )
+        return equipment
+
+    def update(self, instance, validated_data):
+        from .equipment_utils import replace_equipment_parameter_values
+
+        values_data = validated_data.pop('parameter_values', serializers.empty)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if values_data is not serializers.empty:
+            replace_equipment_parameter_values(instance, values_data or [])
+        return instance
 
 
 class EquipmentListSerializer(serializers.ModelSerializer):
@@ -359,7 +428,7 @@ class TargetSerializer(serializers.ModelSerializer):
         )
 
     def get_deployed_equipment(self, obj):
-        return serialize_deployed_equipment(obj)
+        return serialize_deployed_equipment(obj, include_specs=True)
 
 
 class TargetParentPickerSerializer(serializers.ModelSerializer):
@@ -397,10 +466,19 @@ class TargetActionCreateSerializer(serializers.Serializer):
     action_type_id = serializers.IntegerField()
     radius = serializers.FloatField(min_value=Decimal('0'))
 
+
+class TargetDeployedEquipmentWriteSerializer(serializers.Serializer):
+    """Запись техники на объекте (through TargetEquipment)."""
+
+    equipment_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1, default=1, required=False)
+
+
 class TargetCreateSerializer(serializers.ModelSerializer):
     """Сериализатор для создания объекта разведки"""
 
     actions = TargetActionCreateSerializer(many=True, required=False)
+    deployed_equipment = TargetDeployedEquipmentWriteSerializer(many=True, required=False)
 
     class Meta:
         model = Target
@@ -416,13 +494,16 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'lng',
             'parent',
             'actions',
+            'deployed_equipment',
         )
         read_only_fields = ('id',)
     
     def create(self, validated_data):
         actions_data = validated_data.pop('actions', [])
+        deployed_data = validated_data.pop('deployed_equipment', None)
         target = Target.objects.create(**validated_data)
         create_target_actions(target, actions_data)
+        replace_target_equipment(target, deployed_data if deployed_data is not None else [])
         return target
 
 class CountrySectionsSerializer(serializers.ModelSerializer):

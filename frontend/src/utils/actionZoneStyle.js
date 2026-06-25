@@ -11,6 +11,13 @@ export const LINE_TYPE_LABELS = {
 };
 
 const DEFAULT_ZONE_COLOR = '#3388ff';
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+
+/** Нормализация цвета зоны для input[type=color] и API. */
+export function normalizeHexColor(value, fallback = DEFAULT_ZONE_COLOR) {
+  if (typeof value === 'string' && HEX_COLOR_RE.test(value)) return value;
+  return fallback;
+}
 
 /**
  * Leaflet dashArray по типу линии ActionType.line_type.

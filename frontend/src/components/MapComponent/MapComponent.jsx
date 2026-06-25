@@ -1481,16 +1481,6 @@ function MapComponent({
                                     >
                                         Очистить измерения
                                     </button>
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            handleFullscreenTabChange("zones");
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                    >
-                                        Зоны действия
-                                    </button>
                                 </div>
                             )}
                         </div>

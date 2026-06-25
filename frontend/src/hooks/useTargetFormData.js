@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config/api';
-import { fetchReferenceData } from './useReferenceData';
+import { fetchReferenceData, subscribeReferenceDataInvalidation } from './useReferenceData';
 
 /**
  * Справочники для форм объектов разведки.
@@ -13,8 +13,17 @@ export const useTargetFormData = (isOpen, cachedTargets = null) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [refData, setRefData] = useState(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const cachedTargetsRef = useRef(cachedTargets);
+  const isOpenRef = useRef(isOpen);
   cachedTargetsRef.current = cachedTargets;
+  isOpenRef.current = isOpen;
+
+  useEffect(() => {
+    return subscribeReferenceDataInvalidation(() => {
+      if (isOpenRef.current) setReloadToken((token) => token + 1);
+    });
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -60,7 +69,7 @@ export const useTargetFormData = (isOpen, cachedTargets = null) => {
       cancelled = true;
       controller.abort();
     };
-  }, [isOpen]);
+  }, [isOpen, reloadToken]);
 
   return {
     countries: refData?.countries ?? [],

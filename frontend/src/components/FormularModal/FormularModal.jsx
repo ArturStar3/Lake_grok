@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import './FormularModal.css';
 import { API_URL } from '../../config/api';
+import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDisplay';
 
 const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubordinateOpenDetails }) => {
   const [data, setData] = useState([]);
   const [subordinates, setSubordinates] = useState([]);  // прямые подчинённые
+  const [deployedEquipment, setDeployedEquipment] = useState([]);
   const [attachmentsBySection, setAttachmentsBySection] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,22 +59,23 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
       }
     };
 
-    // Получаем название объекта из targets
-    const fetchTargetTitle = async () => {
+    // Название объекта и техника на площадке
+    const fetchTargetDetails = async () => {
       try {
         const response = await fetch(`${API_URL}/api/v1/targets/${targetId}/`);
         if (response.ok) {
           const target = await response.json();
           setTargetTitle(target.title);
+          setDeployedEquipment(target.deployed_equipment || []);
         }
       } catch (err) {
-        console.error('Ошибка загрузки названия объекта:', err);
+        console.error('Ошибка загрузки данных объекта:', err);
       }
     };
 
     fetchFormular();
     fetchAttachments();
-    fetchTargetTitle();
+    fetchTargetDetails();
   }, [targetId]);
 
   const renderAttachments = (sectionId) => {
@@ -242,6 +245,8 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
               ))}
             </>
           )}
+
+          <DeployedEquipmentDisplay items={deployedEquipment} />
 
           {/* Список непосредственных подчинённых */}
           {subordinates.length > 0 && (

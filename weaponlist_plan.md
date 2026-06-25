@@ -1,7 +1,7 @@
 # Каталог техники и зоны дальности на карте
 
 **Ветка:** `develop-weaponlist`  
-**Статус:** MVP backend + карта + админка — **готово**; UI управления техникой на объекте во фронте — **фаза 2**  
+**Статус:** MVP backend + карта + админка + **фаза 2 (UI + API write)** — **готово**  
 **Django app:** `equipment` — каталог ТТХ (таблицы `formular_*` через `db_table`)
 
 ## Задачи
@@ -12,8 +12,8 @@
 - [x] **api-zones** — `deployed_equipment[]` в `TargetSerializer`, endpoints каталога
 - [x] **frontend-zones** — `buildVisibleZones.js` объединяет `actions[]` + зоны из каталога
 - [x] **seed-demo** — `python manage.py seed_equipment_demo` (12 образцов, 6 площадок)
-- [ ] **frontend-ui** — выбор техники и количества в модалках объекта; ТТХ в FormularModal
-- [ ] **api-write** — PATCH Target с `deployed_equipment` (опционально)
+- [x] **frontend-ui** — выбор техники и количества в EditTargetModal; ТТХ в FormularModal
+- [x] **api-write** — PATCH/POST Target с `deployed_equipment`
 
 ---
 
@@ -80,13 +80,14 @@ class TargetEquipment(models.Model):
 | `GET /api/v1/equipment-parameters/?maps_to_zone=true` | Параметры с типом зоны |
 | `GET/POST/PUT/PATCH/DELETE /api/v1/equipment/` | Каталог образцов + `parameter_values[]` |
 
-**Фрагмент `TargetSerializer`:**
+**Фрагмент `TargetSerializer` (detail):**
 
 ```json
 "deployed_equipment": [
   {
-    "equipment": { "id": 1, "designation": "Су-35С", "title": "...", "category": {...} },
+    "equipment": { "id": 1, "designation": "Су-35С", "title": "..." },
     "quantity": 12,
+    "specs": [{ "title": "Практическая дальность полёта", "value": 3600, "unit": "км" }],
     "zones": [
       {
         "parameter_title": "Практическая дальность полёта",
@@ -98,6 +99,14 @@ class TargetEquipment(models.Model):
 ]
 ```
 
+**Запись (POST/PUT/PATCH):**
+
+```json
+"deployed_equipment": [{ "equipment_id": 1, "quantity": 12 }]
+```
+
+Список (`TargetListSerializer`) отдаёт `deployed_equipment` без `specs`.
+
 Зоны: `equipment.catalog_zone_values()` — без `is_enabled` / override на площадке.
 
 ---
@@ -106,9 +115,12 @@ class TargetEquipment(models.Model):
 
 | Сделано | План (фаза 2) |
 |---------|----------------|
-| `buildVisibleZones.js` — merge `actions` + `deployed_equipment[].zones` | UI выбора техники в EditTargetModal |
-| `ActionZonesLayer` — ключ зоны по `equipment.id` | Отображение quantity и ТТХ в FormularModal |
-| Фильтр зон по `action_type.title` | Запись `deployed_equipment` через API |
+| `buildVisibleZones.js` — merge `actions` + `deployed_equipment[].zones` | ~~UI выбора техники в EditTargetModal~~ |
+| `ActionZonesLayer` — ключ зоны по `equipment.id` | ~~Отображение quantity и ТТХ в FormularModal~~ |
+| Фильтр зон по `action_type.title` | ~~Запись `deployed_equipment` через API~~ |
+| `EditTargetModal` — вкладка «Вооружение и техника» | |
+| `FormularModal` — блок ТТХ и зон | |
+| `TargetEquipmentEditor`, `DeployedEquipmentDisplay` | |
 
 ---
 
@@ -137,8 +149,8 @@ docker compose exec backend python manage.py seed_equipment_demo
 
 ## Следующие шаги для агента
 
-1. **Frontend:** блок «Техника на объекте» в `EditTargetModal` / `FormularModal` (чтение `deployed_equipment`, quantity, список ТТХ).
-2. **API (опционально):** nested write `deployed_equipment` в `TargetCreateSerializer` / update.
+1. Ручная проверка: EditTargetModal → вкладка «Вооружение и техника» → сохранение → зоны на карте.
+2. При расширении каталога — пагинация `/equipment/` или поиск в селекторе.
 3. **Документация:** при изменении контракта обновлять `project_context.md` §5–§7.
 
 ## Риски
