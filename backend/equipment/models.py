@@ -181,6 +181,46 @@ class Equipment(models.Model):
         ).select_related('parameter', 'parameter__action_type')
 
 
+class EquipmentImage(models.Model):
+    """Изображение образца техники"""
+
+    equipment = models.ForeignKey(
+        Equipment,
+        on_delete=models.CASCADE,
+        related_name='images',
+        verbose_name='Образец техники',
+    )
+    title = models.CharField(
+        max_length=250,
+        blank=True,
+        verbose_name='Название',
+    )
+    image = models.ImageField(
+        upload_to='equipment',
+        verbose_name='Изображение',
+    )
+    order = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Порядок',
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Создано',
+    )
+
+    class Meta:
+        db_table = 'formular_equipmentimage'
+        verbose_name = 'Изображение техники'
+        verbose_name_plural = 'Изображения техники'
+        ordering = ['order', 'created_at']
+        indexes = [
+            models.Index(fields=('equipment',)),
+        ]
+
+    def __str__(self):
+        return self.title or f'Изображение #{self.pk}'
+
+
 class EquipmentParameterValue(models.Model):
     """Числовое значение ТТХ для образца техники"""
 

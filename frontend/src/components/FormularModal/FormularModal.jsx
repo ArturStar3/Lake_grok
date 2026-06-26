@@ -3,7 +3,7 @@ import './FormularModal.css';
 import { API_URL } from '../../config/api';
 import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDisplay';
 
-const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubordinateOpenDetails }) => {
+const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubordinateOpenDetails, onEditEquipmentInCatalog }) => {
   const [data, setData] = useState([]);
   const [subordinates, setSubordinates] = useState([]);  // прямые подчинённые
   const [deployedEquipment, setDeployedEquipment] = useState([]);
@@ -246,7 +246,10 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
             </>
           )}
 
-          <DeployedEquipmentDisplay items={deployedEquipment} />
+          <DeployedEquipmentDisplay
+            items={deployedEquipment}
+            onEditInCatalog={onEditEquipmentInCatalog}
+          />
 
           {/* Список непосредственных подчинённых */}
           {subordinates.length > 0 && (

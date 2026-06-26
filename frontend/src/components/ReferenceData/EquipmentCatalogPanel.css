@@ -134,6 +134,102 @@
   font-size: 0.9rem;
 }
 
+.equipment-catalog-panel__image {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.equipment-catalog-panel__image-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.equipment-catalog-panel__image-label {
+  font-size: 0.85rem;
+  color: #444;
+  font-weight: 600;
+}
+
+.equipment-catalog-panel__gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.equipment-catalog-panel__gallery-item {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.equipment-catalog-panel__gallery-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f7f9fc;
+}
+
+.equipment-catalog-panel__gallery-thumb--pending {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.equipment-catalog-panel__gallery-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.equipment-catalog-panel__gallery-remove:hover {
+  background: #c0392b;
+}
+
+.equipment-catalog-panel__image-remove {
+  border: 1px solid #c0392b;
+  background: #fff;
+  color: #c0392b;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.equipment-catalog-panel__image-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #c5d0dc;
+  background: #f7f9fc;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: #333;
+  width: fit-content;
+}
+
+.equipment-catalog-panel__image-upload input {
+  display: none;
+}
+
 .equipment-catalog-panel__params {
   margin-top: 16px;
 }

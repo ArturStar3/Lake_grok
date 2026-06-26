@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import EquipmentCatalogPanel from './EquipmentCatalogPanel';
 import ActionTypesPanel from './ActionTypesPanel';
 import './ReferenceDataModal.css';
@@ -8,8 +8,19 @@ const TABS = [
   { id: 'action-types', label: 'Типы зон действия' },
 ];
 
-export default function ReferenceDataModal({ isOpen, onClose, onActionTypesChanged }) {
+export default function ReferenceDataModal({
+  isOpen,
+  onClose,
+  onActionTypesChanged,
+  initialEquipmentId = null,
+}) {
   const [activeTab, setActiveTab] = useState('equipment');
+
+  useEffect(() => {
+    if (isOpen && initialEquipmentId) {
+      setActiveTab('equipment');
+    }
+  }, [isOpen, initialEquipmentId]);
 
   if (!isOpen) return null;
 
@@ -53,7 +64,10 @@ export default function ReferenceDataModal({ isOpen, onClose, onActionTypesChang
 
         <div className="reference-data-modal__body">
           {activeTab === 'equipment' && (
-            <EquipmentCatalogPanel isActive={isOpen && activeTab === 'equipment'} />
+            <EquipmentCatalogPanel
+              isActive={isOpen && activeTab === 'equipment'}
+              initialEquipmentId={initialEquipmentId}
+            />
           )}
           {activeTab === 'action-types' && (
             <ActionTypesPanel

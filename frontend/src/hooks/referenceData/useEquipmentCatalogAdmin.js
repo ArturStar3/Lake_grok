@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../../config/api';
 
 const EQUIPMENT_URL = `${API_URL}/api/v1/equipment`;
+const EQUIPMENT_IMAGES_URL = `${API_URL}/api/v1/equipment-images/`;
 const CATEGORIES_URL = `${API_URL}/api/v1/equipment-categories`;
 const PARAMETERS_URL = `${API_URL}/api/v1/equipment-parameters`;
 const COUNTRIES_URL = `${API_URL}/api/v1/countries`;
@@ -56,11 +57,13 @@ export function useEquipmentCatalogAdmin(enabled) {
       setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
       setParameters(Array.isArray(parametersRes.data) ? parametersRes.data : []);
       setCountries(Array.isArray(countriesRes.data) ? countriesRes.data : []);
+      return Array.isArray(equipmentRes.data) ? equipmentRes.data : [];
     } catch (err) {
       if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
       if (seq !== loadSeqRef.current) return;
       console.error('Ошибка загрузки каталога техники', err);
       setError('Не удалось загрузить каталог техники');
+      return [];
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
     }
@@ -102,6 +105,25 @@ export function useEquipmentCatalogAdmin(enabled) {
     await axios.delete(`${EQUIPMENT_URL}/${id}/`);
   }, []);
 
+  const uploadImages = useCallback(async (equipmentId, files) => {
+    const uploaded = [];
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('equipment', equipmentId);
+      formData.append('title', file.name);
+      formData.append('image', file);
+      const res = await axios.post(EQUIPMENT_IMAGES_URL, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      uploaded.push(res.data);
+    }
+    return uploaded;
+  }, []);
+
+  const deleteImage = useCallback(async (imageId) => {
+    await axios.delete(`${EQUIPMENT_IMAGES_URL}${imageId}/`);
+  }, []);
+
   return {
     items,
     categories,
@@ -112,5 +134,7 @@ export function useEquipmentCatalogAdmin(enabled) {
     reload,
     saveItem,
     deleteItem,
+    uploadImages,
+    deleteImage,
   };
 }

@@ -1,59 +1,106 @@
+import { useState, useRef, useLayoutEffect } from 'react';
+import { formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
+import EquipmentDetailModal from './EquipmentDetailModal';
 import './DeployedEquipmentDisplay.css';
 
-function formatLabel(equipment) {
-  if (!equipment) return '—';
-  const designation = equipment.designation?.trim();
-  const title = equipment.title?.trim();
-  if (designation && title && designation !== title) {
-    return `${designation} (${title})`;
-  }
-  return designation || title || '—';
+function getPrimaryImage(row) {
+  const images = row.equipment?.images;
+  if (!images?.length) return null;
+  return images[0].image;
 }
 
-export default function DeployedEquipmentDisplay({ items = [] }) {
+export default function DeployedEquipmentDisplay({ items = [], onEditInCatalog }) {
+  const [selectedRow, setSelectedRow] = useState(null);
+  const gridRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return undefined;
+
+    const syncCardHeights = () => {
+      const cards = grid.querySelectorAll('.deployed-equipment-display__card');
+      if (!cards.length) return;
+
+      cards.forEach((card) => {
+        card.style.height = '';
+      });
+
+      let maxHeight = 0;
+      cards.forEach((card) => {
+        maxHeight = Math.max(maxHeight, card.getBoundingClientRect().height);
+      });
+
+      if (maxHeight > 0) {
+        const heightPx = `${Math.ceil(maxHeight)}px`;
+        cards.forEach((card) => {
+          card.style.height = heightPx;
+        });
+      }
+    };
+
+    syncCardHeights();
+
+    const observer = new ResizeObserver(syncCardHeights);
+    observer.observe(grid);
+
+    return () => observer.disconnect();
+  }, [items]);
+
   if (!items.length) return null;
 
+  const handleEditInCatalog = (equipmentId) => {
+    setSelectedRow(null);
+    onEditInCatalog?.(equipmentId);
+  };
+
   return (
-    <section className="deployed-equipment-display">
-      <h3 className="deployed-equipment-display__title">Вооружение и техника</h3>
-      <ul className="deployed-equipment-display__list">
-        {items.map((row) => (
-          <li key={row.equipment?.id} className="deployed-equipment-display__card">
-            <div className="deployed-equipment-display__header">
-              <strong>{formatLabel(row.equipment)}</strong>
-              <span className="deployed-equipment-display__qty">× {row.quantity}</span>
-            </div>
+    <>
+      <section className="deployed-equipment-display">
+        <h3 className="deployed-equipment-display__title">Вооружение и техника</h3>
+        <ul className="deployed-equipment-display__grid" ref={gridRef}>
+          {items.map((row) => {
+            const imageUrl = getPrimaryImage(row);
+            const label = formatEquipmentLabel(row.equipment);
 
-            {row.specs?.length > 0 && (
-              <div className="deployed-equipment-display__block">
-                <div className="deployed-equipment-display__subtitle">ТТХ</div>
-                <ul className="deployed-equipment-display__specs">
-                  {row.specs.map((spec) => (
-                    <li key={spec.title}>
-                      {spec.title}: {spec.value}
-                      {spec.unit ? ` ${spec.unit}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            return (
+              <li key={row.equipment?.id}>
+                <button
+                  type="button"
+                  className="deployed-equipment-display__card"
+                  onClick={() => setSelectedRow(row)}
+                >
+                  <div className="deployed-equipment-display__card-image-wrap">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={label}
+                        className="deployed-equipment-display__card-image"
+                      />
+                    ) : (
+                      <div className="deployed-equipment-display__card-placeholder">
+                        Нет фото
+                      </div>
+                    )}
+                  </div>
+                  <div className="deployed-equipment-display__card-body">
+                    <span className="deployed-equipment-display__card-title">{label}</span>
+                    <span className="deployed-equipment-display__card-qty">
+                      {row.quantity}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
-            {row.zones?.length > 0 && (
-              <div className="deployed-equipment-display__block">
-                <div className="deployed-equipment-display__subtitle">Зоны на карте</div>
-                <ul className="deployed-equipment-display__zones">
-                  {row.zones.map((zone) => (
-                    <li key={`${zone.parameter_title}-${zone.radius_km}`}>
-                      {zone.parameter_title}: {zone.radius_km} км
-                      {zone.action_type?.title ? ` (${zone.action_type.title})` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
+      <EquipmentDetailModal
+        isOpen={selectedRow != null}
+        deployedRow={selectedRow}
+        onClose={() => setSelectedRow(null)}
+        onEditInCatalog={handleEditInCatalog}
+      />
+    </>
   );
 }

@@ -33,6 +33,7 @@ from .serializers import (
     EquipmentParameterDefinitionSerializer,
     EquipmentSerializer,
     EquipmentWriteSerializer,
+    EquipmentImageSerializer,
 )
 from formular.models import (
     Target,
@@ -57,6 +58,7 @@ from equipment.models import (
     EquipmentParameterDefinition,
     Equipment,
     EquipmentParameterValue,
+    EquipmentImage,
 )
 from .target_utils import replace_target_actions, replace_target_equipment
 
@@ -72,13 +74,18 @@ def _equipment_links_prefetch(*, zone_values_only=True):
         )
     else:
         pv_qs = pv_qs.select_related('parameter__unit')
+    equipment_prefetch = [
+        Prefetch(
+            'equipment__parameter_values',
+            queryset=pv_qs,
+        ),
+    ]
+    if not zone_values_only:
+        equipment_prefetch.append('equipment__images')
     return Prefetch(
         'equipment_links',
         queryset=TargetEquipment.objects.select_related('equipment').prefetch_related(
-            Prefetch(
-                'equipment__parameter_values',
-                queryset=pv_qs,
-            ),
+            *equipment_prefetch
         ),
     )
 
@@ -229,6 +236,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
                     'parameter__action_type',
                 ),
             ),
+            'images',
         )
         .order_by('title')
     )
@@ -261,6 +269,23 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
         instance = self._equipment_detail_queryset().get(pk=instance.pk)
         return Response(EquipmentSerializer(instance).data)
+
+
+class EquipmentImageViewSet(viewsets.ModelViewSet):
+    """Изображения образцов техники"""
+
+    serializer_class = EquipmentImageSerializer
+    permission_classes = [AllowAny]
+    queryset = EquipmentImage.objects.select_related('equipment').order_by('order', 'created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        equipment_id = self.request.query_params.get('equipment')
+        if self.action == 'list' and not equipment_id:
+            return qs.none()
+        if equipment_id:
+            qs = qs.filter(equipment_id=equipment_id)
+        return qs
 
 
 class CountryViewSet(viewsets.ModelViewSet):

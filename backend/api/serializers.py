@@ -24,6 +24,7 @@ from equipment.models import (
     EquipmentParameterDefinition,
     Equipment,
     EquipmentParameterValue,
+    EquipmentImage,
 )
 from .target_utils import create_target_actions, replace_target_equipment, serialize_deployed_equipment
 
@@ -216,6 +217,21 @@ class EquipmentParameterValueWriteSerializer(serializers.Serializer):
     value = serializers.FloatField()
 
 
+class EquipmentImageSerializer(serializers.ModelSerializer):
+    """Изображение образца техники"""
+
+    class Meta:
+        model = EquipmentImage
+        fields = (
+            'id',
+            'equipment',
+            'title',
+            'image',
+            'order',
+            'created_at',
+        )
+
+
 class EquipmentWriteSerializer(serializers.ModelSerializer):
     """Создание/обновление образца техники с ТТХ."""
 
@@ -273,6 +289,7 @@ class EquipmentListSerializer(serializers.ModelSerializer):
     """Краткая информация об образце техники"""
 
     category = EquipmentCategorySerializer(read_only=True)
+    images = EquipmentImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Equipment
@@ -281,6 +298,7 @@ class EquipmentListSerializer(serializers.ModelSerializer):
             'title',
             'designation',
             'category',
+            'images',
         )
 
 
@@ -304,6 +322,7 @@ class EquipmentSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     parameter_values = EquipmentParameterValueSerializer(many=True, read_only=True)
+    images = EquipmentImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Equipment
@@ -316,6 +335,7 @@ class EquipmentSerializer(serializers.ModelSerializer):
             'origin_country',
             'origin_country_id',
             'description',
+            'images',
             'parameter_values',
         )
 
@@ -395,7 +415,8 @@ class TargetListSerializer(serializers.ModelSerializer):
         )
 
     def get_deployed_equipment(self, obj):
-        return serialize_deployed_equipment(obj)
+        request = self.context.get('request')
+        return serialize_deployed_equipment(obj, request=request)
 
 
 class TargetSerializer(serializers.ModelSerializer):
@@ -428,7 +449,8 @@ class TargetSerializer(serializers.ModelSerializer):
         )
 
     def get_deployed_equipment(self, obj):
-        return serialize_deployed_equipment(obj, include_specs=True)
+        request = self.context.get('request')
+        return serialize_deployed_equipment(obj, include_specs=True, request=request)
 
 
 class TargetParentPickerSerializer(serializers.ModelSerializer):

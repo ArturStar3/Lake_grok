@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   EMPTY_EQUIPMENT_FORM,
   equipmentToForm,
@@ -7,7 +7,7 @@ import {
 import { filterEquipmentCatalog, formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
 import './EquipmentCatalogPanel.css';
 
-export default function EquipmentCatalogPanel({ isActive }) {
+export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = null }) {
   const {
     items,
     categories,
@@ -18,6 +18,8 @@ export default function EquipmentCatalogPanel({ isActive }) {
     reload,
     saveItem,
     deleteItem,
+    uploadImages,
+    deleteImage,
   } = useEquipmentCatalogAdmin(isActive);
 
   const [search, setSearch] = useState('');
@@ -26,6 +28,40 @@ export default function EquipmentCatalogPanel({ isActive }) {
   const [form, setForm] = useState(EMPTY_EQUIPMENT_FORM);
   const [formError, setFormError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [images, setImages] = useState([]);
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [pendingPreviewUrls, setPendingPreviewUrls] = useState([]);
+  const appliedInitialIdRef = useRef(null);
+
+  const resetImages = (itemImages = []) => {
+    setImages(Array.isArray(itemImages) ? itemImages : []);
+    setPendingFiles([]);
+  };
+
+  useEffect(() => {
+    const urls = pendingFiles.map((file) => URL.createObjectURL(file));
+    setPendingPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [pendingFiles]);
+
+  useEffect(() => {
+    if (!initialEquipmentId) {
+      appliedInitialIdRef.current = null;
+    }
+  }, [initialEquipmentId]);
+
+  useEffect(() => {
+    if (!isActive || !initialEquipmentId || loading) return;
+    if (appliedInitialIdRef.current === initialEquipmentId) return;
+    const item = items.find((entry) => entry.id === initialEquipmentId);
+    if (!item) return;
+    appliedInitialIdRef.current = initialEquipmentId;
+    setIsCreating(false);
+    setSelectedId(item.id);
+    setForm(equipmentToForm(item));
+    resetImages(item.images);
+    setFormError(null);
+  }, [isActive, initialEquipmentId, loading, items]);
 
   const filteredItems = useMemo(() => {
     const { items: list } = filterEquipmentCatalog(search, items, 500);
@@ -39,6 +75,7 @@ export default function EquipmentCatalogPanel({ isActive }) {
     setIsCreating(true);
     setSelectedId(null);
     setForm({ ...EMPTY_EQUIPMENT_FORM, parameter_values: [] });
+    resetImages();
     setFormError(null);
   };
 
@@ -46,6 +83,7 @@ export default function EquipmentCatalogPanel({ isActive }) {
     setIsCreating(false);
     setSelectedId(item.id);
     setForm(equipmentToForm(item));
+    resetImages(item.images);
     setFormError(null);
   };
 
@@ -75,6 +113,50 @@ export default function EquipmentCatalogPanel({ isActive }) {
     }));
   };
 
+  const handleImagesSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    event.target.value = '';
+
+    if (selectedId && !isCreating) {
+      setIsSaving(true);
+      setFormError(null);
+      try {
+        const uploaded = await uploadImages(selectedId, files);
+        setImages((prev) => [...prev, ...uploaded]);
+        await reload();
+      } catch (err) {
+        console.error('Ошибка загрузки изображений', err);
+        setFormError('Не удалось загрузить изображения');
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    setPendingFiles((prev) => [...prev, ...files]);
+  };
+
+  const handleRemovePendingFile = (index) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDeleteImage = async (imageId) => {
+    if (!window.confirm('Удалить изображение?')) return;
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      await deleteImage(imageId);
+      setImages((prev) => prev.filter((img) => img.id !== imageId));
+      await reload();
+    } catch (err) {
+      console.error('Ошибка удаления изображения', err);
+      setFormError('Не удалось удалить изображение');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.title.trim()) {
       setFormError('Укажите наименование образца');
@@ -84,10 +166,16 @@ export default function EquipmentCatalogPanel({ isActive }) {
     setFormError(null);
     try {
       const saved = await saveItem(isCreating ? null : selectedId, form);
-      await reload();
+      if (pendingFiles.length) {
+        await uploadImages(saved.id, pendingFiles);
+        setPendingFiles([]);
+      }
+      const list = await reload();
+      const refreshed = list.find((item) => item.id === saved.id) || saved;
       setIsCreating(false);
-      setSelectedId(saved.id);
-      setForm(equipmentToForm(saved));
+      setSelectedId(refreshed.id);
+      setForm(equipmentToForm(refreshed));
+      setImages(refreshed.images || []);
     } catch (err) {
       console.error('Ошибка сохранения техники', err);
       setFormError(err.response?.data?.detail || 'Не удалось сохранить образец');
@@ -107,6 +195,7 @@ export default function EquipmentCatalogPanel({ isActive }) {
       setSelectedId(null);
       setIsCreating(false);
       setForm(EMPTY_EQUIPMENT_FORM);
+      resetImages();
       await reload();
     } catch (err) {
       console.error('Ошибка удаления техники', err);
@@ -115,6 +204,8 @@ export default function EquipmentCatalogPanel({ isActive }) {
       setIsSaving(false);
     }
   };
+
+  const hasImages = images.length > 0 || pendingFiles.length > 0;
 
   return (
     <div className="equipment-catalog-panel">
@@ -227,6 +318,69 @@ export default function EquipmentCatalogPanel({ isActive }) {
                   onChange={(e) => handleFormChange('description', e.target.value)}
                 />
               </label>
+
+              <div className="equipment-catalog-panel__image">
+                <div className="equipment-catalog-panel__image-header">
+                  <span className="equipment-catalog-panel__image-label">Изображения</span>
+                  <label className="equipment-catalog-panel__image-upload">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImagesSelect}
+                    />
+                    + Добавить
+                  </label>
+                </div>
+                {!hasImages && (
+                  <p className="equipment-catalog-panel__hint">Изображения не загружены</p>
+                )}
+                {hasImages && (
+                  <ul className="equipment-catalog-panel__gallery">
+                    {images.map((img) => (
+                      <li key={img.id} className="equipment-catalog-panel__gallery-item">
+                        <img
+                          src={img.image}
+                          alt={img.title || form.title || 'Изображение техники'}
+                          className="equipment-catalog-panel__gallery-thumb"
+                        />
+                        <button
+                          type="button"
+                          className="equipment-catalog-panel__gallery-remove"
+                          onClick={() => handleDeleteImage(img.id)}
+                          disabled={isSaving}
+                          aria-label="Удалить изображение"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                    {pendingPreviewUrls.map((url, index) => (
+                      <li key={`pending-${url}`} className="equipment-catalog-panel__gallery-item">
+                        <img
+                          src={url}
+                          alt="Новое изображение"
+                          className="equipment-catalog-panel__gallery-thumb equipment-catalog-panel__gallery-thumb--pending"
+                        />
+                        <button
+                          type="button"
+                          className="equipment-catalog-panel__gallery-remove"
+                          onClick={() => handleRemovePendingFile(index)}
+                          disabled={isSaving}
+                          aria-label="Убрать из очереди"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {isCreating && pendingFiles.length > 0 && (
+                  <p className="equipment-catalog-panel__hint">
+                    Новые изображения будут загружены после сохранения образца.
+                  </p>
+                )}
+              </div>
 
               <div className="equipment-catalog-panel__params">
                 <div className="equipment-catalog-panel__params-header">

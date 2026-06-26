@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from infolake.admin_base import ModelAdmin
 
-from .admin_inlines import EquipmentParameterValueInlineAdmin
+from .admin_inlines import EquipmentParameterValueInlineAdmin, EquipmentImageInlineAdmin
 from .models import (
     Equipment,
     EquipmentCategory,
@@ -45,4 +45,4 @@ class EquipmentAdmin(ModelAdmin):
     search_fields = ('title', 'designation')
     list_select_related = ('category', 'origin_country')
     list_per_page = 50
-    inlines = (EquipmentParameterValueInlineAdmin,)
+    inlines = (EquipmentParameterValueInlineAdmin, EquipmentImageInlineAdmin)

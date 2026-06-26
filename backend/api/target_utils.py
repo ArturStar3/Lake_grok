@@ -15,7 +15,22 @@ def action_type_to_dict(action_type):
     }
 
 
-def serialize_deployed_equipment(target, include_specs=False):
+def _serialize_equipment_images(equipment, request=None):
+    images = []
+    for img in equipment.images.all():
+        url = img.image.url
+        if request is not None:
+            url = request.build_absolute_uri(url)
+        images.append({
+            'id': img.id,
+            'title': img.title,
+            'image': url,
+            'order': img.order,
+        })
+    return images
+
+
+def serialize_deployed_equipment(target, include_specs=False, request=None):
     """
     Техника на объекте и зоны из каталога ТТХ.
     Использует prefetch equipment_links → equipment → parameter_values.
@@ -51,6 +66,9 @@ def serialize_deployed_equipment(target, include_specs=False):
         }
         if include_specs:
             item['specs'] = specs
+            images = _serialize_equipment_images(equipment, request)
+            if images:
+                item['equipment']['images'] = images
         items.append(item)
     return items
 

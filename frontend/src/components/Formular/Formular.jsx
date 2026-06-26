@@ -41,6 +41,7 @@ export default function Formular() {
     const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
     const [isFullscreen, setFullscreen] = useState(false);
     const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
+    const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
@@ -107,6 +108,18 @@ export default function Formular() {
 
     const handleSubordinateOpenDetails = useCallback((sub) => {
         if (sub?.id) setSelectedTargetId(sub.id);
+    }, []);
+
+    const handleOpenEquipmentInCatalog = useCallback((equipmentId) => {
+        if (!equipmentId) return;
+        setReferenceEquipmentId(equipmentId);
+        setReferenceDataOpen(true);
+        setSelectedTargetId(null);
+    }, []);
+
+    const handleCloseReferenceData = useCallback(() => {
+        setReferenceDataOpen(false);
+        setReferenceEquipmentId(null);
     }, []);
 
     const handleEventFlyTo = useCallback((eventItem) => {
@@ -427,6 +440,7 @@ export default function Formular() {
                     onEdit={handleEditClick}
                     onSubordinateFlyTo={handleSubordinateFlyTo}
                     onSubordinateOpenDetails={handleSubordinateOpenDetails}
+                    onEditEquipmentInCatalog={handleOpenEquipmentInCatalog}
                 />
             )}
 
@@ -467,8 +481,9 @@ export default function Formular() {
 
             <ReferenceDataModal
                 isOpen={isReferenceDataOpen}
-                onClose={() => setReferenceDataOpen(false)}
+                onClose={handleCloseReferenceData}
                 onActionTypesChanged={reloadReferenceLists}
+                initialEquipmentId={referenceEquipmentId}
             />
         </section>
     );

@@ -21,6 +21,7 @@ from .views import (
     EquipmentCategoryViewSet,
     EquipmentParameterDefinitionViewSet,
     EquipmentViewSet,
+    EquipmentImageViewSet,
 )
 
 router = DefaultRouter()
@@ -119,6 +120,12 @@ router.register(
     r'equipment',
     EquipmentViewSet,
     basename='equipment'
+)
+
+router.register(
+    r'equipment-images',
+    EquipmentImageViewSet,
+    basename='equipment-images'
 )
 
 urlpatterns = [
