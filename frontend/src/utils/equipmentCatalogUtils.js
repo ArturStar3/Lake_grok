@@ -8,6 +8,12 @@ export function formatEquipmentLabel(item) {
   return designation || title || `ID ${item.id}`;
 }
 
+/** Короткое имя для подписи зоны: designation или title. */
+export function formatZoneEquipmentShortName(equipment) {
+  if (!equipment) return '';
+  return equipment.designation?.trim() || equipment.title?.trim() || `ID ${equipment.id}`;
+}
+
 export function formatEquipmentSubtitle(item) {
   if (!item?.category?.title) return '';
   return item.category.title;

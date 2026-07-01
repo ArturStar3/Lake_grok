@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
 import "./Formular.css";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import ObjectsTable from "../ObjectsTable/ObjectsTable";
@@ -10,10 +10,8 @@ import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import FormularModal from "../FormularModal/FormularModal";
 import AddTargetModal from "../AddTargetModal/AddTargetModal";
-import FormularEditor from "../FormularEditor/FormularEditor";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
-import ReferenceDataModal from "../ReferenceData/ReferenceDataModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
@@ -24,6 +22,9 @@ import { useActionZoneState } from "../../hooks/formular/useActionZoneState";
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
 import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
+
+const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
+const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
 
 export default function Formular() {
     const [activeTab, setActiveTab] = useState("objects");
@@ -323,6 +324,7 @@ export default function Formular() {
                                         actionZoneFilters={actionZoneFilters}
                                         showZoneIntersections={showZoneIntersections}
                                         setShowZoneIntersections={setShowZoneIntersections}
+                                        hasEnabledZones={hasEnabledZones}
                                         toggleActionType={toggleActionType}
                                         toggleAllForCountry={toggleAllForCountry}
                                         resetZoneFilters={resetZoneFilters}
@@ -457,13 +459,15 @@ export default function Formular() {
                 cachedTargets={objects}
             />
 
-            <FormularEditor
-                targetId={formularEditorTarget?.id}
-                targetTitle={formularEditorTarget?.title}
-                isOpen={!!formularEditorTarget}
-                onClose={() => setFormularEditorTarget(null)}
-                onSaved={handleFormularSaved}
-            />
+            <Suspense fallback={null}>
+                <FormularEditor
+                    targetId={formularEditorTarget?.id}
+                    targetTitle={formularEditorTarget?.title}
+                    isOpen={!!formularEditorTarget}
+                    onClose={() => setFormularEditorTarget(null)}
+                    onSaved={handleFormularSaved}
+                />
+            </Suspense>
 
             <EditTargetModal
                 targetId={editTargetId}
@@ -484,13 +488,15 @@ export default function Formular() {
                 />
             )}
 
-            <ReferenceDataModal
-                isOpen={isReferenceDataOpen}
-                onClose={handleCloseReferenceData}
-                onActionTypesChanged={reloadReferenceLists}
-                onTargetTypesChanged={() => {}}
-                initialEquipmentId={referenceEquipmentId}
-            />
+            <Suspense fallback={null}>
+                <ReferenceDataModal
+                    isOpen={isReferenceDataOpen}
+                    onClose={handleCloseReferenceData}
+                    onActionTypesChanged={reloadReferenceLists}
+                    onTargetTypesChanged={() => {}}
+                    initialEquipmentId={referenceEquipmentId}
+                />
+            </Suspense>
         </section>
     );
 }

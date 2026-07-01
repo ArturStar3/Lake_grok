@@ -5,7 +5,7 @@ import { API_URL } from '../../config/api';
 const PARAMETERS_URL = `${API_URL}/api/v1/equipment-parameters`;
 const UNITS_URL = `${API_URL}/api/v1/equipment-units`;
 const CATEGORIES_URL = `${API_URL}/api/v1/equipment-categories`;
-const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types`;
+const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types/`;
 
 export const EMPTY_PARAMETER_FORM = {
   title: '',

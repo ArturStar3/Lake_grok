@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_URL as API_ROOT } from '../../config/api';
 
-const TARGETS_API_URL = `${API_ROOT}/api/v1/targets`;
+const TARGETS_API_URL = `${API_ROOT}/api/v1/targets/`;
 
 export function useTargetsList() {
   const [objects, setObjects] = useState([]);
@@ -32,7 +32,7 @@ export function useTargetsList() {
     if (!confirmed) return false;
 
     try {
-      await axios.delete(`${TARGETS_API_URL}/${targetId}/`);
+      await axios.delete(`${TARGETS_API_URL}${targetId}/`);
       await fetchData();
       return true;
     } catch (err) {

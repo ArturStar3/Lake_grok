@@ -17,8 +17,8 @@ export default function DashCrossZoneLayer({
   centerLng,
   radiusMeters,
   color,
-  onZoneMouseOver,
-  onZoneMouseOut,
+  onZonePointer,
+  onZonePointerEnd,
   onZoneClick,
 }) {
   const fillRef = useRef(null);
@@ -77,6 +77,12 @@ export default function DashCrossZoneLayer({
     };
   }, [entryId, objId, hoverController, baseStyle, crosses]);
 
+  const pointerHandlers = useMemo(() => ({
+    mouseover: (e) => onZonePointer?.(e),
+    mouseout: () => onZonePointerEnd?.(),
+    click: onZoneClick,
+  }), [onZonePointer, onZonePointerEnd, onZoneClick]);
+
   return (
     <>
       <Circle
@@ -91,11 +97,7 @@ export default function DashCrossZoneLayer({
           interactive: true,
           className: 'action-radius-circle',
         }}
-        eventHandlers={{
-          mouseover: () => onZoneMouseOver?.(objId),
-          mouseout: () => onZoneMouseOut?.(),
-          click: onZoneClick,
-        }}
+        eventHandlers={pointerHandlers}
       />
       <Polyline
         ref={ringRef}

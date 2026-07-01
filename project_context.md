@@ -563,6 +563,7 @@ Target 0..1──* Target (parent/children)
 - Фильтр по стране + `action_type.title` (`actionZoneFilters`).
 - `quantity` на зоны **не влияет** (один набор кругов на образец).
 - Пересечения — на клиенте (`circleIntersection.js`), O(n²).
+- **Панель зон в fullscreen** (`ZoneHoverListPanel`, слева по центру): при наведении — краткий список затронутых зон («техника · тип · страна»); при **ЛКМ** панель закрепляется, список прокручивается, выбор строки подсвечивает одну окружность на карте. Leaflet-popup по клику на зону убран.
 - Legacy: `Target.action_radius` — не основной источник.
 
 ### События
@@ -828,6 +829,7 @@ AI обязан:
 | `frontend/src/hooks/useTargetFormData.js` | Данные для форм target | Высокая |
 | `frontend/src/config/api.js` | Базовый URL API | Критическая |
 | `frontend/src/config/tiles.js` | URL тайлов TileServer | Критическая |
+| `frontend/src/components/MapComponent/ZoneHoverListPanel.jsx` | Панель списка зон: hover + закрепление по клику (fullscreen) | Высокая |
 | `frontend/src/utils/buildVisibleZones.js` | Сбор зон: `actions[]` + `deployed_equipment[].zones[]` | Высокая |
 | `frontend/src/utils/circleIntersection.js` | Геометрия пересечений зон | Высокая |
 | `frontend/src/utils/markerFilters.js` | Фильтрация маркеров | Средняя |

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { API_URL as API_ROOT } from '../../config/api';
 
-const COUNTRIES_API_URL = `${API_ROOT}/api/v1/countries`;
-const EVENT_TYPES_API_URL = `${API_ROOT}/api/v1/event-types`;
-const ACTION_TYPES_API_URL = `${API_ROOT}/api/v1/action-types`;
+const COUNTRIES_API_URL = `${API_ROOT}/api/v1/countries/`;
+const EVENT_TYPES_API_URL = `${API_ROOT}/api/v1/event-types/`;
+const ACTION_TYPES_API_URL = `${API_ROOT}/api/v1/action-types/`;
 
 /** Справочники для вкладок «События» и зон действия (без маркеров). */
 export function useFormularReferenceLists() {

@@ -3,8 +3,8 @@ import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { invalidateReferenceDataCache } from '../useReferenceData';
 
-const TARGET_TYPES_URL = `${API_URL}/api/v1/target-types`;
-const COUNTRIES_URL = `${API_URL}/api/v1/countries`;
+const TARGET_TYPES_URL = `${API_URL}/api/v1/target-types/`;
+const COUNTRIES_URL = `${API_URL}/api/v1/countries/`;
 
 export const EMPTY_TARGET_TYPE_FORM = {
   title: '',

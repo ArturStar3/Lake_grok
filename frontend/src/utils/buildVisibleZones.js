@@ -1,4 +1,11 @@
 import { getActionTypeColor } from './actionZoneStyle';
+import { formatZoneEquipmentShortName } from './equipmentCatalogUtils';
+
+export function buildZoneKey(objId, action, actionIndex) {
+  const deploymentId = action._deploymentId ?? 'm';
+  const actionTypeId = action.action_type?.id ?? actionIndex;
+  return `${objId}-${deploymentId}-${actionTypeId}-${actionIndex}`;
+}
 
 export function isActionVisible(obj, action, actionZoneFilters) {
   const cTitle = obj.country?.title || 'Неизвестно';
@@ -26,6 +33,7 @@ function collectEquipmentZoneActions(obj) {
         _equipmentZone: true,
         _deploymentId: deployment.equipment?.id,
         _equipmentTitle: deployment.equipment?.designation || deployment.equipment?.title,
+        _equipmentLabel: formatZoneEquipmentShortName(deployment.equipment),
       });
     });
   });
@@ -101,8 +109,25 @@ export function buildVisibleZones(objects, actionZoneFilters) {
         lineType: action.action_type?.line_type || 'solid',
         actionTypeId: action.action_type?.id,
         equipmentDeploymentId: action._deploymentId,
+        isEquipmentZone: Boolean(action._equipmentZone),
+        equipmentLabel: action._equipmentLabel || '',
+        countryTitle: obj.country?.title || 'Неизвестно',
+        zoneKey: buildZoneKey(obj.id, action, actionIndex),
       });
     });
   });
   return zones;
+}
+
+/** Строка для панели зон: «Су-34 · Поражение · Азербайджан». */
+export function formatZoneListLine(zone) {
+  const country = (zone.countryTitle || zone.obj?.country?.title || 'Неизвестно').trim();
+  const actionTitle = zone.actionTitle || 'Зона действия';
+  let equipmentName = '';
+  if (zone.isEquipmentZone && zone.equipmentLabel?.trim()) {
+    equipmentName = zone.equipmentLabel.trim();
+  } else {
+    equipmentName = (zone.obj?.label || zone.obj?.title || '—').trim() || '—';
+  }
+  return `${equipmentName} · ${actionTitle} · ${country}`;
 }

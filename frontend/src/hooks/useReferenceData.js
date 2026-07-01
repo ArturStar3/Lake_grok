@@ -44,10 +44,10 @@ export async function fetchReferenceData({ signal, includeMarkerSvgs = true } = 
 
   inflightPromise = (async () => {
     const [countriesRes, markersRes, actionTypesRes, targetTypesRes] = await Promise.all([
-      axios.get(`${API_URL}/api/v1/countries`, { signal }),
-      axios.get(`${API_URL}/api/v1/markers`, { signal }),
-      axios.get(`${API_URL}/api/v1/action-types`, { signal }),
-      axios.get(`${API_URL}/api/v1/target-types`, { signal }),
+      axios.get(`${API_URL}/api/v1/countries/`, { signal }),
+      axios.get(`${API_URL}/api/v1/markers/`, { signal }),
+      axios.get(`${API_URL}/api/v1/action-types/`, { signal }),
+      axios.get(`${API_URL}/api/v1/target-types/`, { signal }),
     ]);
 
     const markers = markersRes.data || [];

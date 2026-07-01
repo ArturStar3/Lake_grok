@@ -32,7 +32,12 @@
     cursor: pointer;
     z-index: 501;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, right 0.2s;
+}
+
+/* Когда открыта боковая панель — не перекрывать кнопку закрытия ✕ */
+.map__fullscreen-btn--sidebar-open {
+    right: calc(min(28%, 400px) + 15px);
 }
 
 .map__event-actions {
@@ -102,7 +107,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px;
+    padding: 16px 56px 16px 16px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     flex-shrink: 0;
 }
@@ -962,4 +967,15 @@
 
 .map-scale-option--active:hover {
     background-color: #c9ced3;
+}
+
+.leaflet-popup.zone-action-popup .leaflet-popup-content {
+    margin: 10px 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #1a1a1a;
+}
+
+.zone-action-popup__content strong {
+    font-size: 13px;
 }

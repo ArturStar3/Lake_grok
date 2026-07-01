@@ -16,11 +16,12 @@ import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import ActionZonesLayer from "./ActionZonesLayer";
-import ZoneActionPopupManager from "./ZoneActionPopupManager";
+import ZoneHoverListPanel from "./ZoneHoverListPanel";
+import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopupManager";
 import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
-import { isFlagMarker, isNonFlagMarker } from "../../utils/markerFilters";
+import { isFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
 import { TILE_RASTER_URL } from "../../config/tiles";
 import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
@@ -38,10 +39,11 @@ L.Icon.Default.mergeOptions({
 
 const MemoGeoJSON = React.memo(GeoJSON);
 
-function FullscreenControl({isFullscreen, onToggle}) {
+function FullscreenControl({ isFullscreen, onToggle, sidebarOpen = false }) {
     return (
         <button
-            className="map__fullscreen-btn"
+            type="button"
+            className={`map__fullscreen-btn${sidebarOpen ? ' map__fullscreen-btn--sidebar-open' : ''}`}
             onClick={onToggle}
             aria-label={isFullscreen ? "Выход из полноэкранного режима" : "Перейти в полноэкранный режим"}
         >
@@ -662,8 +664,8 @@ function MapComponent({
     onCheckboxChange = () => {},
     showActionRadius: externalShowActionRadius = false,
     actionTypes = [],
-    actionRadiusMode = "animation",
-    onActionRadiusModeChange,
+    actionRadiusMode: _actionRadiusMode = "animation",
+    onActionRadiusModeChange: _onActionRadiusModeChange,
     intersections = [],
     selectedIntersections = [],
     onIntersectionToggle,
@@ -680,12 +682,12 @@ function MapComponent({
     toggleActionType,
     toggleAllForCountry,
     resetZoneFilters,
-    actionZoneViewMode = "displaySettings",
-    onActionZoneViewModeChange,
+    actionZoneViewMode: _actionZoneViewMode = "displaySettings",
+    onActionZoneViewModeChange: _onActionZoneViewModeChange,
     // ...existing code...
     onMeasureModeChange,
     onMeasurePointsChange,
-    onShowActionRadiusChange,
+    onShowActionRadiusChange: _onShowActionRadiusChange,
     onTableTabChange,
     onMarkerClick,
     onMarkerHover,
@@ -718,10 +720,11 @@ function MapComponent({
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
     const [currentZoom, setCurrentZoom] = useState(4);
-    const [zoneContextMenu, setZoneContextMenu] = useState(null);
+    const [hoveredZoneList, setHoveredZoneList] = useState([]);
+    const [pinnedZonePanel, setPinnedZonePanel] = useState(null);
+    const [selectedZoneEntryId, setSelectedZoneEntryId] = useState(null);
     const [activeZonePopup, setActiveZonePopup] = useState(null);
     const [activeZonePopupVersion, setActiveZonePopupVersion] = useState(0);
-    const zoneMenuRef = useRef(null);
     const [geoData, setGeoData] = useState(null);
     const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [] });
     const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
@@ -729,7 +732,6 @@ function MapComponent({
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
     const [selectedCountryIso, setSelectedCountryIso] = useState(null);
     const [eventContextMenu, setEventContextMenu] = useState(null);
-    const [selectedEventShape, setSelectedEventShape] = useState(null);
     const [eventDrawMode, setEventDrawMode] = useState(null);
     const [eventDrawPoints, setEventDrawPoints] = useState([]);
     const [polygonContextMenu, setPolygonContextMenu] = useState(null);
@@ -747,11 +749,11 @@ function MapComponent({
     const [fullscreenTab, setFullscreenTab] = useState("objects");
     const [eventMarkerSvgs, setEventMarkerSvgs] = useState(new Map());
     const eventMarkerFetchRef = useRef(new Set());
-    const hoverTimeoutRef = useRef(null);
     const isEventPointDraggingRef = useRef(false);
     const isEventPointPointerDownRef = useRef(false);
     const cursorCoordsRef = useRef(null);
     const skipZoneHoverUpdatesRef = useRef(false);
+    const suppressNextMapClickRef = useRef(false);
     const zoneHoverControllerRef = useRef(null);
     if (!zoneHoverControllerRef.current) {
         zoneHoverControllerRef.current = createZoneHoverController();
@@ -764,8 +766,8 @@ function MapComponent({
     const measureMenuRef = useRef(null);
 
     useEffect(() => {
-        skipZoneHoverUpdatesRef.current = Boolean(activeZonePopup || zoneContextMenu);
-    }, [activeZonePopup, zoneContextMenu]);
+        skipZoneHoverUpdatesRef.current = Boolean(pinnedZonePanel);
+    }, [pinnedZonePanel]);
 
     // Ограничение движения карты по оси Y (чтобы нельзя было уехать за полюса)
     const mapMaxBounds = [[-85.0511287798, -180], [85.0511287798, 180]];
@@ -859,11 +861,14 @@ function MapComponent({
     const effectiveMeasureMode = isFullscreen ? isMeasureMode : measureMode;
     const effectiveMeasurePoints = isFullscreen ? measurePoints : measurements;
 
-    // Cleanup zone interactions (menu + tooltip/popup) when the "Зона действия" tool is turned off
+    // Cleanup zone panel when the "Зона действия" tool is turned off
     useEffect(() => {
         if (!showActionRadius) {
-            setZoneContextMenu(null);
+            setPinnedZonePanel(null);
+            setSelectedZoneEntryId(null);
+            setHoveredZoneList([]);
             setActiveZonePopup(null);
+            zoneHoverControllerRef.current?.clear();
         }
     }, [showActionRadius]);
 
@@ -909,12 +914,12 @@ function MapComponent({
     useEffect(() => {
         const handleEsc = (e) => {
             if (e.key === "Escape") {
-                if (zoneContextMenu) {
-                    setZoneContextMenu(null);
+                if (pinnedZonePanel) {
+                    setPinnedZonePanel(null);
+                    setSelectedZoneEntryId(null);
+                    setHoveredZoneList([]);
                     setActiveZonePopup(null);
-                } else if (activeZonePopup) {
-                    // Esc while a forced zone description popup is open → close it
-                    setActiveZonePopup(null);
+                    zoneHoverControllerRef.current?.clear();
                 } else if (pinnedGroupId) {
                     setPinnedGroupId(null);
                 } else if (isFullscreen) {
@@ -924,33 +929,16 @@ function MapComponent({
         };
         document.addEventListener("keydown", handleEsc);
         return () => document.removeEventListener("keydown", handleEsc)
-    }, [isFullscreen, pinnedGroupId, zoneContextMenu]);
-
-    // Закрытие контекстного меню зон при клике вне (для req 6)
-    useEffect(() => {
-        if (!zoneContextMenu) return undefined;
-        const handleOutside = (e) => {
-            if (zoneMenuRef.current && zoneMenuRef.current.contains(e.target)) {
-                return;
-            }
-            setZoneContextMenu(null);
-            setActiveZonePopup(null);
-        };
-        // click (не mousedown) — чтобы не закрыть меню в том же цикле событий, что и открытие
-        document.addEventListener('click', handleOutside, true);
-        return () => document.removeEventListener('click', handleOutside, true);
-    }, [zoneContextMenu]);
+    }, [isFullscreen, pinnedGroupId, pinnedZonePanel]);
 
     useEffect(() => {
-        const observer = new ResizeObserver((entries) => {
-            for (let entry of entries) {
-                if (mapRef.current) {
-                    setTimeout(() => {
-                        if (mapRef.current) {
-                            mapRef.current.invalidateSize();
-                        }
-                    }, 0)
-                }
+        const observer = new ResizeObserver(() => {
+            if (mapRef.current) {
+                setTimeout(() => {
+                    if (mapRef.current) {
+                        mapRef.current.invalidateSize();
+                    }
+                }, 0);
             }
         });
         if (containerRef.current) {
@@ -1130,7 +1118,6 @@ function MapComponent({
     const clearEventDraft = () => {
         setEventDrawMode(null);
         setEventDrawPoints([]);
-        setSelectedEventShape(null);
         setPolygonContextMenu(null);
     };
 
@@ -1213,13 +1200,18 @@ function MapComponent({
     function MapClickHandler({ onMapClick }) {
         useMapEvents({
             click: () => {
+                if (suppressNextMapClickRef.current) {
+                    suppressNextMapClickRef.current = false;
+                    return;
+                }
                 if (polygonContextMenu) {
                     setPolygonContextMenu(null);
                 }
                 if (pinnedGroupId) {
                     setPinnedGroupId(null);
-                    setHoveredGroupId(null); // Очищаем наведённую группу тоже
+                    setHoveredGroupId(null);
                 }
+                onMapClick?.();
             }
         });
         return null;
@@ -1314,55 +1306,69 @@ function MapComponent({
         zoneHoverControllerRef.current?.setHovered(memberIds);
     }, [nonFlagData.groupedObjects]);
 
+    const handleZonePanelClose = useCallback(() => {
+        setPinnedZonePanel(null);
+        setSelectedZoneEntryId(null);
+        setHoveredZoneList([]);
+        setActiveZonePopup(null);
+        zoneHoverControllerRef.current?.clear();
+    }, []);
+
     const handleZonePopupClose = useCallback(() => {
         setActiveZonePopup(null);
     }, []);
 
-    const handleZoneClickAt = useCallback((e, candidates) => {
-        if (e.target?.closePopup) {
-            e.target.closePopup();
-        }
-        if (mapRef.current?.closePopup) {
-            mapRef.current.closePopup();
-        }
-        if (!candidates?.length) return;
-
-        const toPopupPayload = (c) => ({
-            label: c.obj.label || c.obj.title,
-            actionTitle: c.actionTitle,
-            centerLat: c.centerLat,
-            centerLng: c.centerLng,
-            radiusMeters: c.radiusMeters,
-            countryTitle: c.obj.country?.title || '',
-        });
-
-        if (candidates.length === 1) {
-            const chosen = candidates[0];
-            if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
-                onCheckboxChange(chosen.obj.id);
-            }
-            setZoneContextMenu(null);
-            setActiveZonePopupVersion((v) => v + 1);
-            setActiveZonePopup(toPopupPayload(chosen));
+    const handleZoneHoverChange = useCallback((candidates) => {
+        if (!isFullscreen || pinnedZonePanel) {
+            if (!pinnedZonePanel) setHoveredZoneList([]);
             return;
         }
-
-        setActiveZonePopup(null);
-        const { x, y } = getMenuPosition(e.originalEvent || {});
-        setZoneContextMenu({
-            x,
-            y,
-            candidates: candidates.map((c) => ({
-                obj: c.obj,
-                actionTitle: c.actionTitle,
-                centerLat: c.centerLat,
-                centerLng: c.centerLng,
-                radiusMeters: c.radiusMeters,
-                label: c.obj.label || c.obj.title,
-                countryTitle: c.obj.country?.title || '',
-            })),
+        const list = candidates || [];
+        setHoveredZoneList((prev) => {
+            if (prev.length === list.length && prev.every((z, i) => z.entryId === list[i]?.entryId)) {
+                return prev;
+            }
+            return list;
         });
-    }, [mapRef, onCheckboxChange, selectedObj]);
+    }, [isFullscreen, pinnedZonePanel]);
+
+    useEffect(() => {
+        if (!isFullscreen) {
+            setHoveredZoneList([]);
+            setPinnedZonePanel(null);
+            setSelectedZoneEntryId(null);
+            setActiveZonePopup(null);
+            zoneHoverControllerRef.current?.clear();
+        }
+    }, [isFullscreen]);
+
+    const handleZonePanelSelect = useCallback((entryId) => {
+        setSelectedZoneEntryId(entryId);
+        zoneHoverControllerRef.current?.setHoveredEntries([entryId]);
+        const zone = pinnedZonePanel?.zones?.find((z) => z.entryId === entryId);
+        const payload = buildZonePopupPayload(zone);
+        if (payload) {
+            setActiveZonePopup(payload);
+            setActiveZonePopupVersion((v) => v + 1);
+        }
+    }, [pinnedZonePanel]);
+
+    const handleZoneClickAt = useCallback((e, candidates) => {
+        if (!candidates?.length || !isFullscreen) return;
+
+        suppressNextMapClickRef.current = true;
+
+        const chosen = candidates[0];
+        if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
+            onCheckboxChange(chosen.obj.id);
+        }
+
+        setPinnedZonePanel({ zones: candidates });
+        setHoveredZoneList(candidates);
+        setSelectedZoneEntryId(null);
+        setActiveZonePopup(null);
+        zoneHoverControllerRef.current?.setHoveredEntries(candidates.map((z) => z.entryId));
+    }, [isFullscreen, onCheckboxChange, selectedObj]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1374,11 +1380,6 @@ function MapComponent({
     const formatDistance = (meters) => {
         if (!meters) return "0 м";
         return meters >= 1000 ? `${(meters / 1000).toFixed(2)} км` : `${meters.toFixed(0)} м`;
-    };
-
-    const getTotalDistance = () => {
-        if (effectiveMeasurePoints.length === 0) return 0;
-        return effectiveMeasurePoints.reduce((sum, point) => sum + point.distance, 0);
     };
 
     const toRadians = (deg) => (deg * Math.PI) / 180;
@@ -1743,6 +1744,7 @@ function MapComponent({
                                     actionZoneFilters={actionZoneFilters}
                                     showZoneIntersections={showZoneIntersections}
                                     setShowZoneIntersections={setShowZoneIntersections}
+                                    hasEnabledZones={showActionRadius}
                                     toggleActionType={toggleActionType}
                                     toggleAllForCountry={toggleAllForCountry}
                                     resetZoneFilters={resetZoneFilters}
@@ -1772,21 +1774,6 @@ function MapComponent({
                 </div>
             )}
             
-            {isFullscreen && (
-                <>
-                    <FullscreenControl isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
-                    {!isSidebarOpen && (
-                        <button
-                            className="map__sidebar-toggle"
-                            onClick={() => setIsSidebarOpen(true)}
-                            aria-label="Открыть панель"
-                        >
-                            ☰
-                        </button>
-                    )}
-                </>
-            )}
-            
             <MapContainer
                 ref={mapRef}
                 center={center}
@@ -1798,7 +1785,10 @@ function MapComponent({
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <MapScaleBar isFullscreen={isFullscreen} />
-                <MapClickHandler onMapClick={() => setPinnedGroupId(null)} />
+                <MapClickHandler onMapClick={() => {
+                    setPinnedGroupId(null);
+                    handleZonePanelClose();
+                }} />
                 <MeasureHandler isActive={effectiveMeasureMode} onAddPoint={isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint} />
                 <EventContextMenuHandler />
                 <PolygonContextMenuHandler />
@@ -2065,12 +2055,12 @@ function MapComponent({
                         actionZoneFilters={actionZoneFilters}
                         hoverController={zoneHoverControllerRef.current}
                         skipHoverRef={skipZoneHoverUpdatesRef}
+                        isZonePanelPinned={Boolean(pinnedZonePanel)}
                         onZoneClickAt={handleZoneClickAt}
+                        onZoneHoverChange={handleZoneHoverChange}
                     />
                 )}
 
-
-                {/* Controlled popup для описания зоны (одиночный клик и выбор из контекстного меню) */}
                 {showActionRadius && activeZonePopup && activeZonePopup.centerLat != null && (
                     <ZoneActionPopupManager
                         popup={activeZonePopup}
@@ -2082,79 +2072,31 @@ function MapComponent({
                 <CursorTracker />
             </MapContainer>
             {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
-
-            {/* Панель управления зонами теперь в sidebar (Formular). Здесь только легенда на карте. */}
-
-            {/* Контекстное меню при клике на пересекающиеся зоны (req 6) */}
-            {zoneContextMenu && (
-                <div
-                    ref={zoneMenuRef}
-                    className="map__zone-context-menu"
-                    style={{
-                        position: 'absolute',
-                        left: zoneContextMenu.x,
-                        top: zoneContextMenu.y,
-                        background: 'white',
-                        border: '1px solid #3a4654',
-                        boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
-                        zIndex: 2000,
-                        minWidth: '180px',
-                        fontSize: '12px'
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div style={{ padding: '4px 8px', fontWeight: 600, borderBottom: '1px solid #ddd', background: '#f4f6f7' }}>
-                        Выберите объект
-                    </div>
-                    {zoneContextMenu.candidates.map((cand, idx) => (
-                        <button
-                            key={idx}
-                            type="button"
-                            style={{
-                                display: 'block',
-                                width: '100%',
-                                textAlign: 'left',
-                                padding: '4px 8px',
-                                border: 'none',
-                                background: 'transparent',
-                                cursor: 'pointer'
-                            }}
-                            onClick={() => {
-                                // То же исправление бага исчезновения: только добавляем в selected, если отсутствует.
-                                if (onCheckboxChange && !selectedObj.includes(cand.obj.id)) {
-                                    onCheckboxChange(cand.obj.id);
-                                }
-                                // Сначала обновляем activeZonePopup (payload + version) — это важно для controlled popup.
-                                // Потом закрываем меню. (Меню могло бы закрыться из-за closer, но с contains check
-                                // inner mousedown теперь не триггерит преждевременный clear.)
-                                setActiveZonePopupVersion(v => v + 1);
-                                setActiveZonePopup({
-                                    label: cand.label || cand.obj.label || cand.obj.title,
-                                    actionTitle: cand.actionTitle,
-                                    centerLat: cand.centerLat,
-                                    centerLng: cand.centerLng,
-                                    radiusMeters: cand.radiusMeters,
-                                    countryTitle: cand.countryTitle || cand.obj.country?.title || ''
-                                });
-                                setZoneContextMenu(null);
-                            }}
-                        >
-                            {cand.obj.label || cand.obj.title} <span style={{ color: '#555', fontSize: '11px' }}>({cand.actionTitle})</span>
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        style={{ width: '100%', padding: '3px', fontSize: '10px', borderTop: '1px solid #eee' }}
-                        onClick={() => {
-                            setZoneContextMenu(null);
-                            setActiveZonePopup(null);
-                        }}
-                    >
-                        Отмена
-                    </button>
-                </div>
+            {isFullscreen && showActionRadius && (pinnedZonePanel || hoveredZoneList.length > 0) && (
+                <ZoneHoverListPanel
+                    zones={pinnedZonePanel?.zones ?? hoveredZoneList}
+                    isPinned={Boolean(pinnedZonePanel)}
+                    selectedEntryId={selectedZoneEntryId}
+                    onSelectZone={handleZonePanelSelect}
+                    onClose={handleZonePanelClose}
+                />
             )}
-            <FullscreenControl isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
+
+            <FullscreenControl
+                isFullscreen={isFullscreen}
+                onToggle={toggleFullscreen}
+                sidebarOpen={isFullscreen && isSidebarOpen}
+            />
+            {isFullscreen && !isSidebarOpen && (
+                <button
+                    type="button"
+                    className="map__sidebar-toggle"
+                    onClick={() => setIsSidebarOpen(true)}
+                    aria-label="Открыть панель инструментов"
+                >
+                    ☰
+                </button>
+            )}
             {isEventReady() && !isEventModalOpen && !isEventEditModeActive && (
                 <div className="map__event-actions">
                     <button
@@ -2172,15 +2114,6 @@ function MapComponent({
                         ✕
                     </button>
                 </div>
-            )}
-            {isFullscreen && (
-                <button
-                    className="map__objects-btn"
-                    onClick={() => setIsSidebarOpen((prev) => !prev)}
-                    aria-label="Показать/скрыть объекты"
-                >
-                    📋
-                </button>
             )}
             {selectedCountryIso && (
                 <CountryModal 
@@ -2212,7 +2145,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("point");
                             setEventDrawPoints(initEventPoints("point", eventContextMenu));
-                            setSelectedEventShape("point");
                             setEventContextMenu(null);
                         }}
                     >
@@ -2224,7 +2156,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("circle");
                             setEventDrawPoints(initEventPoints("circle", eventContextMenu));
-                            setSelectedEventShape("circle");
                             setEventContextMenu(null);
                         }}
                     >
@@ -2236,7 +2167,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("rectangle");
                             setEventDrawPoints(initEventPoints("rectangle", eventContextMenu));
-                            setSelectedEventShape("rectangle");
                             setEventContextMenu(null);
                         }}
                     >
@@ -2248,7 +2178,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("polygon");
                             setEventDrawPoints(initEventPoints("polygon", eventContextMenu));
-                            setSelectedEventShape("polygon");
                             setEventContextMenu(null);
                         }}
                     >

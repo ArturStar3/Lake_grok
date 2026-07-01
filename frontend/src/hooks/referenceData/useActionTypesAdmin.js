@@ -4,7 +4,7 @@ import { API_URL } from '../../config/api';
 import { invalidateReferenceDataCache } from '../useReferenceData';
 import { normalizeHexColor } from '../../utils/actionZoneStyle';
 
-const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types`;
+const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types/`;
 
 export const EMPTY_ACTION_TYPE_FORM = {
   title: '',

@@ -225,7 +225,6 @@ export const processMarkerClustering = (objects, map) => {
   const groupedByCountry = groupByCountryAndFilter(objects);
 
   let result = [];
-  const processedIds = new Set();
 
   // Обрабатываем каждую страну
   for (const country in groupedByCountry) {
@@ -257,7 +256,7 @@ export const processMarkerClustering = (objects, map) => {
  * @param {number} scale - Масштаб карты (зум уровень)
  * @returns {Object} { top, left } позиция в пикселях
  */
-export const calculateMarkerPosition = (obj, scale = 1) => {
+export const calculateMarkerPosition = (obj, _scale = 1) => {
   if (!obj.offsetY) {
     return { top: 0, left: 0 };
   }

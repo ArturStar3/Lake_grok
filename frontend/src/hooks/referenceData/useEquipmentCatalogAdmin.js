@@ -6,7 +6,7 @@ const EQUIPMENT_URL = `${API_URL}/api/v1/equipment`;
 const EQUIPMENT_IMAGES_URL = `${API_URL}/api/v1/equipment-images/`;
 const CATEGORIES_URL = `${API_URL}/api/v1/equipment-categories`;
 const PARAMETERS_URL = `${API_URL}/api/v1/equipment-parameters`;
-const COUNTRIES_URL = `${API_URL}/api/v1/countries`;
+const COUNTRIES_URL = `${API_URL}/api/v1/countries/`;
 
 export const EMPTY_EQUIPMENT_FORM = {
   title: '',

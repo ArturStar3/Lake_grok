@@ -5,7 +5,7 @@
  */
 export function getViewBoxSize(svgString) {
   if (!svgString) return null;
-  const match = svgString.match(/viewBox\s*=\s*['\"]([\d.\s]+)['\"]/i);
+  const match = svgString.match(/viewBox\s*=\s*['"]([\d.\s]+)['"]/i);
   if (!match) return null;
   const parts = match[1].trim().split(/\s+/);
   if (parts.length !== 4) return null;
