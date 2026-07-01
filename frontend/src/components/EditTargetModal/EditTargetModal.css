@@ -101,6 +101,7 @@
 
 .edit-target-modal__body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 24px;
 }
@@ -113,6 +114,9 @@
 }
 
 .edit-target-modal__footer {
+    position: relative;
+    z-index: 0;
+    flex-shrink: 0;
     padding: 20px 24px;
     border-top: 1px solid #e0e0e0;
     display: flex;

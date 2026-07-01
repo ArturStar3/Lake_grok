@@ -309,7 +309,8 @@ class CountryAttachmentAdmin(ModelAdmin):
 
 @admin.register(TargetType)
 class TargetTypeAdmin(ModelAdmin):
-    list_display = ('title',)
-    autocomplete_fields = ('countries',)
+    list_display = ('title', 'parent', 'order')
+    list_editable = ('order',)
+    autocomplete_fields = ('parent', 'countries')
     search_fields = ('title',)
     list_per_page = 50

@@ -20,6 +20,7 @@ from .views import (
     FormularAttachmentViewSet,
     EquipmentCategoryViewSet,
     EquipmentParameterDefinitionViewSet,
+    UnitOfMeasureViewSet,
     EquipmentViewSet,
     EquipmentImageViewSet,
 )
@@ -108,6 +109,12 @@ router.register(
     r'equipment-categories',
     EquipmentCategoryViewSet,
     basename='equipment-categories'
+)
+
+router.register(
+    r'equipment-units',
+    UnitOfMeasureViewSet,
+    basename='equipment-units'
 )
 
 router.register(

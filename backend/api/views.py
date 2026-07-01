@@ -25,12 +25,16 @@ from .serializers import (
     FormularBulkUpdateSerializer,
     ActionTypeListSerializer,
     TargetTypeSerializer,
+    TargetTypeWriteSerializer,
     EventTypeSerializer,
     EventSerializer,
     EventWriteSerializer,
     TargetSubordinateSerializer,
     EquipmentCategorySerializer,
+    EquipmentCategoryWriteSerializer,
     EquipmentParameterDefinitionSerializer,
+    EquipmentParameterDefinitionWriteSerializer,
+    UnitOfMeasureSerializer,
     EquipmentSerializer,
     EquipmentWriteSerializer,
     EquipmentImageSerializer,
@@ -59,6 +63,7 @@ from equipment.models import (
     Equipment,
     EquipmentParameterValue,
     EquipmentImage,
+    UnitOfMeasure,
 )
 from .target_utils import replace_target_actions, replace_target_equipment
 
@@ -190,24 +195,85 @@ class TargetViewSet(viewsets.ModelViewSet):
         )
 
 
-class EquipmentCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+class UnitOfMeasureViewSet(viewsets.ModelViewSet):
+    """Единицы измерения ТТХ"""
+
+    serializer_class = UnitOfMeasureSerializer
+    permission_classes = [AllowAny]
+    queryset = UnitOfMeasure.objects.all().order_by('title')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if EquipmentParameterDefinition.objects.filter(unit=instance).exists():
+            return Response(
+                {'detail': 'Единица используется в параметрах ТТХ'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
+class EquipmentCategoryViewSet(viewsets.ModelViewSet):
     """Категории техники"""
 
-    serializer_class = EquipmentCategorySerializer
     permission_classes = [AllowAny]
     queryset = EquipmentCategory.objects.select_related('parent').order_by('order', 'title')
 
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return EquipmentCategoryWriteSerializer
+        return EquipmentCategorySerializer
 
-class EquipmentParameterDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.children.exists():
+            return Response(
+                {'detail': 'У категории есть подкатегории'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.equipment.exists():
+            return Response(
+                {'detail': 'В категории есть образцы техники'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self.queryset.get(pk=serializer.instance.pk)
+        return Response(
+            EquipmentCategorySerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self.queryset.get(pk=instance.pk)
+        return Response(EquipmentCategorySerializer(instance).data)
+
+
+class EquipmentParameterDefinitionViewSet(viewsets.ModelViewSet):
     """Определения параметров ТТХ"""
 
-    serializer_class = EquipmentParameterDefinitionSerializer
     permission_classes = [AllowAny]
     queryset = (
         EquipmentParameterDefinition.objects
         .select_related('unit', 'action_type')
+        .prefetch_related('categories')
         .order_by('title')
     )
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return EquipmentParameterDefinitionWriteSerializer
+        return EquipmentParameterDefinitionSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -218,6 +284,39 @@ class EquipmentParameterDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
         if category_id:
             qs = qs.filter(categories__id=category_id)
         return qs.distinct()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if EquipmentParameterValue.objects.filter(parameter=instance).exists():
+            return Response(
+                {'detail': 'Параметр используется в значениях ТТХ образцов'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    def _parameter_detail_queryset(self):
+        return self.queryset
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self._parameter_detail_queryset().get(pk=serializer.instance.pk)
+        return Response(
+            EquipmentParameterDefinitionSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self._parameter_detail_queryset().get(pk=instance.pk)
+        return Response(EquipmentParameterDefinitionSerializer(instance).data)
 
 
 class EquipmentViewSet(viewsets.ModelViewSet):
@@ -316,12 +415,56 @@ class ActionTypeViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = ActionType.objects.all().order_by('title')
 
-class TargetTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    """Список типов объектов разведки"""
+class TargetTypeViewSet(viewsets.ModelViewSet):
+    """CRUD типов объектов разведки"""
 
-    serializer_class = TargetTypeSerializer
     permission_classes = [AllowAny]
-    queryset = TargetType.objects.prefetch_related('countries').order_by('title')
+    queryset = (
+        TargetType.objects
+        .select_related('parent')
+        .prefetch_related('countries')
+        .order_by('order', 'title')
+    )
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return TargetTypeWriteSerializer
+        return TargetTypeSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.children.exists():
+            return Response(
+                {'detail': 'У типа есть подтипы'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.target_types.exists():
+            return Response(
+                {'detail': 'Тип используется объектами разведки'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self.queryset.get(pk=serializer.instance.pk)
+        return Response(
+            TargetTypeSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self.queryset.get(pk=instance.pk)
+        return Response(TargetTypeSerializer(instance).data)
 
 
 class EventTypeViewSet(viewsets.ModelViewSet):

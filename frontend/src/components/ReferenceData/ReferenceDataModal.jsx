@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import EquipmentCatalogPanel from './EquipmentCatalogPanel';
+import { useCallback, useEffect, useState } from 'react';
+import EquipmentReferencePanel from './EquipmentReferencePanel';
 import ActionTypesPanel from './ActionTypesPanel';
+import TargetTypesPanel from './TargetTypesPanel';
 import './ReferenceDataModal.css';
 
 const TABS = [
   { id: 'equipment', label: 'Вооружение и техника' },
+  { id: 'target-types', label: 'Типы объектов' },
   { id: 'action-types', label: 'Типы зон действия' },
 ];
 
@@ -12,9 +14,24 @@ export default function ReferenceDataModal({
   isOpen,
   onClose,
   onActionTypesChanged,
+  onTargetTypesChanged,
   initialEquipmentId = null,
 }) {
   const [activeTab, setActiveTab] = useState('equipment');
+  const [schemaVersion, setSchemaVersion] = useState(0);
+
+  const handleSchemaChanged = useCallback(() => {
+    setSchemaVersion((v) => v + 1);
+  }, []);
+
+  const handleActionTypesChanged = useCallback(() => {
+    onActionTypesChanged?.();
+    setSchemaVersion((v) => v + 1);
+  }, [onActionTypesChanged]);
+
+  const handleTargetTypesChanged = useCallback(() => {
+    onTargetTypesChanged?.();
+  }, [onTargetTypesChanged]);
 
   useEffect(() => {
     if (isOpen && initialEquipmentId) {
@@ -64,15 +81,23 @@ export default function ReferenceDataModal({
 
         <div className="reference-data-modal__body">
           {activeTab === 'equipment' && (
-            <EquipmentCatalogPanel
+            <EquipmentReferencePanel
               isActive={isOpen && activeTab === 'equipment'}
               initialEquipmentId={initialEquipmentId}
+              schemaVersion={schemaVersion}
+              onSchemaChanged={handleSchemaChanged}
+            />
+          )}
+          {activeTab === 'target-types' && (
+            <TargetTypesPanel
+              isActive={isOpen && activeTab === 'target-types'}
+              onChanged={handleTargetTypesChanged}
             />
           )}
           {activeTab === 'action-types' && (
             <ActionTypesPanel
               isActive={isOpen && activeTab === 'action-types'}
-              onChanged={onActionTypesChanged}
+              onChanged={handleActionTypesChanged}
             />
           )}
         </div>

@@ -146,9 +146,9 @@ class TargetActionSerializer(serializers.ModelSerializer):
 
 
 class EquipmentCategorySerializer(serializers.ModelSerializer):
-    """Категория техники"""
+    """Категория техники (чтение)"""
 
-    parent = serializers.PrimaryKeyRelatedField(read_only=True)
+    parent = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
 
     class Meta:
         model = EquipmentCategory
@@ -157,6 +157,53 @@ class EquipmentCategorySerializer(serializers.ModelSerializer):
             'title',
             'parent',
             'order',
+        )
+
+
+class EquipmentCategoryWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление категории техники"""
+
+    parent_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentCategory.objects.all(),
+        source='parent',
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = EquipmentCategory
+        fields = (
+            'title',
+            'parent_id',
+            'order',
+        )
+
+    def validate(self, attrs):
+        parent = attrs.get('parent')
+        instance = getattr(self, 'instance', None)
+        if instance and parent:
+            if parent.pk == instance.pk:
+                raise serializers.ValidationError(
+                    {'parent_id': 'Категория не может быть родителем самой себя'}
+                )
+            cursor = parent
+            while cursor is not None:
+                if cursor.pk == instance.pk:
+                    raise serializers.ValidationError(
+                        {'parent_id': 'Циклическая иерархия категорий'}
+                    )
+                cursor = cursor.parent
+        return attrs
+
+
+class EquipmentCategoryBriefSerializer(serializers.ModelSerializer):
+    """Краткая категория для вложенных ответов"""
+
+    class Meta:
+        model = EquipmentCategory
+        fields = (
+            'id',
+            'title',
         )
 
 
@@ -173,10 +220,12 @@ class UnitOfMeasureSerializer(serializers.ModelSerializer):
 
 
 class EquipmentParameterDefinitionSerializer(serializers.ModelSerializer):
-    """Определение параметра ТТХ"""
+    """Определение параметра ТТХ (чтение)"""
 
     unit = UnitOfMeasureSerializer(read_only=True)
     action_type = ActionTypeSerializer(read_only=True)
+    categories = EquipmentCategoryBriefSerializer(many=True, read_only=True)
+    category_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = EquipmentParameterDefinition
@@ -186,8 +235,77 @@ class EquipmentParameterDefinitionSerializer(serializers.ModelSerializer):
             'code',
             'unit',
             'action_type',
+            'categories',
+            'category_ids',
             'help_text',
         )
+
+    def get_category_ids(self, obj):
+        return list(obj.categories.values_list('id', flat=True))
+
+
+class EquipmentParameterDefinitionWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление шаблона параметра ТТХ"""
+
+    unit_id = serializers.PrimaryKeyRelatedField(
+        queryset=UnitOfMeasure.objects.all(),
+        source='unit',
+        required=False,
+        allow_null=True,
+    )
+    action_type_id = serializers.PrimaryKeyRelatedField(
+        queryset=ActionType.objects.all(),
+        source='action_type',
+        required=False,
+        allow_null=True,
+    )
+    category_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=EquipmentCategory.objects.all(),
+        source='categories',
+        required=False,
+    )
+
+    class Meta:
+        model = EquipmentParameterDefinition
+        fields = (
+            'title',
+            'code',
+            'help_text',
+            'unit_id',
+            'action_type_id',
+            'category_ids',
+        )
+
+    def validate_code(self, value):
+        import re
+
+        if not re.match(r'^[a-z][a-z0-9_]*$', value):
+            raise serializers.ValidationError(
+                'Код: латиница в нижнем регистре, snake_case (например range_km)'
+            )
+        return value
+
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        action_type = attrs.get(
+            'action_type',
+            instance.action_type if instance else None,
+        )
+        unit = attrs.get(
+            'unit',
+            instance.unit if instance else None,
+        )
+        if action_type:
+            if not unit:
+                raise serializers.ValidationError(
+                    {'unit_id': 'Для параметра зоны нужна единица измерения'}
+                )
+            if unit.symbol.lower() not in ('км', 'km'):
+                raise serializers.ValidationError(
+                    {'unit_id': 'Тип зоны допустим только для единицы «км»'}
+                )
+        return attrs
 
 
 class EquipmentParameterValueSerializer(serializers.ModelSerializer):
@@ -358,14 +476,17 @@ class TargetDeployedEquipmentSerializer(serializers.Serializer):
 class TargetTypeBriefSerializer(serializers.ModelSerializer):
     """Краткий тип объекта (без M2M countries) — для списка targets."""
 
+    parent = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
+
     class Meta:
         model = TargetType
-        fields = ('id', 'title')
+        fields = ('id', 'title', 'parent')
 
 
 class TargetTypeSerializer(serializers.ModelSerializer):
-    """Тип объекта разведки"""
+    """Тип объекта разведки (чтение)"""
 
+    parent = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
     countries = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
@@ -373,8 +494,53 @@ class TargetTypeSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'title',
-            'countries'
+            'parent',
+            'order',
+            'countries',
         )
+
+
+class TargetTypeWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление типа объекта разведки"""
+
+    parent_id = serializers.PrimaryKeyRelatedField(
+        queryset=TargetType.objects.all(),
+        source='parent',
+        required=False,
+        allow_null=True,
+    )
+    country_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Country.objects.all(),
+        source='countries',
+        required=False,
+    )
+
+    class Meta:
+        model = TargetType
+        fields = (
+            'title',
+            'parent_id',
+            'order',
+            'country_ids',
+        )
+
+    def validate(self, attrs):
+        parent = attrs.get('parent')
+        instance = getattr(self, 'instance', None)
+        if instance and parent:
+            if parent.pk == instance.pk:
+                raise serializers.ValidationError(
+                    {'parent_id': 'Тип не может быть родителем самого себя'}
+                )
+            cursor = parent
+            while cursor is not None:
+                if cursor.pk == instance.pk:
+                    raise serializers.ValidationError(
+                        {'parent_id': 'Циклическая иерархия типов объектов'}
+                    )
+                cursor = cursor.parent
+        return attrs
 
 
 class EventTypeSerializer(serializers.ModelSerializer):

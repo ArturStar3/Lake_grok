@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "exported_at": "2026-06-26T05:19:21.829612+00:00",
+  "equipment_count": 49,
+  "images_count": 0,
+  "catalog_file": "catalog.json",
+  "media_dir": "media/equipment",
+  "source": "data.py",
+  "includes_media": false
+}

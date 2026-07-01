@@ -38,7 +38,7 @@
 | События | Вкладка «События»: таблица + оверлеи на карте; CRUD с геометрией в JSON |
 | Информация по стране | Клик по стране на карте → модальное окно; редактирование разделов и вложений |
 | Каталог техники | Справочник образцов (авиация, танки, ЗРК) с ТТХ; CRUD в UI «Справочники»; привязка к объекту с количеством; зоны дальности из каталога |
-| Справочники в UI | Модальное окно «Справочники»: вкладки «Вооружение и техника» и «Типы зон действия» (без Django Admin) |
+| Справочники в UI | Модальное окно «Справочники»: вкладка «Вооружение и техника» (образцы, категории, параметры ТТХ, единицы) и «Типы зон действия» |
 
 **Текущая ветка:** `develop-weaponlist` — каталог вооружения и зоны из ТТХ. Детальный план: [`weaponlist_plan.md`](weaponlist_plan.md).
 
@@ -93,7 +93,7 @@
 | Категория | Технология |
 |-----------|------------|
 | Оркестрация | docker-compose.yml (3 сервиса) |
-| Оффлайн | `export-offline.ps1`, `import-and-start.ps1`, `offline/python-wheels/` |
+| Оффлайн | `export-offline.ps1`, `import-and-start.ps1`, `weaponlist_import.md`, `offline/python-wheels/` |
 | Данные для seed | `Data.xlsx`, папка `Значки/` (SVG-иконки) |
 
 ---
@@ -148,11 +148,11 @@ Lake_grok/
 | `backend/equipment/` | Каталог техники и ТТХ (`db_table=formular_*`) | FK из `formular`; admin + seed |
 | `backend/api/` | REST API (тонкий слой над моделями) | Вызывается фронтендом по `/api/v1/` |
 | `frontend/src/components/Formular/` | Главный orchestrator UI (~475 строк) | axios → backend; props → MapComponent |
-| `frontend/src/components/ReferenceData/` | Модальное окно «Справочники» (техника, типы зон) | CRUD → `/api/v1/equipment/`, `/api/v1/action-types/` |
+| `frontend/src/components/ReferenceData/` | Модальное окно «Справочники» (техника, типы зон, **типы объектов**) | CRUD → `/api/v1/equipment*`, `/api/v1/action-types/`, `/api/v1/target-types/` |
 | `frontend/src/components/TargetEquipment/` | Редактор и отображение техники на объекте | EditTargetModal, FormularModal |
 | `frontend/src/components/MapComponent/` | Leaflet-карта, маркеры, зоны, события | Тайлы ← tileserver; данные ← Formular |
 | `frontend/src/hooks/formular/` | Состояние Formular (targets, events, зоны) | Разгрузка `Formular.jsx` |
-| `frontend/src/hooks/referenceData/` | Админ-хуки справочников в UI | `useEquipmentCatalogAdmin`, `useActionTypesAdmin` |
+| `frontend/src/hooks/referenceData/` | Админ-хуки справочников в UI | `useEquipmentCatalogAdmin`, `useActionTypesAdmin`, `useTargetTypesAdmin` |
 | `frontend/src/hooks/` | Кэш справочников, данные форм | `useReferenceData` → `/api/v1/markers` и др. |
 | `tileserver/` | Оффлайн-карта (растровые тайлы) | Запросы браузера на `:8080` |
 | `offline/` | Wheel-пакеты Python | Резерв для установки без PyPI |
@@ -280,6 +280,7 @@ Country 1──* CountryInfo
 Country 1──* CountryAttachment
 Country 1──* Event
 Country *──* TargetType (M2M)
+TargetType 0..1──* TargetType (parent/order — дерево типов объектов)
 
 Target *──* Equipment (M2M through TargetEquipment: target, equipment, quantity)
 Equipment 1──* EquipmentParameterValue
@@ -303,7 +304,7 @@ Target 0..1──* Target (parent/children)
 | **UnitOfMeasure** | Единицы ТТХ | `title`, `symbol` |
 | **EquipmentParameterDefinition** | Шаблон показателя | `code`, `unit`, M2M `categories`, FK `action_type` |
 | **Equipment** | Образец техники | `title`, `designation`, `category`, `origin_country` |
-| **EquipmentImage** | Изображение образца | `equipment`, `title`, `image`, `order` |
+| `EquipmentImage` | Изображение образца | `equipment`, `title`, `image`, `order` |
 | **EquipmentParameterValue** | Значение ТТХ | `equipment`, `parameter`, `value` (float) |
 
 **Зоны из каталога:** `Equipment.catalog_zone_values()` — параметры с `action_type` и `value > 0`.
@@ -321,7 +322,8 @@ Target 0..1──* Target (parent/children)
 
 | Модель | Назначение |
 |--------|------------|
-| **Country**, **Marker**, **TargetType**, **ActionType** | Справочники |
+| **Country**, **Marker**, **ActionType** | Справочники |
+| **TargetType** | Справочник типов объектов: `title`, M2M `countries`, дерево `parent` + `order` |
 | **Target** | Объект разведки: `lat`, `lng`, FK country/marker/type/parent |
 | **TargetAction** | Ручная зона: `action_type`, `radius` (км) |
 | **Event**, **Formular**, **CountryInfo** | События и текстовый контент |
@@ -400,18 +402,36 @@ Target 0..1──* Target (parent/children)
 | **Ответ** | `{id, title, color, line_type}` |
 | **UI** | Вкладка «Типы зон действия» в `ReferenceDataModal` |
 
-#### `GET /api/v1/equipment-categories/`
+#### `GET/POST/PUT/PATCH/DELETE /api/v1/equipment-categories/`
 
 | | |
 |---|---|
-| **Назначение** | Категории техники (read-only) |
+| **Назначение** | CRUD категорий техники (дерево) |
+| **Тело (write)** | `{title, parent_id, order}` |
+| **Ответ (read)** | `{id, title, parent, order}` |
+| **UI** | Подвкладка «Категории» в `EquipmentReferencePanel` |
+| **Удаление** | 400 если есть подкатегории или образцы в категории |
 
-#### `GET /api/v1/equipment-parameters/`
+#### `GET/POST/PUT/PATCH/DELETE /api/v1/equipment-units/`
 
 | | |
 |---|---|
-| **Назначение** | Определения параметров ТТХ (read-only) |
+| **Назначение** | CRUD единиц измерения ТТХ |
+| **Тело** | `{title, symbol}` (`symbol` уникален) |
+| **UI** | Подвкладка «Единицы измерения» в `EquipmentReferencePanel` |
+| **Удаление** | 400 если единица используется в параметрах |
+
+#### `GET/POST/PUT/PATCH/DELETE /api/v1/equipment-parameters/`
+
+| | |
+|---|---|
+| **Назначение** | CRUD шаблонов параметров ТТХ |
 | **Query** | `?maps_to_zone=true` — только с `action_type`; `?category=<id>` |
+| **Тело (write)** | `{title, code, help_text, unit_id, action_type_id, category_ids: [int]}` |
+| **Ответ (read)** | + `categories[]`, `category_ids[]`; nested `unit`, `action_type` |
+| **UI** | Подвкладка «Параметры ТТХ» в `EquipmentReferencePanel` |
+| **Валидация** | `code` — snake_case; зона → unit «км»/«km» обязателен |
+| **Удаление** | 400 если есть значения на образцах |
 
 #### `GET/POST/PUT/PATCH/DELETE /api/v1/equipment/`
 
@@ -431,12 +451,16 @@ Target 0..1──* Target (parent/children)
 | **Ответ** | `{id, equipment, title, image, order, created_at}` |
 | **Сервисы** | `EquipmentViewSet`; write — `EquipmentWriteSerializer` + `equipment_utils.replace_equipment_parameter_values` |
 
-#### `GET /api/v1/target-types/`
+#### `GET/POST/PUT/PATCH/DELETE /api/v1/target-types/`
 
 | | |
 |---|---|
-| **Назначение** | Типы объектов + список country PK |
-| **Ответ** | `{id, title, countries: [int]}` |
+| **Назначение** | CRUD типов объектов (дерево) |
+| **Тело (write)** | `{title, parent_id, order, country_ids}` (`country_ids` — M2M; пустой список = все страны) |
+| **Ответ (read)** | `{id, title, parent, order, countries: [int]}` |
+| **Вложенный в targets** | `TargetTypeBriefSerializer`: `{id, title, parent}` |
+| **UI** | Вкладка «Типы объектов» в `ReferenceDataModal` |
+| **Удаление** | 400 если есть дочерние типы или объекты (`Target.type`) |
 
 #### `GET/POST/PUT/PATCH/DELETE /api/v1/event-types/`
 
@@ -515,7 +539,7 @@ Target 0..1──* Target (parent/children)
 - `/admin/` — **django-unfold** (русская навигация, вкладки inline, autocomplete).
 - Отдельный раздел **«Техника»** (`equipment` app); редиректы со старых URL: `equipment/admin_redirects.py`.
 - **Target** — вкладки: общее, действия, **вооружение и техника** (`TargetEquipment` + `quantity`), формуляр, подчинённые.
-- **Фронтенд:** кнопка «Справочники» в `Formular` → `ReferenceDataModal` (CRUD техники и типов зон без админки).
+- **Фронтенд:** кнопка «Справочники» в `Formular` → `ReferenceDataModal` (CRUD техники, типов зон и **типов объектов** без админки).
 - Ссылка «Открыть сайт» → `FRONTEND_URL` (карта, по умолчанию `http://localhost:5173`).
 
 ---
@@ -527,7 +551,8 @@ Target 0..1──* Target (parent/children)
 - Иерархия через `parent` → `children`; API отдаёт `children_count`.
 - При создании/обновлении `actions` — связка тип действия + радиус (км); старые actions удаляются и пересоздаются.
 - Фильтр `?parent=` для получения прямых потомков.
-- Тип объекта (`TargetType`) может быть ограничен странами через M2M; пустой список = все страны.
+- Тип объекта (`TargetType`) — **дерево** (`parent`, `order`); CRUD в UI и API. Может быть ограничен странами через M2M; пустой список = все страны.
+- Таблица объектов группирует: страна → дерево типов (`ObjectsTable` + `targetTypeTree.js`). Фильтр по типу каскадный: выбор родителя включает потомков (`FilterPanel`).
 
 ### Зоны действия
 
@@ -725,7 +750,7 @@ AI обязан:
 | Новое поле объекта | `formular/models.py` → migration → `serializers.py` → `Formular.jsx`, модалки |
 | Новый API endpoint | `api/views.py` → `api/urls.py` → `frontend/src/config` + вызов в компоненте |
 | Каталог техники / ТТХ | `equipment/models.py` → migration → `api/` + `equipment_utils.py` → `ReferenceData` / admin |
-| CRUD справочников в UI | `ReferenceDataModal`, `hooks/referenceData/*`, invalidate кэша |
+| CRUD справочников в UI | `ReferenceDataModal`, `EquipmentReferencePanel`, `hooks/referenceData/*`, invalidate кэша |
 | Логика зон техники | `buildVisibleZones.js`, `target_utils.serialize_deployed_equipment` |
 | Справочник (read-кэш) | `useReferenceData.js`, `subscribeReferenceDataInvalidation` |
 | Оффлайн-деплой | `docker-compose.yml`, Dockerfiles, `docker_instruction.md` |
@@ -751,21 +776,35 @@ AI обязан:
 | `backend/api/views.py` | ViewSets, бизнес-логика API | Критическая |
 | `frontend/src/components/Formular/Formular.jsx` | Главный orchestrator UI (~475 строк, хуки в `hooks/formular/`) | Критическая |
 | `frontend/src/components/ReferenceData/ReferenceDataModal.jsx` | Модальное окно «Справочники» | Высокая |
-| `frontend/src/components/ReferenceData/EquipmentCatalogPanel.jsx` | CRUD каталога техники в UI | Высокая |
+| `frontend/src/components/ReferenceData/EquipmentReferencePanel.jsx` | Подвкладки каталога: образцы, категории, параметры, единицы | Высокая |
+| `frontend/src/components/ReferenceData/EquipmentCatalogPanel.jsx` | CRUD образцов техники в UI | Высокая |
+| `frontend/src/components/ReferenceData/EquipmentCategoriesPanel.jsx` | CRUD категорий техники в UI | Высокая |
+| `frontend/src/components/ReferenceData/EquipmentParametersPanel.jsx` | CRUD шаблонов ТТХ в UI | Высокая |
+| `frontend/src/components/ReferenceData/EquipmentUnitsPanel.jsx` | CRUD единиц измерения в UI | Высокая |
 | `frontend/src/components/ReferenceData/ActionTypesPanel.jsx` | CRUD типов зон действия в UI | Высокая |
+| `frontend/src/components/ReferenceData/TargetTypesPanel.jsx` | CRUD типов объектов (дерево) в UI | Высокая |
 | `frontend/src/components/TargetEquipment/TargetEquipmentEditor.jsx` | Редактор техники на объекте | Высокая |
 | `frontend/src/components/TargetEquipment/DeployedEquipmentDisplay.jsx` | ТТХ и зоны в FormularModal | Высокая |
 | `frontend/src/components/TargetEquipment/EquipmentAutocomplete.jsx` | Поиск образца при добавлении | Средняя |
 | `backend/api/equipment_utils.py` | Замена `parameter_values` при write equipment | Высокая |
 | `backend/api/target_utils.py` | `serialize_deployed_equipment`, bulk actions/equipment | Высокая |
-| `frontend/src/hooks/referenceData/useEquipmentCatalogAdmin.js` | API-логика каталога в UI | Высокая |
+| `frontend/src/hooks/referenceData/useEquipmentCatalogAdmin.js` | API-логика образцов в UI | Высокая |
+| `frontend/src/hooks/referenceData/useEquipmentCategoriesAdmin.js` | API-логика категорий в UI | Высокая |
+| `frontend/src/hooks/referenceData/useEquipmentParametersAdmin.js` | API-логика параметров ТТХ в UI | Высокая |
+| `frontend/src/hooks/referenceData/useEquipmentUnitsAdmin.js` | API-логика единиц измерения в UI | Средняя |
 | `frontend/src/hooks/referenceData/useActionTypesAdmin.js` | API-логика типов зон в UI | Высокая |
+| `frontend/src/hooks/referenceData/useTargetTypesAdmin.js` | API-логика типов объектов в UI | Высокая |
 | `frontend/src/hooks/useDeployedEquipmentArray.js` | Массив `deployed_equipment` в формах | Средняя |
 | `frontend/src/utils/equipmentCatalogUtils.js` | Поиск и подписи образцов | Средняя |
 | `backend/api/serializers.py` | Сериализация / десериализация | Критическая |
 | `backend/formular/models.py` | ОР, события, формуляры, TargetEquipment | Критическая |
 | `backend/equipment/models.py` | Каталог техники и ТТХ | Критическая |
 | `backend/equipment/admin.py` | Админка каталога | Высокая |
+| `backend/equipment/catalog/data.py` | 49 образцов: ВВС, СВ, ПВО, ВМФ (СНГ, NATO, EU, США) | Высокая |
+| `backend/equipment/catalog/data_images.py` | Источники фото (Wikimedia Commons) | Высокая |
+| `backend/equipment/catalog/loader.py` | Загрузка, экспорт, импорт, очистка | Высокая |
+| `backend/equipment/catalog/fixtures/` | catalog.json + manifest.json (данные без фото) | Высокая |
+| `backend/equipment/catalog/EQUIPMENT_CATALOG_OFFLINE.md` | Оффлайн: загрузка, фикстуры, экспорт, удаление | Высокая |
 | `backend/equipment/management/commands/seed_equipment_demo.py` | Демо-данные техники | Средняя |
 | `backend/infolake/unfold_settings.py` | Настройки django-unfold | Высокая |
 | `backend/infolake/admin_base.py` | Базовый ModelAdmin / TabularInline | Средняя |
@@ -792,6 +831,10 @@ AI обязан:
 | `frontend/src/utils/buildVisibleZones.js` | Сбор зон: `actions[]` + `deployed_equipment[].zones[]` | Высокая |
 | `frontend/src/utils/circleIntersection.js` | Геометрия пересечений зон | Высокая |
 | `frontend/src/utils/markerFilters.js` | Фильтрация маркеров | Средняя |
+| `frontend/src/utils/targetTypeTree.js` | Дерево типов объектов: build/flatten, группировка таблицы, каскадный фильтр | Высокая |
+| `frontend/src/components/ObjectsTable/ObjectsTable.jsx` | Таблица объектов: группировка страна → дерево типов | Высокая |
+| `frontend/src/components/FilterPanel/FilterPanel.jsx` | Фильтры объектов, каскадный фильтр по типу | Высокая |
+| `backend/formular/migrations/0041_targettype_parent_order.py` | Миграция: `TargetType.parent`, `order` | Высокая |
 | `frontend/vite.config.js` | Vite dev/HMR | Высокая |
 | `frontend/package.json` | NPM-зависимости | Высокая |
 | `tileserver/config.json` | Конфиг TileServer GL | Высокая |
@@ -820,6 +863,7 @@ AI обязан:
 | Карта | `buildVisibleZones.js` — зоны из каталога + ручные actions |
 | Админка | django-unfold, вкладка «Вооружение и техника», autocomplete |
 | Seed | `python manage.py seed_equipment_demo` |
+| Каталог (полный) | `load_equipment_catalog` (без фото по умолчанию), `build_equipment_catalog_fixture`, `import/export/clear_equipment_catalog` — см. `equipment/catalog/EQUIPMENT_CATALOG_OFFLINE.md` |
 
 ### Сделано (фаза 2 — UI)
 
@@ -829,16 +873,27 @@ AI обязан:
 | Detail specs | `specs[]` в `deployed_equipment` только в `TargetSerializer` (retrieve) |
 | EditTargetModal | Вкладка «Вооружение и техника», `TargetEquipmentEditor`, autocomplete |
 | FormularModal | `DeployedEquipmentDisplay` — quantity, ТТХ, зоны |
-| Справочники UI | `ReferenceDataModal`: CRUD каталога техники + типов зон действия |
+| Справочники UI | `ReferenceDataModal` + `EquipmentReferencePanel`: CRUD образцов, категорий, параметров ТТХ, единиц; типы зон; **типы объектов (дерево)** |
 | Formular | Рефакторинг (~475 строк), хуки в `hooks/formular/` |
 | Стабильность | Инвалидация кэша справочников, защита от гонок запросов |
+| Схема каталога | `EquipmentReferencePanel`: CRUD категорий, параметров ТТХ, единиц измерения; write API |
 | Fullscreen | Пункт «Зоны действия» убран из меню «Инструменты» (доступ через вкладку сайдбара) |
+
+| Дерево типов объектов | `TargetType.parent/order`, CRUD API + `TargetTypesPanel`; `ObjectsTable` / `FilterPanel` / Add-Edit modals через `targetTypeTree.js` |
+
+### Ручной тест-план: дерево типов объектов
+
+1. «Справочники → Типы объектов»: создать «СВ» → дочерний «Танки».
+2. Назначить объектам разные типы; в таблице: страна → СВ → Танки → объекты.
+3. Фильтр: выбрать «СВ» — видны объекты и «Танки», и прямо «СВ».
+4. «Свернуть/развернуть все» — корректно для вложенных типов.
+5. Удаление типа с объектами или с дочерними — ошибка в UI.
 
 ### Возможные следующие шаги
 
 1. Пагинация или серверный поиск `/equipment/` при росте каталога.
-2. CRUD категорий техники и шаблонов параметров ТТХ в UI (сейчас — read API + Django Admin).
-3. Автотесты API для `deployed_equipment` и справочников.
+2. CRUD маркеров, типов событий, разделов формуляра и стран в UI «Справочники».
+3. Автотесты API для `deployed_equipment` и справочников техники.
 
 ### Команды для старта сессии
 
@@ -867,4 +922,4 @@ docker compose exec backend python manage.py seed_equipment_demo
 
 ---
 
-*Документ обновлён под ветку `develop-weaponlist`. Дата: 2026-06-25.*
+*Документ обновлён под ветку `develop-weaponlist`. Дата: 2026-06-29.*

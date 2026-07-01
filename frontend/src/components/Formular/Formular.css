@@ -407,6 +407,20 @@
     font-size: 14px;
     color: #0f172a;
     transition: background-color 0.15s ease;
+    list-style: none;
+}
+
+.country-header::before {
+    content: '▸';
+    flex-shrink: 0;
+    width: 12px;
+    color: #64748b;
+    font-size: 12px;
+    transition: transform 0.15s ease;
+}
+
+.country-group[open] > .country-header::before {
+    content: '▾';
 }
 
 .country-header:hover {
@@ -513,8 +527,12 @@
     outline: none;
 }
 
-.branch-group summary::-webkit-details-marker {
-    display: none;
+.branch-group--nested {
+    margin-top: 4px;
+}
+
+.branch-group--nested .branch-header {
+    background: #f8fafc;
 }
 
 .branch-header {
@@ -529,6 +547,19 @@
     font-size: 13px;
     color: #334155;
     transition: background-color 0.15s ease;
+    list-style: none;
+}
+
+.branch-header::before {
+    content: '▸';
+    flex-shrink: 0;
+    width: 10px;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.branch-group[open] > .branch-header::before {
+    content: '▾';
 }
 
 .branch-header:hover {

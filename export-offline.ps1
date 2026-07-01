@@ -1,37 +1,48 @@
 # export-offline.ps1
-# Экспорт Docker-образов для полностью оффлайн-развёртывания
+# Export Docker images for fully offline deployment
 param(
     [string]$OutputDir = ".",
-    [switch]$NoCache
+    [switch]$NoCache,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Сборка образов (оффлайн-экспорт) ===" -ForegroundColor Cyan
+if (-not $SkipBuild) {
+    Write-Host "=== Building images ===" -ForegroundColor Cyan
 
-$buildArgs = @()
-if ($NoCache) { $buildArgs += "--no-cache" }
+    $buildArgs = @()
+    if ($NoCache) { $buildArgs += "--no-cache" }
 
-docker compose build @buildArgs
+    docker compose build @buildArgs
+} else {
+    Write-Host "=== Skip build (--SkipBuild) ===" -ForegroundColor DarkGray
+}
 
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $tarName = "infolake_full_offline_$timestamp.tar"
 $fullPath = Join-Path $OutputDir $tarName
+$stablePath = Join-Path $OutputDir "infolake_full_offline.tar"
 
-Write-Host "`nСохраняем образы в файл: $fullPath" -ForegroundColor Yellow
-
-Write-Host "Получаем список образов из docker-compose.yml..." -ForegroundColor DarkGray
+Write-Host "`nReading images from docker-compose.yml..." -ForegroundColor DarkGray
 $images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
 
 if (-not $images) {
-    Write-Host "Не удалось найти образы в docker-compose.yml" -ForegroundColor Red
+    Write-Host "No images found in docker-compose.yml" -ForegroundColor Red
     exit 1
 }
 
-docker save -o $fullPath $images
+Write-Host "Images: $($images -join ', ')" -ForegroundColor DarkGray
 
-$size = (Get-Item $fullPath).Length / 1MB
-Write-Host "`nГотово!" -ForegroundColor Green
-Write-Host "Файл: $fullPath"
-Write-Host ("Размер: {0:N1} MB" -f $size)
-Write-Host "`nСкопируй этот .tar файл на целевую машину."
+Write-Host "`nSaving to: $stablePath" -ForegroundColor Yellow
+docker save -o $stablePath $images
+
+Copy-Item -Force $stablePath $fullPath
+
+$size = (Get-Item $stablePath).Length / 1MB
+Write-Host "`nDone!" -ForegroundColor Green
+Write-Host "  Stable:    $stablePath"
+Write-Host "  Timestamp: $fullPath"
+Write-Host ("  Size: {0:N1} MB" -f $size)
+Write-Host "`nCopy infolake_full_offline.tar and project folder to the target machine."
+Write-Host "See weaponlist_import.md for full offline migration guide."

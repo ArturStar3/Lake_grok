@@ -330,6 +330,18 @@ class TargetType(models.Model):
         max_length=150,
         verbose_name='Тип объекта разведки'
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name='Родительский тип',
+    )
+    order = models.PositiveSmallIntegerField(
+        verbose_name='Порядок',
+        default=1,
+    )
     countries = models.ManyToManyField(
         Country,
         blank=True,
@@ -344,7 +356,21 @@ class TargetType(models.Model):
         indexes = [
             models.Index(fields=('title',)),
         ]
-        ordering = ['title']
+        ordering = ['order', 'title']
+
+    def clean(self):
+        if self.parent_id:
+            if self.parent_id == self.pk:
+                raise ValidationError(
+                    {'parent': 'Тип не может быть родителем самого себя'}
+                )
+            cursor = self.parent
+            while cursor is not None:
+                if cursor.pk == self.pk:
+                    raise ValidationError(
+                        {'parent': 'Циклическая иерархия типов объектов'}
+                    )
+                cursor = cursor.parent
 
     def __str__(self):
         return self.title

@@ -1,5 +1,5 @@
 # import-and-start.ps1
-# Импорт Docker-образов и запуск на целевой машине (без интернета)
+# Import Docker images and start on target machine (offline)
 param(
     [string]$TarFile = ""
 )
@@ -7,22 +7,29 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not $TarFile) {
-    $TarFile = Get-ChildItem -Filter "infolake_full_offline_*.tar" | 
-               Sort-Object LastWriteTime -Descending | 
-               Select-Object -First 1 | 
-               Select-Object -ExpandProperty FullName
+    if (Test-Path "infolake_full_offline.tar") {
+        $TarFile = (Resolve-Path "infolake_full_offline.tar").Path
+    } else {
+        $TarFile = Get-ChildItem -Filter "infolake_full_offline_*.tar" |
+                   Sort-Object LastWriteTime -Descending |
+                   Select-Object -First 1 |
+                   Select-Object -ExpandProperty FullName
+    }
 }
 
-if (-not (Test-Path $TarFile)) {
-    Write-Host "Файл архива не найден!" -ForegroundColor Red
+if (-not $TarFile -or -not (Test-Path $TarFile)) {
+    Write-Host "Archive not found (infolake_full_offline.tar)" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Загружаем образы из: $TarFile" -ForegroundColor Cyan
+Write-Host "Loading images from: $TarFile" -ForegroundColor Cyan
 docker load -i $TarFile
 
-Write-Host "`nЗапускаем контейнеры (--no-build)..." -ForegroundColor Cyan
+Write-Host "`nStarting containers (--no-build)..." -ForegroundColor Cyan
 docker compose up -d --no-build
 
-Write-Host "`nСтатус:" -ForegroundColor Green
+Write-Host "`nStatus:" -ForegroundColor Green
 docker compose ps
+
+Write-Host "`nNext: import equipment catalog (see weaponlist_import.md section 6):"
+Write-Host "  docker compose exec backend python manage.py import_equipment_catalog --input equipment/catalog/fixtures"

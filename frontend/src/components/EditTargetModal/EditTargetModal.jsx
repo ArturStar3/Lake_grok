@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { addColorClassToSvg } from '../../utils/svgUtils';
 import { useActionsArray } from '../../hooks/useActionsArray';
@@ -6,6 +6,12 @@ import { useDeployedEquipmentArray } from '../../hooks/useDeployedEquipmentArray
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
 import { fetchReferenceData, subscribeReferenceDataInvalidation } from '../../hooks/useReferenceData';
 import TargetEquipmentEditor from '../TargetEquipment/TargetEquipmentEditor';
+import {
+    buildTargetTypeTree,
+    flattenTargetTypeTree,
+    formatTypeOptionLabel,
+    filterTargetTypesForCountry,
+} from '../../utils/targetTypeTree';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
 
@@ -44,6 +50,11 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    const typeSelectOptions = useMemo(() => {
+        const applicable = filterTargetTypesForCountry(targetTypes, formData.country);
+        return flattenTargetTypeTree(buildTargetTypeTree(applicable));
+    }, [targetTypes, formData.country]);
     
     // Хуки для управления actions
     const { handleAddAction, handleRemoveAction, handleActionChange } = useActionsArray(formData, setFormData);
@@ -714,9 +725,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                             className={`edit-target-modal__select ${errors.type ? 'edit-target-modal__input--error' : ''}`}
                                         >
                                             <option value="">Выберите тип</option>
-                                            {targetTypes.map((type) => (
-                                                <option key={type.id} value={type.id}>
-                                                    {type.title}
+                                            {typeSelectOptions.map(({ node, depth }) => (
+                                                <option key={node.id} value={node.id}>
+                                                    {formatTypeOptionLabel(node.title, depth)}
                                                 </option>
                                             ))}
                                         </select>

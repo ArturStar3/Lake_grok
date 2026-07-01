@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   filterEquipmentCatalog,
   formatEquipmentLabel,
@@ -7,6 +8,27 @@ import {
 import './EquipmentAutocomplete.css';
 
 const RESULT_LIMIT = 50;
+const LIST_Z_INDEX = 13000;
+
+function computeListPosition(inputEl) {
+  if (!inputEl) return null;
+  const rect = inputEl.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom - 12;
+  const spaceAbove = rect.top - 12;
+  const maxHeight = Math.min(260, Math.max(spaceBelow, spaceAbove, 120));
+  const openUpward = spaceBelow < 160 && spaceAbove > spaceBelow;
+
+  return {
+    position: 'fixed',
+    left: rect.left,
+    width: rect.width,
+    zIndex: LIST_Z_INDEX,
+    maxHeight,
+    ...(openUpward
+      ? { bottom: window.innerHeight - rect.top + 4 }
+      : { top: rect.bottom + 4 }),
+  };
+}
 
 export default function EquipmentAutocomplete({
   catalog = [],
@@ -21,9 +43,11 @@ export default function EquipmentAutocomplete({
   const listId = useId();
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const listRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const [listStyle, setListStyle] = useState(null);
 
   const numericValue = value ? parseInt(value, 10) : null;
   const availableCatalog = catalog.filter(
@@ -64,13 +88,31 @@ export default function EquipmentAutocomplete({
   useEffect(() => {
     if (!isOpen) return undefined;
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        close();
-      }
+      if (containerRef.current?.contains(e.target)) return;
+      if (listRef.current?.contains(e.target)) return;
+      close();
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, close]);
+
+  const updateListPosition = useCallback(() => {
+    setListStyle(computeListPosition(inputRef.current));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setListStyle(null);
+      return undefined;
+    }
+    updateListPosition();
+    window.addEventListener('resize', updateListPosition);
+    window.addEventListener('scroll', updateListPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateListPosition);
+      window.removeEventListener('scroll', updateListPosition, true);
+    };
+  }, [isOpen, search, filtered.length, updateListPosition]);
 
   useEffect(() => {
     if (isOpen) {
@@ -115,6 +157,49 @@ export default function EquipmentAutocomplete({
 
   const displayValue = isOpen ? search : (selected ? formatEquipmentLabel(selected) : search);
 
+  const listContent = isOpen && listStyle ? (
+    <ul
+      ref={listRef}
+      className="equipment-autocomplete__list equipment-autocomplete__list--portal"
+      id={listId}
+      role="listbox"
+      style={listStyle}
+    >
+      {filtered.length === 0 ? (
+        <li className="equipment-autocomplete__empty">Ничего не найдено</li>
+      ) : (
+        filtered.map((item, index) => (
+          <li key={item.id} role="presentation">
+            <button
+              type="button"
+              role="option"
+              aria-selected={index === highlightIndex}
+              className={`equipment-autocomplete__option${
+                index === highlightIndex ? ' equipment-autocomplete__option--active' : ''
+              }${numericValue === item.id ? ' equipment-autocomplete__option--selected' : ''}`}
+              onMouseEnter={() => setHighlightIndex(index)}
+              onClick={() => selectItem(item)}
+            >
+              <span className="equipment-autocomplete__option-title">
+                {formatEquipmentLabel(item)}
+              </span>
+              {formatEquipmentSubtitle(item) && (
+                <span className="equipment-autocomplete__option-meta">
+                  {formatEquipmentSubtitle(item)}
+                </span>
+              )}
+            </button>
+          </li>
+        ))
+      )}
+      {totalMatches > RESULT_LIMIT && (
+        <li className="equipment-autocomplete__hint">
+          Показано {RESULT_LIMIT} из {totalMatches}. Уточните запрос.
+        </li>
+      )}
+    </ul>
+  ) : null;
+
   return (
     <div
       className={`equipment-autocomplete${error ? ' equipment-autocomplete--error' : ''}${
@@ -155,42 +240,7 @@ export default function EquipmentAutocomplete({
         )}
       </div>
 
-      {isOpen && (
-        <ul className="equipment-autocomplete__list" id={listId} role="listbox">
-          {filtered.length === 0 ? (
-            <li className="equipment-autocomplete__empty">Ничего не найдено</li>
-          ) : (
-            filtered.map((item, index) => (
-              <li key={item.id} role="presentation">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={index === highlightIndex}
-                  className={`equipment-autocomplete__option${
-                    index === highlightIndex ? ' equipment-autocomplete__option--active' : ''
-                  }${numericValue === item.id ? ' equipment-autocomplete__option--selected' : ''}`}
-                  onMouseEnter={() => setHighlightIndex(index)}
-                  onClick={() => selectItem(item)}
-                >
-                  <span className="equipment-autocomplete__option-title">
-                    {formatEquipmentLabel(item)}
-                  </span>
-                  {formatEquipmentSubtitle(item) && (
-                    <span className="equipment-autocomplete__option-meta">
-                      {formatEquipmentSubtitle(item)}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))
-          )}
-          {totalMatches > RESULT_LIMIT && (
-            <li className="equipment-autocomplete__hint">
-              Показано {RESULT_LIMIT} из {totalMatches}. Уточните запрос.
-            </li>
-          )}
-        </ul>
-      )}
+      {listContent && createPortal(listContent, document.body)}
 
       {error && <span className="equipment-autocomplete__error">{error}</span>}
     </div>

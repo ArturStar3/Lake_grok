@@ -7,7 +7,7 @@ import {
 import { filterEquipmentCatalog, formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
 import './EquipmentCatalogPanel.css';
 
-export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = null }) {
+export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = null, schemaVersion = 0 }) {
   const {
     items,
     categories,
@@ -20,7 +20,7 @@ export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = n
     deleteItem,
     uploadImages,
     deleteImage,
-  } = useEquipmentCatalogAdmin(isActive);
+  } = useEquipmentCatalogAdmin(isActive, schemaVersion);
 
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);

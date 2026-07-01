@@ -1,7 +1,22 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import {
+    getTypesPresentInObjects,
+    collectDescendantTypeTitles,
+    formatTypeOptionLabel,
+    getAllTypeTitlesInObjects,
+} from '../../utils/targetTypeTree';
 import './FilterPanel.css';
 
-export default function FilterPanel({ objects, filterCountry, onFilterCountryChange, filterType, onFilterTypeChange, filterTitle, onFilterTitleChange }) {
+export default function FilterPanel({
+    objects,
+    targetTypes = [],
+    filterCountry,
+    onFilterCountryChange,
+    filterType,
+    onFilterTypeChange,
+    filterTitle,
+    onFilterTitleChange,
+}) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -24,18 +39,44 @@ export default function FilterPanel({ objects, filterCountry, onFilterCountryCha
         return [...new Set([...selected, ...matched])];
     }, [countries, countrySearch, filterCountry]);
 
-    const types = useMemo(() => {
-        const uniqueTypes = objects
-            .map(obj => obj.type?.title)
-            .filter(Boolean);
-        return [...new Set(uniqueTypes)].sort();
-    }, [objects]);
+    const typesPresent = useMemo(
+        () => getTypesPresentInObjects(objects, targetTypes),
+        [objects, targetTypes],
+    );
+
+    const allTypeTitles = useMemo(
+        () => getAllTypeTitlesInObjects(objects),
+        [objects],
+    );
 
     const filteredTypes = useMemo(() => {
-        if (!typeSearch.trim()) return types;
+        if (!typeSearch.trim()) return typesPresent;
         const needle = typeSearch.trim().toLowerCase();
-        return types.filter((type) => type.toLowerCase().includes(needle));
-    }, [types, typeSearch]);
+        return typesPresent.filter(({ node }) =>
+            (node.title || '').toLowerCase().includes(needle),
+        );
+    }, [typesPresent, typeSearch]);
+
+    const isTypeGroupChecked = (typeId) => {
+        const titles = collectDescendantTypeTitles(typeId, targetTypes);
+        return titles.length > 0 && titles.every((t) => filterType.includes(t));
+    };
+
+    const isTypeGroupIndeterminate = (typeId) => {
+        const titles = collectDescendantTypeTitles(typeId, targetTypes);
+        const selected = titles.filter((t) => filterType.includes(t));
+        return selected.length > 0 && selected.length < titles.length;
+    };
+
+    const handleTypeGroupToggle = (typeId) => {
+        const titles = collectDescendantTypeTitles(typeId, targetTypes);
+        const allSelected = titles.every((t) => filterType.includes(t));
+        if (allSelected) {
+            onFilterTypeChange(filterType.filter((t) => !titles.includes(t)));
+        } else {
+            onFilterTypeChange([...new Set([...filterType, ...titles])]);
+        }
+    };
 
     const handleCountryToggle = (country) => {
         if (filterCountry.includes(country)) {
@@ -216,7 +257,7 @@ export default function FilterPanel({ objects, filterCountry, onFilterCountryCha
                                 <span className="filter-panel__multi-select-text">
                                     {filterType.length === 0
                                         ? 'Все типы'
-                                        : filterType.length === types.length
+                                        : filterType.length === allTypeTitles.length
                                         ? 'Все типы'
                                         : `Выбрано: ${filterType.length}`}
                                 </span>
@@ -237,16 +278,16 @@ export default function FilterPanel({ objects, filterCountry, onFilterCountryCha
                                         <button
                                             className="filter-panel__select-all"
                                             onClick={() => {
-                                                if (filterType.length === types.length) {
+                                                if (filterType.length === allTypeTitles.length) {
                                                     onFilterTypeChange([]);
                                                 } else {
-                                                    onFilterTypeChange([...types]);
+                                                    onFilterTypeChange([...allTypeTitles]);
                                                 }
                                             }}
                                             type="button"
                                         >
-                                            {filterType.length === types.length 
-                                                ? 'Снять все' 
+                                            {filterType.length === allTypeTitles.length
+                                                ? 'Снять все'
                                                 : 'Выбрать все'}
                                         </button>
                                     </div>
@@ -263,25 +304,25 @@ export default function FilterPanel({ objects, filterCountry, onFilterCountryCha
                                         {filteredTypes.length === 0 && (
                                             <div className="filter-panel__no-results">Ничего не найдено</div>
                                         )}
-                                        {filteredTypes.map(type => (
-                                            <label 
-                                                key={type} 
+                                        {filteredTypes.map(({ node, depth }) => (
+                                            <label
+                                                key={node.id}
                                                 className="filter-panel__checkbox-label"
+                                                style={{ paddingLeft: `${8 + depth * 14}px` }}
                                             >
                                                 <input
                                                     type="checkbox"
                                                     className="filter-panel__checkbox"
-                                                    checked={filterType.includes(type)}
-                                                    onChange={() => {
-                                                        if (filterType.includes(type)) {
-                                                            onFilterTypeChange(filterType.filter(t => t !== type));
-                                                        } else {
-                                                            onFilterTypeChange([...filterType, type]);
+                                                    checked={isTypeGroupChecked(node.id)}
+                                                    ref={(el) => {
+                                                        if (el) {
+                                                            el.indeterminate = isTypeGroupIndeterminate(node.id);
                                                         }
                                                     }}
+                                                    onChange={() => handleTypeGroupToggle(node.id)}
                                                 />
                                                 <span className="filter-panel__checkbox-text">
-                                                    {type}
+                                                    {formatTypeOptionLabel(node.title, depth)}
                                                 </span>
                                             </label>
                                         ))}

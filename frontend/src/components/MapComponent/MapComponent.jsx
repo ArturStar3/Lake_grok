@@ -528,6 +528,7 @@ function MapComponent({
     onFilterTypeChange,
     filterTitle = "",
     onFilterTitleChange,
+    targetTypes = [],
     countriesList = [],
     eventTypesList = [],
     eventsFilters = { title: "", dateFrom: "", dateTo: "", timeFrom: "", timeTo: "", countries: [], eventTypes: [] },
@@ -1515,6 +1516,7 @@ function MapComponent({
                             <>
                                 <FilterPanel
                                     objects={zoneObjects.length > 0 ? zoneObjects : objects}
+                                    targetTypes={targetTypes}
                                     filterCountry={filterCountry}
                                     onFilterCountryChange={onFilterCountryChange}
                                     filterType={filterType}
@@ -1524,6 +1526,7 @@ function MapComponent({
                                 />
                                 <ObjectsTable
                                     data={objects}
+                                    targetTypes={targetTypes}
                                     selectedObj={selectedObj}
                                     onCheckboxChange={onCheckboxChange}
                                     onTitleClick={onMarkerClick}

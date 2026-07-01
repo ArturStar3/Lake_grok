@@ -32,7 +32,7 @@ export function equipmentToForm(item) {
   };
 }
 
-export function useEquipmentCatalogAdmin(enabled) {
+export function useEquipmentCatalogAdmin(enabled, schemaVersion = 0) {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [parameters, setParameters] = useState([]);
@@ -77,7 +77,7 @@ export function useEquipmentCatalogAdmin(enabled) {
       controller.abort();
       loadSeqRef.current += 1;
     };
-  }, [enabled, reload]);
+  }, [enabled, reload, schemaVersion]);
 
   const saveItem = useCallback(async (id, payload) => {
     const body = {

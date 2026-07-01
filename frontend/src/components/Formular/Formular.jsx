@@ -18,6 +18,7 @@ import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeome
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
+import { useReferenceData } from "../../hooks/useReferenceData";
 import { useEventsList } from "../../hooks/formular/useEventsList";
 import { useActionZoneState } from "../../hooks/formular/useActionZoneState";
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
@@ -48,6 +49,7 @@ export default function Formular() {
 
     const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
     const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();
+    const { targetTypes } = useReferenceData(true);
     const {
         filterCountry, setFilterCountry,
         filterType, setFilterType,
@@ -292,6 +294,7 @@ export default function Formular() {
                                     )}
                                     <FilterPanel
                                         objects={objects}
+                                        targetTypes={targetTypes}
                                         filterCountry={filterCountry}
                                         onFilterCountryChange={setFilterCountry}
                                         filterType={filterType}
@@ -301,6 +304,7 @@ export default function Formular() {
                                     />
                                     <ObjectsTable
                                         data={tableObjects}
+                                        targetTypes={targetTypes}
                                         selectedObj={selectedObj}
                                         onCheckboxChange={handleCheckboxChange}
                                         onObjectClick={handleObjectClick}
@@ -400,6 +404,7 @@ export default function Formular() {
                                 onFilterTypeChange={setFilterType}
                                 filterTitle={filterTitle}
                                 onFilterTitleChange={setFilterTitle}
+                                targetTypes={targetTypes}
                                 countriesList={countriesList}
                                 eventTypesList={eventTypesList}
                                 eventsFilters={eventsFilters}
@@ -483,6 +488,7 @@ export default function Formular() {
                 isOpen={isReferenceDataOpen}
                 onClose={handleCloseReferenceData}
                 onActionTypesChanged={reloadReferenceLists}
+                onTargetTypesChanged={() => {}}
                 initialEquipmentId={referenceEquipmentId}
             />
         </section>

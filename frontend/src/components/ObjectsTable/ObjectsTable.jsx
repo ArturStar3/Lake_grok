@@ -1,69 +1,211 @@
 
 import { useMemo, useState } from "react";
+import {
+    groupObjectsByCountryAndTypeTree,
+    makeTypeExpandKey,
+    collectAllTypeExpandKeys,
+} from "../../utils/targetTypeTree";
 
-export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onObjectClick, onTitleClick, hoveredTargetId, onRowHover, onEditClick, onDeleteClick }) {
+function ObjectRow({
+    item,
+    selectedObj,
+    onCheckboxChange,
+    onObjectClick,
+    onTitleClick,
+    hoveredTargetId,
+    onRowHover,
+    onEditClick,
+    onDeleteClick,
+}) {
+    return (
+        <div
+            className={`formular__table-row object-row${
+                hoveredTargetId === item.id ? " formular__table-row--hovered" : ""
+            }`}
+        >
+            <div className="formular__table-data">
+                <input
+                    type="checkbox"
+                    name="object"
+                    value={item.id}
+                    checked={selectedObj.includes(item.id)}
+                    onChange={(e) => onCheckboxChange(item.id, e.target.checked)}
+                />
+            </div>
+
+            <div className="formular__table-data formular__table-data--action">
+                <button
+                    className="formular__flyto-btn"
+                    onClick={() => onObjectClick?.(item)}
+                    onMouseEnter={() => onRowHover?.(item.id)}
+                    onMouseLeave={() => onRowHover?.(null)}
+                    aria-label={`Перейти к объекту ${item.title} на карте`}
+                    title="Перейти к объекту на карте"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                            fill="currentColor"
+                        />
+                    </svg>
+                </button>
+            </div>
+
+            <div
+                className="formular__table-data formular__table-data--clickable object-title"
+                onClick={() => onTitleClick?.(item.id)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Открыть формуляр объекта ${item.title}`}
+            >
+                {item.title}
+            </div>
+
+            <div className="formular__table-data formular__table-data--action">
+                <div className="formular__actions-group">
+                    <button
+                        className="formular__action-btn formular__action-btn--edit"
+                        onClick={() => onEditClick?.(item.id)}
+                        aria-label={`Редактировать объект ${item.title}`}
+                        title="Редактировать объект"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                fill="currentColor"
+                            />
+                        </svg>
+                    </button>
+                    <button
+                        className="formular__action-btn formular__action-btn--delete"
+                        onClick={() => onDeleteClick?.(item.id, item.title)}
+                        aria-label={`Удалить объект ${item.title}`}
+                        title="Удалить объект"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                                fill="currentColor"
+                            />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function toggleSetKey(setter, key) {
+    setter((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+    });
+}
+
+function TypeGroupNode({
+    node,
+    countryKey,
+    depth,
+    expandedTypes,
+    onToggleType,
+    selectedSet,
+    onTypeCheckbox,
+    rowProps,
+}) {
+    const typeKey = makeTypeExpandKey(countryKey, node.typeId);
+    const isOpen = expandedTypes.has(typeKey);
+    const typeItemIds = node.allItems.map((i) => i.id);
+    const selectedInType = typeItemIds.filter((id) => selectedSet.has(id));
+    const allInTypeSelected = typeItemIds.length > 0 && selectedInType.length === typeItemIds.length;
+    const someInTypeSelected = selectedInType.length > 0 && !allInTypeSelected;
+
+    return (
+        <details
+            className={`branch-group${depth > 0 ? ' branch-group--nested' : ''}`}
+            style={depth > 0 ? { marginLeft: `${depth * 12}px` } : undefined}
+            open={isOpen}
+        >
+            <summary
+                className="branch-header"
+                onClick={(e) => {
+                    if (e.target.tagName === "INPUT") {
+                        e.stopPropagation();
+                        return;
+                    }
+                    e.preventDefault();
+                    onToggleType(typeKey);
+                }}
+            >
+                <input
+                    type="checkbox"
+                    checked={allInTypeSelected}
+                    ref={(el) => {
+                        if (el) el.indeterminate = someInTypeSelected;
+                    }}
+                    onChange={(e) => {
+                        e.stopPropagation();
+                        onTypeCheckbox(node.allItems, e.target.checked);
+                    }}
+                    aria-label={`Выбрать все объекты типа ${node.title}`}
+                />
+                <span className="branch-name">{node.title}</span>
+                <span className="branch-count">({typeItemIds.length})</span>
+                {someInTypeSelected && (
+                    <span className="branch-partial">({selectedInType.length} выбрано)</span>
+                )}
+            </summary>
+
+            <div className="branch-objects">
+                {node.items.map((item) => (
+                    <ObjectRow key={item.id} item={item} {...rowProps} />
+                ))}
+                {node.children.map((child) => (
+                    <TypeGroupNode
+                        key={child.typeId}
+                        node={child}
+                        countryKey={countryKey}
+                        depth={depth + 1}
+                        expandedTypes={expandedTypes}
+                        onToggleType={onToggleType}
+                        selectedSet={selectedSet}
+                        onTypeCheckbox={onTypeCheckbox}
+                        rowProps={rowProps}
+                    />
+                ))}
+            </div>
+        </details>
+    );
+}
+
+export default function ObjectsTable({
+    data,
+    targetTypes = [],
+    selectedObj,
+    onCheckboxChange,
+    onObjectClick,
+    onTitleClick,
+    hoveredTargetId,
+    onRowHover,
+    onEditClick,
+    onDeleteClick,
+}) {
     const selectedSet = new Set(selectedObj);
 
-    // Группировка по странам, затем по Типу объекта (type -> TargetType)
-    const countryTypeGroups = useMemo(() => {
-        const byCountry = {};
-        for (const item of data) {
-            const countryTitle = item.country?.title || "Без страны";
-            if (!byCountry[countryTitle]) {
-                byCountry[countryTitle] = [];
-            }
-            byCountry[countryTitle].push(item);
-        }
+    const countryTypeGroups = useMemo(
+        () => groupObjectsByCountryAndTypeTree(data, targetTypes),
+        [data, targetTypes],
+    );
 
-        const sortedCountries = Object.keys(byCountry).sort((a, b) =>
-            a.localeCompare(b, "ru")
-        );
-
-        return sortedCountries.map((country) => {
-            const countryItems = byCountry[country];
-            const byType = {};
-            for (const item of countryItems) {
-                const typeTitle = item.type?.title || "Без типа";
-                if (!byType[typeTitle]) {
-                    byType[typeTitle] = [];
-                }
-                byType[typeTitle].push(item);
-            }
-
-            const sortedTypes = Object.keys(byType).sort((a, b) =>
-                a.localeCompare(b, "ru")
-            );
-
-            const types = sortedTypes.map((type) => ({
-                type,
-                items: byType[type],
-            }));
-
-            return {
-                country,
-                types,
-                // Для удобства: плоский список всех items страны
-                allItems: countryItems,
-            };
-        });
-    }, [data]);
-
-    // Состояние для раскрытых групп: страны + типы
     const [expandedCountries, setExpandedCountries] = useState(new Set());
     const [expandedTypes, setExpandedTypes] = useState(new Set());
 
-    const allCountryNames = countryTypeGroups.map(g => g.country);
+    const allCountryKeys = countryTypeGroups.map((g) => g.countryKey);
 
     const expandAll = () => {
-        setExpandedCountries(new Set(allCountryNames));
-        // Раскрываем все типы
-        const allTypeKeys = [];
-        countryTypeGroups.forEach(cg => {
-            cg.types.forEach(tg => {
-                allTypeKeys.push(`${cg.country}|||${tg.type}`);
-            });
-        });
-        setExpandedTypes(new Set(allTypeKeys));
+        setExpandedCountries(new Set(allCountryKeys));
+        setExpandedTypes(new Set(collectAllTypeExpandKeys(countryTypeGroups)));
     };
 
     const collapseAll = () => {
@@ -71,7 +213,6 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
         setExpandedTypes(new Set());
     };
 
-    // Глобальный "выбрать все видимые" (на все отфильтрованные объекты)
     const dataIds = data.map((item) => item.id);
     const isAllSelected = data.length > 0 && dataIds.every((id) => selectedSet.has(id));
 
@@ -80,23 +221,30 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
         dataIds.forEach((id) => onCheckboxChange(id, isChecked));
     };
 
-    // Выбрать/снять все объекты в конкретной стране
     const handleCountryCheckbox = (items, checked) => {
-        items.forEach((item) => {
-            onCheckboxChange(item.id, checked);
-        });
+        items.forEach((item) => onCheckboxChange(item.id, checked));
     };
 
-    // Выбрать/снять все объекты в конкретном типе (внутри страны)
     const handleTypeCheckbox = (items, checked) => {
-        items.forEach((item) => {
-            onCheckboxChange(item.id, checked);
-        });
+        items.forEach((item) => onCheckboxChange(item.id, checked));
+    };
+
+    const toggleCountry = (countryKey) => toggleSetKey(setExpandedCountries, countryKey);
+    const toggleType = (typeKey) => toggleSetKey(setExpandedTypes, typeKey);
+
+    const rowProps = {
+        selectedObj,
+        onCheckboxChange,
+        onObjectClick,
+        onTitleClick,
+        hoveredTargetId,
+        onRowHover,
+        onEditClick,
+        onDeleteClick,
     };
 
     return (
         <div className="formular__data">
-            {/* Верхний чекбокс на все видимые объекты */}
             <div className="formular__select-all-bar">
                 <input
                     type="checkbox"
@@ -109,55 +257,38 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
                 </span>
             </div>
 
-            {/* Кнопки управления раскрытием всех групп */}
             <div className="expand-controls">
-                <button 
-                    type="button" 
-                    className="expand-btn" 
-                    onClick={expandAll}
-                >
+                <button type="button" className="expand-btn" onClick={expandAll}>
                     Развернуть все
                 </button>
-                <button 
-                    type="button" 
-                    className="expand-btn" 
-                    onClick={collapseAll}
-                >
+                <button type="button" className="expand-btn" onClick={collapseAll}>
                     Свернуть все
                 </button>
             </div>
 
             <div className="formular__country-groups">
-                {countryTypeGroups.map(({ country, types, allItems }) => {
+                {countryTypeGroups.map(({ countryKey, country, typeNodes, orphanItems, allItems }) => {
                     const countryItemIds = allItems.map((i) => i.id);
                     const selectedInCountry = countryItemIds.filter((id) => selectedSet.has(id));
                     const allInCountrySelected = allItems.length > 0 && selectedInCountry.length === allItems.length;
                     const someInCountrySelected = selectedInCountry.length > 0 && !allInCountrySelected;
+                    const isCountryOpen = expandedCountries.has(countryKey);
 
                     return (
-                        <details 
-                            key={country} 
+                        <details
+                            key={countryKey}
                             className="country-group"
-                            open={expandedCountries.has(country)}
-                            onToggle={(e) => {
-                                const isOpen = e.currentTarget.open;
-                                setExpandedCountries(prev => {
-                                    const next = new Set(prev);
-                                    if (isOpen) {
-                                        next.add(country);
-                                    } else {
-                                        next.delete(country);
-                                    }
-                                    return next;
-                                });
-                            }}
+                            open={isCountryOpen}
                         >
                             <summary
                                 className="country-header"
                                 onClick={(e) => {
                                     if (e.target.tagName === "INPUT") {
                                         e.stopPropagation();
+                                        return;
                                     }
+                                    e.preventDefault();
+                                    toggleCountry(countryKey);
                                 }}
                             >
                                 <input
@@ -180,183 +311,33 @@ export default function ObjectsTable({ data, selectedObj, onCheckboxChange, onOb
                             </summary>
 
                             <div className="country-objects">
-                                {types.map(({ type, items: typeItems }) => {
-                                    const typeItemIds = typeItems.map((i) => i.id);
-                                    const selectedInType = typeItemIds.filter((id) => selectedSet.has(id));
-                                    const allInTypeSelected = typeItems.length > 0 && selectedInType.length === typeItems.length;
-                                    const someInTypeSelected = selectedInType.length > 0 && !allInTypeSelected;
+                                {typeNodes.map((node) => (
+                                    <TypeGroupNode
+                                        key={node.typeId}
+                                        node={node}
+                                        countryKey={countryKey}
+                                        depth={0}
+                                        expandedTypes={expandedTypes}
+                                        onToggleType={toggleType}
+                                        selectedSet={selectedSet}
+                                        onTypeCheckbox={handleTypeCheckbox}
+                                        rowProps={rowProps}
+                                    />
+                                ))}
 
-                                    const typeKey = `${country}|||${type}`;
-
-                                    return (
-                                        <details 
-                                            key={typeKey}
-                                            className="branch-group"
-                                            open={expandedTypes.has(typeKey)}
-                                            onToggle={(e) => {
-                                                const isOpen = e.currentTarget.open;
-                                                setExpandedTypes(prev => {
-                                                    const next = new Set(prev);
-                                                    if (isOpen) {
-                                                        next.add(typeKey);
-                                                    } else {
-                                                        next.delete(typeKey);
-                                                    }
-                                                    return next;
-                                                });
-                                            }}
-                                        >
-                                            <summary
-                                                className="branch-header"
-                                                onClick={(e) => {
-                                                    if (e.target.tagName === "INPUT") {
-                                                        e.stopPropagation();
-                                                    }
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={allInTypeSelected}
-                                                    ref={(el) => {
-                                                        if (el) el.indeterminate = someInTypeSelected;
-                                                    }}
-                                                    onChange={(e) => {
-                                                        e.stopPropagation();
-                                                        handleTypeCheckbox(typeItems, e.target.checked);
-                                                    }}
-                                                    aria-label={`Выбрать все объекты типа ${type} в стране ${country}`}
-                                                />
-                                                <span className="branch-name">{type}</span>
-                                                <span className="branch-count">({typeItems.length})</span>
-                                                {someInTypeSelected && (
-                                                    <span className="branch-partial">({selectedInType.length} выбрано)</span>
-                                                )}
-                                            </summary>
-
-                                            <div className="branch-objects">
-                                                {typeItems.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className={`formular__table-row object-row${
-                                                            hoveredTargetId === item.id ? " formular__table-row--hovered" : ""
-                                                        }`}
-                                                    >
-                                                        <div className="formular__table-data">
-                                                            <input
-                                                                type="checkbox"
-                                                                name="object"
-                                                                value={item.id}
-                                                                checked={selectedObj.includes(item.id)}
-                                                                onChange={(e) => onCheckboxChange(item.id, e.target.checked)}
-                                                            />
-                                                        </div>
-
-                                                        <div className="formular__table-data formular__table-data--action">
-                                                            <button
-                                                                className="formular__flyto-btn"
-                                                                onClick={() => {
-                                                                    if (onObjectClick) {
-                                                                        onObjectClick(item);
-                                                                    }
-                                                                }}
-                                                                onMouseEnter={() => {
-                                                                    if (onRowHover) {
-                                                                        onRowHover(item.id);
-                                                                    }
-                                                                }}
-                                                                onMouseLeave={() => {
-                                                                    if (onRowHover) {
-                                                                        onRowHover(null);
-                                                                    }
-                                                                }}
-                                                                aria-label={`Перейти к объекту ${item.title} на карте`}
-                                                                title="Перейти к объекту на карте"
-                                                            >
-                                                                <svg
-                                                                    width="20"
-                                                                    height="20"
-                                                                    viewBox="0 0 24 24"
-                                                                    fill="none"
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                >
-                                                                    <path
-                                                                        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-                                                                        fill="currentColor"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-
-                                                        <div
-                                                            className="formular__table-data formular__table-data--clickable object-title"
-                                                            onClick={() => {
-                                                                if (onTitleClick) {
-                                                                    onTitleClick(item.id);
-                                                                }
-                                                            }}
-                                                            role="button"
-                                                            tabIndex={0}
-                                                            aria-label={`Открыть формуляр объекта ${item.title}`}
-                                                        >
-                                                            {item.title}
-                                                        </div>
-
-                                                        <div className="formular__table-data formular__table-data--action">
-                                                            <div className="formular__actions-group">
-                                                                <button
-                                                                    className="formular__action-btn formular__action-btn--edit"
-                                                                    onClick={() => {
-                                                                        if (onEditClick) {
-                                                                            onEditClick(item.id);
-                                                                        }
-                                                                    }}
-                                                                    aria-label={`Редактировать объект ${item.title}`}
-                                                                    title="Редактировать объект"
-                                                                >
-                                                                    <svg
-                                                                        width="16"
-                                                                        height="16"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        xmlns="http://www.w3.org/2000/svg"
-                                                                    >
-                                                                        <path
-                                                                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                                                                            fill="currentColor"
-                                                                        />
-                                                                    </svg>
-                                                                </button>
-                                                                <button
-                                                                    className="formular__action-btn formular__action-btn--delete"
-                                                                    onClick={() => {
-                                                                        if (onDeleteClick) {
-                                                                            onDeleteClick(item.id, item.title);
-                                                                        }
-                                                                    }}
-                                                                    aria-label={`Удалить объект ${item.title}`}
-                                                                    title="Удалить объект"
-                                                                >
-                                                                    <svg
-                                                                        width="16"
-                                                                        height="16"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        xmlns="http://www.w3.org/2000/svg"
-                                                                    >
-                                                                        <path
-                                                                            d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
-                                                                            fill="currentColor"
-                                                                        />
-                                                                    </svg>
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </details>
-                                    );
-                                })}
+                                {orphanItems.length > 0 && (
+                                    <details className="branch-group" open>
+                                        <summary className="branch-header">
+                                            <span className="branch-name">Без типа</span>
+                                            <span className="branch-count">({orphanItems.length})</span>
+                                        </summary>
+                                        <div className="branch-objects">
+                                            {orphanItems.map((item) => (
+                                                <ObjectRow key={item.id} item={item} {...rowProps} />
+                                            ))}
+                                        </div>
+                                    </details>
+                                )}
                             </div>
                         </details>
                     );
