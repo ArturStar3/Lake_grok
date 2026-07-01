@@ -1,9 +1,61 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Circle, CircleMarker } from 'react-leaflet';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Circle, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import DashCrossZoneLayer from './DashCrossZoneLayer';
 import { buildVisibleZones } from '../../utils/buildVisibleZones';
 import { getZoneDashArray, usesDashCrossMarkers } from '../../utils/actionZoneStyle';
+
+const VIEWPORT_DEBOUNCE_MS = 80;
+
+function isZoneInViewport(zone, bounds) {
+  const center = L.latLng(zone.centerLat, zone.centerLng);
+  if (bounds.contains(center)) return true;
+  const corners = [
+    bounds.getNorthWest(),
+    bounds.getNorthEast(),
+    bounds.getSouthWest(),
+    bounds.getSouthEast(),
+  ];
+  return corners.some((corner) => center.distanceTo(corner) <= zone.radiusMeters);
+}
+
+function useZonesInViewport(zones) {
+  const map = useMap();
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
+
+  const filterZones = useCallback(() => {
+    const list = zonesRef.current;
+    if (!map || !list?.length) return list ?? [];
+    const bounds = map.getBounds().pad(0.1);
+    return list.filter((zone) => isZoneInViewport(zone, bounds));
+  }, [map]);
+
+  const [inViewport, setInViewport] = useState(() => filterZones());
+
+  useEffect(() => {
+    let timeoutId = null;
+    const schedule = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setInViewport(filterZones()), VIEWPORT_DEBOUNCE_MS);
+    };
+
+    setInViewport(filterZones());
+    map.on('moveend', schedule);
+    map.on('zoomend', schedule);
+    return () => {
+      map.off('moveend', schedule);
+      map.off('zoomend', schedule);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [map, filterZones]);
+
+  useEffect(() => {
+    setInViewport(filterZones());
+  }, [zones, filterZones]);
+
+  return inViewport;
+}
 
 function ZoneCircleLayer({
   zone,
@@ -75,19 +127,21 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
     [zoneObjects, actionZoneFilters],
   );
 
+  const zonesInViewport = useZonesInViewport(visibleZones);
+
   const visibleZonesRef = useRef(visibleZones);
   visibleZonesRef.current = visibleZones;
 
   const highlightByCenter = useMemo(() => {
     const map = new Map();
-    visibleZones.forEach((zone) => {
+    zonesInViewport.forEach((zone) => {
       const key = `${zone.centerLat.toFixed(6)},${zone.centerLng.toFixed(6)}`;
       if (!map.has(key)) {
         map.set(key, { lat: zone.centerLat, lng: zone.centerLng, color: zone.color, objId: zone.obj.id });
       }
     });
     return map;
-  }, [visibleZones]);
+  }, [zonesInViewport]);
 
   const onZoneMouseOver = useCallback((objId) => {
     if (skipHoverRef?.current) return;
@@ -122,7 +176,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
           hoverController={hoverController}
         />
       ))}
-      {visibleZones.map((zone, idx) => {
+      {zonesInViewport.map((zone, idx) => {
         const entryId = `zone-${zone.obj.id}-${zone.equipmentDeploymentId ?? 'm'}-${zone.actionTypeId ?? zone.actionIndex}-${idx}`;
         if (usesDashCrossMarkers(zone.lineType)) {
           return (

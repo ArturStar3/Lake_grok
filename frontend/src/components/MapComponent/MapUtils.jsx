@@ -5,6 +5,9 @@ import axios from "axios";
 import { processMarkerClustering, calculateMarkerPosition } from "./markerClusteringUtils";
 import { enrichSvg } from "../../utils/svgUtils";
 import { getViewBoxSize } from "../../utils/svgUtils";
+import { MAP_CONSTANTS } from "../../constants/mapConstants";
+import { filterFlagMarkers } from "../../utils/markerFilters";
+import { buildIconCacheKey, getOrCreateDivIcon } from "../../utils/markerIconCache";
 
 // Функция для обогащения объектов реальными размерами из viewBox SVG
 function enrichMarkersWithSvgSize(objects, svgCache) {
@@ -29,10 +32,8 @@ function enrichMarkersWithSvgSize(objects, svgCache) {
     };
   });
 }
-import { MAP_CONSTANTS } from "../../constants/mapConstants";
-import { filterFlagMarkers } from "../../utils/markerFilters";
 
-const { ICON_WIDTH, ICON_HEIGHT, MAX_DISTANCE_PX } = MAP_CONSTANTS;
+const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 
 const LABEL_FONT_MAX = 14;
 const LABEL_FONT_MIN = 9;
@@ -95,11 +96,7 @@ function fitMarkerLabel(text, maxWidthPx, maxFont = LABEL_FONT_MAX, minFont = LA
 // };
 
 export default function LabelGeneration({ objects, selectedIds = [], onMarkersReady }) {
-  const mapInstance = useMapEvents({
-    zoom: () => {
-      // Пересчитываем кластеризацию при изменении масштаба
-    }
-  });
+  const mapInstance = useMapEvents({});
   const [svgCache, setSvgCache] = useState(new Map());
   const loadedPathsRef = useRef(new Set()); // Отслеживание загруженных путей
   const loadingPathsRef = useRef(new Set()); // Отслеживание текущих загрузок
@@ -207,6 +204,9 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
 
     clusteredObjects.forEach((o) => {
         const path = o.marker?.path;
+        if (path && !svgCache.has(path)) {
+          return;
+        }
         const svg = path ? svgCache.get(path) ?? "" : "";
         const markerScale = parseFloat(o.marker?.scale) || 1;
         let iconWidth = ICON_WIDTH * markerScale;
@@ -240,13 +240,24 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
           labelBoxWidthPx,
         );
 
-        const html = `
+        const cacheKey = buildIconCacheKey([
+          'flag',
+          o.id,
+          path,
+          markerColor,
+          markerScale,
+          labelText,
+          labelFontSize,
+          markerPosition.top,
+          iconWidth,
+          iconHeight,
+          svg.length,
+        ]);
+
+        map[o.id] = getOrCreateDivIcon(cacheKey, () => {
+          const html = `
           <div class="custom-marker-label"
             style="position:relative; width:${iconWidth}px; height:${iconHeight}px; --marker-offset-y: ${markerPosition.top}px; transform: translateY(var(--marker-offset-y));"
-            onmouseover="(function(e){if(!e.relatedTarget||!e.currentTarget.contains(e.relatedTarget)){window.logMarkerEvent&&window.logMarkerEvent('mouseover','${o.id}')}})(event)"
-            onmouseenter="(function(e){if(!e.relatedTarget||!e.currentTarget.contains(e.relatedTarget)){window.logMarkerEvent&&window.logMarkerEvent('mouseenter','${o.id}')}})(event)"
-            onmousemove="(function(e){if(!e.relatedTarget||!e.currentTarget.contains(e.relatedTarget)){window.logMarkerEvent&&window.logMarkerEvent('mousemove','${o.id}')}})(event)"
-            onmouseleave="(function(e){if(!e.relatedTarget||!e.currentTarget.contains(e.relatedTarget)){window.logMarkerEvent&&window.logMarkerEvent('mouseleave','${o.id}')}})(event)"
           >
             <span class="svg-marker" data-id="${o.id}" data-cluster-id="${o.clusterId || o.id}">
               ${enrichSvg(svg, iconWidth, iconHeight, o.id, markerColor) || `
@@ -268,20 +279,13 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
             </span>
           </div>
         `;
-
-        const offsetMap = {
-          right: [iconWidth, iconHeight],
-          left: [0, 0],
-          top: [0, 0],
-          bottom: [0, 0]
-        };
-
-        map[o.id] = new L.DivIcon({
-          html,
-          className: "custom-div-icon",
-          iconSize: [iconWidth, iconHeight],
-          iconAnchor: offsetMap["right"],
-          popupAnchor: [0, -iconHeight / 2]
+          return new L.DivIcon({
+            html,
+            className: "custom-div-icon",
+            iconSize: [iconWidth, iconHeight],
+            iconAnchor: [iconWidth, iconHeight],
+            popupAnchor: [0, -iconHeight / 2],
+          });
         });
     });
 

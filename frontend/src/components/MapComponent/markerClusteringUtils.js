@@ -95,30 +95,59 @@ export const findNearbyObjects = (baseObj, candidates, map) => {
 };
 
 /**
- * Группирует объекты в кластеры на основе близости на карте
+ * Группирует объекты в кластеры на основе близости на карте (spatial hash, O(n) среднее).
  * @param {Array} objects - Отсортированные объекты одной страны
  * @param {Object} map - Инстанс Leaflet карты
  * @returns {Array} Массив кластеров, где каждый кластер - это массив объектов
  */
 export const createClusters = (objects, map) => {
   if (!Array.isArray(objects) || objects.length === 0) return [];
+  if (!map) return objects.map((obj) => [obj]);
+
+  const cellSize = CLUSTER_DISTANCE_PX;
+  const grid = new Map();
+
+  const cellKey = (x, y) => `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`;
+
+  objects.forEach((obj) => {
+    const pixel = latLngToPixel(map, obj.lat, obj.lng);
+    if (!pixel) return;
+    const key = cellKey(pixel.x, pixel.y);
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push({ obj, pixel });
+  });
 
   const clusters = [];
   const processed = new Set();
 
-  for (const obj of objects) {
-    if (processed.has(obj.id)) continue;
+  for (const baseObj of objects) {
+    if (processed.has(baseObj.id)) continue;
 
-    // Берем только кандидатов, которые ещё не обработаны
-    const unprocessedCandidates = objects.filter(o => !processed.has(o.id));
+    const basePixel = latLngToPixel(map, baseObj.lat, baseObj.lng);
+    if (!basePixel) {
+      processed.add(baseObj.id);
+      clusters.push([baseObj]);
+      continue;
+    }
 
-    // Берем объект с наивысшим приоритетом (уже отсортирован)
-    const cluster = findNearbyObjects(obj, unprocessedCandidates, map);
+    const cluster = [];
+    const bx = Math.floor(basePixel.x / cellSize);
+    const by = Math.floor(basePixel.y / cellSize);
 
-    // Добавляем объекты кластера в обработанные
-    cluster.forEach(c => processed.add(c.id));
+    for (let cx = bx - 1; cx <= bx + 1; cx++) {
+      for (let cy = by - 1; cy <= by + 1; cy++) {
+        const cell = grid.get(`${cx},${cy}`);
+        if (!cell) continue;
+        for (const { obj, pixel } of cell) {
+          if (processed.has(obj.id)) continue;
+          if (calcDistancePx(basePixel, pixel) <= CLUSTER_DISTANCE_PX) {
+            cluster.push(obj);
+            processed.add(obj.id);
+          }
+        }
+      }
+    }
 
-    // Сортируем кластер по order
     cluster.sort((a, b) => {
       const orderA = parseInt(a.marker?.order) || 999;
       const orderB = parseInt(b.marker?.order) || 999;

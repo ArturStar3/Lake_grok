@@ -23,6 +23,10 @@ import AddEventModal from "../Events/AddEventModal";
 import { isFlagMarker, isNonFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
 import { TILE_RASTER_URL } from "../../config/tiles";
+import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
+import { clearMarkerIconCache } from "../../utils/markerIconCache";
+import { clearEnrichSvgCache } from "../../utils/svgUtils";
+import { ensureNonFlagIconsForObjects } from "../../utils/markerIconFactory";
 import "./MapComponent.css"
 
 // delete L.Icon.Default.prototype._getIconUrl;
@@ -319,13 +323,165 @@ function MarkerInitializer({ objects, selectedIds, onMarkersReady }) {
 
 // Компонент для инициализации non-flag маркеров ВНУТРИ MapContainer
 function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds }) {
-    // Этот компонент передаёт карту в NonFlagLabelGeneration
     return <NonFlagLabelGeneration objects={objects} onMarkersReady={onMarkersReady} selectedIds={selectedIds} />;
+}
+
+const FlagMapMarker = React.memo(function FlagMapMarker({
+    obj,
+    icon,
+    measureMode,
+    onMarkerClick,
+    onMarkerHover,
+}) {
+    const eventHandlers = useMemo(() => ({
+        click: (e) => {
+            if (measureMode && e.originalEvent?.ctrlKey) return;
+            if (onMarkerClick && obj.id) onMarkerClick(obj.id);
+        },
+        mouseover: () => {
+            if (obj.id) onMarkerHover(obj.id);
+        },
+        mouseout: () => onMarkerHover(null),
+    }), [obj.id, measureMode, onMarkerClick, onMarkerHover]);
+
+    if (!icon) return null;
+
+    return (
+        <Marker
+            position={[obj.lat, obj.lng]}
+            icon={icon}
+            draggable={false}
+            eventHandlers={eventHandlers}
+        />
+    );
+});
+
+function getFlagMarkerKey(o) {
+    const markerId = o.marker?.id ?? 'no-marker';
+    return `${o.id}-${markerId}`;
+}
+
+function FlagMarkersLayer({ markers, iconsById, measureMode, onMarkerClick, onMarkerHover }) {
+    const visible = useMapViewportMarkers(markers);
+    return visible.map((obj) => (
+        <FlagMapMarker
+            key={getFlagMarkerKey(obj)}
+            obj={obj}
+            icon={iconsById[obj.id]}
+            measureMode={measureMode}
+            onMarkerClick={onMarkerClick}
+            onMarkerHover={onMarkerHover}
+        />
+    ));
+}
+
+const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
+    obj,
+    icon,
+    measureMode,
+    pinnedGroupId,
+    onMarkerClick,
+    onMarkerHover,
+    onGroupHover,
+    onPinGroup,
+}) {
+    const eventHandlers = useMemo(() => ({
+        mouseover: () => {
+            if (obj.isGroupIcon) {
+                onGroupHover(obj.groupId);
+            } else if (obj.id) {
+                onMarkerHover(obj.id);
+            }
+        },
+        mouseout: () => {
+            if (obj.isGroupIcon) {
+                if (pinnedGroupId !== obj.groupId) onGroupHover(null);
+            } else {
+                onMarkerHover(null);
+            }
+        },
+        click: (e) => {
+            if (obj.isGroupIcon) {
+                e.originalEvent.stopPropagation();
+                if (pinnedGroupId === obj.groupId) {
+                    onPinGroup(null);
+                    onGroupHover(null);
+                } else {
+                    onPinGroup(obj.groupId);
+                }
+            } else {
+                if (measureMode && e.originalEvent?.ctrlKey) return;
+                if (onMarkerClick && obj.id) onMarkerClick(obj.id);
+            }
+        },
+    }), [
+        obj.id,
+        obj.isGroupIcon,
+        obj.groupId,
+        measureMode,
+        pinnedGroupId,
+        onMarkerClick,
+        onMarkerHover,
+        onGroupHover,
+        onPinGroup,
+    ]);
+
+    if (!icon) return null;
+
+    return (
+        <Marker
+            position={[obj.lat, obj.lng]}
+            icon={icon}
+            draggable={false}
+            eventHandlers={eventHandlers}
+        />
+    );
+});
+
+function NonFlagMarkersLayer({
+    groupedObjects,
+    iconsById,
+    selectedIds,
+    currentZoom,
+    pinnedGroupId,
+    measureMode,
+    onMarkerClick,
+    onMarkerHover,
+    onGroupHover,
+    onPinGroup,
+}) {
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const candidates = useMemo(() => {
+        if (currentZoom < 6) return [];
+        return (groupedObjects || []).filter((obj) => !obj.isHidden && selectedSet.has(obj.id));
+    }, [groupedObjects, selectedSet, currentZoom]);
+
+    const visible = useMapViewportMarkers(candidates);
+
+    return visible.map((obj) => {
+        const markerId = obj.marker?.id ?? 'no-marker';
+        const key = obj.isGroupIcon
+            ? `non-flag-group-${obj.groupId}`
+            : `non-flag-${obj.id}-${markerId}`;
+        return (
+            <NonFlagMapMarker
+                key={key}
+                obj={obj}
+                icon={iconsById[obj.isGroupIcon ? obj.groupId : obj.id]}
+                measureMode={measureMode}
+                pinnedGroupId={pinnedGroupId}
+                onMarkerClick={onMarkerClick}
+                onMarkerHover={onMarkerHover}
+                onGroupHover={onGroupHover}
+                onPinGroup={onPinGroup}
+            />
+        );
+    });
 }
 
 // Компонент для отображения элементов группы в круге при наведении.
 // Оптимизация: React.memo + вычисления зависят только от displayGroupId + groupedObjects.
-const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, onMarkerClick, measureMode, onMarkerHover }) {
+const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, svgCache, onMarkerClick, measureMode, onMarkerHover }) {
     const [mapRevision, setMapRevision] = React.useState(0);
     const mapInstance = useMapEvents({
         zoomend: () => setMapRevision((v) => v + 1),
@@ -333,6 +489,7 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
     });
     const [circleMarkers, setCircleMarkers] = React.useState([]);
     const [circleCenter, setCircleCenter] = React.useState(null);
+    const [circleIcons, setCircleIcons] = React.useState({});
 
     // Показываем круг если группа наведена ИЛИ закреплена
     const displayGroupId = pinnedGroupId || hoveredGroupId;
@@ -396,6 +553,20 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
         setCircleCenter({ lat: centerLat, lng: centerLng });
     }, [displayGroupId, groupedObjects, mapInstance, mapRevision]);
 
+    React.useEffect(() => {
+        if (!displayGroupId || !groupedObjects.length) {
+            setCircleIcons({});
+            return;
+        }
+        const groupIconEntry = groupedObjects.find(g => g.groupId === displayGroupId && g.isGroupIcon);
+        const group = groupIconEntry || groupedObjects.find(g => g.groupId === displayGroupId);
+        if (!group?.groupObjects || !svgCache?.size) {
+            setCircleIcons({});
+            return;
+        }
+        setCircleIcons(ensureNonFlagIconsForObjects(group.groupObjects, svgCache, iconsById ?? {}));
+    }, [displayGroupId, groupedObjects, svgCache, iconsById]);
+
     if (!circleCenter || circleMarkers.length === 0 || !displayGroupId) return null;
 
     const handleCloseCircle = () => {
@@ -409,8 +580,7 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
         <>
             {/* Маркеры элементов в круге */}
             {circleMarkers.map((marker, idx) => {
-                // Используем реальную иконку объекта, если она существует
-                const markerIcon = iconsById ? iconsById[marker.id] : null;
+                const markerIcon = circleIcons[marker.id] || (iconsById ? iconsById[marker.id] : null);
 
                 return (
                     <Marker
@@ -554,7 +724,7 @@ function MapComponent({
     const zoneMenuRef = useRef(null);
     const [geoData, setGeoData] = useState(null);
     const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [] });
-    const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [] });
+    const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
     const [selectedCountryIso, setSelectedCountryIso] = useState(null);
@@ -624,9 +794,11 @@ function MapComponent({
     }, [zoneObjects, objects]);
 
     useEffect(() => {
+        clearMarkerIconCache();
+        clearEnrichSvgCache();
         setMarkerVersion(prev => prev + 1);
         setMarkerData({ iconsById: {}, clusteredObjects: [] });
-        setNonFlagData({ iconsById: {}, groupedObjects: [] });
+        setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     }, [objectsDataKey]);
 
     useEffect(() => {
@@ -726,7 +898,7 @@ function MapComponent({
     // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
     useEffect(() => {
       if (currentZoom < 6) {
-        setNonFlagData({ iconsById: {}, groupedObjects: [] });
+        setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
       }
     }, [currentZoom]);
 
@@ -1027,11 +1199,6 @@ function MapComponent({
         });
     };
 
-    const getMarkerKey = (o, i) => {
-        // Включаем marker.id в ключ, чтобы при изменении маркера объект перерисовывался
-        const markerId = o.marker?.id ?? 'no-marker';
-        return `${o.id}-${markerId}`;
-    }
 
     // Используем clusteredObjects для отображения маркеров (с примененными офсетами)
     // Исключаем non-flag объекты - они будут отображаться отдельно
@@ -1660,6 +1827,7 @@ function MapComponent({
                     pinnedGroupId={pinnedGroupId}
                     onPinGroup={setPinnedGroupId}
                     iconsById={nonFlagData.iconsById}
+                    svgCache={nonFlagData.svgCache}
                     onMarkerClick={onMarkerClick}
                     measureMode={effectiveMeasureMode}
                     onMarkerHover={handleMarkerHover}
@@ -1813,100 +1981,25 @@ function MapComponent({
                 {events
                     .filter((item) => selectedEventIds.includes(item.id))
                     .map((item) => renderEventShape(item))}
-                {displayedObjectsForMarkers.map((obj, idx) => (
-                    <Marker
-                        key={getMarkerKey(obj, idx)}
-                        position={[obj.lat, obj.lng]}
-                        icon={markerData.iconsById[obj.id]}
-                        draggable={false}
-                        eventHandlers={{
-                            click: (e) => {
-                                // Не открываем формуляр в режиме измерения с Ctrl
-                                if (effectiveMeasureMode && e.originalEvent?.ctrlKey) {
-                                    return;
-                                }
-                                // Открываем формуляр при клике на маркер
-                                if (onMarkerClick && obj.id) {
-                                    onMarkerClick(obj.id);
-                                }
-                            },
-                            mouseover: () => {
-                                if (obj.id) {
-                                    handleMarkerHover(obj.id);
-                                }
-                            },
-                            mouseout: () => {
-                                handleMarkerHover(null);
-                            }
-                        }}
-                    />
-                ))}
-                {nonFlagData.groupedObjects && (() => {
-                    // Additional guard: never render non-flags below zoom 6, even if nonFlagData has stale entries
-                    if (currentZoom < 6) return null;
-                    const allNonFlags = nonFlagData.groupedObjects;
-                    const visibleNonFlags = allNonFlags.filter(obj => !obj.isHidden && selectedSet.has(obj.id));
-                    return visibleNonFlags.map((obj) => {
-                        const markerId = obj.marker?.id ?? 'no-marker';
-                        const key = obj.isGroupIcon 
-                            ? `non-flag-group-${obj.groupId}`
-                            : `non-flag-${obj.id}-${markerId}`;
-                        
-                        return (
-                            <Marker
-                                key={key}
-                                position={[obj.lat, obj.lng]}
-                                icon={nonFlagData.iconsById[obj.isGroupIcon ? obj.groupId : obj.id]}
-                                draggable={false}
-                                eventHandlers={{
-                                mouseover: () => {
-                                    if (obj.isGroupIcon) {
-                                        updateGroupHover(obj.groupId);
-                                    } else {
-                                        // Обычный non-flag маркер
-                                        if (obj.id) {
-                                            handleMarkerHover(obj.id);
-                                        }
-                                    }
-                                },
-                                mouseout: () => {
-                                    if (obj.isGroupIcon) {
-                                        // Сбрасываем hover только если группа не закреплена
-                                        if (pinnedGroupId !== obj.groupId) {
-                                            updateGroupHover(null);
-                                        }
-                                    } else {
-                                        // Обычный non-flag маркер
-                                        handleMarkerHover(null);
-                                    }
-                                },
-                                click: (e) => {
-                                    if (obj.isGroupIcon) {
-                                        e.originalEvent.stopPropagation();
-                                        // Если уже закреплена - закрываем, если нет - закрепляем
-                                        if (pinnedGroupId === obj.groupId) {
-                                            setPinnedGroupId(null);
-                                            updateGroupHover(null);
-                                        } else {
-                                            setPinnedGroupId(obj.groupId);
-                                        }
-                                    } else {
-                                        // Клик по обычному non-flag маркеру
-                                        // Не открываем формуляр в режиме измерения с Ctrl
-                                        if (effectiveMeasureMode && e.originalEvent?.ctrlKey) {
-                                            return;
-                                        }
-                                        // Открываем формуляр при клике на маркер
-                                        if (onMarkerClick && obj.id) {
-                                            onMarkerClick(obj.id);
-                                        }
-                                    }
-                                }
-                            }}
-                        />
-                        );
-                    });
-                })()}
+                <FlagMarkersLayer
+                    markers={displayedObjectsForMarkers}
+                    iconsById={markerData.iconsById}
+                    measureMode={effectiveMeasureMode}
+                    onMarkerClick={onMarkerClick}
+                    onMarkerHover={handleMarkerHover}
+                />
+                <NonFlagMarkersLayer
+                    groupedObjects={nonFlagData.groupedObjects}
+                    iconsById={nonFlagData.iconsById}
+                    selectedIds={selectedObj}
+                    currentZoom={currentZoom}
+                    pinnedGroupId={pinnedGroupId}
+                    measureMode={effectiveMeasureMode}
+                    onMarkerClick={onMarkerClick}
+                    onMarkerHover={handleMarkerHover}
+                    onGroupHover={updateGroupHover}
+                    onPinGroup={setPinnedGroupId}
+                />
                 {(() => {
                     const arr = isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints;
                     return arr.length > 0 && arr.map((point, idx) => {

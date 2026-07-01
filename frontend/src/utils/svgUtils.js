@@ -22,6 +22,18 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const enrichSvgCache = new Map();
+const ENRICH_SVG_CACHE_MAX = 2000;
+
+function enrichSvgCacheKey(rawSvg, width, height, markerId, color) {
+  return `${markerId}|${color}|${width}|${height}|${rawSvg.length}|${rawSvg.slice(0, 64)}`;
+}
+
+/** Сброс при смене набора объектов на карте. */
+export function clearEnrichSvgCache() {
+  enrichSvgCache.clear();
+}
+
 /**
  * Обогащает SVG: уникальные id в defs, цветовые классы, размеры.
  * Все id переименовываются с суффиксом markerId — иначе url(#id) в inline-SVG
@@ -36,6 +48,11 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
   const width = typeof w === "string" ? w.replace(/px$/i, "") : w;
   const height = typeof h === "string" ? h.replace(/px$/i, "") : h;
   const suffix = String(markerId ?? 'marker');
+
+  const cacheKey = enrichSvgCacheKey(rawSvg, width, height, suffix, color);
+  if (enrichSvgCache.has(cacheKey)) {
+    return enrichSvgCache.get(cacheKey);
+  }
 
   try {
     const parser = new DOMParser();
@@ -85,7 +102,13 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
       .trim();
 
     const newAttrs = `${cleanedAttrs} width="${width}" height="${height}"`.trim();
-    return svgString.replace(/<svg([\s\S]*?)>/i, `<svg ${newAttrs}>`);
+    const result = svgString.replace(/<svg([\s\S]*?)>/i, `<svg ${newAttrs}>`);
+
+    if (enrichSvgCache.size >= ENRICH_SVG_CACHE_MAX) {
+      enrichSvgCache.clear();
+    }
+    enrichSvgCache.set(cacheKey, result);
+    return result;
   } catch (e) {
     console.warn(`enrichSvg: Error processing SVG for markerId=${markerId}:`, e);
     return "";
