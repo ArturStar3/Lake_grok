@@ -1,0 +1,80 @@
+{
+  "version": 8,
+  "name": "Overlay: Railways",
+  "metadata": {
+    "openmaptiles:version": "3.x",
+    "infolake:overlay": true
+  },
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "mbtiles://{openmaptiles}"
+    }
+  },
+  "glyphs": "{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "railway-transit",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 8,
+      "filter": ["all", ["==", "$type", "LineString"], ["==", "class", "transit"], ["!in", "brunnel", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#8a6d9e",
+        "line-opacity": 0.9,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 14, 1.8, 18, 3.5, 20, 5]
+      }
+    },
+    {
+      "id": "railway-service",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 10,
+      "filter": ["all", ["==", "$type", "LineString"], ["==", "class", "rail"], ["has", "service"], ["!in", "brunnel", "tunnel"]],
+      "layout": {"line-cap": "butt", "line-join": "round"},
+      "paint": {
+        "line-color": "#6b6b6b",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 14, 1.6, 18, 3.5, 20, 5]
+      }
+    },
+    {
+      "id": "railway-base",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 5,
+      "filter": ["all", ["==", "$type", "LineString"], ["==", "class", "rail"], ["!has", "service"], ["!in", "brunnel", "tunnel"]],
+      "layout": {"line-cap": "butt", "line-join": "round"},
+      "paint": {
+        "line-color": "#2f2f2f",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.55, 8, 0.85, 10, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.8, 8, 1.4, 12, 2.4, 14, 3.2, 18, 5.5, 20, 8]
+      }
+    },
+    {
+      "id": "railway-ties",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 9,
+      "filter": ["all", ["==", "$type", "LineString"], ["==", "class", "rail"], ["!has", "service"], ["!in", "brunnel", "tunnel"]],
+      "layout": {"line-cap": "butt", "line-join": "round"},
+      "paint": {
+        "line-color": "#ffffff",
+        "line-dasharray": [0.35, 2.6],
+        "line-opacity": 0.95,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1.8, 14, 3.2, 18, 5.5, 20, 8]
+      }
+    }
+  ]
+}

@@ -9,9 +9,9 @@ from django.db.models import Q, Count, Prefetch
 
 from .serializers import (
     TargetSerializer,
+    TargetListSerializer,
     TargetParentPickerSerializer,
     TargetCreateSerializer,
-    TargetActionCreateSerializer,
     CountryInfoSerializer,
     CountryInfoWriteSerializer,
     CountrySectionsSerializer,
@@ -25,10 +25,19 @@ from .serializers import (
     FormularBulkUpdateSerializer,
     ActionTypeListSerializer,
     TargetTypeSerializer,
+    TargetTypeWriteSerializer,
     EventTypeSerializer,
     EventSerializer,
     EventWriteSerializer,
     TargetSubordinateSerializer,
+    EquipmentCategorySerializer,
+    EquipmentCategoryWriteSerializer,
+    EquipmentParameterDefinitionSerializer,
+    EquipmentParameterDefinitionWriteSerializer,
+    UnitOfMeasureSerializer,
+    EquipmentSerializer,
+    EquipmentWriteSerializer,
+    EquipmentImageSerializer,
 )
 from formular.models import (
     Target,
@@ -43,13 +52,71 @@ from formular.models import (
     FormularSections,
     ActionType,
     TargetAction,
+    TargetEquipment,
     TargetType,
     EventType,
-    Event
+    Event,
 )
+from equipment.models import (
+    EquipmentCategory,
+    EquipmentParameterDefinition,
+    Equipment,
+    EquipmentParameterValue,
+    EquipmentImage,
+    UnitOfMeasure,
+)
+from .target_utils import replace_target_actions, replace_target_equipment
+
+def _equipment_links_prefetch(*, zone_values_only=True):
+    pv_qs = EquipmentParameterValue.objects.select_related(
+        'parameter',
+        'parameter__action_type',
+    )
+    if zone_values_only:
+        pv_qs = pv_qs.filter(
+            parameter__action_type__isnull=False,
+            value__gt=0,
+        )
+    else:
+        pv_qs = pv_qs.select_related('parameter__unit')
+    equipment_prefetch = [
+        Prefetch(
+            'equipment__parameter_values',
+            queryset=pv_qs,
+        ),
+    ]
+    if not zone_values_only:
+        equipment_prefetch.append('equipment__images')
+    return Prefetch(
+        'equipment_links',
+        queryset=TargetEquipment.objects.select_related('equipment').prefetch_related(
+            *equipment_prefetch
+        ),
+    )
+
+
+def _target_zones_prefetch():
+    """Prefetch actions и техники с зонами (общий для list и detail)."""
+    return [
+        Prefetch(
+            'actions',
+            queryset=TargetAction.objects.select_related('action_type'),
+        ),
+        _equipment_links_prefetch(zone_values_only=True),
+    ]
+
 
 def _target_list_queryset():
-    """Оптимизированный queryset для списка/детали Target (без N+1 на actions и M2M countries)."""
+    """Список targets: без Count(children) и без type__countries."""
+    return (
+        Target.objects.select_related('country', 'marker', 'type')
+        .prefetch_related(*_target_zones_prefetch())
+        .order_by('title')
+    )
+
+
+def _target_detail_queryset():
+    """Детали target: полный prefetch + children_count + все ТТХ техники."""
     return (
         Target.objects.select_related('country', 'marker', 'type')
         .prefetch_related(
@@ -57,6 +124,7 @@ def _target_list_queryset():
                 'actions',
                 queryset=TargetAction.objects.select_related('action_type'),
             ),
+            _equipment_links_prefetch(zone_values_only=False),
             'type__countries',
         )
         .annotate(children_count=Count('children'))
@@ -72,10 +140,15 @@ class TargetViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
             return TargetCreateSerializer
+        if self.action == 'list':
+            return TargetListSerializer
         return TargetSerializer
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        if self.action == 'retrieve':
+            qs = _target_detail_queryset()
+        else:
+            qs = _target_list_queryset()
         parent = self.request.query_params.get('parent')
         if parent:
             try:
@@ -98,28 +171,221 @@ class TargetViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         actions_data = serializer.validated_data.pop('actions', None)
+        deployed_data = serializer.validated_data.pop('deployed_equipment', None)
 
         self.perform_update(serializer)
 
-        if actions_data is not None:
-            instance.actions.all().delete()
-            if actions_data:
-                type_ids = [a['action_type_id'] for a in actions_data]
-                types_by_id = ActionType.objects.in_bulk(type_ids)
-                to_create = [
-                    TargetAction(
-                        target=instance,
-                        action_type=types_by_id[action_data['action_type_id']],
-                        radius=action_data.get('radius'),
-                    )
-                    for action_data in actions_data
-                    if action_data.get('action_type_id') in types_by_id
-                ]
-                if to_create:
-                    TargetAction.objects.bulk_create(to_create)
+        replace_target_actions(instance, actions_data)
+        replace_target_equipment(instance, deployed_data)
 
-        instance = self.get_queryset().get(pk=instance.pk)
+        instance = _target_detail_queryset().get(pk=instance.pk)
         return Response(TargetSerializer(instance).data)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = _target_detail_queryset().get(pk=serializer.instance.pk)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            TargetSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
+
+
+class UnitOfMeasureViewSet(viewsets.ModelViewSet):
+    """Единицы измерения ТТХ"""
+
+    serializer_class = UnitOfMeasureSerializer
+    permission_classes = [AllowAny]
+    queryset = UnitOfMeasure.objects.all().order_by('title')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if EquipmentParameterDefinition.objects.filter(unit=instance).exists():
+            return Response(
+                {'detail': 'Единица используется в параметрах ТТХ'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
+class EquipmentCategoryViewSet(viewsets.ModelViewSet):
+    """Категории техники"""
+
+    permission_classes = [AllowAny]
+    queryset = EquipmentCategory.objects.select_related('parent').order_by('order', 'title')
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return EquipmentCategoryWriteSerializer
+        return EquipmentCategorySerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.children.exists():
+            return Response(
+                {'detail': 'У категории есть подкатегории'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.equipment.exists():
+            return Response(
+                {'detail': 'В категории есть образцы техники'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self.queryset.get(pk=serializer.instance.pk)
+        return Response(
+            EquipmentCategorySerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self.queryset.get(pk=instance.pk)
+        return Response(EquipmentCategorySerializer(instance).data)
+
+
+class EquipmentParameterDefinitionViewSet(viewsets.ModelViewSet):
+    """Определения параметров ТТХ"""
+
+    permission_classes = [AllowAny]
+    queryset = (
+        EquipmentParameterDefinition.objects
+        .select_related('unit', 'action_type')
+        .prefetch_related('categories')
+        .order_by('title')
+    )
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return EquipmentParameterDefinitionWriteSerializer
+        return EquipmentParameterDefinitionSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        maps_to_zone = self.request.query_params.get('maps_to_zone')
+        if maps_to_zone and maps_to_zone.lower() in ('1', 'true', 'yes'):
+            qs = qs.filter(action_type__isnull=False)
+        category_id = self.request.query_params.get('category')
+        if category_id:
+            qs = qs.filter(categories__id=category_id)
+        return qs.distinct()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if EquipmentParameterValue.objects.filter(parameter=instance).exists():
+            return Response(
+                {'detail': 'Параметр используется в значениях ТТХ образцов'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    def _parameter_detail_queryset(self):
+        return self.queryset
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self._parameter_detail_queryset().get(pk=serializer.instance.pk)
+        return Response(
+            EquipmentParameterDefinitionSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self._parameter_detail_queryset().get(pk=instance.pk)
+        return Response(EquipmentParameterDefinitionSerializer(instance).data)
+
+
+class EquipmentViewSet(viewsets.ModelViewSet):
+    """Каталог образцов техники"""
+
+    permission_classes = [AllowAny]
+    queryset = (
+        Equipment.objects
+        .select_related('category', 'origin_country')
+        .prefetch_related(
+            Prefetch(
+                'parameter_values',
+                queryset=EquipmentParameterValue.objects.select_related(
+                    'parameter',
+                    'parameter__unit',
+                    'parameter__action_type',
+                ),
+            ),
+            'images',
+        )
+        .order_by('title')
+    )
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return EquipmentWriteSerializer
+        return EquipmentSerializer
+
+    def _equipment_detail_queryset(self):
+        return self.queryset
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self._equipment_detail_queryset().get(pk=serializer.instance.pk)
+        return Response(
+            EquipmentSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self._equipment_detail_queryset().get(pk=instance.pk)
+        return Response(EquipmentSerializer(instance).data)
+
+
+class EquipmentImageViewSet(viewsets.ModelViewSet):
+    """Изображения образцов техники"""
+
+    serializer_class = EquipmentImageSerializer
+    permission_classes = [AllowAny]
+    queryset = EquipmentImage.objects.select_related('equipment').order_by('order', 'created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        equipment_id = self.request.query_params.get('equipment')
+        if self.action == 'list' and not equipment_id:
+            return qs.none()
+        if equipment_id:
+            qs = qs.filter(equipment_id=equipment_id)
+        return qs
+
 
 class CountryViewSet(viewsets.ModelViewSet):
     """Список стран с полным CRUD"""
@@ -142,19 +408,63 @@ class EventMarkerViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
     queryset = EventMarker.objects.all().order_by('title')
 
-class ActionTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    """Список типов действий"""
+class ActionTypeViewSet(viewsets.ModelViewSet):
+    """CRUD типов зон действия"""
 
     serializer_class = ActionTypeListSerializer
     permission_classes = [AllowAny]
     queryset = ActionType.objects.all().order_by('title')
 
-class TargetTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    """Список типов объектов разведки"""
+class TargetTypeViewSet(viewsets.ModelViewSet):
+    """CRUD типов объектов разведки"""
 
-    serializer_class = TargetTypeSerializer
     permission_classes = [AllowAny]
-    queryset = TargetType.objects.prefetch_related('countries').order_by('title')
+    queryset = (
+        TargetType.objects
+        .select_related('parent')
+        .prefetch_related('countries')
+        .order_by('order', 'title')
+    )
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return TargetTypeWriteSerializer
+        return TargetTypeSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.children.exists():
+            return Response(
+                {'detail': 'У типа есть подтипы'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.target_types.exists():
+            return Response(
+                {'detail': 'Тип используется объектами разведки'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        instance = self.queryset.get(pk=serializer.instance.pk)
+        return Response(
+            TargetTypeSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance = self.queryset.get(pk=instance.pk)
+        return Response(TargetTypeSerializer(instance).data)
 
 
 class EventTypeViewSet(viewsets.ModelViewSet):

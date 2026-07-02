@@ -106,8 +106,18 @@ export function calculateCircleIntersections(circle1, circle2) {
   return intersections;
 }
 
+/** Быстрая проверка: могут ли две зоны пересекаться (радиусы в км). */
+function zonesMayIntersect(zone1, zone2) {
+  const maxDistKm = zone1.radius + zone2.radius;
+  const minDistKm = Math.abs(zone1.radius - zone2.radius);
+  const midLatRad = ((zone1.lat + zone2.lat) / 2) * Math.PI / 180;
+  const dLatKm = Math.abs(zone1.lat - zone2.lat) * 111;
+  const dLngKm = Math.abs(zone1.lng - zone2.lng) * 111 * Math.cos(midLatRad);
+  const approxDistKm = Math.hypot(dLatKm, dLngKm);
+  return approxDistKm <= maxDistKm && approxDistKm >= minDistKm;
+}
+
 /**
- * Находит все точки пересечения зон действия объектов
  * @param {Array} objects - массив объектов с actions[], lat, lng, label
  * @returns {Array} - массив объектов пересечений {id, label, lat, lng, objects: [obj1.label, obj2.label]}
  */
@@ -135,45 +145,50 @@ export function findAllIntersections(objects) {
     }
   });
   
-  // Проходим по всем парам зон
-  for (let i = 0; i < allZones.length; i++) {
-    for (let j = i + 1; j < allZones.length; j++) {
-      const zone1 = allZones[i];
-      const zone2 = allZones[j];
-      
-      // Проверяем пересечение только для зон с одинаковым типом действия
-      if (zone1.actionTitle !== zone2.actionTitle) {
-        continue; // Пропускаем, если типы зон разные
-      }
-      
-      const circle1 = {
-        lat: zone1.lat,
-        lng: zone1.lng,
-        radius: zone1.radius
-      };
-      const circle2 = {
-        lat: zone2.lat,
-        lng: zone2.lng,
-        radius: zone2.radius
-      };
-      
-      const points = calculateCircleIntersections(circle1, circle2);
-      
-      // Добавляем каждую точку пересечения в массив
-      points.forEach(point => {
-        const label1 = `${zone1.objectTitle} - ${zone1.actionTitle} (${zone1.radius}км)`;
-        const label2 = `${zone2.objectTitle} - ${zone2.actionTitle} (${zone2.radius}км)`;
-        
-        intersections.push({
-          id: intersectionId++,
-          label: `Точка ${intersectionId - 1}`,
-          lat: point.lat,
-          lng: point.lng,
-          objects: [label1, label2]
+  // Группируем по типу действия — сравниваем только зоны одного типа
+  const zonesByAction = new Map();
+  allZones.forEach((zone) => {
+    const list = zonesByAction.get(zone.actionTitle);
+    if (list) list.push(zone);
+    else zonesByAction.set(zone.actionTitle, [zone]);
+  });
+
+  for (const sameTypeZones of zonesByAction.values()) {
+    for (let i = 0; i < sameTypeZones.length; i++) {
+      for (let j = i + 1; j < sameTypeZones.length; j++) {
+        const zone1 = sameTypeZones[i];
+        const zone2 = sameTypeZones[j];
+
+        if (!zonesMayIntersect(zone1, zone2)) continue;
+
+        const circle1 = {
+          lat: zone1.lat,
+          lng: zone1.lng,
+          radius: zone1.radius
+        };
+        const circle2 = {
+          lat: zone2.lat,
+          lng: zone2.lng,
+          radius: zone2.radius
+        };
+
+        const points = calculateCircleIntersections(circle1, circle2);
+
+        points.forEach(point => {
+          const label1 = `${zone1.objectTitle} - ${zone1.actionTitle} (${zone1.radius}км)`;
+          const label2 = `${zone2.objectTitle} - ${zone2.actionTitle} (${zone2.radius}км)`;
+
+          intersections.push({
+            id: intersectionId++,
+            label: `Точка ${intersectionId - 1}`,
+            lat: point.lat,
+            lng: point.lng,
+            objects: [label1, label2]
+          });
         });
-      });
+      }
     }
   }
-  
+
   return intersections;
 }

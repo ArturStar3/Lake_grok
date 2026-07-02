@@ -8,11 +8,16 @@ function setsEqual(a, b) {
 
 /**
  * Императивное управление подсветкой зон действия без ре-рендеров React.
+ * Поддерживает hover по objId (все зоны объекта) и по entryId (одна зона).
  */
 export function createZoneHoverController() {
-  /** @type {Map<string, { objId: string, layers: object[], highlightLayer: object|null, baseStyle: object }>} */
+  /** @type {Map<string, { entryId: string, objId: string, layers: object[], highlightLayer: object|null, baseStyle: object }>} */
   const entries = new Map();
   let hoveredObjIds = new Set();
+  let hoveredEntryIds = new Set();
+
+  const isEntryHovered = (entryId, objId) =>
+    hoveredEntryIds.has(entryId) || hoveredObjIds.has(objId);
 
   const applyLayerStyle = (layer, style, hovered, isCross = false) => {
     if (!layer?.setStyle) return;
@@ -29,8 +34,8 @@ export function createZoneHoverController() {
   };
 
   const applyStyles = () => {
-    entries.forEach(({ objId, layers, highlightLayer, baseStyle }) => {
-      const hovered = hoveredObjIds.has(objId);
+    entries.forEach(({ entryId, objId, layers, highlightLayer, baseStyle }) => {
+      const hovered = isEntryHovered(entryId, objId);
       layers.forEach((item) => {
         if (item?.layer) {
           applyLayerStyle(item.layer, baseStyle, hovered, item.cross);
@@ -50,31 +55,36 @@ export function createZoneHoverController() {
     });
   };
 
+  const applyEntryStyles = (entryId, { objId, layers, highlightLayer, baseStyle }) => {
+    const hovered = isEntryHovered(entryId, objId);
+    layers.forEach((item) => {
+      if (item?.layer) {
+        applyLayerStyle(item.layer, baseStyle, hovered, item.cross);
+      } else {
+        applyLayerStyle(item, baseStyle, hovered, false);
+      }
+    });
+    if (highlightLayer?.setStyle) {
+      highlightLayer.setStyle({
+        color: baseStyle.color,
+        fillColor: baseStyle.color,
+        fillOpacity: hovered ? 0.28 : 0.18,
+        weight: hovered ? 4 : 2,
+        opacity: 0.9,
+      });
+    }
+  };
+
   return {
     register(entryId, { objId, layers, highlightLayer = null, baseStyle }) {
       entries.set(entryId, {
+        entryId,
         objId,
         layers: (layers || []).filter(Boolean),
         highlightLayer,
         baseStyle,
       });
-      const hovered = hoveredObjIds.has(objId);
-      (layers || []).forEach((item) => {
-        if (item?.layer) {
-          applyLayerStyle(item.layer, baseStyle, hovered, item.cross);
-        } else {
-          applyLayerStyle(item, baseStyle, hovered, false);
-        }
-      });
-      if (highlightLayer?.setStyle) {
-        highlightLayer.setStyle({
-          color: baseStyle.color,
-          fillColor: baseStyle.color,
-          fillOpacity: hovered ? 0.28 : 0.18,
-          weight: hovered ? 4 : 2,
-          opacity: 0.9,
-        });
-      }
+      applyEntryStyles(entryId, entries.get(entryId));
     },
 
     unregister(entryId) {
@@ -85,13 +95,27 @@ export function createZoneHoverController() {
       const next = objIds instanceof Set
         ? objIds
         : new Set(Array.isArray(objIds) ? objIds : (objIds ? [objIds] : []));
-      if (setsEqual(hoveredObjIds, next)) return;
+      if (setsEqual(hoveredObjIds, next) && hoveredEntryIds.size === 0) return;
       hoveredObjIds = next;
+      hoveredEntryIds = new Set();
+      applyStyles();
+    },
+
+    setHoveredEntries(entryIds) {
+      const next = entryIds instanceof Set
+        ? entryIds
+        : new Set(Array.isArray(entryIds) ? entryIds : (entryIds ? [entryIds] : []));
+      if (setsEqual(hoveredEntryIds, next) && hoveredObjIds.size === 0) return;
+      hoveredEntryIds = next;
+      hoveredObjIds = new Set();
       applyStyles();
     },
 
     clear() {
-      this.setHovered(new Set());
+      if (hoveredObjIds.size === 0 && hoveredEntryIds.size === 0) return;
+      hoveredObjIds = new Set();
+      hoveredEntryIds = new Set();
+      applyStyles();
     },
   };
 }

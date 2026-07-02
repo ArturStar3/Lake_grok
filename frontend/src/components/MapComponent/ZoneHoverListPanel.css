@@ -1,0 +1,139 @@
+.zone-hover-list {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 450;
+  min-width: 240px;
+  max-width: min(360px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  padding: 10px 12px;
+  pointer-events: none;
+  font-family: inherit;
+}
+
+.zone-hover-list--pinned {
+  pointer-events: auto;
+}
+
+.zone-hover-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+.zone-hover-list__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.zone-hover-list__close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.zone-hover-list__close:hover {
+  color: #1a1a1a;
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.zone-hover-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+}
+
+.zone-hover-list__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: default;
+  font: inherit;
+  color: inherit;
+}
+
+.zone-hover-list--pinned .zone-hover-list__item {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.zone-hover-list--pinned .zone-hover-list__item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.zone-hover-list__item--selected {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.zone-hover-list__item:last-child {
+  margin-bottom: 0;
+}
+
+.zone-hover-list__sample {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #3388ff;
+  box-sizing: border-box;
+  margin-top: 1px;
+}
+
+.zone-hover-list__text {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #1a1a1a;
+}
+
+.zone-hover-list__sample--dash_x {
+  position: relative;
+}
+
+.zone-hover-list__sample--dash_x::before,
+.zone-hover-list__sample--dash_x::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 50%;
+  height: 2px;
+  background: var(--sample-color, #3388ff);
+  pointer-events: none;
+}
+
+.zone-hover-list__sample--dash_x::before {
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.zone-hover-list__sample--dash_x::after {
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.zone-hover-list__sample--dash_dot {
+  border-style: dashed;
+}

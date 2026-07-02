@@ -1,0 +1,86 @@
+{
+  "version": 8,
+  "name": "Overlay: Aeroway (airports, runways)",
+  "metadata": {
+    "openmaptiles:version": "3.x",
+    "infolake:overlay": true
+  },
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "mbtiles://{openmaptiles}"
+    }
+  },
+  "sprite": "basic/sprite",
+  "glyphs": "{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "aeroway-apron",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "aeroway",
+      "minzoom": 10,
+      "filter": ["in", "class", "apron", "terminal"],
+      "paint": {
+        "fill-color": "#c9c2d9",
+        "fill-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.3, 14, 0.55]
+      }
+    },
+    {
+      "id": "aeroway-taxiway",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "aeroway",
+      "minzoom": 11,
+      "filter": ["==", "class", "taxiway"],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#9b93b3",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.5, 16, 2, 20, 5]
+      }
+    },
+    {
+      "id": "aeroway-runway",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "aeroway",
+      "minzoom": 8,
+      "filter": ["==", "class", "runway"],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#7a7191",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1, 12, 3, 16, 10, 20, 22]
+      }
+    },
+    {
+      "id": "aerodrome-label",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "aerodrome_label",
+      "minzoom": 6,
+      "layout": {
+        "icon-image": "airport_11",
+        "icon-size": 1,
+        "icon-allow-overlap": true,
+        "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"], ["get", "name:latin"]],
+        "text-font": ["Open Sans Bold"],
+        "text-size": 12,
+        "text-anchor": "top",
+        "text-offset": [0, 0.6],
+        "text-max-width": 8
+      },
+      "paint": {
+        "text-color": "#4a3f66",
+        "text-halo-color": "rgba(255,255,255,0.85)",
+        "text-halo-width": 1.5
+      }
+    }
+  ]
+}

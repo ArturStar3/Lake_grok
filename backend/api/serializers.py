@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from decimal import Decimal
 
 from formular.models import (
     Target,
@@ -17,6 +18,15 @@ from formular.models import (
     FormularAttachment,
     Event,
 )
+from equipment.models import (
+    EquipmentCategory,
+    UnitOfMeasure,
+    EquipmentParameterDefinition,
+    Equipment,
+    EquipmentParameterValue,
+    EquipmentImage,
+)
+from .target_utils import create_target_actions, replace_target_equipment, serialize_deployed_equipment
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -113,6 +123,15 @@ class ActionTypeListSerializer(serializers.ModelSerializer):
             'line_type',
         )
 
+    def validate_color(self, value):
+        if not isinstance(value, str) or len(value) != 7 or value[0] != '#':
+            raise serializers.ValidationError('Цвет должен быть в формате #RRGGBB')
+        try:
+            int(value[1:], 16)
+        except ValueError as exc:
+            raise serializers.ValidationError('Цвет должен быть в формате #RRGGBB') from exc
+        return value
+
 class TargetActionSerializer(serializers.ModelSerializer):
     """Действие над объектом разведки"""
 
@@ -125,9 +144,349 @@ class TargetActionSerializer(serializers.ModelSerializer):
             'radius',
         )
 
-class TargetTypeSerializer(serializers.ModelSerializer):
-    """Тип объекта разведки"""
 
+class EquipmentCategorySerializer(serializers.ModelSerializer):
+    """Категория техники (чтение)"""
+
+    parent = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = EquipmentCategory
+        fields = (
+            'id',
+            'title',
+            'parent',
+            'order',
+        )
+
+
+class EquipmentCategoryWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление категории техники"""
+
+    parent_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentCategory.objects.all(),
+        source='parent',
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = EquipmentCategory
+        fields = (
+            'title',
+            'parent_id',
+            'order',
+        )
+
+    def validate(self, attrs):
+        parent = attrs.get('parent')
+        instance = getattr(self, 'instance', None)
+        if instance and parent:
+            if parent.pk == instance.pk:
+                raise serializers.ValidationError(
+                    {'parent_id': 'Категория не может быть родителем самой себя'}
+                )
+            cursor = parent
+            while cursor is not None:
+                if cursor.pk == instance.pk:
+                    raise serializers.ValidationError(
+                        {'parent_id': 'Циклическая иерархия категорий'}
+                    )
+                cursor = cursor.parent
+        return attrs
+
+
+class EquipmentCategoryBriefSerializer(serializers.ModelSerializer):
+    """Краткая категория для вложенных ответов"""
+
+    class Meta:
+        model = EquipmentCategory
+        fields = (
+            'id',
+            'title',
+        )
+
+
+class UnitOfMeasureSerializer(serializers.ModelSerializer):
+    """Единица измерения"""
+
+    class Meta:
+        model = UnitOfMeasure
+        fields = (
+            'id',
+            'title',
+            'symbol',
+        )
+
+
+class EquipmentParameterDefinitionSerializer(serializers.ModelSerializer):
+    """Определение параметра ТТХ (чтение)"""
+
+    unit = UnitOfMeasureSerializer(read_only=True)
+    action_type = ActionTypeSerializer(read_only=True)
+    categories = EquipmentCategoryBriefSerializer(many=True, read_only=True)
+    category_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EquipmentParameterDefinition
+        fields = (
+            'id',
+            'title',
+            'code',
+            'unit',
+            'action_type',
+            'categories',
+            'category_ids',
+            'help_text',
+        )
+
+    def get_category_ids(self, obj):
+        return list(obj.categories.values_list('id', flat=True))
+
+
+class EquipmentParameterDefinitionWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление шаблона параметра ТТХ"""
+
+    unit_id = serializers.PrimaryKeyRelatedField(
+        queryset=UnitOfMeasure.objects.all(),
+        source='unit',
+        required=False,
+        allow_null=True,
+    )
+    action_type_id = serializers.PrimaryKeyRelatedField(
+        queryset=ActionType.objects.all(),
+        source='action_type',
+        required=False,
+        allow_null=True,
+    )
+    category_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=EquipmentCategory.objects.all(),
+        source='categories',
+        required=False,
+    )
+
+    class Meta:
+        model = EquipmentParameterDefinition
+        fields = (
+            'title',
+            'code',
+            'help_text',
+            'unit_id',
+            'action_type_id',
+            'category_ids',
+        )
+
+    def validate_code(self, value):
+        import re
+
+        if not re.match(r'^[a-z][a-z0-9_]*$', value):
+            raise serializers.ValidationError(
+                'Код: латиница в нижнем регистре, snake_case (например range_km)'
+            )
+        return value
+
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        action_type = attrs.get(
+            'action_type',
+            instance.action_type if instance else None,
+        )
+        unit = attrs.get(
+            'unit',
+            instance.unit if instance else None,
+        )
+        if action_type:
+            if not unit:
+                raise serializers.ValidationError(
+                    {'unit_id': 'Для параметра зоны нужна единица измерения'}
+                )
+            if unit.symbol.lower() not in ('км', 'km'):
+                raise serializers.ValidationError(
+                    {'unit_id': 'Тип зоны допустим только для единицы «км»'}
+                )
+        return attrs
+
+
+class EquipmentParameterValueSerializer(serializers.ModelSerializer):
+    """Значение ТТХ образца"""
+
+    parameter = EquipmentParameterDefinitionSerializer(read_only=True)
+    parameter_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentParameterDefinition.objects.all(),
+        source='parameter',
+        write_only=True,
+    )
+
+    class Meta:
+        model = EquipmentParameterValue
+        fields = (
+            'id',
+            'parameter',
+            'parameter_id',
+            'value',
+        )
+
+
+class EquipmentParameterValueWriteSerializer(serializers.Serializer):
+    """Запись значения ТТХ."""
+
+    parameter_id = serializers.IntegerField()
+    value = serializers.FloatField()
+
+
+class EquipmentImageSerializer(serializers.ModelSerializer):
+    """Изображение образца техники"""
+
+    class Meta:
+        model = EquipmentImage
+        fields = (
+            'id',
+            'equipment',
+            'title',
+            'image',
+            'order',
+            'created_at',
+        )
+
+
+class EquipmentWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление образца техники с ТТХ."""
+
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentCategory.objects.all(),
+        source='category',
+        required=False,
+        allow_null=True,
+    )
+    origin_country_id = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        source='origin_country',
+        required=False,
+        allow_null=True,
+    )
+    parameter_values = EquipmentParameterValueWriteSerializer(many=True, required=False)
+
+    class Meta:
+        model = Equipment
+        fields = (
+            'id',
+            'title',
+            'designation',
+            'category_id',
+            'origin_country_id',
+            'description',
+            'parameter_values',
+        )
+        read_only_fields = ('id',)
+
+    def create(self, validated_data):
+        from .equipment_utils import replace_equipment_parameter_values
+
+        values_data = validated_data.pop('parameter_values', None)
+        equipment = Equipment.objects.create(**validated_data)
+        replace_equipment_parameter_values(
+            equipment,
+            values_data if values_data is not None else [],
+        )
+        return equipment
+
+    def update(self, instance, validated_data):
+        from .equipment_utils import replace_equipment_parameter_values
+
+        values_data = validated_data.pop('parameter_values', serializers.empty)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if values_data is not serializers.empty:
+            replace_equipment_parameter_values(instance, values_data or [])
+        return instance
+
+
+class EquipmentListSerializer(serializers.ModelSerializer):
+    """Краткая информация об образце техники"""
+
+    category = EquipmentCategorySerializer(read_only=True)
+    images = EquipmentImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Equipment
+        fields = (
+            'id',
+            'title',
+            'designation',
+            'category',
+            'images',
+        )
+
+
+class EquipmentSerializer(serializers.ModelSerializer):
+    """Образец техники с ТТХ"""
+
+    category = EquipmentCategorySerializer(read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=EquipmentCategory.objects.all(),
+        source='category',
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    origin_country = CountryListSerializer(read_only=True)
+    origin_country_id = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        source='origin_country',
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    parameter_values = EquipmentParameterValueSerializer(many=True, read_only=True)
+    images = EquipmentImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Equipment
+        fields = (
+            'id',
+            'title',
+            'designation',
+            'category',
+            'category_id',
+            'origin_country',
+            'origin_country_id',
+            'description',
+            'images',
+            'parameter_values',
+        )
+
+
+class CatalogEquipmentZoneSerializer(serializers.Serializer):
+    """Зона из каталога ТТХ (без отдельного хранения на площадке)"""
+
+    parameter_title = serializers.CharField()
+    action_type = ActionTypeSerializer()
+    radius_km = serializers.FloatField()
+
+
+class TargetDeployedEquipmentSerializer(serializers.Serializer):
+    """Техника на объекте, зоны — из каталога."""
+
+    equipment = EquipmentListSerializer()
+    quantity = serializers.IntegerField()
+    zones = CatalogEquipmentZoneSerializer(many=True)
+
+class TargetTypeBriefSerializer(serializers.ModelSerializer):
+    """Краткий тип объекта (без M2M countries) — для списка targets."""
+
+    parent = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = TargetType
+        fields = ('id', 'title', 'parent')
+
+
+class TargetTypeSerializer(serializers.ModelSerializer):
+    """Тип объекта разведки (чтение)"""
+
+    parent = serializers.PrimaryKeyRelatedField(read_only=True, allow_null=True)
     countries = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
@@ -135,8 +494,53 @@ class TargetTypeSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'title',
-            'countries'
+            'parent',
+            'order',
+            'countries',
         )
+
+
+class TargetTypeWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление типа объекта разведки"""
+
+    parent_id = serializers.PrimaryKeyRelatedField(
+        queryset=TargetType.objects.all(),
+        source='parent',
+        required=False,
+        allow_null=True,
+    )
+    country_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Country.objects.all(),
+        source='countries',
+        required=False,
+    )
+
+    class Meta:
+        model = TargetType
+        fields = (
+            'title',
+            'parent_id',
+            'order',
+            'country_ids',
+        )
+
+    def validate(self, attrs):
+        parent = attrs.get('parent')
+        instance = getattr(self, 'instance', None)
+        if instance and parent:
+            if parent.pk == instance.pk:
+                raise serializers.ValidationError(
+                    {'parent_id': 'Тип не может быть родителем самого себя'}
+                )
+            cursor = parent
+            while cursor is not None:
+                if cursor.pk == instance.pk:
+                    raise serializers.ValidationError(
+                        {'parent_id': 'Циклическая иерархия типов объектов'}
+                    )
+                cursor = cursor.parent
+        return attrs
 
 
 class EventTypeSerializer(serializers.ModelSerializer):
@@ -149,12 +553,45 @@ class EventTypeSerializer(serializers.ModelSerializer):
             'title'
         )
 
+class TargetListSerializer(serializers.ModelSerializer):
+    """
+    Облегчённый список объектов разведки (GET /targets/).
+    Без parent, children_count, action_radius и countries у type.
+    """
+
+    country = CountrySerializer()
+    marker = MarkerSerializer()
+    actions = TargetActionSerializer(many=True)
+    deployed_equipment = serializers.SerializerMethodField()
+    type = TargetTypeBriefSerializer()
+
+    class Meta:
+        model = Target
+        fields = (
+            'id',
+            'title',
+            'label',
+            'actions',
+            'deployed_equipment',
+            'type',
+            'lat',
+            'lng',
+            'country',
+            'marker',
+        )
+
+    def get_deployed_equipment(self, obj):
+        request = self.context.get('request')
+        return serialize_deployed_equipment(obj, request=request)
+
+
 class TargetSerializer(serializers.ModelSerializer):
     """Объект разведки"""
 
     country = CountrySerializer()
     marker = MarkerSerializer()
     actions = TargetActionSerializer(many=True)
+    deployed_equipment = serializers.SerializerMethodField()
     type = TargetTypeSerializer()
     children_count = serializers.IntegerField(read_only=True)
     parent = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -166,6 +603,7 @@ class TargetSerializer(serializers.ModelSerializer):
             'title',
             'label',
             'actions',
+            'deployed_equipment',
             'type',
             'action_radius',
             'lat',
@@ -175,6 +613,10 @@ class TargetSerializer(serializers.ModelSerializer):
             'parent',
             'children_count',
         )
+
+    def get_deployed_equipment(self, obj):
+        request = self.context.get('request')
+        return serialize_deployed_equipment(obj, include_specs=True, request=request)
 
 
 class TargetParentPickerSerializer(serializers.ModelSerializer):
@@ -210,12 +652,21 @@ class TargetActionCreateSerializer(serializers.Serializer):
     """Сериализатор для создания действия объекта"""
     
     action_type_id = serializers.IntegerField()
-    radius = serializers.FloatField(min_value=0)
+    radius = serializers.FloatField(min_value=Decimal('0'))
+
+
+class TargetDeployedEquipmentWriteSerializer(serializers.Serializer):
+    """Запись техники на объекте (through TargetEquipment)."""
+
+    equipment_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1, default=1, required=False)
+
 
 class TargetCreateSerializer(serializers.ModelSerializer):
     """Сериализатор для создания объекта разведки"""
 
     actions = TargetActionCreateSerializer(many=True, required=False)
+    deployed_equipment = TargetDeployedEquipmentWriteSerializer(many=True, required=False)
 
     class Meta:
         model = Target
@@ -231,28 +682,16 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'lng',
             'parent',
             'actions',
+            'deployed_equipment',
         )
         read_only_fields = ('id',)
     
     def create(self, validated_data):
         actions_data = validated_data.pop('actions', [])
+        deployed_data = validated_data.pop('deployed_equipment', None)
         target = Target.objects.create(**validated_data)
-
-        if actions_data:
-            type_ids = [a['action_type_id'] for a in actions_data]
-            types_by_id = ActionType.objects.in_bulk(type_ids)
-            to_create = [
-                TargetAction(
-                    target=target,
-                    action_type=types_by_id[action_data['action_type_id']],
-                    radius=action_data.get('radius'),
-                )
-                for action_data in actions_data
-                if action_data.get('action_type_id') in types_by_id
-            ]
-            if to_create:
-                TargetAction.objects.bulk_create(to_create)
-
+        create_target_actions(target, actions_data)
+        replace_target_equipment(target, deployed_data if deployed_data is not None else [])
         return target
 
 class CountrySectionsSerializer(serializers.ModelSerializer):

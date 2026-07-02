@@ -1,0 +1,112 @@
+.equipment-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.equipment-autocomplete__control {
+  position: relative;
+}
+
+.equipment-autocomplete__input {
+  width: 100%;
+  padding: 8px 32px 8px 10px;
+  border: 1px solid #ccd6e0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.equipment-autocomplete__input:focus {
+  outline: none;
+  border-color: #5b7a9d;
+  box-shadow: 0 0 0 2px rgba(91, 122, 157, 0.15);
+}
+
+.equipment-autocomplete--error .equipment-autocomplete__input {
+  border-color: #c0392b;
+}
+
+.equipment-autocomplete--disabled .equipment-autocomplete__input {
+  background: #f3f4f6;
+  color: #888;
+}
+
+.equipment-autocomplete__clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.equipment-autocomplete__clear:hover {
+  color: #333;
+}
+
+.equipment-autocomplete__list {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ccd6e0;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+}
+
+.equipment-autocomplete__list--portal {
+  position: fixed;
+}
+
+.equipment-autocomplete__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.equipment-autocomplete__option:hover,
+.equipment-autocomplete__option--active {
+  background: #eef3f8;
+}
+
+.equipment-autocomplete__option--selected {
+  font-weight: 600;
+}
+
+.equipment-autocomplete__option-title {
+  color: #1f2a38;
+}
+
+.equipment-autocomplete__option-meta {
+  color: #666;
+  font-size: 0.78rem;
+}
+
+.equipment-autocomplete__empty,
+.equipment-autocomplete__hint {
+  padding: 10px 12px;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.equipment-autocomplete__error {
+  display: block;
+  margin-top: 4px;
+  color: #c0392b;
+  font-size: 0.78rem;
+}

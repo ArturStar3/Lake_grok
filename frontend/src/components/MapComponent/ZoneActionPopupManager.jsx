@@ -10,11 +10,28 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+export function buildZonePopupPayload(zone) {
+  if (!zone) return null;
+  return {
+    label: zone.obj?.label || zone.obj?.title || '',
+    actionTitle: zone.actionTitle || 'Зона действия',
+    equipmentLabel: zone.isEquipmentZone ? (zone.equipmentLabel || '') : '',
+    centerLat: zone.centerLat,
+    centerLng: zone.centerLng,
+    radiusMeters: zone.radiusMeters,
+    countryTitle: zone.countryTitle || zone.obj?.country?.title || '',
+  };
+}
+
 function buildPopupContent(popup) {
   const radiusKm = Math.round((popup.radiusMeters || 0) / 1000);
+  const equipmentLine = popup.equipmentLabel
+    ? `Техника: ${escapeHtml(popup.equipmentLabel)}<br />`
+    : '';
   return `
     <div class="zone-action-popup__content">
       <strong>${escapeHtml(popup.label)}</strong><br />
+      ${equipmentLine}
       Тип зоны: ${escapeHtml(popup.actionTitle)}<br />
       Радиус: ${radiusKm} км<br />
       Страна: ${escapeHtml(popup.countryTitle || '')}
@@ -23,7 +40,7 @@ function buildPopupContent(popup) {
 }
 
 /**
- * Императивный Leaflet popup — не зависит от ре-рендеров карты при hover маркеров.
+ * Императивный Leaflet popup у центра зоны — не зависит от ре-рендеров при hover.
  */
 const ZoneActionPopupManager = React.memo(function ZoneActionPopupManager({ popup, version, onClose }) {
   const map = useMap();
@@ -80,6 +97,7 @@ const ZoneActionPopupManager = React.memo(function ZoneActionPopupManager({ popu
     popup?.centerLng,
     popup?.label,
     popup?.actionTitle,
+    popup?.equipmentLabel,
     popup?.radiusMeters,
     popup?.countryTitle,
   ]);

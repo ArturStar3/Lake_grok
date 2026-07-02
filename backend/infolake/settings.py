@@ -15,8 +15,11 @@ import environ
 
 from pathlib import Path
 
+from .unfold_settings import UNFOLD
+
 env = environ.Env(
-    DEBUG=(bool, False)
+    DEBUG=(bool, False),
+    FRONTEND_URL=(str, 'http://localhost:5173'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -35,10 +38,17 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# URL фронтенда для ссылки «Открыть сайт» в админке (браузер на хосте, не внутри Docker).
+FRONTEND_URL = env('FRONTEND_URL')
+
 
 # Application definition
 
 INSTALLED_APPS = [
+    'unfold',
+    'unfold.contrib.filters',
+    'unfold.contrib.forms',
+    'unfold.contrib.inlines',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -48,12 +58,14 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'formular',
-    'api'
+    'equipment',
+    'api',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -137,6 +149,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 

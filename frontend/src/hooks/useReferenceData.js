@@ -7,6 +7,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 let cachedData = null;
 let cachedAt = 0;
 let inflightPromise = null;
+const invalidationListeners = new Set();
 
 async function loadMarkerSvgs(markers, signal) {
   const entries = await Promise.all(
@@ -43,10 +44,10 @@ export async function fetchReferenceData({ signal, includeMarkerSvgs = true } = 
 
   inflightPromise = (async () => {
     const [countriesRes, markersRes, actionTypesRes, targetTypesRes] = await Promise.all([
-      axios.get(`${API_URL}/api/v1/countries`, { signal }),
-      axios.get(`${API_URL}/api/v1/markers`, { signal }),
-      axios.get(`${API_URL}/api/v1/action-types`, { signal }),
-      axios.get(`${API_URL}/api/v1/target-types`, { signal }),
+      axios.get(`${API_URL}/api/v1/countries/`, { signal }),
+      axios.get(`${API_URL}/api/v1/markers/`, { signal }),
+      axios.get(`${API_URL}/api/v1/action-types/`, { signal }),
+      axios.get(`${API_URL}/api/v1/target-types/`, { signal }),
     ]);
 
     const markers = markersRes.data || [];
@@ -78,6 +79,14 @@ export async function fetchReferenceData({ signal, includeMarkerSvgs = true } = 
 export function invalidateReferenceDataCache() {
   cachedData = null;
   cachedAt = 0;
+  inflightPromise = null;
+  invalidationListeners.forEach((listener) => listener());
+}
+
+/** Подписка на сброс кэша (для перезагрузки открытых форм). */
+export function subscribeReferenceDataInvalidation(listener) {
+  invalidationListeners.add(listener);
+  return () => invalidationListeners.delete(listener);
 }
 
 /**
@@ -87,6 +96,13 @@ export function useReferenceData(enabled) {
   const [data, setData] = useState(cachedData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    return subscribeReferenceDataInvalidation(() => {
+      setReloadToken((token) => token + 1);
+    });
+  }, []);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -115,7 +131,7 @@ export function useReferenceData(enabled) {
       cancelled = true;
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, reloadToken]);
 
   return {
     countries: data?.countries ?? [],

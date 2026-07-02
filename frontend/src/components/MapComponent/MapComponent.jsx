@@ -16,13 +16,21 @@ import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import ActionZonesLayer from "./ActionZonesLayer";
-import ZoneActionPopupManager from "./ZoneActionPopupManager";
+import MapOverlayLayers from "./MapOverlayLayers";
+import MapLayerPanel from "./MapLayerPanel";
+import { useMapOverlayLayers } from "../../hooks/useMapOverlayLayers";
+import ZoneHoverListPanel from "./ZoneHoverListPanel";
+import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopupManager";
 import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
-import { isFlagMarker, isNonFlagMarker } from "../../utils/markerFilters";
+import { isFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
 import { TILE_RASTER_URL } from "../../config/tiles";
+import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
+import { clearMarkerIconCache } from "../../utils/markerIconCache";
+import { clearEnrichSvgCache } from "../../utils/svgUtils";
+import { ensureNonFlagIconsForObjects } from "../../utils/markerIconFactory";
 import "./MapComponent.css"
 
 // delete L.Icon.Default.prototype._getIconUrl;
@@ -34,10 +42,11 @@ L.Icon.Default.mergeOptions({
 
 const MemoGeoJSON = React.memo(GeoJSON);
 
-function FullscreenControl({isFullscreen, onToggle}) {
+function FullscreenControl({ isFullscreen, onToggle, sidebarOpen = false }) {
     return (
         <button
-            className="map__fullscreen-btn"
+            type="button"
+            className={`map__fullscreen-btn${sidebarOpen ? ' map__fullscreen-btn--sidebar-open' : ''}`}
             onClick={onToggle}
             aria-label={isFullscreen ? "Выход из полноэкранного режима" : "Перейти в полноэкранный режим"}
         >
@@ -68,6 +77,7 @@ function MapScaleBar({ isFullscreen }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const numericRef = useRef(null);
     const dropdownRef = useRef(null);
+    const scaleTimeoutRef = useRef(null);
 
     // Обратный расчёт зума для заданного знаменателя масштаба (1:N).
     // Использует ту же константу Web Mercator и приближение, что и updateScale.
@@ -78,7 +88,7 @@ function MapScaleBar({ isFullscreen }) {
         // targetMpp согласован с формулой denomRaw = niceMeters / (barWidth * 0.000264583333)
         const targetMpp = denominator * 0.000264583333;
         const z = Math.log2(mpp0 / targetMpp);
-        return Math.max(0, Math.min(18, Math.round(z)));
+        return Math.max(0, Math.min(19, Math.round(z)));
     }, []);
 
     const updateScale = useCallback(() => {
@@ -158,8 +168,10 @@ function MapScaleBar({ isFullscreen }) {
         if (!map) return undefined;
 
         const scheduleUpdate = () => {
-            // Небольшой debounce, чтобы не дёргалось во время зума/перемещения
-            setTimeout(updateScale, 60);
+            // Небольшой debounce, чтобы не дёргалось во время зума/перемещения.
+            // Отменяем предыдущий таймер, иначе при быстром зуме/пане они копятся.
+            if (scaleTimeoutRef.current) clearTimeout(scaleTimeoutRef.current);
+            scaleTimeoutRef.current = setTimeout(updateScale, 60);
         };
 
         map.on("zoomend", scheduleUpdate);
@@ -173,6 +185,7 @@ function MapScaleBar({ isFullscreen }) {
             map.off("zoomend", scheduleUpdate);
             map.off("moveend", scheduleUpdate);
             map.off("resize", scheduleUpdate);
+            if (scaleTimeoutRef.current) clearTimeout(scaleTimeoutRef.current);
         };
     }, [map, updateScale]);
 
@@ -319,13 +332,165 @@ function MarkerInitializer({ objects, selectedIds, onMarkersReady }) {
 
 // Компонент для инициализации non-flag маркеров ВНУТРИ MapContainer
 function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds }) {
-    // Этот компонент передаёт карту в NonFlagLabelGeneration
     return <NonFlagLabelGeneration objects={objects} onMarkersReady={onMarkersReady} selectedIds={selectedIds} />;
+}
+
+const FlagMapMarker = React.memo(function FlagMapMarker({
+    obj,
+    icon,
+    measureMode,
+    onMarkerClick,
+    onMarkerHover,
+}) {
+    const eventHandlers = useMemo(() => ({
+        click: (e) => {
+            if (measureMode && e.originalEvent?.ctrlKey) return;
+            if (onMarkerClick && obj.id) onMarkerClick(obj.id);
+        },
+        mouseover: () => {
+            if (obj.id) onMarkerHover(obj.id);
+        },
+        mouseout: () => onMarkerHover(null),
+    }), [obj.id, measureMode, onMarkerClick, onMarkerHover]);
+
+    if (!icon) return null;
+
+    return (
+        <Marker
+            position={[obj.lat, obj.lng]}
+            icon={icon}
+            draggable={false}
+            eventHandlers={eventHandlers}
+        />
+    );
+});
+
+function getFlagMarkerKey(o) {
+    const markerId = o.marker?.id ?? 'no-marker';
+    return `${o.id}-${markerId}`;
+}
+
+function FlagMarkersLayer({ markers, iconsById, measureMode, onMarkerClick, onMarkerHover }) {
+    const visible = useMapViewportMarkers(markers);
+    return visible.map((obj) => (
+        <FlagMapMarker
+            key={getFlagMarkerKey(obj)}
+            obj={obj}
+            icon={iconsById[obj.id]}
+            measureMode={measureMode}
+            onMarkerClick={onMarkerClick}
+            onMarkerHover={onMarkerHover}
+        />
+    ));
+}
+
+const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
+    obj,
+    icon,
+    measureMode,
+    pinnedGroupId,
+    onMarkerClick,
+    onMarkerHover,
+    onGroupHover,
+    onPinGroup,
+}) {
+    const eventHandlers = useMemo(() => ({
+        mouseover: () => {
+            if (obj.isGroupIcon) {
+                onGroupHover(obj.groupId);
+            } else if (obj.id) {
+                onMarkerHover(obj.id);
+            }
+        },
+        mouseout: () => {
+            if (obj.isGroupIcon) {
+                if (pinnedGroupId !== obj.groupId) onGroupHover(null);
+            } else {
+                onMarkerHover(null);
+            }
+        },
+        click: (e) => {
+            if (obj.isGroupIcon) {
+                e.originalEvent.stopPropagation();
+                if (pinnedGroupId === obj.groupId) {
+                    onPinGroup(null);
+                    onGroupHover(null);
+                } else {
+                    onPinGroup(obj.groupId);
+                }
+            } else {
+                if (measureMode && e.originalEvent?.ctrlKey) return;
+                if (onMarkerClick && obj.id) onMarkerClick(obj.id);
+            }
+        },
+    }), [
+        obj.id,
+        obj.isGroupIcon,
+        obj.groupId,
+        measureMode,
+        pinnedGroupId,
+        onMarkerClick,
+        onMarkerHover,
+        onGroupHover,
+        onPinGroup,
+    ]);
+
+    if (!icon) return null;
+
+    return (
+        <Marker
+            position={[obj.lat, obj.lng]}
+            icon={icon}
+            draggable={false}
+            eventHandlers={eventHandlers}
+        />
+    );
+});
+
+function NonFlagMarkersLayer({
+    groupedObjects,
+    iconsById,
+    selectedIds,
+    currentZoom,
+    pinnedGroupId,
+    measureMode,
+    onMarkerClick,
+    onMarkerHover,
+    onGroupHover,
+    onPinGroup,
+}) {
+    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const candidates = useMemo(() => {
+        if (currentZoom < 6) return [];
+        return (groupedObjects || []).filter((obj) => !obj.isHidden && selectedSet.has(obj.id));
+    }, [groupedObjects, selectedSet, currentZoom]);
+
+    const visible = useMapViewportMarkers(candidates);
+
+    return visible.map((obj) => {
+        const markerId = obj.marker?.id ?? 'no-marker';
+        const key = obj.isGroupIcon
+            ? `non-flag-group-${obj.groupId}`
+            : `non-flag-${obj.id}-${markerId}`;
+        return (
+            <NonFlagMapMarker
+                key={key}
+                obj={obj}
+                icon={iconsById[obj.isGroupIcon ? obj.groupId : obj.id]}
+                measureMode={measureMode}
+                pinnedGroupId={pinnedGroupId}
+                onMarkerClick={onMarkerClick}
+                onMarkerHover={onMarkerHover}
+                onGroupHover={onGroupHover}
+                onPinGroup={onPinGroup}
+            />
+        );
+    });
 }
 
 // Компонент для отображения элементов группы в круге при наведении.
 // Оптимизация: React.memo + вычисления зависят только от displayGroupId + groupedObjects.
-const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, onMarkerClick, measureMode, onMarkerHover }) {
+const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, svgCache, onMarkerClick, measureMode, onMarkerHover }) {
     const [mapRevision, setMapRevision] = React.useState(0);
     const mapInstance = useMapEvents({
         zoomend: () => setMapRevision((v) => v + 1),
@@ -333,6 +498,7 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
     });
     const [circleMarkers, setCircleMarkers] = React.useState([]);
     const [circleCenter, setCircleCenter] = React.useState(null);
+    const [circleIcons, setCircleIcons] = React.useState({});
 
     // Показываем круг если группа наведена ИЛИ закреплена
     const displayGroupId = pinnedGroupId || hoveredGroupId;
@@ -396,6 +562,20 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
         setCircleCenter({ lat: centerLat, lng: centerLng });
     }, [displayGroupId, groupedObjects, mapInstance, mapRevision]);
 
+    React.useEffect(() => {
+        if (!displayGroupId || !groupedObjects.length) {
+            setCircleIcons({});
+            return;
+        }
+        const groupIconEntry = groupedObjects.find(g => g.groupId === displayGroupId && g.isGroupIcon);
+        const group = groupIconEntry || groupedObjects.find(g => g.groupId === displayGroupId);
+        if (!group?.groupObjects || !svgCache?.size) {
+            setCircleIcons({});
+            return;
+        }
+        setCircleIcons(ensureNonFlagIconsForObjects(group.groupObjects, svgCache, iconsById ?? {}));
+    }, [displayGroupId, groupedObjects, svgCache, iconsById]);
+
     if (!circleCenter || circleMarkers.length === 0 || !displayGroupId) return null;
 
     const handleCloseCircle = () => {
@@ -409,8 +589,7 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
         <>
             {/* Маркеры элементов в круге */}
             {circleMarkers.map((marker, idx) => {
-                // Используем реальную иконку объекта, если она существует
-                const markerIcon = iconsById ? iconsById[marker.id] : null;
+                const markerIcon = circleIcons[marker.id] || (iconsById ? iconsById[marker.id] : null);
 
                 return (
                     <Marker
@@ -478,6 +657,21 @@ function ZoomTracker({ onZoomChange }) {
     return null;
 }
 
+/**
+ * Единый стабильный мост для событий карты (click и т.п.).
+ * Компонент объявлен на уровне модуля (не внутри рендера MapComponent), поэтому
+ * его тип стабилен и Leaflet-обработчики не переподписываются на каждый ре-рендер.
+ * Актуальная логика читается из ref (apiRef.current) в момент события.
+ */
+function MapEventBridge({ apiRef }) {
+    const map = useMapEvents({
+        click: (e) => apiRef.current?.onClick?.(e, map),
+        mousemove: (e) => apiRef.current?.onMouseMove?.(e, map),
+        mouseout: (e) => apiRef.current?.onMouseOut?.(e, map),
+    });
+    return null;
+}
+
 function MapComponent({
     // ...existing code...
     objects,
@@ -492,8 +686,8 @@ function MapComponent({
     onCheckboxChange = () => {},
     showActionRadius: externalShowActionRadius = false,
     actionTypes = [],
-    actionRadiusMode = "animation",
-    onActionRadiusModeChange,
+    actionRadiusMode: _actionRadiusMode = "animation",
+    onActionRadiusModeChange: _onActionRadiusModeChange,
     intersections = [],
     selectedIntersections = [],
     onIntersectionToggle,
@@ -510,12 +704,12 @@ function MapComponent({
     toggleActionType,
     toggleAllForCountry,
     resetZoneFilters,
-    actionZoneViewMode = "displaySettings",
-    onActionZoneViewModeChange,
+    actionZoneViewMode: _actionZoneViewMode = "displaySettings",
+    onActionZoneViewModeChange: _onActionZoneViewModeChange,
     // ...existing code...
     onMeasureModeChange,
     onMeasurePointsChange,
-    onShowActionRadiusChange,
+    onShowActionRadiusChange: _onShowActionRadiusChange,
     onTableTabChange,
     onMarkerClick,
     onMarkerHover,
@@ -528,6 +722,7 @@ function MapComponent({
     onFilterTypeChange,
     filterTitle = "",
     onFilterTitleChange,
+    targetTypes = [],
     countriesList = [],
     eventTypesList = [],
     eventsFilters = { title: "", dateFrom: "", dateTo: "", timeFrom: "", timeTo: "", countries: [], eventTypes: [] },
@@ -543,22 +738,23 @@ function MapComponent({
     tableTab
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers();
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
     const [currentZoom, setCurrentZoom] = useState(4);
-    const [zoneContextMenu, setZoneContextMenu] = useState(null);
+    const [hoveredZoneList, setHoveredZoneList] = useState([]);
+    const [pinnedZonePanel, setPinnedZonePanel] = useState(null);
+    const [selectedZoneEntryId, setSelectedZoneEntryId] = useState(null);
     const [activeZonePopup, setActiveZonePopup] = useState(null);
     const [activeZonePopupVersion, setActiveZonePopupVersion] = useState(0);
-    const zoneMenuRef = useRef(null);
     const [geoData, setGeoData] = useState(null);
     const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [] });
-    const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [] });
+    const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
     const [selectedCountryIso, setSelectedCountryIso] = useState(null);
     const [eventContextMenu, setEventContextMenu] = useState(null);
-    const [selectedEventShape, setSelectedEventShape] = useState(null);
     const [eventDrawMode, setEventDrawMode] = useState(null);
     const [eventDrawPoints, setEventDrawPoints] = useState([]);
     const [polygonContextMenu, setPolygonContextMenu] = useState(null);
@@ -576,11 +772,12 @@ function MapComponent({
     const [fullscreenTab, setFullscreenTab] = useState("objects");
     const [eventMarkerSvgs, setEventMarkerSvgs] = useState(new Map());
     const eventMarkerFetchRef = useRef(new Set());
-    const hoverTimeoutRef = useRef(null);
     const isEventPointDraggingRef = useRef(false);
     const isEventPointPointerDownRef = useRef(false);
     const cursorCoordsRef = useRef(null);
     const skipZoneHoverUpdatesRef = useRef(false);
+    const suppressNextMapClickRef = useRef(false);
+    const mapEventApiRef = useRef({});
     const zoneHoverControllerRef = useRef(null);
     if (!zoneHoverControllerRef.current) {
         zoneHoverControllerRef.current = createZoneHoverController();
@@ -593,8 +790,8 @@ function MapComponent({
     const measureMenuRef = useRef(null);
 
     useEffect(() => {
-        skipZoneHoverUpdatesRef.current = Boolean(activeZonePopup || zoneContextMenu);
-    }, [activeZonePopup, zoneContextMenu]);
+        skipZoneHoverUpdatesRef.current = Boolean(pinnedZonePanel);
+    }, [pinnedZonePanel]);
 
     // Ограничение движения карты по оси Y (чтобы нельзя было уехать за полюса)
     const mapMaxBounds = [[-85.0511287798, -180], [85.0511287798, 180]];
@@ -623,9 +820,11 @@ function MapComponent({
     }, [zoneObjects, objects]);
 
     useEffect(() => {
+        clearMarkerIconCache();
+        clearEnrichSvgCache();
         setMarkerVersion(prev => prev + 1);
         setMarkerData({ iconsById: {}, clusteredObjects: [] });
-        setNonFlagData({ iconsById: {}, groupedObjects: [] });
+        setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     }, [objectsDataKey]);
 
     useEffect(() => {
@@ -686,11 +885,14 @@ function MapComponent({
     const effectiveMeasureMode = isFullscreen ? isMeasureMode : measureMode;
     const effectiveMeasurePoints = isFullscreen ? measurePoints : measurements;
 
-    // Cleanup zone interactions (menu + tooltip/popup) when the "Зона действия" tool is turned off
+    // Cleanup zone panel when the "Зона действия" tool is turned off
     useEffect(() => {
         if (!showActionRadius) {
-            setZoneContextMenu(null);
+            setPinnedZonePanel(null);
+            setSelectedZoneEntryId(null);
+            setHoveredZoneList([]);
             setActiveZonePopup(null);
+            zoneHoverControllerRef.current?.clear();
         }
     }, [showActionRadius]);
 
@@ -725,7 +927,7 @@ function MapComponent({
     // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
     useEffect(() => {
       if (currentZoom < 6) {
-        setNonFlagData({ iconsById: {}, groupedObjects: [] });
+        setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
       }
     }, [currentZoom]);
 
@@ -736,12 +938,12 @@ function MapComponent({
     useEffect(() => {
         const handleEsc = (e) => {
             if (e.key === "Escape") {
-                if (zoneContextMenu) {
-                    setZoneContextMenu(null);
+                if (pinnedZonePanel) {
+                    setPinnedZonePanel(null);
+                    setSelectedZoneEntryId(null);
+                    setHoveredZoneList([]);
                     setActiveZonePopup(null);
-                } else if (activeZonePopup) {
-                    // Esc while a forced zone description popup is open → close it
-                    setActiveZonePopup(null);
+                    zoneHoverControllerRef.current?.clear();
                 } else if (pinnedGroupId) {
                     setPinnedGroupId(null);
                 } else if (isFullscreen) {
@@ -751,33 +953,16 @@ function MapComponent({
         };
         document.addEventListener("keydown", handleEsc);
         return () => document.removeEventListener("keydown", handleEsc)
-    }, [isFullscreen, pinnedGroupId, zoneContextMenu]);
-
-    // Закрытие контекстного меню зон при клике вне (для req 6)
-    useEffect(() => {
-        if (!zoneContextMenu) return undefined;
-        const handleOutside = (e) => {
-            if (zoneMenuRef.current && zoneMenuRef.current.contains(e.target)) {
-                return;
-            }
-            setZoneContextMenu(null);
-            setActiveZonePopup(null);
-        };
-        // click (не mousedown) — чтобы не закрыть меню в том же цикле событий, что и открытие
-        document.addEventListener('click', handleOutside, true);
-        return () => document.removeEventListener('click', handleOutside, true);
-    }, [zoneContextMenu]);
+    }, [isFullscreen, pinnedGroupId, pinnedZonePanel]);
 
     useEffect(() => {
-        const observer = new ResizeObserver((entries) => {
-            for (let entry of entries) {
-                if (mapRef.current) {
-                    setTimeout(() => {
-                        if (mapRef.current) {
-                            mapRef.current.invalidateSize();
-                        }
-                    }, 0)
-                }
+        const observer = new ResizeObserver(() => {
+            if (mapRef.current) {
+                setTimeout(() => {
+                    if (mapRef.current) {
+                        mapRef.current.invalidateSize();
+                    }
+                }, 0);
             }
         });
         if (containerRef.current) {
@@ -957,7 +1142,6 @@ function MapComponent({
     const clearEventDraft = () => {
         setEventDrawMode(null);
         setEventDrawPoints([]);
-        setSelectedEventShape(null);
         setPolygonContextMenu(null);
     };
 
@@ -1026,11 +1210,6 @@ function MapComponent({
         });
     };
 
-    const getMarkerKey = (o, i) => {
-        // Включаем marker.id в ключ, чтобы при изменении маркера объект перерисовывался
-        const markerId = o.marker?.id ?? 'no-marker';
-        return `${o.id}-${markerId}`;
-    }
 
     // Используем clusteredObjects для отображения маркеров (с примененными офсетами)
     // Исключаем non-flag объекты - они будут отображаться отдельно
@@ -1041,87 +1220,76 @@ function MapComponent({
         );
     }, [markerData.clusteredObjects, selectedSet]);
 
-    // Компонент для обработки кликов на карту и закрытия группы
-    function MapClickHandler({ onMapClick }) {
-        useMapEvents({
-            click: () => {
-                if (polygonContextMenu) {
-                    setPolygonContextMenu(null);
-                }
-                if (pinnedGroupId) {
-                    setPinnedGroupId(null);
-                    setHoveredGroupId(null); // Очищаем наведённую группу тоже
-                }
-            }
-        });
-        return null;
-    }
-
-    function CursorTracker() {
-        useMapEvents({
-            mousemove: (e) => {
-                if (isEventPointDraggingRef.current) return;
-                if (isEventPointPointerDownRef.current) return;
-                const el = cursorCoordsRef.current;
-                if (!el) return;
-                el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-                el.style.display = 'block';
-            },
-            mouseout: () => {
-                const el = cursorCoordsRef.current;
-                if (el) el.style.display = 'none';
-            },
-        });
-        return null;
-    }
-
-    function PolygonContextMenuHandler() {
-        useMapEvents({});
-        return null;
-    }
-
-    function MeasureHandler({ isActive, onAddPoint }) {
-        useMapEvents({
-            click: (e) => {
-                if (!isActive || !onAddPoint) return;
-                if (!e.originalEvent || !e.originalEvent.ctrlKey) return;
-                const { lat, lng } = e.latlng;
-                onAddPoint({ lat, lng });
-            }
-        });
-        return null;
-    }
-
-    function EventContextMenuHandler() {
-        const map = useMapEvents({
-            click: (e) => {
-                if (isEventEditModeActive) {
-                    if (eventContextMenu) {
-                        setEventContextMenu(null);
-                    }
-                    return;
-                }
-                if (e.originalEvent?.altKey) {
-                    const point = map.mouseEventToContainerPoint(e.originalEvent);
-                    setEventContextMenu({
-                        x: point.x,
-                        y: point.y,
-                        lat: e.latlng.lat,
-                        lng: e.latlng.lng
-                    });
-                    return;
-                }
-
-                if (eventContextMenu) {
-                    setEventContextMenu(null);
-                }
-            }
-        });
-        return null;
-    }
-
     const handleMeasureAddPoint = ({ lat, lng }) => {
         setMeasurePoints((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, lat, lng }]);
+    };
+
+    // Единый обработчик клика по карте для MapEventBridge.
+    // Сохраняем в ref (переприсваивание дёшево и не вызывает перемонтирования
+    // моста). Три независимых блока полностью повторяют прежние отдельные
+    // обработчики (клик по карте, режим измерения, контекст события) и порядок
+    // их срабатывания — каждый блок изолирован своим замыканием, чтобы `return`
+    // прерывал только свою секцию, как это было у отдельных useMapEvents.
+    mapEventApiRef.current.onClick = (e, map) => {
+        // 1) Клик по карте: закрытие меню полигона / группы / панели зон
+        (() => {
+            if (suppressNextMapClickRef.current) {
+                suppressNextMapClickRef.current = false;
+                return;
+            }
+            if (polygonContextMenu) {
+                setPolygonContextMenu(null);
+            }
+            if (pinnedGroupId) {
+                setPinnedGroupId(null);
+                setHoveredGroupId(null);
+            }
+            setPinnedGroupId(null);
+            handleZonePanelClose();
+        })();
+
+        // 2) Режим измерения: Ctrl+клик добавляет точку
+        (() => {
+            const isActive = effectiveMeasureMode;
+            const onAddPoint = isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint;
+            if (!isActive || !onAddPoint) return;
+            if (!e.originalEvent || !e.originalEvent.ctrlKey) return;
+            const { lat, lng } = e.latlng;
+            onAddPoint({ lat, lng });
+        })();
+
+        // 3) Контекст события: Alt+клик открывает меню (вне режима редактирования)
+        (() => {
+            if (isEventEditModeActive) {
+                if (eventContextMenu) setEventContextMenu(null);
+                return;
+            }
+            if (e.originalEvent?.altKey) {
+                const point = map.mouseEventToContainerPoint(e.originalEvent);
+                setEventContextMenu({
+                    x: point.x,
+                    y: point.y,
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                });
+                return;
+            }
+            if (eventContextMenu) setEventContextMenu(null);
+        })();
+    };
+
+    // Трекер координат курсора (обновляет DOM напрямую, без ре-рендера React).
+    mapEventApiRef.current.onMouseMove = (e) => {
+        if (isEventPointDraggingRef.current) return;
+        if (isEventPointPointerDownRef.current) return;
+        const el = cursorCoordsRef.current;
+        if (!el) return;
+        el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+        el.style.display = 'block';
+    };
+    mapEventApiRef.current.onMouseOut = () => {
+        const el = cursorCoordsRef.current;
+        if (el) el.style.display = 'none';
     };
 
     // Новый обработчик hover: синхронизирует локальное состояние и родительский callback
@@ -1146,55 +1314,72 @@ function MapComponent({
         zoneHoverControllerRef.current?.setHovered(memberIds);
     }, [nonFlagData.groupedObjects]);
 
+    const handleZonePanelClose = useCallback(() => {
+        setPinnedZonePanel(null);
+        setSelectedZoneEntryId(null);
+        setHoveredZoneList([]);
+        setActiveZonePopup(null);
+        zoneHoverControllerRef.current?.clear();
+    }, []);
+
     const handleZonePopupClose = useCallback(() => {
         setActiveZonePopup(null);
     }, []);
 
-    const handleZoneClickAt = useCallback((e, candidates) => {
-        if (e.target?.closePopup) {
-            e.target.closePopup();
-        }
-        if (mapRef.current?.closePopup) {
-            mapRef.current.closePopup();
-        }
-        if (!candidates?.length) return;
-
-        const toPopupPayload = (c) => ({
-            label: c.obj.label || c.obj.title,
-            actionTitle: c.actionTitle,
-            centerLat: c.centerLat,
-            centerLng: c.centerLng,
-            radiusMeters: c.radiusMeters,
-            countryTitle: c.obj.country?.title || '',
-        });
-
-        if (candidates.length === 1) {
-            const chosen = candidates[0];
-            if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
-                onCheckboxChange(chosen.obj.id);
-            }
-            setZoneContextMenu(null);
-            setActiveZonePopupVersion((v) => v + 1);
-            setActiveZonePopup(toPopupPayload(chosen));
+    const handleZoneHoverChange = useCallback((candidates) => {
+        if (!isFullscreen || pinnedZonePanel) {
+            if (!pinnedZonePanel) setHoveredZoneList([]);
             return;
         }
-
-        setActiveZonePopup(null);
-        const { x, y } = getMenuPosition(e.originalEvent || {});
-        setZoneContextMenu({
-            x,
-            y,
-            candidates: candidates.map((c) => ({
-                obj: c.obj,
-                actionTitle: c.actionTitle,
-                centerLat: c.centerLat,
-                centerLng: c.centerLng,
-                radiusMeters: c.radiusMeters,
-                label: c.obj.label || c.obj.title,
-                countryTitle: c.obj.country?.title || '',
-            })),
+        const list = candidates || [];
+        setHoveredZoneList((prev) => {
+            if (prev.length === list.length && prev.every((z, i) => z.entryId === list[i]?.entryId)) {
+                return prev;
+            }
+            return list;
         });
-    }, [mapRef, onCheckboxChange, selectedObj]);
+    }, [isFullscreen, pinnedZonePanel]);
+
+    useEffect(() => {
+        if (!isFullscreen) {
+            setHoveredZoneList([]);
+            setPinnedZonePanel(null);
+            setSelectedZoneEntryId(null);
+            setActiveZonePopup(null);
+            zoneHoverControllerRef.current?.clear();
+        }
+    }, [isFullscreen]);
+
+    const handleZonePanelSelect = useCallback((entryId) => {
+        setSelectedZoneEntryId(entryId);
+        zoneHoverControllerRef.current?.setHoveredEntries([entryId]);
+        const zone = pinnedZonePanel?.zones?.find((z) => z.entryId === entryId);
+        const payload = buildZonePopupPayload(zone);
+        if (payload) {
+            setActiveZonePopup(payload);
+            setActiveZonePopupVersion((v) => v + 1);
+        }
+    }, [pinnedZonePanel]);
+
+    const handleZoneClickAt = useCallback((e, candidates) => {
+        if (!candidates?.length || !isFullscreen) return;
+
+        suppressNextMapClickRef.current = true;
+
+        const chosen = candidates[0];
+        // Клик по зоне должен ВЫДЕЛИТЬ объект (checked=true). Ранее вызывалось
+        // без второго аргумента, из-за чего toggleIdInList трактовал checked как
+        // false и пытался снять выделение — объект не выбирался.
+        if (onCheckboxChange && !selectedSet.has(chosen.obj.id)) {
+            onCheckboxChange(chosen.obj.id, true);
+        }
+
+        setPinnedZonePanel({ zones: candidates });
+        setHoveredZoneList(candidates);
+        setSelectedZoneEntryId(null);
+        setActiveZonePopup(null);
+        zoneHoverControllerRef.current?.setHoveredEntries(candidates.map((z) => z.entryId));
+    }, [isFullscreen, onCheckboxChange, selectedSet]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1206,11 +1391,6 @@ function MapComponent({
     const formatDistance = (meters) => {
         if (!meters) return "0 м";
         return meters >= 1000 ? `${(meters / 1000).toFixed(2)} км` : `${meters.toFixed(0)} м`;
-    };
-
-    const getTotalDistance = () => {
-        if (effectiveMeasurePoints.length === 0) return 0;
-        return effectiveMeasurePoints.reduce((sum, point) => sum + point.distance, 0);
     };
 
     const toRadians = (deg) => (deg * Math.PI) / 180;
@@ -1481,19 +1661,17 @@ function MapComponent({
                                     >
                                         Очистить измерения
                                     </button>
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            handleFullscreenTabChange("zones");
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                    >
-                                        Зоны действия
-                                    </button>
                                 </div>
                             )}
                         </div>
+                    </div>
+
+                    <div className="map__sidebar-section">
+                        <MapLayerPanel
+                            enabledById={overlayEnabledById}
+                            onToggle={toggleOverlayLayer}
+                            onSetAll={setAllOverlayLayers}
+                        />
                     </div>
 
                     <div className="map__sidebar-section map__objects-section">
@@ -1525,6 +1703,7 @@ function MapComponent({
                             <>
                                 <FilterPanel
                                     objects={zoneObjects.length > 0 ? zoneObjects : objects}
+                                    targetTypes={targetTypes}
                                     filterCountry={filterCountry}
                                     onFilterCountryChange={onFilterCountryChange}
                                     filterType={filterType}
@@ -1534,6 +1713,7 @@ function MapComponent({
                                 />
                                 <ObjectsTable
                                     data={objects}
+                                    targetTypes={targetTypes}
                                     selectedObj={selectedObj}
                                     onCheckboxChange={onCheckboxChange}
                                     onTitleClick={onMarkerClick}
@@ -1583,6 +1763,7 @@ function MapComponent({
                                     actionZoneFilters={actionZoneFilters}
                                     showZoneIntersections={showZoneIntersections}
                                     setShowZoneIntersections={setShowZoneIntersections}
+                                    hasEnabledZones={showActionRadius}
                                     toggleActionType={toggleActionType}
                                     toggleAllForCountry={toggleAllForCountry}
                                     resetZoneFilters={resetZoneFilters}
@@ -1612,25 +1793,12 @@ function MapComponent({
                 </div>
             )}
             
-            {isFullscreen && (
-                <>
-                    <FullscreenControl isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
-                    {!isSidebarOpen && (
-                        <button
-                            className="map__sidebar-toggle"
-                            onClick={() => setIsSidebarOpen(true)}
-                            aria-label="Открыть панель"
-                        >
-                            ☰
-                        </button>
-                    )}
-                </>
-            )}
-            
             <MapContainer
                 ref={mapRef}
                 center={center}
                 zoom={4}
+                minZoom={2}
+                maxZoom={19}
                 style={{height: "100%", width: "100%"}}
                 className={isFullscreen ? "map--fullscreen" : ""}
                 maxBounds={mapMaxBounds}
@@ -1638,17 +1806,14 @@ function MapComponent({
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <MapScaleBar isFullscreen={isFullscreen} />
-                <MapClickHandler onMapClick={() => setPinnedGroupId(null)} />
-                <MeasureHandler isActive={effectiveMeasureMode} onAddPoint={isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint} />
-                <EventContextMenuHandler />
-                <PolygonContextMenuHandler />
+                <MapEventBridge apiRef={mapEventApiRef} />
                 <TileLayer
                     url={TILE_RASTER_URL}
                     minZoom={2}
-                    maxZoom={14}
+                    maxZoom={19}
                     attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
                 />
-                {/* <CursorTracker /> */}
+                <MapOverlayLayers activeLayers={activeOverlayLayers} />
                 <MarkerInitializer 
                     key={`markers-v${markerVersion}`}
                     objects={flagObjectsForMap} 
@@ -1667,6 +1832,7 @@ function MapComponent({
                     pinnedGroupId={pinnedGroupId}
                     onPinGroup={setPinnedGroupId}
                     iconsById={nonFlagData.iconsById}
+                    svgCache={nonFlagData.svgCache}
                     onMarkerClick={onMarkerClick}
                     measureMode={effectiveMeasureMode}
                     onMarkerHover={handleMarkerHover}
@@ -1820,100 +1986,25 @@ function MapComponent({
                 {events
                     .filter((item) => selectedEventIds.includes(item.id))
                     .map((item) => renderEventShape(item))}
-                {displayedObjectsForMarkers.map((obj, idx) => (
-                    <Marker
-                        key={getMarkerKey(obj, idx)}
-                        position={[obj.lat, obj.lng]}
-                        icon={markerData.iconsById[obj.id]}
-                        draggable={false}
-                        eventHandlers={{
-                            click: (e) => {
-                                // Не открываем формуляр в режиме измерения с Ctrl
-                                if (effectiveMeasureMode && e.originalEvent?.ctrlKey) {
-                                    return;
-                                }
-                                // Открываем формуляр при клике на маркер
-                                if (onMarkerClick && obj.id) {
-                                    onMarkerClick(obj.id);
-                                }
-                            },
-                            mouseover: () => {
-                                if (obj.id) {
-                                    handleMarkerHover(obj.id);
-                                }
-                            },
-                            mouseout: () => {
-                                handleMarkerHover(null);
-                            }
-                        }}
-                    />
-                ))}
-                {nonFlagData.groupedObjects && (() => {
-                    // Additional guard: never render non-flags below zoom 6, even if nonFlagData has stale entries
-                    if (currentZoom < 6) return null;
-                    const allNonFlags = nonFlagData.groupedObjects;
-                    const visibleNonFlags = allNonFlags.filter(obj => !obj.isHidden && selectedSet.has(obj.id));
-                    return visibleNonFlags.map((obj) => {
-                        const markerId = obj.marker?.id ?? 'no-marker';
-                        const key = obj.isGroupIcon 
-                            ? `non-flag-group-${obj.groupId}`
-                            : `non-flag-${obj.id}-${markerId}`;
-                        
-                        return (
-                            <Marker
-                                key={key}
-                                position={[obj.lat, obj.lng]}
-                                icon={nonFlagData.iconsById[obj.isGroupIcon ? obj.groupId : obj.id]}
-                                draggable={false}
-                                eventHandlers={{
-                                mouseover: () => {
-                                    if (obj.isGroupIcon) {
-                                        updateGroupHover(obj.groupId);
-                                    } else {
-                                        // Обычный non-flag маркер
-                                        if (obj.id) {
-                                            handleMarkerHover(obj.id);
-                                        }
-                                    }
-                                },
-                                mouseout: () => {
-                                    if (obj.isGroupIcon) {
-                                        // Сбрасываем hover только если группа не закреплена
-                                        if (pinnedGroupId !== obj.groupId) {
-                                            updateGroupHover(null);
-                                        }
-                                    } else {
-                                        // Обычный non-flag маркер
-                                        handleMarkerHover(null);
-                                    }
-                                },
-                                click: (e) => {
-                                    if (obj.isGroupIcon) {
-                                        e.originalEvent.stopPropagation();
-                                        // Если уже закреплена - закрываем, если нет - закрепляем
-                                        if (pinnedGroupId === obj.groupId) {
-                                            setPinnedGroupId(null);
-                                            updateGroupHover(null);
-                                        } else {
-                                            setPinnedGroupId(obj.groupId);
-                                        }
-                                    } else {
-                                        // Клик по обычному non-flag маркеру
-                                        // Не открываем формуляр в режиме измерения с Ctrl
-                                        if (effectiveMeasureMode && e.originalEvent?.ctrlKey) {
-                                            return;
-                                        }
-                                        // Открываем формуляр при клике на маркер
-                                        if (onMarkerClick && obj.id) {
-                                            onMarkerClick(obj.id);
-                                        }
-                                    }
-                                }
-                            }}
-                        />
-                        );
-                    });
-                })()}
+                <FlagMarkersLayer
+                    markers={displayedObjectsForMarkers}
+                    iconsById={markerData.iconsById}
+                    measureMode={effectiveMeasureMode}
+                    onMarkerClick={onMarkerClick}
+                    onMarkerHover={handleMarkerHover}
+                />
+                <NonFlagMarkersLayer
+                    groupedObjects={nonFlagData.groupedObjects}
+                    iconsById={nonFlagData.iconsById}
+                    selectedIds={selectedObj}
+                    currentZoom={currentZoom}
+                    pinnedGroupId={pinnedGroupId}
+                    measureMode={effectiveMeasureMode}
+                    onMarkerClick={onMarkerClick}
+                    onMarkerHover={handleMarkerHover}
+                    onGroupHover={updateGroupHover}
+                    onPinGroup={setPinnedGroupId}
+                />
                 {(() => {
                     const arr = isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints;
                     return arr.length > 0 && arr.map((point, idx) => {
@@ -1979,12 +2070,12 @@ function MapComponent({
                         actionZoneFilters={actionZoneFilters}
                         hoverController={zoneHoverControllerRef.current}
                         skipHoverRef={skipZoneHoverUpdatesRef}
+                        isZonePanelPinned={Boolean(pinnedZonePanel)}
                         onZoneClickAt={handleZoneClickAt}
+                        onZoneHoverChange={handleZoneHoverChange}
                     />
                 )}
 
-
-                {/* Controlled popup для описания зоны (одиночный клик и выбор из контекстного меню) */}
                 {showActionRadius && activeZonePopup && activeZonePopup.centerLat != null && (
                     <ZoneActionPopupManager
                         popup={activeZonePopup}
@@ -1992,83 +2083,33 @@ function MapComponent({
                         onClose={handleZonePopupClose}
                     />
                 )}
-
-                <CursorTracker />
             </MapContainer>
             {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
-
-            {/* Панель управления зонами теперь в sidebar (Formular). Здесь только легенда на карте. */}
-
-            {/* Контекстное меню при клике на пересекающиеся зоны (req 6) */}
-            {zoneContextMenu && (
-                <div
-                    ref={zoneMenuRef}
-                    className="map__zone-context-menu"
-                    style={{
-                        position: 'absolute',
-                        left: zoneContextMenu.x,
-                        top: zoneContextMenu.y,
-                        background: 'white',
-                        border: '1px solid #3a4654',
-                        boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
-                        zIndex: 2000,
-                        minWidth: '180px',
-                        fontSize: '12px'
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div style={{ padding: '4px 8px', fontWeight: 600, borderBottom: '1px solid #ddd', background: '#f4f6f7' }}>
-                        Выберите объект
-                    </div>
-                    {zoneContextMenu.candidates.map((cand, idx) => (
-                        <button
-                            key={idx}
-                            type="button"
-                            style={{
-                                display: 'block',
-                                width: '100%',
-                                textAlign: 'left',
-                                padding: '4px 8px',
-                                border: 'none',
-                                background: 'transparent',
-                                cursor: 'pointer'
-                            }}
-                            onClick={() => {
-                                // То же исправление бага исчезновения: только добавляем в selected, если отсутствует.
-                                if (onCheckboxChange && !selectedObj.includes(cand.obj.id)) {
-                                    onCheckboxChange(cand.obj.id);
-                                }
-                                // Сначала обновляем activeZonePopup (payload + version) — это важно для controlled popup.
-                                // Потом закрываем меню. (Меню могло бы закрыться из-за closer, но с contains check
-                                // inner mousedown теперь не триггерит преждевременный clear.)
-                                setActiveZonePopupVersion(v => v + 1);
-                                setActiveZonePopup({
-                                    label: cand.label || cand.obj.label || cand.obj.title,
-                                    actionTitle: cand.actionTitle,
-                                    centerLat: cand.centerLat,
-                                    centerLng: cand.centerLng,
-                                    radiusMeters: cand.radiusMeters,
-                                    countryTitle: cand.countryTitle || cand.obj.country?.title || ''
-                                });
-                                setZoneContextMenu(null);
-                            }}
-                        >
-                            {cand.obj.label || cand.obj.title} <span style={{ color: '#555', fontSize: '11px' }}>({cand.actionTitle})</span>
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        style={{ width: '100%', padding: '3px', fontSize: '10px', borderTop: '1px solid #eee' }}
-                        onClick={() => {
-                            setZoneContextMenu(null);
-                            setActiveZonePopup(null);
-                        }}
-                    >
-                        Отмена
-                    </button>
-                </div>
+            {isFullscreen && showActionRadius && (pinnedZonePanel || hoveredZoneList.length > 0) && (
+                <ZoneHoverListPanel
+                    zones={pinnedZonePanel?.zones ?? hoveredZoneList}
+                    isPinned={Boolean(pinnedZonePanel)}
+                    selectedEntryId={selectedZoneEntryId}
+                    onSelectZone={handleZonePanelSelect}
+                    onClose={handleZonePanelClose}
+                />
             )}
-            <FullscreenControl isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
+
+            <FullscreenControl
+                isFullscreen={isFullscreen}
+                onToggle={toggleFullscreen}
+                sidebarOpen={isFullscreen && isSidebarOpen}
+            />
+            {isFullscreen && !isSidebarOpen && (
+                <button
+                    type="button"
+                    className="map__sidebar-toggle"
+                    onClick={() => setIsSidebarOpen(true)}
+                    aria-label="Открыть панель инструментов"
+                >
+                    ☰
+                </button>
+            )}
             {isEventReady() && !isEventModalOpen && !isEventEditModeActive && (
                 <div className="map__event-actions">
                     <button
@@ -2086,15 +2127,6 @@ function MapComponent({
                         ✕
                     </button>
                 </div>
-            )}
-            {isFullscreen && (
-                <button
-                    className="map__objects-btn"
-                    onClick={() => setIsSidebarOpen((prev) => !prev)}
-                    aria-label="Показать/скрыть объекты"
-                >
-                    📋
-                </button>
             )}
             {selectedCountryIso && (
                 <CountryModal 
@@ -2126,7 +2158,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("point");
                             setEventDrawPoints(initEventPoints("point", eventContextMenu));
-                            setSelectedEventShape("point");
                             setEventContextMenu(null);
                         }}
                     >
@@ -2138,7 +2169,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("circle");
                             setEventDrawPoints(initEventPoints("circle", eventContextMenu));
-                            setSelectedEventShape("circle");
                             setEventContextMenu(null);
                         }}
                     >
@@ -2150,7 +2180,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("rectangle");
                             setEventDrawPoints(initEventPoints("rectangle", eventContextMenu));
-                            setSelectedEventShape("rectangle");
                             setEventContextMenu(null);
                         }}
                     >
@@ -2162,7 +2191,6 @@ function MapComponent({
                         onClick={() => {
                             setEventDrawMode("polygon");
                             setEventDrawPoints(initEventPoints("polygon", eventContextMenu));
-                            setSelectedEventShape("polygon");
                             setEventContextMenu(null);
                         }}
                     >

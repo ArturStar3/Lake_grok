@@ -5,7 +5,7 @@
  */
 export function getViewBoxSize(svgString) {
   if (!svgString) return null;
-  const match = svgString.match(/viewBox\s*=\s*['\"]([\d.\s]+)['\"]/i);
+  const match = svgString.match(/viewBox\s*=\s*['"]([\d.\s]+)['"]/i);
   if (!match) return null;
   const parts = match[1].trim().split(/\s+/);
   if (parts.length !== 4) return null;
@@ -18,14 +18,27 @@ export function getViewBoxSize(svgString) {
  * Утилиты для работы с SVG
  */
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const enrichSvgCache = new Map();
+const ENRICH_SVG_CACHE_MAX = 2000;
+
+function enrichSvgCacheKey(rawSvg, width, height, markerId, color) {
+  return `${markerId}|${color}|${width}|${height}|${rawSvg.length}|${rawSvg.slice(0, 64)}`;
+}
+
+/** Сброс при смене набора объектов на карте. */
+export function clearEnrichSvgCache() {
+  enrichSvgCache.clear();
+}
+
 /**
- * Обогащает SVG: добавляет уникальные ID для gradients, цветовые классы, размеры
- * @param {string} rawSvg - Исходный SVG код
- * @param {number|string} w - Ширина иконки
- * @param {number|string} h - Высота иконки
- * @param {number|string} markerId - ID маркера для уникализации
- * @param {string} color - Цвет для добавления класса
- * @returns {string} Обработанный SVG
+ * Обогащает SVG: уникальные id в defs, цветовые классы, размеры.
+ * Все id переименовываются с суффиксом markerId — иначе url(#id) в inline-SVG
+ * разрешается по всему HTML-документу и маркеры с order>6 (radialGradient, clipPath)
+ * «крадут» градиенты друг у друга.
  */
 export const enrichSvg = (rawSvg, w, h, markerId, color) => {
   if (!rawSvg) {
@@ -34,47 +47,48 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
 
   const width = typeof w === "string" ? w.replace(/px$/i, "") : w;
   const height = typeof h === "string" ? h.replace(/px$/i, "") : h;
+  const suffix = String(markerId ?? 'marker');
+
+  const cacheKey = enrichSvgCacheKey(rawSvg, width, height, suffix, color);
+  if (enrichSvgCache.has(cacheKey)) {
+    return enrichSvgCache.get(cacheKey);
+  }
 
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(rawSvg, "image/svg+xml");
-    
-    // Проверяем на ошибки парсирования
+
     if (doc.documentElement.nodeName === "parsererror") {
       console.warn(`enrichSvg: DOMParser error for markerId=${markerId}`);
       return "";
     }
 
-    // Уникализация ID для gradients
     const idMap = {};
-    const grads = doc.querySelectorAll("linearGradient[id]");
-    grads.forEach(g => {
-      const oldId = g.getAttribute("id");
-      const newId = `${oldId}-${markerId}`;
-      idMap[oldId] = newId;
-      g.setAttribute("id", newId);
+    doc.querySelectorAll('[id]').forEach((el) => {
+      const oldId = el.getAttribute('id');
+      if (!oldId) return;
+      if (!idMap[oldId]) {
+        idMap[oldId] = `${oldId}-${suffix}`;
+      }
+      el.setAttribute('id', idMap[oldId]);
     });
 
-    // Добавление цветового класса
-    doc.querySelector("svg")?.classList.add(`icon__${color || "blue"}`);
+    doc.querySelector('svg')?.classList.add(`icon__${color || 'blue'}`);
 
     let svgString = new XMLSerializer().serializeToString(doc);
 
-    // Обновление ссылок на ID
-    Object.entries(idMap).forEach(([oldId, newId]) => {
-      const urlReg = new RegExp(`(?<=url\\(#)${oldId}(?=\\))`, "g");
-      const hrefReg = new RegExp(`(?<=href\\s*=\\s*"#)${oldId}(?=")`, "g");
-      const xlReg = new RegExp(`(?<=xlink:href\\s*=\\s*"#)${oldId}(?=)`, "g");
-      svgString = svgString
-        .replace(urlReg, newId)
-        .replace(hrefReg, newId)
-        .replace(xlReg, newId);
-    });
+    Object.entries(idMap)
+      .sort((a, b) => b[0].length - a[0].length)
+      .forEach(([oldId, newId]) => {
+        const escaped = escapeRegExp(oldId);
+        svgString = svgString
+          .replace(new RegExp(`url\\(#${escaped}\\)`, 'g'), `url(#${newId})`)
+          .replace(new RegExp(`href="#${escaped}"`, 'g'), `href="#${newId}"`)
+          .replace(new RegExp(`xlink:href="#${escaped}"`, 'g'), `xlink:href="#${newId}"`);
+      });
 
-    // Добавляем xmlns, если его нет
     svgString = svgString.replace(/<svg\s/, '<svg xmlns="http://www.w3.org/2000/svg" ');
 
-    // Обновляем width/height
     const match = svgString.match(/<svg([\s\S]*?)>/i);
     if (!match) {
       console.warn(`enrichSvg: No SVG tag found for markerId=${markerId}`);
@@ -88,7 +102,13 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
       .trim();
 
     const newAttrs = `${cleanedAttrs} width="${width}" height="${height}"`.trim();
-    return svgString.replace(/<svg([\s\S]*?)>/i, `<svg ${newAttrs}>`);
+    const result = svgString.replace(/<svg([\s\S]*?)>/i, `<svg ${newAttrs}>`);
+
+    if (enrichSvgCache.size >= ENRICH_SVG_CACHE_MAX) {
+      enrichSvgCache.clear();
+    }
+    enrichSvgCache.set(cacheKey, result);
+    return result;
   } catch (e) {
     console.warn(`enrichSvg: Error processing SVG for markerId=${markerId}:`, e);
     return "";

@@ -330,6 +330,18 @@ class TargetType(models.Model):
         max_length=150,
         verbose_name='Тип объекта разведки'
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name='Родительский тип',
+    )
+    order = models.PositiveSmallIntegerField(
+        verbose_name='Порядок',
+        default=1,
+    )
     countries = models.ManyToManyField(
         Country,
         blank=True,
@@ -344,7 +356,21 @@ class TargetType(models.Model):
         indexes = [
             models.Index(fields=('title',)),
         ]
-        ordering = ['title']
+        ordering = ['order', 'title']
+
+    def clean(self):
+        if self.parent_id:
+            if self.parent_id == self.pk:
+                raise ValidationError(
+                    {'parent': 'Тип не может быть родителем самого себя'}
+                )
+            cursor = self.parent
+            while cursor is not None:
+                if cursor.pk == self.pk:
+                    raise ValidationError(
+                        {'parent': 'Циклическая иерархия типов объектов'}
+                    )
+                cursor = cursor.parent
 
     def __str__(self):
         return self.title
@@ -419,6 +445,13 @@ class Target(models.Model):
     lng = models.FloatField(
         verbose_name='Широта'
     )
+    equipment = models.ManyToManyField(
+        'equipment.Equipment',
+        through='TargetEquipment',
+        blank=True,
+        related_name='targets',
+        verbose_name='Техника на объекте',
+    )
 
     class Meta:
         verbose_name = 'Объект'
@@ -431,6 +464,52 @@ class Target(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class TargetEquipment(models.Model):
+    """Связь объекта разведки с образцом техники и количеством."""
+
+    target = models.ForeignKey(
+        Target,
+        on_delete=models.CASCADE,
+        related_name='equipment_links',
+        verbose_name='Объект разведки',
+    )
+    equipment = models.ForeignKey(
+        'equipment.Equipment',
+        on_delete=models.CASCADE,
+        related_name='target_links',
+        verbose_name='Образец техники',
+    )
+    quantity = models.PositiveIntegerField(
+        default=1,
+        validators=[
+            MinValueValidator(1, message='Количество должно быть не меньше 1'),
+        ],
+        verbose_name='Количество',
+    )
+
+    class Meta:
+        db_table = 'formular_target_equipment'
+        verbose_name = 'Техника на объекте'
+        verbose_name_plural = 'Вооружение и техника'
+        constraints = [
+            models.UniqueConstraint(
+                fields=('target', 'equipment'),
+                name='formular_target_equipment_unique',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('target',)),
+            models.Index(fields=('equipment',)),
+        ]
+
+    def __str__(self):
+        label = self.equipment.designation or self.equipment.title
+        if self.quantity > 1:
+            return f'{label} × {self.quantity}'
+        return label
+
     
 class EventType(models.Model):
     """Тип события"""
@@ -707,3 +786,4 @@ class FormularAttachment(models.Model):
 
     def __str__(self):
         return f"{self.target.title} - {self.section.title} - {self.title}"
+

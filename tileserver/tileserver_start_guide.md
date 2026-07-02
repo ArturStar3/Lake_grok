@@ -40,7 +40,7 @@ tileserver/
 │   ├── map.mbtiles             # Векторные тайлы (НЕ в git, скачивается отдельно)
 │   └── name-overrides.json     # Правила подмены названий городов
 ├── fonts/                      # Глифы шрифтов Open Sans (в git)
-├── sprites/                    # Спрайты для иконок (резерв)
+├── sprites/                    # Спрайты для иконок (используются в overlay-aeroway, overlay-mountain-peaks, overlay-poi-*)
 ├── styles/
 │   ├── borders-labels.json     # Основной стиль карты
 │   └── basic.json              # Базовый стиль
@@ -195,6 +195,44 @@ curl.exe -L -C - -o data\map.mbtiles "https://www.limaps.org/MBTiles/2024-10-08-
 
 Не `fonts/{fontstack}/...` — префикс `fonts` уже задан в `config.json` → `paths.fonts`.  
 Двойной префикс вызывает ошибку `Invalid range` при серверном рендеринге.
+
+#### Слои-оверлеи (гидрография, транспорт, аэродромы, рельеф, POI)
+
+Помимо базовых стилей зарегистрированы прозрачные стили-оверлеи (см. [`../map_layers_plan.md`](../map_layers_plan.md)):
+
+| Стиль | Слой на карте |
+|---|---|
+| `overlay-water` | Водоёмы, реки, каналы |
+| `overlay-hydro-labels` | Подписи гидрографии |
+| `overlay-railways` | Железные дороги |
+| `overlay-ferry` | Паромы / морские линии |
+| `overlay-road-labels` | Названия дорог и улиц |
+| `overlay-aeroway` | Аэродромы, ВПП, рулёжки, перроны |
+| `overlay-mountain-peaks` | Вершины, высоты (рельеф) |
+| `overlay-districts` | Районы, кварталы, острова |
+| `overlay-house-numbers` | Номера домов |
+| `overlay-poi-infrastructure` | Соц. инфраструктура (школы, больницы, полиция и т.д.) |
+| `overlay-poi-transport` | Транспортные POI (вокзалы, АЗС, порты) |
+| `overlay-poi-services` | Магазины, кафе, туризм, спорт |
+
+У каждого фон `rgba(0,0,0,0)` — они накладываются поверх базовой карты. Переключаются во фронтенде
+(секция «Слои карты» в fullscreen sidebar). Проверка после запуска:
+
+```text
+http://localhost:8080/styles/overlay-water/8/158/81.png
+http://localhost:8080/styles/overlay-railways/8/158/81.png
+http://localhost:8080/styles/overlay-aeroway/static/37.4146,55.9726,12/600x600.png
+```
+
+**Иконки POI/аэродромов/вершин** берутся из локального спрайта `sprites/basic/` (набор osm-bright,
+имена значков совпадают с полем `class` в OMT). Путь подключён в `config.json`:
+
+```json
+"options": { "paths": { "sprites": "sprites" } }
+```
+
+а в самих стилях указано `"sprite": "basic/sprite"`. Спрайт коммитится в git и работает полностью
+оффлайн — дополнительных загрузок не требует.
 
 ### Шаг 8. Настроить подмену названий городов
 

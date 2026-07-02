@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import axios from 'axios';
 import { addColorClassToSvg } from '../../utils/svgUtils';
 import { useActionsArray } from '../../hooks/useActionsArray';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
 import { useTargetFormData } from '../../hooks/useTargetFormData';
+import {
+    buildTargetTypeTree,
+    flattenTargetTypeTree,
+    formatTypeOptionLabel,
+    filterTargetTypesForCountry,
+} from '../../utils/targetTypeTree';
 import './AddTargetModal.css';
 
 import { API_URL } from '../../config/api';
@@ -25,6 +31,11 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
     
     // Используем хук для загрузки справочников
     const { countries, markers, actionTypes, targetTypes, targets, markerSvgs } = useTargetFormData(isOpen, cachedTargets);
+
+    const typeSelectOptions = useMemo(() => {
+        const applicable = filterTargetTypesForCountry(targetTypes, formData.country);
+        return flattenTargetTypeTree(buildTargetTypeTree(applicable));
+    }, [targetTypes, formData.country]);
     
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -297,9 +308,9 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
                             className={`add-target-modal__select ${errors.type ? 'add-target-modal__input--error' : ''}`}
                         >
                             <option value="">Выберите тип</option>
-                            {targetTypes.map((type) => (
-                                <option key={type.id} value={type.id}>
-                                    {type.title}
+                            {typeSelectOptions.map(({ node, depth }) => (
+                                <option key={node.id} value={node.id}>
+                                    {formatTypeOptionLabel(node.title, depth)}
                                 </option>
                             ))}
                         </select>

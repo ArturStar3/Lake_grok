@@ -1,9 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { addColorClassToSvg } from '../../utils/svgUtils';
 import { useActionsArray } from '../../hooks/useActionsArray';
+import { useDeployedEquipmentArray } from '../../hooks/useDeployedEquipmentArray';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
-import { fetchReferenceData } from '../../hooks/useReferenceData';
+import { fetchReferenceData, subscribeReferenceDataInvalidation } from '../../hooks/useReferenceData';
+import TargetEquipmentEditor from '../TargetEquipment/TargetEquipmentEditor';
+import {
+    buildTargetTypeTree,
+    flattenTargetTypeTree,
+    formatTypeOptionLabel,
+    filterTargetTypesForCountry,
+} from '../../utils/targetTypeTree';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
 
@@ -20,7 +28,8 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         parent: '',
         lat: '',
         lng: '',
-        actions: []
+        actions: [],
+        deployed_equipment: [],
     });
     
     const [formularData, setFormularData] = useState({});
@@ -35,14 +44,25 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const [actionTypes, setActionTypes] = useState([]);
     const [targetTypes, setTargetTypes] = useState([]);
     const [targets, setTargets] = useState([]);  // для выбора parent
+    const [equipmentCatalog, setEquipmentCatalog] = useState([]);
     const [markerSvgs, setMarkerSvgs] = useState(new Map());
     
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    const typeSelectOptions = useMemo(() => {
+        const applicable = filterTargetTypesForCountry(targetTypes, formData.country);
+        return flattenTargetTypeTree(buildTargetTypeTree(applicable));
+    }, [targetTypes, formData.country]);
     
     // Хуки для управления actions
     const { handleAddAction, handleRemoveAction, handleActionChange } = useActionsArray(formData, setFormData);
+    const {
+        handleAddEquipmentWithId,
+        handleRemoveEquipment,
+        handleEquipmentChange,
+    } = useDeployedEquipmentArray(setFormData);
     
     // Хуки для dropdown с поиском
     const countryDropdown = useDropdownWithSearch(
@@ -84,7 +104,16 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
 
     const loadSeqRef = useRef(0);
     const cachedTargetsRef = useRef(cachedTargets);
+    const isOpenRef = useRef(isOpen);
     cachedTargetsRef.current = cachedTargets;
+    isOpenRef.current = isOpen;
+    const [refReloadToken, setRefReloadToken] = useState(0);
+
+    useEffect(() => {
+        return subscribeReferenceDataInvalidation(() => {
+            if (isOpenRef.current) setRefReloadToken((token) => token + 1);
+        });
+    }, []);
     
     useEffect(() => {
         if (!isOpen || !targetId) return undefined;
@@ -100,9 +129,11 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 const [
                     targetRes,
                     sectionsRes,
+                    equipmentRes,
                 ] = await Promise.all([
                     axios.get(`${API_ROOT}/api/v1/targets/${targetId}/`, { signal: controller.signal }),
                     axios.get(`${API_ROOT}/api/v1/formular-sections/`, { signal: controller.signal }),
+                    axios.get(`${API_ROOT}/api/v1/equipment/`, { signal: controller.signal }),
                 ]);
 
                 if (seq !== loadSeqRef.current) return;
@@ -114,6 +145,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 setActionTypes(refs.actionTypes);
                 setTargetTypes(refs.targetTypes);
                 setMarkerSvgs(refs.markerSvgs);
+                setEquipmentCatalog(Array.isArray(equipmentRes.data) ? equipmentRes.data : []);
 
                 const cachedParents = cachedTargetsRef.current;
                 if (cachedParents && cachedParents.length > 0) {
@@ -138,7 +170,11 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                     actions: target.actions?.map(a => ({
                         action_type_id: a.action_type?.id || '',
                         radius: a.radius || 0
-                    })) || []
+                    })) || [],
+                    deployed_equipment: (target.deployed_equipment || []).map((row) => ({
+                        equipment_id: row.equipment?.id || '',
+                        quantity: row.quantity || 1,
+                    })),
                 });
             
                 const organized = organizeIntoHierarchy(sectionsRes.data);
@@ -195,8 +231,11 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         };
 
         loadData();
-        return () => controller.abort();
-    }, [isOpen, targetId]);
+        return () => {
+            controller.abort();
+            loadSeqRef.current += 1;
+        };
+    }, [isOpen, targetId, refReloadToken]);
     
     const organizeIntoHierarchy = (sections) => {
         const sectionMap = {};
@@ -353,6 +392,22 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 newErrors[`action_${index}_type`] = 'Выберите тип действия';
             }
         });
+
+        const equipmentRows = (formData.deployed_equipment || []).filter((row) => row.equipment_id);
+        const seenEquipment = new Set();
+        equipmentRows.forEach((row) => {
+            const equipmentId = parseInt(row.equipment_id, 10);
+            if (seenEquipment.has(equipmentId)) {
+                newErrors.deployed_equipment = 'Один образец техники указан несколько раз';
+            }
+            seenEquipment.add(equipmentId);
+        });
+        equipmentRows.forEach((row, index) => {
+            const qty = parseInt(row.quantity, 10);
+            if (!qty || qty < 1) {
+                newErrors[`equipment_${index}_qty`] = 'Минимум 1';
+            }
+        });
         
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -381,7 +436,13 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                     .map(action => ({
                         action_type_id: parseInt(action.action_type_id),
                         radius: parseFloat(action.radius)
-                    }))
+                    })),
+                deployed_equipment: (formData.deployed_equipment || [])
+                    .filter((row) => row.equipment_id)
+                    .map((row) => ({
+                        equipment_id: parseInt(row.equipment_id, 10),
+                        quantity: parseInt(row.quantity, 10) || 1,
+                    })),
             };
             
             await axios.put(`${API_ROOT}/api/v1/targets/${targetId}/`, dataToSend);
@@ -577,6 +638,12 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                         Основная информация
                     </button>
                     <button
+                        className={`edit-target-modal__tab ${activeTab === 'equipment' ? 'edit-target-modal__tab--active' : ''}`}
+                        onClick={() => setActiveTab('equipment')}
+                    >
+                        Вооружение и техника
+                    </button>
+                    <button
                         className={`edit-target-modal__tab ${activeTab === 'formular' ? 'edit-target-modal__tab--active' : ''}`}
                         onClick={() => setActiveTab('formular')}
                     >
@@ -658,9 +725,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                             className={`edit-target-modal__select ${errors.type ? 'edit-target-modal__input--error' : ''}`}
                                         >
                                             <option value="">Выберите тип</option>
-                                            {targetTypes.map((type) => (
-                                                <option key={type.id} value={type.id}>
-                                                    {type.title}
+                                            {typeSelectOptions.map(({ node, depth }) => (
+                                                <option key={node.id} value={node.id}>
+                                                    {formatTypeOptionLabel(node.title, depth)}
                                                 </option>
                                             ))}
                                         </select>
@@ -964,6 +1031,19 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'equipment' && (
+                                <div className="edit-target-modal__tab-content">
+                                    <TargetEquipmentEditor
+                                        deployedEquipment={formData.deployed_equipment}
+                                        catalog={equipmentCatalog}
+                                        errors={errors}
+                                        onAddEquipment={handleAddEquipmentWithId}
+                                        onRemove={handleRemoveEquipment}
+                                        onChange={handleEquipmentChange}
+                                    />
                                 </div>
                             )}
                             

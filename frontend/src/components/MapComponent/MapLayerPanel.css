@@ -1,0 +1,111 @@
+.map-layer-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.map-layer-panel__groups {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.map-layer-panel__groups::-webkit-scrollbar {
+    width: 6px;
+}
+
+.map-layer-panel__groups::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.map-layer-panel__groups::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
+
+.map-layer-panel__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: left;
+}
+
+.map-layer-panel__title:hover {
+    color: #008dd2;
+}
+
+.map-layer-panel__chevron {
+    display: inline-block;
+    font-size: 12px;
+    line-height: 1;
+    transition: transform 0.15s ease;
+}
+
+.map-layer-panel__chevron--collapsed {
+    transform: rotate(-90deg);
+}
+
+.map-layer-panel__counter {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6a6a6a;
+    letter-spacing: 0;
+}
+
+.map-layer-panel__group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.map-layer-panel__group-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6a6a6a;
+}
+
+.map-layer-panel__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #2b2a29;
+    padding: 2px 0;
+}
+
+.map-layer-panel__item input {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: #008dd2;
+}
+
+.map-layer-panel__item:hover .map-layer-panel__label {
+    color: #008dd2;
+}
+
+.map-layer-panel__item--all {
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.map-layer-panel__label--all {
+    font-weight: 600;
+    color: #1a1a1a;
+}

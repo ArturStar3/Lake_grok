@@ -362,101 +362,17 @@
       }
     },
     {
-      "id": "road-motorway-casing",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 5,
-      "filter": ["all", ["==", "class", "motorway"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
-      "layout": {"line-cap": "round", "line-join": "round"},
-      "paint": {
-        "line-color": "#e9ac77",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0, 6, 0.6, 8, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.3, 8, 1.2, 12, 3]
-      }
-    },
-    {
-      "id": "road-motorway",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 5,
-      "filter": ["all", ["==", "class", "motorway"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
-      "layout": {"line-cap": "round", "line-join": "round"},
-      "paint": {
-        "line-color": "#fc8",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0, 6, 0.6, 8, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.2, 8, 0.8, 12, 2.5]
-      }
-    },
-    {
-      "id": "road-trunk-primary-casing",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 6,
-      "filter": ["all", ["in", "class", "trunk", "primary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
-      "layout": {"line-cap": "round", "line-join": "round"},
-      "paint": {
-        "line-color": "#e9ac77",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0, 8, 0.7, 10, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.3, 10, 1.5, 14, 4]
-      }
-    },
-    {
-      "id": "road-trunk-primary",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 6,
-      "filter": ["all", ["in", "class", "trunk", "primary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
-      "layout": {"line-cap": "round", "line-join": "round"},
-      "paint": {
-        "line-color": "#fea",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0, 8, 0.7, 10, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.2, 10, 1, 14, 3]
-      }
-    },
-    {
-      "id": "road-secondary-tertiary-casing",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 8,
-      "filter": ["all", ["in", "class", "secondary", "tertiary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
-      "layout": {"line-cap": "round", "line-join": "round"},
-      "paint": {
-        "line-color": "#e9ac77",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 8, 0, 10, 0.8, 12, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.4, 12, 2, 14, 5]
-      }
-    },
-    {
-      "id": "road-secondary-tertiary",
-      "type": "line",
-      "source": "openmaptiles",
-      "source-layer": "transportation",
-      "minzoom": 8,
-      "filter": ["all", ["in", "class", "secondary", "tertiary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
-      "layout": {"line-cap": "round", "line-join": "round"},
-      "paint": {
-        "line-color": "#fea",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 8, 0, 10, 0.8, 12, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.3, 12, 1.5, 14, 4]
-      }
-    },
-    {
       "id": "road-minor-casing",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 11,
+      "minzoom": 10,
       "filter": ["all", ["in", "class", "minor", "service", "track"], ["!in", "brunnel", "bridge", "tunnel"]],
       "layout": {"line-cap": "round", "line-join": "round"},
       "paint": {
-        "line-color": "#cfcdca",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12, 0.8, 14, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.4, 14, 3]
+        "line-color": "#b3aca0",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 0.7, 13, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 14, 4, 18, 9, 20, 13]
       }
     },
     {
@@ -464,13 +380,13 @@
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
-      "minzoom": 11,
+      "minzoom": 10,
       "filter": ["all", ["in", "class", "minor", "service", "track"], ["!in", "brunnel", "bridge", "tunnel"]],
       "layout": {"line-cap": "round", "line-join": "round"},
       "paint": {
         "line-color": "#ffffff",
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12, 0.8, 14, 1],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.3, 14, 2.5]
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0, 11, 0.7, 13, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.4, 14, 3, 18, 7, 20, 10]
       }
     },
     {
@@ -482,10 +398,94 @@
       "filter": ["all", ["==", "class", "path"], ["!in", "brunnel", "bridge", "tunnel"]],
       "layout": {"line-cap": "round", "line-join": "round"},
       "paint": {
-        "line-color": "#cba",
+        "line-color": "#b09a80",
         "line-dasharray": [1.5, 0.75],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 14, 0.8],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.4, 14, 1.2]
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 13, 0, 14, 0.85],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.6, 16, 1.6, 20, 3]
+      }
+    },
+    {
+      "id": "road-secondary-tertiary-casing",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 7,
+      "filter": ["all", ["in", "class", "secondary", "tertiary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#b8901f",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 9, 0.8, 11, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.8, 12, 3.5, 14, 6, 18, 11, 20, 15]
+      }
+    },
+    {
+      "id": "road-secondary-tertiary",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 7,
+      "filter": ["all", ["in", "class", "secondary", "tertiary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#ffe082",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 7, 0, 9, 0.8, 11, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.5, 12, 2.6, 14, 4.6, 18, 9, 20, 13]
+      }
+    },
+    {
+      "id": "road-trunk-primary-casing",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 5,
+      "filter": ["all", ["in", "class", "trunk", "primary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#c46a1c",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0, 7, 0.7, 9, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.8, 10, 2.8, 14, 6.5, 18, 12, 20, 16]
+      }
+    },
+    {
+      "id": "road-trunk-primary",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 5,
+      "filter": ["all", ["in", "class", "trunk", "primary"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#ffb84d",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0, 7, 0.7, 9, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.5, 10, 2, 14, 5, 18, 10, 20, 14]
+      }
+    },
+    {
+      "id": "road-motorway-casing",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 4,
+      "filter": ["all", ["==", "class", "motorway"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#b0521a",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0, 5, 0.6, 7, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 2.6, 12, 6, 16, 11, 20, 18]
+      }
+    },
+    {
+      "id": "road-motorway",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 4,
+      "filter": ["all", ["==", "class", "motorway"], ["!=", "ramp", 1], ["!in", "brunnel", "bridge", "tunnel"]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#ff8a33",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0, 5, 0.6, 7, 1],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 8, 1.8, 12, 4.5, 16, 9, 20, 15]
       }
     },
     {

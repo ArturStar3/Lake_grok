@@ -18,10 +18,18 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 
 from api import urls as api_urls
+from equipment.admin_redirects import equipment_admin_redirect_urlpatterns
 
 urlpatterns = [
+    path(
+        '',
+        RedirectView.as_view(url=settings.FRONTEND_URL, permanent=False),
+        name='root',
+    ),
+    *equipment_admin_redirect_urlpatterns(),
     path('admin/', admin.site.urls),
     path('api/v1/', include(api_urls))
 ]

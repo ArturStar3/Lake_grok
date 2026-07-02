@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import axios from "axios";
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
 import "./Formular.css";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import ObjectsTable from "../ObjectsTable/ObjectsTable";
@@ -11,63 +10,30 @@ import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import FormularModal from "../FormularModal/FormularModal";
 import AddTargetModal from "../AddTargetModal/AddTargetModal";
-import FormularEditor from "../FormularEditor/FormularEditor";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
-import { findAllIntersections } from "../../utils/circleIntersection";
-import { buildActionZoneCatalog, filterObjectsForZones, hasEnabledZoneFilters } from "../../utils/buildVisibleZones";
+import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
+import { toggleIdInList } from "../../utils/selectionUtils";
+import { useTargetsList } from "../../hooks/formular/useTargetsList";
+import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
+import { useReferenceData } from "../../hooks/useReferenceData";
+import { useEventsList } from "../../hooks/formular/useEventsList";
+import { useActionZoneState } from "../../hooks/formular/useActionZoneState";
+import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
+import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
+import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
 
-import { API_URL as API_ROOT } from '../../config/api';
-const API_URL = `${API_ROOT}/api/v1/targets`;
-const EVENTS_API_URL = `${API_ROOT}/api/v1/events`;
-const COUNTRIES_API_URL = `${API_ROOT}/api/v1/countries`;
-const EVENT_TYPES_API_URL = `${API_ROOT}/api/v1/event-types`;
-const ACTION_TYPES_API_URL = `${API_ROOT}/api/v1/action-types`;
+const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
+const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
 
 export default function Formular() {
     const [activeTab, setActiveTab] = useState("objects");
-    const [filterCountry, setFilterCountry] = useState([]);
-    const [filterType, setFilterType] = useState([]);
-    const [filterTitle, setFilterTitle] = useState("");
-    const [objects, setObjects] = useState([]);
-    const [objectsLoading, setObjectsLoading] = useState(true);
-    const [objectsError, setObjectsError] = useState(null);
-    const [events, setEvents] = useState([]);
-    const [eventsLoading, setEventsLoading] = useState(false);
-    const [eventsError, setEventsError] = useState(null);
-    const [selectedEvents, setSelectedEvents] = useState([]);
-    const [eventsFilters, setEventsFilters] = useState({
-        title: "",
-        dateFrom: "",
-        dateTo: "",
-        timeFrom: "",
-        timeTo: "",
-        countries: [],
-        eventTypes: []
-    });
-    const [countriesList, setCountriesList] = useState([]);
-    const [eventTypesList, setEventTypesList] = useState([]);
-    const [actionTypesList, setActionTypesList] = useState([]);
     const [selectedObj, setSelectedObj] = useState([]);
-    const [isMeasureMode, setIsMeasureMode] = useState(false);
-    const [measurePoints, setMeasurePoints] = useState([]);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [actionRadiusMode, setActionRadiusMode] = useState("animation");
-    const [selectedIntersections, setSelectedIntersections] = useState([]);
-
-    // Состояния для панели управления "Зона действия" (перенесены в sidebar из MapComponent)
-    const [actionZoneFilters, setActionZoneFilters] = useState({}); // { [countryTitle]: Set<string action titles> }
-    const [showZoneIntersections, setShowZoneIntersections] = useState(false);
-    // Под-режим отображения зон в fullScreen features (только для блока "Зона измерения" / "Зоны действия")
-    // "intersections" — фокус на зонах пересечения (сохранён функционал расчёта/отображения)
-    // "displaySettings" — чекбоксы по странам и типам зон (Настройка отображения)
     const [actionZoneViewMode, setActionZoneViewMode] = useState("displaySettings");
     const [selectedTargetId, setSelectedTargetId] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
-
-    const handleMarkerHoverFromMap = useCallback((targetId) => {
-        setHoveredTargetId((prev) => (prev === targetId ? prev : targetId));
-    }, []);
     const [isAddTargetModalOpen, setIsAddTargetModalOpen] = useState(false);
     const [formularEditorTarget, setFormularEditorTarget] = useState(null);
     const [editTargetId, setEditTargetId] = useState(null);
@@ -75,18 +41,49 @@ export default function Formular() {
     const [editingEvent, setEditingEvent] = useState(null);
     const [editEventDrawMode, setEditEventDrawMode] = useState(null);
     const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
-    const intersectionsInitialized = useRef(false);
-    const toolsRef = useRef(null);
-    const eventsFetchAbortRef = useRef(null);
-    const eventsFetchSeqRef = useRef(0);
-    const mountAbortRef = useRef(null);
-// Это удалить если будет жопа
     const [isFullscreen, setFullscreen] = useState(false);
+    const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
+    const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
 
-    const hasEnabledZones = useMemo(
-        () => hasEnabledZoneFilters(actionZoneFilters),
-        [actionZoneFilters],
-    );
+    const mapRef = useRef(null);
+    const toolsRef = useRef(null);
+
+    const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
+    const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();
+    const { targetTypes } = useReferenceData(true);
+    const {
+        filterCountry, setFilterCountry,
+        filterType, setFilterType,
+        filterTitle, setFilterTitle,
+        filteredObjects, tableObjects,
+    } = useObjectFilters(objects);
+    const {
+        events, loading: eventsLoading, error: eventsError,
+        filters: eventsFilters, setFilters: setEventsFilters,
+        selectedEvents, setSelectedEvents,
+        saveEvent, updateEvent, deleteEvent,
+    } = useEventsList(activeTab);
+    const {
+        actionZoneFilters,
+        showZoneIntersections, setShowZoneIntersections,
+        hasEnabledZones,
+        actionZoneAvailableByCountry,
+        intersections, selectedIntersections,
+        toggleActionType, toggleAllForCountry, resetZoneFilters,
+        handleIntersectionToggle, handleSelectAllIntersections,
+    } = useActionZoneState(objects);
+    const {
+        isMeasureMode, setIsMeasureMode,
+        measurePoints, setMeasurePoints,
+        measurements, toggleMeasureMode,
+        addMeasurePoint, removeMeasurePoint,
+    } = useMeasurePoints();
+
+    const flyTo = useMapFlyTo(mapRef);
+
+    const handleMarkerHoverFromMap = useCallback((targetId) => {
+        setHoveredTargetId((prev) => (prev === targetId ? prev : targetId));
+    }, []);
 
     const handleTabChange = useCallback((tab) => {
         setActiveTab(tab);
@@ -97,584 +94,109 @@ export default function Formular() {
                 setActionZoneViewMode("displaySettings");
             }
         }
-    }, [isFullscreen]);
+    }, [isFullscreen, setIsMeasureMode]);
 
     const handleShowActionRadiusChange = useCallback((enabled) => {
-        if (enabled) {
-            handleTabChange("zones");
-        }
+        if (enabled) handleTabChange("zones");
     }, [handleTabChange]);
 
-    const filteredObjects = useMemo(() => {
-        return objects.filter((obj) => {
-            const titleMatch = filterTitle.trim().length === 0
-                ? true
-                : obj.title?.toLowerCase().includes(filterTitle.trim().toLowerCase());
-            if (!titleMatch) return false;
-            const typeMatch = filterType.length === 0
-                ? true
-                : filterType.includes(obj.type?.title);
-            if (!typeMatch) return false;
-            // Если не выбрана ни одна страна - показываем все объекты
-            if (filterCountry.length === 0) {
-                return true;
-            }
-            // Проверяем, входит ли страна объекта в выбранные страны
-            return filterCountry.includes(obj.country.title);
-        });
-    }, [objects, filterTitle, filterType, filterCountry]);
+    const handleObjectClick = useCallback((obj) => {
+        flyTo(obj?.lat, obj?.lng);
+    }, [flyTo]);
 
-    // Для таблицы и выбора в зонах используем все объекты (игнорируем filterCountry).
-    // Это позволяет выбирать объекты и изучать их Зоны действия, даже если маркеры страны скрыты чекбоксами.
-    // Поиск по названию и тип всё равно применяются.
-    const tableObjects = useMemo(() => {
-        return objects.filter((obj) => {
-            const titleMatch = filterTitle.trim().length === 0
-                ? true
-                : obj.title?.toLowerCase().includes(filterTitle.trim().toLowerCase());
-            if (!titleMatch) return false;
-            const typeMatch = filterType.length === 0
-                ? true
-                : filterType.includes(obj.type?.title);
-            if (!typeMatch) return false;
-            // Намеренно НЕ применяем filterCountry
-            return true;
-        });
-    }, [objects, filterTitle, filterType]);
+    const handleSubordinateFlyTo = useCallback((sub) => {
+        if (!sub?.id) return;
+        flyTo(sub.lat, sub.lng);
+    }, [flyTo]);
 
-    const mapRef = useRef(null);
+    const handleSubordinateOpenDetails = useCallback((sub) => {
+        if (sub?.id) setSelectedTargetId(sub.id);
+    }, []);
 
-    const handleObjectClick = (obj) => {
-        if (mapRef.current && obj?.lat != null && obj?.lng != null) {
-            // Defer flyTo so it doesn't block current render/click handling
-            // Shorter duration to reduce perceived hang during animation
-            requestAnimationFrame(() => {
-                if (mapRef.current) {
-                    mapRef.current.flyTo([obj.lat, obj.lng], 8, {
-                        duration: 1.0,
-                        easeLinearity: 0.3
-                    });
-                }
-            });
-        }
-    }
+    const handleOpenEquipmentInCatalog = useCallback((equipmentId) => {
+        if (!equipmentId) return;
+        setReferenceEquipmentId(equipmentId);
+        setReferenceDataOpen(true);
+        setSelectedTargetId(null);
+    }, []);
 
-    const handleSubordinateFlyTo = (sub) => {
-        if (!sub || !sub.id) return;
-        if (mapRef.current && sub.lat != null && sub.lng != null) {
-            // Defer + shorter duration to prevent jank/hang during long animations
-            requestAnimationFrame(() => {
-                if (mapRef.current) {
-                    mapRef.current.flyTo([sub.lat, sub.lng], 8, {
-                        duration: 1.0,
-                        easeLinearity: 0.3
-                    });
-                }
-            });
-        }
-    };
+    const handleCloseReferenceData = useCallback(() => {
+        setReferenceDataOpen(false);
+        setReferenceEquipmentId(null);
+    }, []);
 
-    const handleSubordinateOpenDetails = (sub) => {
-        if (!sub || !sub.id) return;
-        setSelectedTargetId(sub.id);
-    };
-
-    const getEventCenter = (eventItem) => {
-        const shape = eventItem?.shape;
-        if (!shape) return null;
-
-        if (shape.type === "point" && shape.geometry) {
-            return [shape.geometry.lat, shape.geometry.lng];
-        }
-        if (shape.type === "circle" && shape.geometry) {
-            return [shape.geometry.lat, shape.geometry.lng];
-        }
-        if (shape.type === "area" && Array.isArray(shape.geometry?.points) && shape.geometry.points.length > 0) {
-            const sum = shape.geometry.points.reduce(
-                (acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }),
-                { lat: 0, lng: 0 }
-            );
-            return [sum.lat / shape.geometry.points.length, sum.lng / shape.geometry.points.length];
-        }
-        return null;
-    };
-
-    const handleEventFlyTo = (eventItem) => {
+    const handleEventFlyTo = useCallback((eventItem) => {
         const center = getEventCenter(eventItem);
-        if (!center || !mapRef.current) return;
-        requestAnimationFrame(() => {
-            if (mapRef.current) {
-                mapRef.current.flyTo(center, 8, {
-                    duration: 1.0,
-                    easeLinearity: 0.3
-                });
-            }
-        });
-    };
+        if (center) flyTo(center[0], center[1]);
+    }, [flyTo]);
 
-    const handleCheckboxChange = (id, checked) => {
-        setSelectedObj((prev) => {
-            if (checked) {
-                return prev.includes(id) ? prev : [...prev, id];
-            }
-            return prev.filter((objId) => objId !== id);
-        });
-    };
-
-    const handleEventCheckboxChange = (id, checked) => {
-        setSelectedEvents((prev) => {
-            if (checked) {
-                return prev.includes(id) ? prev : [...prev, id];
-            }
-            return prev.filter((eventId) => eventId !== id);
-        });
-    };
-
-    const toRadians = (deg) => (deg * Math.PI) / 180;
-    const calcDistanceMeters = (from, to) => {
-        const R = 6371e3;
-        const phi1 = toRadians(from.lat);
-        const phi2 = toRadians(to.lat);
-        const deltaPhi = toRadians(to.lat - from.lat);
-        const deltaLambda = toRadians(to.lng - from.lng);
-
-        const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
-
-    const buildDrawPointsFromEvent = (eventItem) => {
-        const shape = eventItem?.shape;
-        if (!shape) return { drawMode: null, drawPoints: [] };
-
-        if (shape.type === "point" && shape.geometry) {
-            return {
-                drawMode: "point",
-                drawPoints: [{ lat: shape.geometry.lat, lng: shape.geometry.lng }]
-            };
-        }
-
-        if (shape.type === "circle" && shape.geometry) {
-            const { lat, lng, radius } = shape.geometry;
-            const deltaLat = (radius || 0) / 111139;
-            return {
-                drawMode: "circle",
-                drawPoints: [
-                    { lat, lng },
-                    { lat: lat + deltaLat, lng }
-                ]
-            };
-        }
-
-        if (shape.type === "area" && Array.isArray(shape.geometry?.points)) {
-            return {
-                drawMode: "polygon",
-                drawPoints: shape.geometry.points.map((p) => ({ lat: p.lat, lng: p.lng }))
-            };
-        }
-
-        return { drawMode: null, drawPoints: [] };
-    };
-
-    const measurements = useMemo(() => {
-        return measurePoints.map((point, idx) => {
-            if (idx === 0) {
-                return { ...point, index: idx + 1, distance: 0 };
-            }
-            const prev = measurePoints[idx - 1];
-            return { ...point, index: idx + 1, distance: calcDistanceMeters(prev, point) };
-        });
-    }, [measurePoints]);
-
-      const intersections = useMemo(() => {
-        if (!showZoneIntersections || !hasEnabledZones) {
-            return [];
-        }
-        const visibleForIntersections = filterObjectsForZones(objects, actionZoneFilters);
-        return findAllIntersections(visibleForIntersections);
-    }, [showZoneIntersections, hasEnabledZones, objects, actionZoneFilters]);
-
-    // Мемоизируем ключ для отслеживания изменений пересечений
-    const intersectionsKey = useMemo(() => {
-        return intersections.map(i => i.id).sort().join('|');
-    }, [intersections]);
-
-    // Инициализируем выбор точек только при первом появлении или сбросе
-    useEffect(() => {
-        if (!showZoneIntersections || !hasEnabledZones) {
-            intersectionsInitialized.current = false;
-            setSelectedIntersections([]);
-            return;
-        }
-        
-        if (intersections.length > 0 && !intersectionsInitialized.current) {
-            // Первая инициализация - выбираем все точки
-            setSelectedIntersections(intersections.map(i => i.id));
-            intersectionsInitialized.current = true;
-        } else if (intersections.length > 0 && intersectionsInitialized.current) {
-            // Синхронизация: удаляем ID точек, которых больше нет
-            setSelectedIntersections(prev => {
-                const currentIds = intersections.map(i => i.id);
-                return prev.filter(id => currentIds.includes(id));
-            });
-        }
-    }, [showZoneIntersections, hasEnabledZones, intersectionsKey]);
-
-    const handleIntersectionToggle = (id) => {
-        setSelectedIntersections(prev => 
-            prev.includes(id) 
-                ? prev.filter(i => i !== id)
-                : [...prev, id]
-        );
-    };
-
-    const handleSelectAllIntersections = (checked) => {
-        if (checked) {
-            setSelectedIntersections(intersections.map(i => i.id));
-        } else {
-            setSelectedIntersections([]);
-        }
-    };
-
-    // Каталог зон для панели фильтров: все объекты с actions, без привязки к таблице / filterCountry.
-    const actionZoneAvailableByCountry = useMemo(
-      () => buildActionZoneCatalog(objects),
-      [objects],
-    );
-
-    const toggleActionType = useCallback((country, actionTitle) => {
-      setActionZoneFilters((prev) => {
-        const next = { ...prev };
-        const currentSet = next[country] ? new Set(next[country]) : new Set();
-        if (currentSet.has(actionTitle)) currentSet.delete(actionTitle);
-        else currentSet.add(actionTitle);
-        next[country] = currentSet;
-        return next;
-      });
-    }, [actionZoneAvailableByCountry]);
-
-    const toggleAllForCountry = useCallback((country, allTypes, shouldEnable) => {
-      setActionZoneFilters((prev) => {
-        const next = { ...prev };
-        next[country] = shouldEnable ? new Set(allTypes) : new Set();
-        return next;
-      });
+    const handleCheckboxChange = useCallback((id, checked) => {
+        setSelectedObj((prev) => toggleIdInList(prev, id, checked));
     }, []);
 
-    const resetZoneFilters = useCallback((enableAll) => {
-      const next = {};
-      Object.keys(actionZoneAvailableByCountry).forEach((c) => {
-        next[c] = enableAll ? new Set(actionZoneAvailableByCountry[c]) : new Set();
-      });
-      setActionZoneFilters(next);
-    }, [actionZoneAvailableByCountry]);
+    const handleEventCheckboxChange = useCallback((id, checked) => {
+        setSelectedEvents((prev) => toggleIdInList(prev, id, checked));
+    }, [setSelectedEvents]);
 
-    // Инициализация каталога стран (пустые наборы — зоны выключены по умолчанию).
-    useEffect(() => {
-      if (Object.keys(actionZoneAvailableByCountry).length === 0) return;
-
-      setActionZoneFilters((prev) => {
-        const next = { ...prev };
-        let changed = false;
-
-        Object.keys(actionZoneAvailableByCountry).forEach((c) => {
-          if (!next[c]) {
-            next[c] = new Set();
-            changed = true;
-          }
-        });
-
-        Object.keys(next).forEach((c) => {
-          if (!actionZoneAvailableByCountry[c]) {
-            delete next[c];
-            changed = true;
-          }
-        });
-
-        return changed ? next : prev;
-      });
-    }, [actionZoneAvailableByCountry]);
-
-    useEffect(() => {
-      if (activeTab === "zones" && isFullscreen) {
-        if (actionRadiusMode !== "zones") {
-          setActionRadiusMode("zones");
-        }
-      }
-    }, [activeTab, isFullscreen, actionRadiusMode]);
-
-    const handleToggleMeasure = () => {
-        setIsMeasureMode((prev) => {
-            const next = !prev;
-            if (!next) {
-                setMeasurePoints([]);
-            }
-            return next;
-        });
+    const handleToggleMeasure = useCallback(() => {
+        toggleMeasureMode();
         setIsToolsOpen(false);
-    };
+    }, [toggleMeasureMode]);
 
-    const handleToggleTools = () => setIsToolsOpen((prev) => !prev);
+    const handleToggleTools = useCallback(() => setIsToolsOpen((prev) => !prev), []);
 
-    const handleAddMeasurePoint = ({ lat, lng }) => {
-        setMeasurePoints((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, lat, lng }]);
-    };
+    const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
 
-    const handleRemoveMeasurePoint = (id) => {
-        setMeasurePoints((prev) => prev.filter((p) => p.id !== id));
-    };
-
-    const fetchData = async (signal) => {
-        setObjectsLoading(true);
-        setObjectsError(null);
-        try {
-            const resp = await axios.get(API_URL, { signal });
-            const data = resp.data;
-            const rawArr = Array.isArray(data) ? data : [];
-            setObjects(rawArr);
-        } catch(err) {
-            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
-            console.error("Не удалось загрузить данные по объектам", err);
-            setObjectsError("Не удалось загрузить объекты. Проверьте подключение к серверу.");
-        } finally {
-            setObjectsLoading(false);
-        }
-    };
-
-    const fetchCountries = async (signal) => {
-        try {
-            const resp = await axios.get(COUNTRIES_API_URL, { signal });
-            const data = Array.isArray(resp.data) ? resp.data : [];
-            setCountriesList(data);
-        } catch (err) {
-            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
-            console.error("Не удалось загрузить список стран", err);
-        }
-    };
-
-    const fetchEventTypes = async (signal) => {
-        try {
-            const resp = await axios.get(EVENT_TYPES_API_URL, { signal });
-            const data = Array.isArray(resp.data) ? resp.data : [];
-            setEventTypesList(data);
-        } catch (err) {
-            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
-            console.error("Не удалось загрузить список типов событий", err);
-        }
-    };
-
-    const fetchActionTypes = async (signal) => {
-        try {
-            const resp = await axios.get(ACTION_TYPES_API_URL, { signal });
-            const data = Array.isArray(resp.data) ? resp.data : [];
-            setActionTypesList(data);
-        } catch (err) {
-            if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;
-            console.error("Не удалось загрузить список типов действий", err);
-        }
-    };
-
-    const fetchEvents = async () => {
-        eventsFetchAbortRef.current?.abort();
-        const controller = new AbortController();
-        eventsFetchAbortRef.current = controller;
-        const seq = ++eventsFetchSeqRef.current;
-
-        setEventsLoading(true);
-        setEventsError(null);
-        try {
-            const params = {};
-            if (eventsFilters.title?.trim()) params.title = eventsFilters.title.trim();
-            if (eventsFilters.dateFrom) params.date_from = eventsFilters.dateFrom;
-            if (eventsFilters.dateTo) params.date_to = eventsFilters.dateTo;
-            if (eventsFilters.timeFrom) params.time_from = eventsFilters.timeFrom;
-            if (eventsFilters.timeTo) params.time_to = eventsFilters.timeTo;
-            if (eventsFilters.countries.length > 0) params.countries = eventsFilters.countries.join(",");
-            if (eventsFilters.eventTypes.length > 0) params.event_types = eventsFilters.eventTypes.join(",");
-
-            const resp = await axios.get(EVENTS_API_URL, { params, signal: controller.signal });
-            if (seq !== eventsFetchSeqRef.current) return;
-            const data = Array.isArray(resp.data) ? resp.data : [];
-            setEvents(data);
-        } catch (err) {
-            if (axios.isCancel?.(err) || err?.code === "ERR_CANCELED") return;
-            if (seq !== eventsFetchSeqRef.current) return;
-            console.error("Не удалось загрузить события", err);
-            setEventsError("Не удалось загрузить события.");
-        } finally {
-            if (seq === eventsFetchSeqRef.current) {
-                setEventsLoading(false);
-            }
-        }
-    };
-
-    useEffect(() => {
-        mountAbortRef.current?.abort();
-        const controller = new AbortController();
-        mountAbortRef.current = controller;
-        const { signal } = controller;
-        fetchData(signal);
-        fetchCountries(signal);
-        fetchEventTypes(signal);
-        fetchActionTypes(signal);
-        return () => controller.abort();
-    }, []);
-
-    useEffect(() => {
-        if (activeTab !== "events") return undefined;
-        const timer = setTimeout(() => {
-            fetchEvents();
-        }, 350);
-        return () => {
-            clearTimeout(timer);
-            eventsFetchAbortRef.current?.abort();
-        };
-    }, [activeTab, eventsFilters]);
-
-    const handleTargetAdded = (newTarget) => {
-        // Перезагружаем список объектов после добавления
-        fetchData();
-    };
-    
-    const handleTargetAddedWithFormular = (newTarget) => {
-        // Перезагружаем список объектов и открываем редактор формуляра
-        fetchData();
+    const handleTargetAddedWithFormular = useCallback((newTarget) => {
+        refreshTargets();
         setFormularEditorTarget(newTarget);
-    };
-    
-    const handleFormularSaved = () => {
-        // Можно добавить логику после сохранения формуляра
-        fetchData();
-    };
+    }, [refreshTargets]);
 
-    const handleEditClick = (targetId) => {
-        setEditTargetId(targetId);
-    };
+    const handleFormularSaved = useCallback(() => refreshTargets(), [refreshTargets]);
 
-    const handleDeleteClick = async (targetId, targetTitle) => {
-        const confirmed = window.confirm(`Вы уверены, что хотите удалить объект "${targetTitle}"?`);
-        if (!confirmed) return;
+    const handleEditClick = useCallback((targetId) => setEditTargetId(targetId), []);
 
-        try {
-            await axios.delete(`${API_URL}/${targetId}/`);
-            // Обновляем список объектов
-            fetchData();
-            // Если удалённый объект был выбран, снимаем выделение
-            setSelectedObj(prev => prev.filter(id => id !== targetId));
-        } catch (err) {
-            console.error("Ошибка при удалении объекта:", err);
-            alert("Не удалось удалить объект. Попробуйте ещё раз.");
+    const handleDeleteClick = useCallback(async (targetId, targetTitle) => {
+        const deleted = await deleteTarget(targetId, targetTitle);
+        if (deleted) {
+            setSelectedObj((prev) => prev.filter((id) => id !== targetId));
         }
-    };
+    }, [deleteTarget]);
 
-    const handleTargetUpdated = () => {
-        // Перезагружаем список объектов после обновления
-        fetchData();
-    };
+    const handleTargetUpdated = useCallback(() => refreshTargets(), [refreshTargets]);
 
-    const buildEventShape = (geometry) => {
-        if (!geometry) return null;
-        const { drawMode, drawPoints } = geometry;
-        if (drawMode === "point" && drawPoints?.[0]) {
-            return {
-                type: "point",
-                geometry: {
-                    lat: drawPoints[0].lat,
-                    lng: drawPoints[0].lng
-                }
-            };
-        }
-        if (drawMode === "circle" && drawPoints?.length >= 2) {
-            return {
-                type: "circle",
-                geometry: {
-                    lat: drawPoints[0].lat,
-                    lng: drawPoints[0].lng,
-                    radius: Math.round(calcDistanceMeters(drawPoints[0], drawPoints[1]))
-                }
-            };
-        }
-        if ((drawMode === "rectangle" || drawMode === "polygon") && drawPoints?.length > 0) {
-            return {
-                type: "area",
-                geometry: {
-                    points: drawPoints.map((point) => ({ lat: point.lat, lng: point.lng }))
-                }
-            };
-        }
-        return null;
-    };
+    const handleEventSave = useCallback(async (payload) => {
+        await saveEvent(payload);
+    }, [saveEvent]);
 
-    const handleEventSave = async (payload) => {
-        try {
-            const shape = buildEventShape(payload?.geometry);
-            const body = {
-                title: payload.title,
-                object_name: payload.object,
-                description: payload.info,
-                date_start: payload.dateStart || null,
-                date_end: payload.dateEnd || null,
-                time_start: payload.timeStart || null,
-                time_end: payload.timeEnd || null,
-                event_type: payload.eventType?.id || null,
-                country: payload.country?.id || null,
-                marker: payload.marker?.id || null,
-                color: payload.color || "#2f80ed",
-                shape
-            };
+    const handleEventUpdate = useCallback(async (payload) => {
+        await updateEvent(payload, payload?.id || editingEvent?.id);
+    }, [updateEvent, editingEvent]);
 
-            await axios.post(EVENTS_API_URL + "/", body);
-            fetchEvents();
-        } catch (err) {
-            console.error("Не удалось сохранить событие", err);
-        }
-    };
-
-    const handleEventUpdate = async (payload) => {
-        const eventId = payload?.id || editingEvent?.id;
-        if (!eventId) return;
-        try {
-            const shape = buildEventShape(payload?.geometry);
-            const body = {
-                title: payload.title,
-                object_name: payload.object,
-                description: payload.info,
-                date_start: payload.dateStart || null,
-                date_end: payload.dateEnd || null,
-                time_start: payload.timeStart || null,
-                time_end: payload.timeEnd || null,
-                event_type: payload.eventType?.id || null,
-                country: payload.country?.id || null,
-                marker: payload.marker?.id || null,
-                color: payload.color || "#2f80ed",
-                shape
-            };
-
-            await axios.patch(`${EVENTS_API_URL}/${eventId}/`, body);
-            fetchEvents();
-        } catch (err) {
-            console.error("Не удалось обновить событие", err);
-        }
-    };
-
-    const handleEventEdit = (eventItem) => {
+    const handleEventEdit = useCallback((eventItem) => {
         const { drawMode, drawPoints } = buildDrawPointsFromEvent(eventItem);
         setEditingEvent(eventItem);
         setEditEventDrawMode(drawMode);
         setEditEventDrawPoints(drawPoints);
         setIsEditEventModalOpen(true);
-    };
+    }, []);
 
-    const handleEventDelete = async (eventItem) => {
-        const confirmed = window.confirm(`Удалить событие "${eventItem.title}"?`);
-        if (!confirmed) return;
-        try {
-            await axios.delete(`${EVENTS_API_URL}/${eventItem.id}/`);
-            fetchEvents();
-        } catch (err) {
-            console.error("Не удалось удалить событие", err);
+    const handleEventDelete = useCallback(async (eventItem) => {
+        await deleteEvent(eventItem);
+    }, [deleteEvent]);
+
+    const handleCloseEditEventModal = useCallback(() => {
+        setIsEditEventModalOpen(false);
+        setEditingEvent(null);
+        setEditEventDrawMode(null);
+        setEditEventDrawPoints([]);
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === "zones" && isFullscreen && actionRadiusMode !== "zones") {
+            setActionRadiusMode("zones");
         }
-    };
+    }, [activeTab, isFullscreen, actionRadiusMode]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -696,15 +218,22 @@ export default function Formular() {
                         <div className="formular__heading-wraper">
                             <h2 className="formular__title">ОР</h2>
                             <div className="formular__heading-actions">
-                                <button 
-                                    className="btn" 
-                                    type="button" 
+                                <button
+                                    className="btn"
+                                    type="button"
                                     onClick={() => setIsAddTargetModalOpen(true)}
                                     aria-label="Добавить новый объект"
                                 >
                                     <svg className="formular__icon" width="24" height="24">
                                         <use href={"/sprite.svg#new-file"} />
                                     </svg>
+                                </button>
+                                <button
+                                    className="btn button__tools"
+                                    type="button"
+                                    onClick={() => setReferenceDataOpen(true)}
+                                >
+                                    Справочники
                                 </button>
                                 <div className="formular__tools" ref={toolsRef}>
                                     <button
@@ -764,8 +293,9 @@ export default function Formular() {
                                     {objectsError && (
                                         <p className="formular__status formular__status--error">{objectsError}</p>
                                     )}
-                                    <FilterPanel 
+                                    <FilterPanel
                                         objects={objects}
+                                        targetTypes={targetTypes}
                                         filterCountry={filterCountry}
                                         onFilterCountryChange={setFilterCountry}
                                         filterType={filterType}
@@ -773,8 +303,9 @@ export default function Formular() {
                                         filterTitle={filterTitle}
                                         onFilterTitleChange={setFilterTitle}
                                     />
-                                    <ObjectsTable 
+                                    <ObjectsTable
                                         data={tableObjects}
+                                        targetTypes={targetTypes}
                                         selectedObj={selectedObj}
                                         onCheckboxChange={handleCheckboxChange}
                                         onObjectClick={handleObjectClick}
@@ -793,6 +324,7 @@ export default function Formular() {
                                         actionZoneFilters={actionZoneFilters}
                                         showZoneIntersections={showZoneIntersections}
                                         setShowZoneIntersections={setShowZoneIntersections}
+                                        hasEnabledZones={hasEnabledZones}
                                         toggleActionType={toggleActionType}
                                         toggleAllForCountry={toggleAllForCountry}
                                         resetZoneFilters={resetZoneFilters}
@@ -836,7 +368,7 @@ export default function Formular() {
                     </div>
                     <div className="formular__features-wraper">
                         <div className="formular__map">
-                            <MapComponent 
+                            <MapComponent
                                 objects={filteredObjects}
                                 zoneObjects={objects}
                                 selectedObj={selectedObj}
@@ -845,7 +377,7 @@ export default function Formular() {
                                 mapRef={mapRef}
                                 measureMode={isMeasureMode}
                                 measurements={measurements}
-                                onAddMeasurePoint={handleAddMeasurePoint}
+                                onAddMeasurePoint={addMeasurePoint}
                                 onCheckboxChange={handleCheckboxChange}
                                 showActionRadius={hasEnabledZones}
                                 actionTypes={actionTypesList}
@@ -857,7 +389,6 @@ export default function Formular() {
                                 onSelectAllIntersections={handleSelectAllIntersections}
                                 isFullscreen={isFullscreen}
                                 setIsFullscreen={setFullscreen}
-                                // Управление зонами теперь в sidebar; передаём актуальные значения фильтров
                                 actionZoneFilters={actionZoneFilters}
                                 showZoneIntersections={showZoneIntersections}
                                 onMeasureModeChange={setIsMeasureMode}
@@ -875,6 +406,7 @@ export default function Formular() {
                                 onFilterTypeChange={setFilterType}
                                 filterTitle={filterTitle}
                                 onFilterTitleChange={setFilterTitle}
+                                targetTypes={targetTypes}
                                 countriesList={countriesList}
                                 eventTypesList={eventTypesList}
                                 eventsFilters={eventsFilters}
@@ -888,9 +420,6 @@ export default function Formular() {
                                 onEditEventDrawPointsChange={setEditEventDrawPoints}
                                 isEditEventMode={isEditEventModalOpen}
                                 tableTab={activeTab}
-                                // Полные props для зоны действия / фильтров / viewMode, чтобы fs-версия Features внутри MapComponent
-                                // (map_sidebar) могла рендерить суб-радио "Зоны измерения" и панель "Настройка отображения".
-                                // Ранее неполная передача — основная причина, почему панель не появлялась в fullScreen.
                                 actionZoneAvailableByCountry={actionZoneAvailableByCountry}
                                 setShowZoneIntersections={setShowZoneIntersections}
                                 toggleActionType={toggleActionType}
@@ -901,48 +430,46 @@ export default function Formular() {
                             />
                         </div>
                         <div className="formular__features">
-                            <Features 
+                            <Features
                                 isMeasureMode={isMeasureMode}
                                 measurements={measurements}
-                                onRemovePoint={handleRemoveMeasurePoint}
+                                onRemovePoint={removeMeasurePoint}
                             />
                         </div>
                     </div>
-                    
                 </div>
             </div>
 
-            {/* Модальное окно формуляра */}
             {selectedTargetId && (
-                <FormularModal 
+                <FormularModal
                     targetId={selectedTargetId}
                     onClose={() => setSelectedTargetId(null)}
                     onEdit={handleEditClick}
                     onSubordinateFlyTo={handleSubordinateFlyTo}
                     onSubordinateOpenDetails={handleSubordinateOpenDetails}
+                    onEditEquipmentInCatalog={handleOpenEquipmentInCatalog}
                 />
             )}
 
-            {/* Модальное окно добавления объекта */}
-            <AddTargetModal 
+            <AddTargetModal
                 isOpen={isAddTargetModalOpen}
                 onClose={() => setIsAddTargetModalOpen(false)}
                 onTargetAdded={handleTargetAdded}
                 onTargetAddedWithFormular={handleTargetAddedWithFormular}
                 cachedTargets={objects}
             />
-            
-            {/* Редактор формуляра */}
-            <FormularEditor 
-                targetId={formularEditorTarget?.id}
-                targetTitle={formularEditorTarget?.title}
-                isOpen={!!formularEditorTarget}
-                onClose={() => setFormularEditorTarget(null)}
-                onSaved={handleFormularSaved}
-            />
-            
-            {/* Модальное окно редактирования объекта */}
-            <EditTargetModal 
+
+            <Suspense fallback={null}>
+                <FormularEditor
+                    targetId={formularEditorTarget?.id}
+                    targetTitle={formularEditorTarget?.title}
+                    isOpen={!!formularEditorTarget}
+                    onClose={() => setFormularEditorTarget(null)}
+                    onSaved={handleFormularSaved}
+                />
+            </Suspense>
+
+            <EditTargetModal
                 targetId={editTargetId}
                 isOpen={!!editTargetId}
                 onClose={() => setEditTargetId(null)}
@@ -953,18 +480,23 @@ export default function Formular() {
             {isEditEventModalOpen && (
                 <AddEventModal
                     isOpen={isEditEventModalOpen}
-                    onClose={() => {
-                        setIsEditEventModalOpen(false);
-                        setEditingEvent(null);
-                        setEditEventDrawMode(null);
-                        setEditEventDrawPoints([]);
-                    }}
+                    onClose={handleCloseEditEventModal}
                     drawMode={editEventDrawMode}
                     drawPoints={editEventDrawPoints}
                     initialEvent={editingEvent}
                     onSave={handleEventUpdate}
                 />
             )}
+
+            <Suspense fallback={null}>
+                <ReferenceDataModal
+                    isOpen={isReferenceDataOpen}
+                    onClose={handleCloseReferenceData}
+                    onActionTypesChanged={reloadReferenceLists}
+                    onTargetTypesChanged={() => {}}
+                    initialEquipmentId={referenceEquipmentId}
+                />
+            </Suspense>
         </section>
     );
 }
