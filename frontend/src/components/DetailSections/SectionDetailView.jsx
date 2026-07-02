@@ -1,6 +1,6 @@
 import AttachmentGallery from './AttachmentGallery';
 import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDisplay';
-import SubordinatesList from './SubordinatesList';
+import SubordinationTree from './SubordinationTree';
 import { itemHasVisibleContent } from '../../utils/organizeSectionData';
 import './DetailSections.css';
 
@@ -76,7 +76,8 @@ export default function SectionDetailView({
     return (
       <div className="detail-sections__detail">
         <h3 className="detail-sections__group-title">{card.title}</h3>
-        <SubordinatesList
+        <SubordinationTree
+          parent={card.payload.parent}
           subordinates={card.payload.subordinates || []}
           onSubordinateFlyTo={onSubordinateFlyTo}
           onSubordinateOpenDetails={onSubordinateOpenDetails}

@@ -114,7 +114,16 @@ const FormularModal = ({
         excerpt: `${subordinates.length} непосредственно подчинённых`,
         badge: { photos: 0, subsections: 0, items: subordinates.length },
         kind: 'subordinates',
-        payload: { subordinates },
+        payload: {
+          parent: {
+            id: targetId,
+            title: targetTitle,
+            label: targetMeta?.label,
+            type: targetMeta?.type ? { title: targetMeta.type } : null,
+            children_count: subordinates.length,
+          },
+          subordinates,
+        },
       });
     }
 
@@ -123,7 +132,7 @@ const FormularModal = ({
       attachmentsBySection,
       extraCards,
     });
-  }, [data, attachmentsBySection, deployedEquipment, subordinates]);
+  }, [data, attachmentsBySection, deployedEquipment, subordinates, targetId, targetTitle, targetMeta]);
 
   const handleOverlayClick = (e) => {
     if (e.target.className === 'formular-modal-overlay') {

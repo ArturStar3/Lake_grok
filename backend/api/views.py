@@ -151,10 +151,7 @@ class TargetViewSet(viewsets.ModelViewSet):
             qs = _target_list_queryset()
         parent = self.request.query_params.get('parent')
         if parent:
-            try:
-                qs = qs.filter(parent_id=int(parent))
-            except (ValueError, TypeError):
-                qs = qs.none()
+            qs = qs.filter(parent_id=parent)
         return qs
 
     @action(detail=False, methods=['get'], url_path='parent-options')
