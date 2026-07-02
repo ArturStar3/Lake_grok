@@ -14,8 +14,8 @@
 .formular-modal {
   background: white;
   border-radius: 8px;
-  width: 90%;
-  max-width: 900px;
+  width: 92%;
+  max-width: 1100px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -25,9 +25,22 @@
 .formular-modal-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
   padding: 14px 20px;
   border-bottom: 1px solid #e0e0e0;
+}
+
+.formular-modal-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.formular-modal-title-block {
+  min-width: 0;
 }
 
 .formular-modal-header h2 {
@@ -36,10 +49,11 @@
   color: #333;
 }
 
-.formular-modal-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.formular-modal-meta {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
 }
 
 .formular-modal-edit-icon {
@@ -56,6 +70,7 @@
   height: 28px;
   border-radius: 4px;
   transition: background-color 0.15s, color 0.15s;
+  flex-shrink: 0;
 }
 
 .formular-modal-edit-icon:hover {
@@ -81,6 +96,7 @@
   align-items: center;
   justify-content: center;
   transition: color 0.2s;
+  flex-shrink: 0;
 }
 
 .formular-modal-close:hover {
@@ -93,64 +109,6 @@
   flex: 1;
 }
 
-.formular-section {
-  margin-bottom: 16px;
-}
-
-.formular-section h3 {
-  margin: 0 0 8px 0;
-  font-size: 1.1rem;
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-.formular-section p {
-  margin: 0;
-  line-height: 1.5;
-  color: #555;
-  white-space: pre-wrap;
-  font-size: 0.95rem;
-}
-
-.formular-group {
-  margin-bottom: 18px;
-  padding: 12px 14px;
-  border-left: 3px solid #3498db;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-}
-
-.formular-group-title {
-  margin: 0 0 10px 0;
-  font-size: 1.15rem;
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-.formular-subsection {
-  margin-bottom: 12px;
-  padding-left: 12px;
-}
-
-.formular-subsection:last-child {
-  margin-bottom: 0;
-}
-
-.formular-subsection h4 {
-  margin: 0 0 6px 0;
-  font-size: 1rem;
-  color: #34495e;
-  font-weight: 500;
-}
-
-.formular-subsection p {
-  margin: 0;
-  line-height: 1.5;
-  color: #555;
-  white-space: pre-wrap;
-  font-size: 0.95rem;
-}
-
 .formular-modal-content .error {
   color: #e74c3c;
   font-weight: 500;
@@ -160,192 +118,4 @@
   text-align: center;
   color: #666;
   margin: 40px 0;
-}
-
-.formular-attachments {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.formular-attachment-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px;
-  width: 180px;
-}
-
-.formular-attachment-thumb {
-  border: none;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.formular-attachment-thumb img {
-  width: 120px;
-  height: 90px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-}
-
-.formular-attachment-info strong {
-  display: block;
-  font-size: 14px;
-  color: #1f2937;
-  margin-bottom: 4px;
-  text-align: center;
-}
-
-.formular-attachment-info p {
-  margin: 0;
-  font-size: 13px;
-  color: #4b5563;
-  text-align: left;
-}
-
-.formular-image-preview {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: 24px;
-}
-
-.formular-image-preview-content {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.formular-image-preview-content img {
-  max-width: 80vw;
-  max-height: 70vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.formular-subordinates {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.formular-subordinates h3 {
-  margin: 0 0 10px 0;
-  font-size: 1rem;
-  color: #374151;
-}
-
-.formular-subordinates-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.formular-subordinate-item {
-  padding: 6px 8px;
-  border-bottom: 1px solid #f3f4f6;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.formular-subordinate-item:last-child {
-  border-bottom: none;
-}
-
-.formular-subordinate-icon {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #008dd2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.2s, background-color 0.2s, transform 0.2s;
-}
-
-.formular-subordinate-icon:hover {
-  color: #005b95;
-  background-color: #f0f8ff;
-  transform: scale(1.1);
-}
-
-.formular-subordinate-icon:active {
-  transform: scale(0.95);
-}
-
-.formular-subordinate-icon svg {
-  display: block;
-}
-
-.formular-subordinate-text {
-  background: none;
-  border: none;
-  cursor: pointer;
-  flex: 1;
-  text-align: left;
-  padding: 2px 4px;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  line-height: inherit;
-}
-
-.formular-subordinate-text:hover {
-  text-decoration: underline;
-}
-
-.formular-subordinate-text:focus-visible {
-  outline: 2px solid #008dd2;
-  outline-offset: 1px;
-  border-radius: 2px;
-}
-
-.formular-image-preview-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: #1f2937;
-  color: #ffffff;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.formular-image-preview-caption strong {
-  display: block;
-  font-size: 16px;
-  color: #111827;
-  margin-bottom: 6px;
-}
-
-.formular-image-preview-caption p {
-  margin: 0;
-  font-size: 14px;
-  color: #374151;
 }

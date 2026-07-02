@@ -9,7 +9,7 @@ function getPrimaryImage(row) {
   return images[0].image;
 }
 
-export default function DeployedEquipmentDisplay({ items = [], onEditInCatalog }) {
+export default function DeployedEquipmentDisplay({ items = [], onEditInCatalog, hideTitle = false }) {
   const [selectedRow, setSelectedRow] = useState(null);
   const gridRef = useRef(null);
 
@@ -56,7 +56,9 @@ export default function DeployedEquipmentDisplay({ items = [], onEditInCatalog }
   return (
     <>
       <section className="deployed-equipment-display">
-        <h3 className="deployed-equipment-display__title">Вооружение и техника</h3>
+        {!hideTitle && (
+          <h3 className="deployed-equipment-display__title">Вооружение и техника</h3>
+        )}
         <ul className="deployed-equipment-display__grid" ref={gridRef}>
           {items.map((row) => {
             const imageUrl = getPrimaryImage(row);

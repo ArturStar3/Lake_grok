@@ -1,17 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import './FormularModal.css';
 import { API_URL } from '../../config/api';
-import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDisplay';
+import DetailSectionNavigator from '../DetailSections/DetailSectionNavigator';
+import { buildSectionCards, organizeSectionData } from '../../utils/organizeSectionData';
 
-const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubordinateOpenDetails, onEditEquipmentInCatalog }) => {
+const FormularModal = ({
+  targetId,
+  onClose,
+  onEdit,
+  onSubordinateFlyTo,
+  onSubordinateOpenDetails,
+  onEditEquipmentInCatalog,
+}) => {
   const [data, setData] = useState([]);
-  const [subordinates, setSubordinates] = useState([]);  // прямые подчинённые
+  const [subordinates, setSubordinates] = useState([]);
   const [deployedEquipment, setDeployedEquipment] = useState([]);
   const [attachmentsBySection, setAttachmentsBySection] = useState({});
-  const [previewImage, setPreviewImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [targetTitle, setTargetTitle] = useState('');
+  const [targetMeta, setTargetMeta] = useState(null);
 
   useEffect(() => {
     if (!targetId) return;
@@ -28,11 +36,12 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
         }
         
         const result = await response.json();
-        // Поддержка как старого формата (массив), так и нового {formular, subordinates}
         const formularData = Array.isArray(result) ? result : (result.formular || result);
         setData(formularData);
         if (!Array.isArray(result) && result.subordinates) {
           setSubordinates(result.subordinates);
+        } else {
+          setSubordinates([]);
         }
       } catch (err) {
         setError(err.message);
@@ -59,7 +68,6 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
       }
     };
 
-    // Название объекта и техника на площадке
     const fetchTargetDetails = async () => {
       try {
         const response = await fetch(`${API_URL}/api/v1/targets/${targetId}/`);
@@ -67,6 +75,11 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
           const target = await response.json();
           setTargetTitle(target.title);
           setDeployedEquipment(target.deployed_equipment || []);
+          setTargetMeta({
+            label: target.label,
+            country: target.country?.title,
+            type: target.type?.title,
+          });
         }
       } catch (err) {
         console.error('Ошибка загрузки данных объекта:', err);
@@ -78,91 +91,51 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
     fetchTargetDetails();
   }, [targetId]);
 
-  const renderAttachments = (sectionId) => {
-    const attachments = attachmentsBySection[sectionId] || [];
-    if (attachments.length === 0) return null;
+  const sectionCards = useMemo(() => {
+    const organized = organizeSectionData(data);
+    const extraCards = [];
 
-    return (
-      <div className="formular-attachments">
-        {attachments.map((item) => (
-          <div key={item.id} className="formular-attachment-card">
-            <button
-              type="button"
-              className="formular-attachment-thumb"
-              onClick={() => setPreviewImage(item)}
-            >
-              <img src={item.image} alt={item.title} />
-            </button>
-            <div className="formular-attachment-info">
-              <strong>{item.title}</strong>
-              {item.description && <p>{item.description}</p>}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+    if (deployedEquipment.length > 0) {
+      const totalQty = deployedEquipment.reduce((sum, row) => sum + (row.quantity || 0), 0);
+      extraCards.push({
+        id: 'equipment',
+        title: 'Вооружение и техника',
+        excerpt: `${deployedEquipment.length} позиций на объекте`,
+        badge: { photos: 0, subsections: 0, items: totalQty || deployedEquipment.length },
+        kind: 'equipment',
+        payload: { items: deployedEquipment },
+      });
+    }
 
-  const organizeData = () => {
-    if (!data.length) return { standalone: [], groups: [] };
+    if (subordinates.length > 0) {
+      extraCards.push({
+        id: 'subordinates',
+        title: 'Подчинённые подразделения',
+        excerpt: `${subordinates.length} непосредственно подчинённых`,
+        badge: { photos: 0, subsections: 0, items: subordinates.length },
+        kind: 'subordinates',
+        payload: { subordinates },
+      });
+    }
 
-    // Сортируем по порядку секций
-    const getOrderValue = (value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? parsed : 9999;
-    };
-    const sorted = [...data].sort(
-      (a, b) => getOrderValue(a.section.order) - getOrderValue(b.section.order)
-    );
-
-    // Разделяем на standalone (без parent или parent скрыт) и subsections
-    const standalone = [];
-    const groups = {};
-
-    sorted.forEach(item => {
-      const section = item.section;
-      
-      // Если у секции есть parent
-      if (section.parent) {
-        const parentTitle = section.parent.title;
-        
-        if (!groups[parentTitle]) {
-          groups[parentTitle] = {
-            parent: section.parent,
-            children: []
-          };
-        }
-        
-        groups[parentTitle].children.push(item);
-      } else {
-        // Проверяем, есть ли у этой секции дочерние элементы
-        const hasChildren = sorted.some(s => 
-          s.section.parent && s.section.parent.title === section.title
-        );
-
-        // Если секция скрыта и у неё нет детей - пропускаем
-        if (section.is_hidden && !hasChildren) {
-          return;
-        }
-
-        // Если у секции нет parent - это standalone
-        standalone.push(item);
-      }
+    return buildSectionCards({
+      organized,
+      attachmentsBySection,
+      extraCards,
     });
-
-    return { 
-      standalone, 
-      groups: Object.values(groups)
-    };
-  };
-
-  const { standalone, groups } = organizeData();
+  }, [data, attachmentsBySection, deployedEquipment, subordinates]);
 
   const handleOverlayClick = (e) => {
     if (e.target.className === 'formular-modal-overlay') {
       onClose();
     }
   };
+
+  const metaParts = [
+    targetMeta?.type,
+    targetMeta?.country,
+    targetMeta?.label,
+  ].filter(Boolean);
 
   if (!targetId) return null;
 
@@ -171,7 +144,12 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
       <div className="formular-modal">
         <div className="formular-modal-header">
           <div className="formular-modal-title-wrap">
-            <h2>{targetTitle || 'Формуляр объекта'}</h2>
+            <div className="formular-modal-title-block">
+              <h2>{targetTitle || 'Формуляр объекта'}</h2>
+              {metaParts.length > 0 && (
+                <p className="formular-modal-meta">{metaParts.join(' · ')}</p>
+              )}
+            </div>
             {onEdit && (
               <button
                 type="button"
@@ -184,7 +162,6 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
                 aria-label="Редактировать объект"
                 title="Редактировать объект"
               >
-                {/* Pencil / edit icon (SVG) */}
                 <svg
                   width="18"
                   height="18"
@@ -209,116 +186,20 @@ const FormularModal = ({ targetId, onClose, onEdit, onSubordinateFlyTo, onSubord
           {loading && <p>Загрузка...</p>}
           {error && <p className="error">Ошибка: {error}</p>}
           
-          {!loading && !error && data.length === 0 && (
-            <p>Нет данных для отображения</p>
-          )}
-          
-          {!loading && !error && data.length > 0 && (
-            <>
-              {/* Standalone секции */}
-              {standalone.map((item, index) => (
-                <div key={index} className="formular-section">
-                  {!item.section.is_hidden && (
-                    <h3>{item.section.title}</h3>
-                  )}
-                  {item.content && <p>{item.content}</p>}
-                  {renderAttachments(item.section.id)}
-                </div>
-              ))}
-
-              {/* Группы с подсекциями */}
-              {groups.map((group, groupIndex) => (
-                <div key={groupIndex} className="formular-group">
-                  {!group.parent.is_hidden && (
-                    <h3 className="formular-group-title">{group.parent.title}</h3>
-                  )}
-                  {group.children.map((item, childIndex) => (
-                    <div key={childIndex} className="formular-subsection">
-                      {!item.section.is_hidden && (
-                        <h4>{item.section.title}</h4>
-                      )}
-                      {item.content && <p>{item.content}</p>}
-                      {renderAttachments(item.section.id)}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </>
-          )}
-
-          <DeployedEquipmentDisplay
-            items={deployedEquipment}
-            onEditInCatalog={onEditEquipmentInCatalog}
-          />
-
-          {/* Список непосредственных подчинённых */}
-          {subordinates.length > 0 && (
-            <div className="formular-subordinates">
-              <h3>Непосредственно подчинённые подразделения ({subordinates.length})</h3>
-              <ul className="formular-subordinates-list">
-                {subordinates.map((sub) => (
-                  <li key={sub.id} className="formular-subordinate-item">
-                    <button
-                      type="button"
-                      className="formular-subordinate-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSubordinateFlyTo && onSubordinateFlyTo(sub);
-                      }}
-                      title="Перейти на карте (flyTo)"
-                      aria-label={`Перейти к ${sub.title} на карте`}
-                    >
-                      {/* Map pin SVG - consistent with main objects table */}
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      className="formular-subordinate-text"
-                      onClick={() => onSubordinateOpenDetails && onSubordinateOpenDetails(sub)}
-                      title="Открыть подробную информацию"
-                    >
-                      <strong>{sub.title}</strong>
-                      {sub.label && ` (${sub.label})`}
-                      {sub.type && ` — ${sub.type.title}`}
-                      {sub.children_count > 0 && ` (ещё ${sub.children_count} вложенных)`}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {!loading && !error && (
+            <DetailSectionNavigator
+              cards={sectionCards}
+              attachmentsBySection={attachmentsBySection}
+              resetKey={targetId}
+              autoExpandSingle
+              onSubordinateFlyTo={onSubordinateFlyTo}
+              onSubordinateOpenDetails={onSubordinateOpenDetails}
+              onEditEquipmentInCatalog={onEditEquipmentInCatalog}
+              emptyMessage="Нет данных для отображения"
+            />
           )}
         </div>
       </div>
-      {previewImage && (
-        <div className="formular-image-preview" onClick={() => setPreviewImage(null)}>
-          <div className="formular-image-preview-content" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="formular-image-preview-close"
-              onClick={() => setPreviewImage(null)}
-              aria-label="Закрыть"
-            >
-              ×
-            </button>
-            <img src={previewImage.image} alt={previewImage.title} />
-            <div className="formular-image-preview-caption">
-              <strong>{previewImage.title}</strong>
-              {previewImage.description && <p>{previewImage.description}</p>}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
