@@ -7,8 +7,11 @@ import { getZoneDashArray, usesDashCrossMarkers } from '../../utils/actionZoneSt
 
 const VIEWPORT_DEBOUNCE_MS = 80;
 
-function buildZoneEntryId(zone, idx) {
-  return `zone-${zone.obj.id}-${zone.equipmentDeploymentId ?? 'm'}-${zone.actionTypeId ?? zone.actionIndex}-${idx}`;
+function buildZoneEntryId(zone) {
+  // Стабильный идентификатор на основе zoneKey (не зависит от позиции в
+  // отфильтрованном по вьюпорту списке) — иначе Circle перемонтируется при
+  // пане/зуме, что вызывает мерцание зон и потерю hover-состояния.
+  return `zone-${zone.zoneKey}`;
 }
 
 function getZonesAtLatLng(zones, latlng, toleranceMeters = 1) {
@@ -147,9 +150,9 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   const zonesInViewport = useZonesInViewport(visibleZones);
 
   const zonesWithEntryIds = useMemo(
-    () => zonesInViewport.map((zone, idx) => ({
+    () => zonesInViewport.map((zone) => ({
       ...zone,
-      entryId: buildZoneEntryId(zone, idx),
+      entryId: buildZoneEntryId(zone),
     })),
     [zonesInViewport],
   );

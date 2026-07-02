@@ -302,7 +302,7 @@ export const processNonFlagClustering = (objects, mapInstance, selectedIds = [])
     // Для каждой страны ищем кластеры
     const clusters = createClusters(countryObjects, mapInstance);
     
-    clusters.forEach((cluster, clusterIdx) => {
+    clusters.forEach((cluster) => {
       if (cluster.length === 1) {
         // Одиночный объект - показываем как есть
         result.push({
@@ -312,8 +312,12 @@ export const processNonFlagClustering = (objects, mapInstance, selectedIds = [])
           groupObjects: cluster
         });
       } else {
-        // Несколько объектов в группе
-        const groupId = `group-${country}-${clusterIdx}`;
+        // Несколько объектов в группе.
+        // groupId строим из отсортированных id участников, а НЕ из индекса
+        // кластера: индекс зависит от порядка обхода и меняется при
+        // добавлении/удалении соседних объектов, что вызывало churn React-ключей
+        // и мерцание групповых маркеров.
+        const groupId = `group-${country}-${cluster.map((o) => o.id).slice().sort().join('-')}`;
         
         // Проверяем сколько объектов группы выбрано
         const selectedInGroup = cluster.filter(obj => selectedIds.includes(obj.id));

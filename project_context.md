@@ -85,7 +85,8 @@
 | Категория | Технология |
 |-----------|------------|
 | Сервер | maptiler/tileserver-gl (Docker) |
-| Данные | MBTiles (`map.mbtiles`), стили `borders-labels`, `basic` |
+| Данные | MBTiles (`map.mbtiles`), базовые стили `borders-labels`, `basic` |
+| Слои-оверлеи | 12 прозрачных переключаемых стилей: гидрография, ж/д, паромы, названия дорог, аэродромы, вершины/рельеф, районы/острова, номера домов, POI (инфраструктура/транспорт/сервис). Иконки — `tileserver/sprites/basic/`. См. [`map_layers_plan.md`](map_layers_plan.md) |
 | Порт | 8080 |
 
 ### Инфраструктура (корень)
@@ -655,8 +656,8 @@ Target 0..1──* Target (parent/children)
 | `backend/api/urls.py` | Маршруты API |
 | `frontend/vite.config.js` | Dev server, HMR, polling |
 | `frontend/src/config/api.js` | API_URL |
-| `frontend/src/config/tiles.js` | URL тайлов |
-| `tileserver/config.json` | Стили, пути к mbtiles и шрифтам |
+| `frontend/src/config/tiles.js` | URL тайлов, `MAP_OVERLAY_LAYERS` (переключаемые слои) |
+| `tileserver/config.json` | Стили (вкл. overlay-*), пути к mbtiles и шрифтам |
 
 ### Настройки приложения (важные)
 
@@ -695,7 +696,7 @@ Target 0..1──* Target (parent/children)
 
 | Место | Риск |
 |-------|------|
-| `frontend/src/components/MapComponent/` | Кластеризация флагов/non-flag, зоны, события, measure mode, fullscreen-sidebar |
+| `frontend/src/components/MapComponent/` | Кластеризация флагов/non-flag, зоны, события, measure mode, fullscreen-sidebar. Обработчики событий карты (click/mousemove) объединены в единый **module-scope `MapEventBridge`** через ref — не переподписываются на ре-рендер. Зоны используют стабильный `entryId = zoneKey` (не индекс вьюпорта), групповые маркеры — стабильный `groupId` из отсортированных id участников |
 | `frontend/src/components/Formular/Formular.jsx` | Orchestrator: состояние разнесено в `hooks/formular/`, но связность с MapComponent высокая |
 | `backend/api/views.py` EventViewSet filters | Сложная Q-логика дат/времени, дублирование веток |
 | `backend/formular/admin.py` MarkerAdmin | Синхронная обработка SVG на каждой строке списка |

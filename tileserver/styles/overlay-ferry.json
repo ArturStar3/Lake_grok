@@ -1,0 +1,39 @@
+{
+  "version": 8,
+  "name": "Overlay: Ferry & maritime routes",
+  "metadata": {
+    "openmaptiles:version": "3.x",
+    "infolake:overlay": true
+  },
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "mbtiles://{openmaptiles}"
+    }
+  },
+  "glyphs": "{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "ferry",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "minzoom": 4,
+      "filter": ["==", "class", "ferry"],
+      "layout": {"line-join": "round"},
+      "paint": {
+        "line-color": "#3d7fa6",
+        "line-dasharray": [3, 3],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 8, 0.9],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 10, 1.5, 14, 2.5, 18, 4, 20, 5.5]
+      }
+    }
+  ]
+}

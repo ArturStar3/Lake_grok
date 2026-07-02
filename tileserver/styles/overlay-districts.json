@@ -1,0 +1,83 @@
+{
+  "version": 8,
+  "name": "Overlay: Districts, quarters & islands",
+  "metadata": {
+    "openmaptiles:version": "3.x",
+    "infolake:overlay": true
+  },
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "mbtiles://{openmaptiles}"
+    }
+  },
+  "glyphs": "{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "place-suburb",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 10,
+      "filter": ["all", ["==", "$type", "Point"], ["in", "class", "suburb", "borough"]],
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"], ["get", "name:latin"]],
+        "text-font": ["Open Sans Regular"],
+        "text-size": 11,
+        "text-transform": "uppercase",
+        "text-letter-spacing": 0.05,
+        "text-max-width": 7
+      },
+      "paint": {
+        "text-color": "#7a7a7a",
+        "text-halo-color": "rgba(255,255,255,0.85)",
+        "text-halo-width": 1.2
+      }
+    },
+    {
+      "id": "place-quarter-neighbourhood",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 13,
+      "filter": ["all", ["==", "$type", "Point"], ["in", "class", "quarter", "neighbourhood"]],
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"], ["get", "name:latin"]],
+        "text-font": ["Open Sans Italic"],
+        "text-size": 10,
+        "text-max-width": 7
+      },
+      "paint": {
+        "text-color": "#8a8a8a",
+        "text-halo-color": "rgba(255,255,255,0.85)",
+        "text-halo-width": 1.2
+      }
+    },
+    {
+      "id": "place-island",
+      "type": "symbol",
+      "source": "openmaptiles",
+      "source-layer": "place",
+      "minzoom": 5,
+      "filter": ["all", ["==", "$type", "Point"], ["in", "class", "island", "islet"]],
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:ru"], ["get", "name"], ["get", "name:latin"]],
+        "text-font": ["Open Sans Italic"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 5, 10, 12, 13],
+        "text-max-width": 7
+      },
+      "paint": {
+        "text-color": "#3a6ea5",
+        "text-halo-color": "rgba(255,255,255,0.85)",
+        "text-halo-width": 1.2
+      }
+    }
+  ]
+}

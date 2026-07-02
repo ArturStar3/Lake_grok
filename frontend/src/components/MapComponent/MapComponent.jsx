@@ -16,6 +16,9 @@ import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import ActionZonesLayer from "./ActionZonesLayer";
+import MapOverlayLayers from "./MapOverlayLayers";
+import MapLayerPanel from "./MapLayerPanel";
+import { useMapOverlayLayers } from "../../hooks/useMapOverlayLayers";
 import ZoneHoverListPanel from "./ZoneHoverListPanel";
 import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopupManager";
 import { createZoneHoverController } from "../../utils/zoneHoverController";
@@ -74,6 +77,7 @@ function MapScaleBar({ isFullscreen }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const numericRef = useRef(null);
     const dropdownRef = useRef(null);
+    const scaleTimeoutRef = useRef(null);
 
     // Обратный расчёт зума для заданного знаменателя масштаба (1:N).
     // Использует ту же константу Web Mercator и приближение, что и updateScale.
@@ -84,7 +88,7 @@ function MapScaleBar({ isFullscreen }) {
         // targetMpp согласован с формулой denomRaw = niceMeters / (barWidth * 0.000264583333)
         const targetMpp = denominator * 0.000264583333;
         const z = Math.log2(mpp0 / targetMpp);
-        return Math.max(0, Math.min(18, Math.round(z)));
+        return Math.max(0, Math.min(19, Math.round(z)));
     }, []);
 
     const updateScale = useCallback(() => {
@@ -164,8 +168,10 @@ function MapScaleBar({ isFullscreen }) {
         if (!map) return undefined;
 
         const scheduleUpdate = () => {
-            // Небольшой debounce, чтобы не дёргалось во время зума/перемещения
-            setTimeout(updateScale, 60);
+            // Небольшой debounce, чтобы не дёргалось во время зума/перемещения.
+            // Отменяем предыдущий таймер, иначе при быстром зуме/пане они копятся.
+            if (scaleTimeoutRef.current) clearTimeout(scaleTimeoutRef.current);
+            scaleTimeoutRef.current = setTimeout(updateScale, 60);
         };
 
         map.on("zoomend", scheduleUpdate);
@@ -179,6 +185,7 @@ function MapScaleBar({ isFullscreen }) {
             map.off("zoomend", scheduleUpdate);
             map.off("moveend", scheduleUpdate);
             map.off("resize", scheduleUpdate);
+            if (scaleTimeoutRef.current) clearTimeout(scaleTimeoutRef.current);
         };
     }, [map, updateScale]);
 
@@ -650,6 +657,21 @@ function ZoomTracker({ onZoomChange }) {
     return null;
 }
 
+/**
+ * Единый стабильный мост для событий карты (click и т.п.).
+ * Компонент объявлен на уровне модуля (не внутри рендера MapComponent), поэтому
+ * его тип стабилен и Leaflet-обработчики не переподписываются на каждый ре-рендер.
+ * Актуальная логика читается из ref (apiRef.current) в момент события.
+ */
+function MapEventBridge({ apiRef }) {
+    const map = useMapEvents({
+        click: (e) => apiRef.current?.onClick?.(e, map),
+        mousemove: (e) => apiRef.current?.onMouseMove?.(e, map),
+        mouseout: (e) => apiRef.current?.onMouseOut?.(e, map),
+    });
+    return null;
+}
+
 function MapComponent({
     // ...existing code...
     objects,
@@ -716,6 +738,7 @@ function MapComponent({
     tableTab
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers();
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
@@ -754,6 +777,7 @@ function MapComponent({
     const cursorCoordsRef = useRef(null);
     const skipZoneHoverUpdatesRef = useRef(false);
     const suppressNextMapClickRef = useRef(false);
+    const mapEventApiRef = useRef({});
     const zoneHoverControllerRef = useRef(null);
     if (!zoneHoverControllerRef.current) {
         zoneHoverControllerRef.current = createZoneHoverController();
@@ -1196,92 +1220,76 @@ function MapComponent({
         );
     }, [markerData.clusteredObjects, selectedSet]);
 
-    // Компонент для обработки кликов на карту и закрытия группы
-    function MapClickHandler({ onMapClick }) {
-        useMapEvents({
-            click: () => {
-                if (suppressNextMapClickRef.current) {
-                    suppressNextMapClickRef.current = false;
-                    return;
-                }
-                if (polygonContextMenu) {
-                    setPolygonContextMenu(null);
-                }
-                if (pinnedGroupId) {
-                    setPinnedGroupId(null);
-                    setHoveredGroupId(null);
-                }
-                onMapClick?.();
-            }
-        });
-        return null;
-    }
-
-    function CursorTracker() {
-        useMapEvents({
-            mousemove: (e) => {
-                if (isEventPointDraggingRef.current) return;
-                if (isEventPointPointerDownRef.current) return;
-                const el = cursorCoordsRef.current;
-                if (!el) return;
-                el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
-                el.style.display = 'block';
-            },
-            mouseout: () => {
-                const el = cursorCoordsRef.current;
-                if (el) el.style.display = 'none';
-            },
-        });
-        return null;
-    }
-
-    function PolygonContextMenuHandler() {
-        useMapEvents({});
-        return null;
-    }
-
-    function MeasureHandler({ isActive, onAddPoint }) {
-        useMapEvents({
-            click: (e) => {
-                if (!isActive || !onAddPoint) return;
-                if (!e.originalEvent || !e.originalEvent.ctrlKey) return;
-                const { lat, lng } = e.latlng;
-                onAddPoint({ lat, lng });
-            }
-        });
-        return null;
-    }
-
-    function EventContextMenuHandler() {
-        const map = useMapEvents({
-            click: (e) => {
-                if (isEventEditModeActive) {
-                    if (eventContextMenu) {
-                        setEventContextMenu(null);
-                    }
-                    return;
-                }
-                if (e.originalEvent?.altKey) {
-                    const point = map.mouseEventToContainerPoint(e.originalEvent);
-                    setEventContextMenu({
-                        x: point.x,
-                        y: point.y,
-                        lat: e.latlng.lat,
-                        lng: e.latlng.lng
-                    });
-                    return;
-                }
-
-                if (eventContextMenu) {
-                    setEventContextMenu(null);
-                }
-            }
-        });
-        return null;
-    }
-
     const handleMeasureAddPoint = ({ lat, lng }) => {
         setMeasurePoints((prev) => [...prev, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, lat, lng }]);
+    };
+
+    // Единый обработчик клика по карте для MapEventBridge.
+    // Сохраняем в ref (переприсваивание дёшево и не вызывает перемонтирования
+    // моста). Три независимых блока полностью повторяют прежние отдельные
+    // обработчики (клик по карте, режим измерения, контекст события) и порядок
+    // их срабатывания — каждый блок изолирован своим замыканием, чтобы `return`
+    // прерывал только свою секцию, как это было у отдельных useMapEvents.
+    mapEventApiRef.current.onClick = (e, map) => {
+        // 1) Клик по карте: закрытие меню полигона / группы / панели зон
+        (() => {
+            if (suppressNextMapClickRef.current) {
+                suppressNextMapClickRef.current = false;
+                return;
+            }
+            if (polygonContextMenu) {
+                setPolygonContextMenu(null);
+            }
+            if (pinnedGroupId) {
+                setPinnedGroupId(null);
+                setHoveredGroupId(null);
+            }
+            setPinnedGroupId(null);
+            handleZonePanelClose();
+        })();
+
+        // 2) Режим измерения: Ctrl+клик добавляет точку
+        (() => {
+            const isActive = effectiveMeasureMode;
+            const onAddPoint = isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint;
+            if (!isActive || !onAddPoint) return;
+            if (!e.originalEvent || !e.originalEvent.ctrlKey) return;
+            const { lat, lng } = e.latlng;
+            onAddPoint({ lat, lng });
+        })();
+
+        // 3) Контекст события: Alt+клик открывает меню (вне режима редактирования)
+        (() => {
+            if (isEventEditModeActive) {
+                if (eventContextMenu) setEventContextMenu(null);
+                return;
+            }
+            if (e.originalEvent?.altKey) {
+                const point = map.mouseEventToContainerPoint(e.originalEvent);
+                setEventContextMenu({
+                    x: point.x,
+                    y: point.y,
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                });
+                return;
+            }
+            if (eventContextMenu) setEventContextMenu(null);
+        })();
+    };
+
+    // Трекер координат курсора (обновляет DOM напрямую, без ре-рендера React).
+    mapEventApiRef.current.onMouseMove = (e) => {
+        if (isEventPointDraggingRef.current) return;
+        if (isEventPointPointerDownRef.current) return;
+        const el = cursorCoordsRef.current;
+        if (!el) return;
+        el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+        el.style.display = 'block';
+    };
+    mapEventApiRef.current.onMouseOut = () => {
+        const el = cursorCoordsRef.current;
+        if (el) el.style.display = 'none';
     };
 
     // Новый обработчик hover: синхронизирует локальное состояние и родительский callback
@@ -1359,8 +1367,11 @@ function MapComponent({
         suppressNextMapClickRef.current = true;
 
         const chosen = candidates[0];
-        if (onCheckboxChange && !selectedObj.includes(chosen.obj.id)) {
-            onCheckboxChange(chosen.obj.id);
+        // Клик по зоне должен ВЫДЕЛИТЬ объект (checked=true). Ранее вызывалось
+        // без второго аргумента, из-за чего toggleIdInList трактовал checked как
+        // false и пытался снять выделение — объект не выбирался.
+        if (onCheckboxChange && !selectedSet.has(chosen.obj.id)) {
+            onCheckboxChange(chosen.obj.id, true);
         }
 
         setPinnedZonePanel({ zones: candidates });
@@ -1368,7 +1379,7 @@ function MapComponent({
         setSelectedZoneEntryId(null);
         setActiveZonePopup(null);
         zoneHoverControllerRef.current?.setHoveredEntries(candidates.map((z) => z.entryId));
-    }, [isFullscreen, onCheckboxChange, selectedObj]);
+    }, [isFullscreen, onCheckboxChange, selectedSet]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1655,6 +1666,14 @@ function MapComponent({
                         </div>
                     </div>
 
+                    <div className="map__sidebar-section">
+                        <MapLayerPanel
+                            enabledById={overlayEnabledById}
+                            onToggle={toggleOverlayLayer}
+                            onSetAll={setAllOverlayLayers}
+                        />
+                    </div>
+
                     <div className="map__sidebar-section map__objects-section">
                         <div className="formular__tabs">
                             <button
@@ -1778,6 +1797,8 @@ function MapComponent({
                 ref={mapRef}
                 center={center}
                 zoom={4}
+                minZoom={2}
+                maxZoom={19}
                 style={{height: "100%", width: "100%"}}
                 className={isFullscreen ? "map--fullscreen" : ""}
                 maxBounds={mapMaxBounds}
@@ -1785,20 +1806,14 @@ function MapComponent({
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <MapScaleBar isFullscreen={isFullscreen} />
-                <MapClickHandler onMapClick={() => {
-                    setPinnedGroupId(null);
-                    handleZonePanelClose();
-                }} />
-                <MeasureHandler isActive={effectiveMeasureMode} onAddPoint={isFullscreen ? handleMeasureAddPoint : onAddMeasurePoint} />
-                <EventContextMenuHandler />
-                <PolygonContextMenuHandler />
+                <MapEventBridge apiRef={mapEventApiRef} />
                 <TileLayer
                     url={TILE_RASTER_URL}
                     minZoom={2}
-                    maxZoom={14}
+                    maxZoom={19}
                     attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
                 />
-                {/* <CursorTracker /> */}
+                <MapOverlayLayers activeLayers={activeOverlayLayers} />
                 <MarkerInitializer 
                     key={`markers-v${markerVersion}`}
                     objects={flagObjectsForMap} 
@@ -2068,8 +2083,6 @@ function MapComponent({
                         onClose={handleZonePopupClose}
                     />
                 )}
-
-                <CursorTracker />
             </MapContainer>
             {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
             {isFullscreen && showActionRadius && (pinnedZonePanel || hoveredZoneList.length > 0) && (
