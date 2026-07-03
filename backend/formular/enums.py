@@ -17,3 +17,10 @@ class ActionLineTypes(models.TextChoices):
     DASHED = 'dashed', 'Пунктирная линия'
     DASH_DOT = 'dash_dot', 'Тире точка'
     DASH_X = 'dash_x', 'Тире крест'
+
+
+class ZoneGeometryModes(models.TextChoices):
+    """Как строить геометрию зоны на карте"""
+
+    FLAT = 'flat', 'Круг на плоскости'
+    LOS_RADAR = 'los_radar', 'Покрытие РЛС (рельеф)'

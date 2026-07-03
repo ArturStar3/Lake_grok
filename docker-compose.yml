@@ -61,11 +61,13 @@ services:
     volumes:
       - ./backend:/app
       - ./backend/media:/app/media
+      - ./tileserver/data/dem:/app/dem_data:ro
     env_file:
       - ./backend/.env
     environment:
       # PostgreSQL на хосте (не в Docker)
       DB_HOST: host.docker.internal
+      DEM_DATA_DIR: /app/dem_data/glo-90
       # Ссылка «Открыть сайт» в Django admin → карта (Vite dev / production frontend).
       FRONTEND_URL: http://localhost:5173
     extra_hosts:

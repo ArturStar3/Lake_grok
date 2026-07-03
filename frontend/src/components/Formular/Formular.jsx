@@ -19,6 +19,8 @@ import { useFormularReferenceLists } from "../../hooks/formular/useFormularRefer
 import { useReferenceData } from "../../hooks/useReferenceData";
 import { useEventsList } from "../../hooks/formular/useEventsList";
 import { useActionZoneState } from "../../hooks/formular/useActionZoneState";
+import { useTerrainZoneTypes } from "../../hooks/formular/useTerrainZoneTypes";
+import { useAutoLosZoneGeometries } from "../../hooks/formular/useAutoLosZoneGeometries";
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
 import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
@@ -50,6 +52,12 @@ export default function Formular() {
 
     const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
     const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();
+    const {
+        terrainTypeIds,
+        isTerrainEnabled,
+        toggleTerrainType,
+        setAllTerrainTypes,
+    } = useTerrainZoneTypes(actionTypesList);
     const { targetTypes } = useReferenceData(true);
     const {
         filterCountry, setFilterCountry,
@@ -72,6 +80,18 @@ export default function Formular() {
         toggleActionType, toggleAllForCountry, resetZoneFilters,
         handleIntersectionToggle, handleSelectAllIntersections,
     } = useActionZoneState(objects);
+
+    const {
+        geometryByActionId: losGeometryByActionId,
+        computingCount: losComputingCount,
+        losZonesCount,
+    } = useAutoLosZoneGeometries({
+        zoneObjects: objects,
+        actionZoneFilters,
+        terrainTypeIds,
+        enabled: hasEnabledZones,
+    });
+
     const {
         isMeasureMode, setIsMeasureMode,
         measurePoints, setMeasurePoints,
@@ -427,6 +447,14 @@ export default function Formular() {
                                 resetZoneFilters={resetZoneFilters}
                                 actionZoneViewMode={actionZoneViewMode}
                                 onActionZoneViewModeChange={setActionZoneViewMode}
+                                terrainTypeIds={terrainTypeIds}
+                                isTerrainEnabled={isTerrainEnabled}
+                                onTerrainTypeToggle={toggleTerrainType}
+                                onEnableAllTerrainTypes={() => setAllTerrainTypes(true)}
+                                onDisableAllTerrainTypes={() => setAllTerrainTypes(false)}
+                                losGeometryByActionId={losGeometryByActionId}
+                                losComputingCount={losComputingCount}
+                                losZonesCount={losZonesCount}
                             />
                         </div>
                         <div className="formular__features">

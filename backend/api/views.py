@@ -6,6 +6,8 @@ from rest_framework import status
 from rest_framework.decorators import action
 from django.db import transaction
 from django.db.models import Q, Count, Prefetch
+from django.utils import timezone
+from formular.viewshed import compute_los_polygon
 
 from .serializers import (
     TargetSerializer,
@@ -190,6 +192,73 @@ class TargetViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
             headers=headers,
         )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'actions/(?P<action_id>[^/.]+)/compute-los-zone',
+    )
+    def compute_los_zone(self, request, pk=None, action_id=None):
+        """Рассчитать полигон зоны действия с учётом рельефа (GLO-90 DEM)."""
+        target = self.get_object()
+        try:
+            action = target.actions.select_related('action_type').get(pk=action_id)
+        except TargetAction.DoesNotExist:
+            return Response(
+                {'detail': 'Действие не найдено'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        action_type = action.action_type
+        if not action_type:
+            return Response(
+                {'detail': 'Тип действия не указан'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not action.radius or action.radius <= 0:
+            return Response(
+                {'detail': 'Укажите радиус действия (км)'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        antenna_height = request.data.get('antenna_height_m', target.antenna_height_m)
+        try:
+            antenna_height = float(antenna_height)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'Некорректная высота антенны'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            geometry = compute_los_polygon(
+                target.lat,
+                target.lng,
+                antenna_height_m=antenna_height,
+                max_range_km=float(action.radius),
+                min_elevation_deg=float(action_type.min_elevation_deg or 0.5),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response(
+                {'detail': f'Ошибка расчёта зоны: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        action.zone_geometry = geometry
+        action.zone_geometry_computed_at = timezone.now()
+        action.save(update_fields=['zone_geometry', 'zone_geometry_computed_at'])
+
+        if antenna_height != target.antenna_height_m:
+            target.antenna_height_m = antenna_height
+            target.save(update_fields=['antenna_height_m'])
+
+        return Response({
+            'action_id': action.id,
+            'zone_geometry': geometry,
+            'zone_geometry_computed_at': action.zone_geometry_computed_at,
+        })
 
 
 class UnitOfMeasureViewSet(viewsets.ModelViewSet):

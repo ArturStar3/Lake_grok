@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, CircleMarker, useMap } from 'react-leaflet';
+import { Circle, CircleMarker, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import DashCrossZoneLayer from './DashCrossZoneLayer';
 import { buildVisibleZones } from '../../utils/buildVisibleZones';
 import { getZoneDashArray, usesDashCrossMarkers } from '../../utils/actionZoneStyle';
+import { getZonePolygonPositions, isTerrainZoneEnabled } from '../../utils/computeLosZone';
 
 const VIEWPORT_DEBOUNCE_MS = 80;
 
@@ -133,6 +134,68 @@ function ZoneCircleLayer({
   );
 }
 
+function ZonePolygonLayer({
+  zone,
+  entryId,
+  positions,
+  hoverController,
+  onZonePointer,
+  onZonePointerEnd,
+  onZoneClick,
+}) {
+  const polygonRef = useRef(null);
+  const { obj, color, lineType } = zone;
+  const dashArray = getZoneDashArray(lineType);
+
+  const baseStyle = useMemo(() => ({
+    color,
+    weight: 2,
+    hoverWeight: 3.5,
+    opacity: 0.75,
+    hoverOpacity: 0.95,
+    dashArray,
+    fillColor: color,
+    fillOpacity: 0.12,
+  }), [color, dashArray]);
+
+  useEffect(() => {
+    const layer = polygonRef.current;
+    if (!layer || !hoverController) return undefined;
+    hoverController.register(entryId, {
+      objId: obj.id,
+      layers: [layer],
+      baseStyle,
+    });
+    return () => hoverController.unregister(entryId);
+  }, [entryId, obj.id, hoverController, baseStyle]);
+
+  const pointerHandlers = useMemo(() => ({
+    mouseover: (e) => onZonePointer?.(e),
+    mouseout: () => onZonePointerEnd?.(),
+    click: onZoneClick,
+  }), [onZonePointer, onZonePointerEnd, onZoneClick]);
+
+  if (!positions?.length) return null;
+
+  return (
+    <Polygon
+      ref={polygonRef}
+      positions={positions}
+      pathOptions={{
+        color,
+        fillColor: color,
+        fillOpacity: 0.12,
+        weight: 2,
+        opacity: 0.75,
+        dashArray,
+        className: 'action-radius-polygon action-radius-polygon--los',
+        interactive: true,
+      }}
+      eventHandlers={pointerHandlers}
+    />
+  );
+}
+
 const ActionZonesLayer = React.memo(function ActionZonesLayer({
   zoneObjects = [],
   actionZoneFilters,
@@ -141,6 +204,8 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   isZonePanelPinned = false,
   onZoneClickAt,
   onZoneHoverChange,
+  terrainTypeIds,
+  losGeometryByActionId = {},
 }) {
   const visibleZones = useMemo(
     () => buildVisibleZones(zoneObjects, actionZoneFilters),
@@ -211,6 +276,29 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         />
       ))}
       {zonesWithEntryIds.map((zone) => {
+        const useTerrainLos = isTerrainZoneEnabled(zone, terrainTypeIds);
+        const geometry = useTerrainLos
+          ? (losGeometryByActionId[zone.actionId] || zone.zoneGeometry)
+          : null;
+        const polygonPositions = useTerrainLos
+          ? getZonePolygonPositions(geometry)
+          : null;
+
+        if (useTerrainLos && polygonPositions) {
+          return (
+            <ZonePolygonLayer
+              key={zone.entryId}
+              zone={zone}
+              entryId={zone.entryId}
+              positions={polygonPositions}
+              hoverController={hoverController}
+              onZonePointer={applyZoneHover}
+              onZonePointerEnd={clearZoneHover}
+              onZoneClick={handleZoneClick}
+            />
+          );
+        }
+
         if (usesDashCrossMarkers(zone.lineType)) {
           return (
             <DashCrossZoneLayer

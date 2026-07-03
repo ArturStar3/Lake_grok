@@ -162,3 +162,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Copernicus GLO-90 DEM (оффлайн). В Docker: /app/dem_data/glo-90
+DEM_DATA_DIR = BASE_DIR.parent / 'tileserver' / 'data' / 'dem' / 'glo-90'
+if os.environ.get('DEM_DATA_DIR'):
+    DEM_DATA_DIR = Path(os.environ['DEM_DATA_DIR'])

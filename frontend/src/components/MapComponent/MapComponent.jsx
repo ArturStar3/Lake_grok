@@ -21,6 +21,7 @@ import MapOverlayLayers from "./MapOverlayLayers";
 import MapLayerPanel from "./MapLayerPanel";
 import { useMapOverlayLayers } from "../../hooks/useMapOverlayLayers";
 import ZoneHoverListPanel from "./ZoneHoverListPanel";
+import MapSettingsDrawer from "./MapSettingsDrawer";
 import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopupManager";
 import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
@@ -707,6 +708,14 @@ function MapComponent({
     resetZoneFilters,
     actionZoneViewMode: _actionZoneViewMode = "displaySettings",
     onActionZoneViewModeChange: _onActionZoneViewModeChange,
+    terrainTypeIds,
+    isTerrainEnabled,
+    onTerrainTypeToggle,
+    onEnableAllTerrainTypes,
+    onDisableAllTerrainTypes,
+    losGeometryByActionId = {},
+    losComputingCount = 0,
+    losZonesCount = 0,
     // ...existing code...
     onMeasureModeChange,
     onMeasurePointsChange,
@@ -736,8 +745,10 @@ function MapComponent({
     editEventDrawPoints = [],
     onEditEventDrawPointsChange = () => {},
     isEditEventMode = false,
-    tableTab
+    tableTab,
 }) {
+    const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
@@ -1799,6 +1810,7 @@ function MapComponent({
                                 )}
                             </>
                         )}
+
                     </div>
 
                     <div className="map__sidebar-section map__features-section">
@@ -2095,13 +2107,15 @@ function MapComponent({
                 ))}
                 {showActionRadius && (
                     <ActionZonesLayer
-                        zoneObjects={zoneObjects.length > 0 ? zoneObjects : objects}
+                        zoneObjects={zoneObjectsSource}
                         actionZoneFilters={actionZoneFilters}
                         hoverController={zoneHoverControllerRef.current}
                         skipHoverRef={skipZoneHoverUpdatesRef}
                         isZonePanelPinned={Boolean(pinnedZonePanel)}
                         onZoneClickAt={handleZoneClickAt}
                         onZoneHoverChange={handleZoneHoverChange}
+                        terrainTypeIds={terrainTypeIds}
+                        losGeometryByActionId={losGeometryByActionId}
                     />
                 )}
 
@@ -2112,8 +2126,23 @@ function MapComponent({
                         onClose={handleZonePopupClose}
                     />
                 )}
+                <MapSettingsDrawer
+                    actionTypes={actionTypes}
+                    isTerrainEnabled={isTerrainEnabled}
+                    onTerrainTypeToggle={onTerrainTypeToggle}
+                    onEnableAllTerrainTypes={onEnableAllTerrainTypes}
+                    onDisableAllTerrainTypes={onDisableAllTerrainTypes}
+                    losComputingCount={losComputingCount}
+                    losZonesCount={losZonesCount}
+                    sidebarOpen={isFullscreen && isSidebarOpen}
+                />
             </MapContainer>
             {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
+            {showActionRadius && terrainTypeIds?.size > 0 && losComputingCount > 0 && (
+                <div className="map__los-status" role="status">
+                    Расчёт зон с учётом рельефа… {losComputingCount} / {losZonesCount}
+                </div>
+            )}
             {isFullscreen && showActionRadius && (pinnedZonePanel || hoveredZoneList.length > 0) && (
                 <ZoneHoverListPanel
                     zones={pinnedZonePanel?.zones ?? hoveredZoneList}
@@ -2121,6 +2150,7 @@ function MapComponent({
                     selectedEntryId={selectedZoneEntryId}
                     onSelectZone={handleZonePanelSelect}
                     onClose={handleZonePanelClose}
+                    terrainTypeIds={terrainTypeIds}
                 />
             )}
 

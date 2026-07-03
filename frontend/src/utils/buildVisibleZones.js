@@ -1,6 +1,8 @@
 import { getActionTypeColor } from './actionZoneStyle';
 import { formatZoneEquipmentShortName } from './equipmentCatalogUtils';
 
+export const ZONE_GEOMETRY_LOS_RADAR = 'los_radar';
+
 export function buildZoneKey(objId, action, actionIndex) {
   const deploymentId = action._deploymentId ?? 'm';
   const actionTypeId = action.action_type?.id ?? actionIndex;
@@ -100,8 +102,11 @@ export function buildVisibleZones(objects, actionZoneFilters) {
       zones.push({
         obj,
         action,
+        actionId: action.id,
         actionIndex,
         actionTitle: action.action_type?.title || 'Зона действия',
+        zoneMode: action.action_type?.zone_mode || 'flat',
+        zoneGeometry: action.zone_geometry || null,
         centerLat,
         centerLng,
         radiusMeters: action.radius * 1000,

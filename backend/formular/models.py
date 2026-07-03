@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from .enums import (
     Colors,
     ActionLineTypes,
+    ZoneGeometryModes,
 )
 from .validators import (
     validate_svg
@@ -312,6 +313,17 @@ class ActionType(models.Model):
         default=ActionLineTypes.SOLID,
         verbose_name='Тип линии',
     )
+    zone_mode = models.CharField(
+        max_length=20,
+        choices=ZoneGeometryModes.choices,
+        default=ZoneGeometryModes.FLAT,
+        verbose_name='Режим геометрии зоны',
+    )
+    min_elevation_deg = models.FloatField(
+        default=0.5,
+        verbose_name='Мин. угол места, °',
+        help_text='Для РЛС: луч ниже этого угла считается заблокированным рельефом',
+    )
 
     class Meta:
         verbose_name = 'Тип действия'
@@ -444,6 +456,14 @@ class Target(models.Model):
     )
     lng = models.FloatField(
         verbose_name='Широта'
+    )
+    antenna_height_m = models.FloatField(
+        default=10.0,
+        validators=[
+            MinValueValidator(0.0, message='Высота не может быть отрицательной'),
+        ],
+        verbose_name='Высота антенны, м',
+        help_text='Над уровнем земли в точке объекта (для расчёта покрытия РЛС)',
     )
     equipment = models.ManyToManyField(
         'equipment.Equipment',
@@ -651,6 +671,17 @@ class TargetAction(models.Model):
             )
         ],
         null=True
+    )
+    zone_geometry = models.JSONField(
+        verbose_name='Геометрия зоны (GeoJSON)',
+        null=True,
+        blank=True,
+        default=None,
+    )
+    zone_geometry_computed_at = models.DateTimeField(
+        verbose_name='Зона рассчитана',
+        null=True,
+        blank=True,
     )
 
     def __str__(self):

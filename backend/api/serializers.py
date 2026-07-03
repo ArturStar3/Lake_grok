@@ -109,6 +109,8 @@ class ActionTypeSerializer(serializers.ModelSerializer):
             'title',
             'color',
             'line_type',
+            'zone_mode',
+            'min_elevation_deg',
         )
 
 class ActionTypeListSerializer(serializers.ModelSerializer):
@@ -121,6 +123,8 @@ class ActionTypeListSerializer(serializers.ModelSerializer):
             'title',
             'color',
             'line_type',
+            'zone_mode',
+            'min_elevation_deg',
         )
 
     def validate_color(self, value):
@@ -140,8 +144,11 @@ class TargetActionSerializer(serializers.ModelSerializer):
     class Meta:
         model = TargetAction
         fields = (
+            'id',
             'action_type',
             'radius',
+            'zone_geometry',
+            'zone_geometry_computed_at',
         )
 
 
@@ -576,6 +583,7 @@ class TargetListSerializer(serializers.ModelSerializer):
             'type',
             'lat',
             'lng',
+            'antenna_height_m',
             'country',
             'marker',
         )
@@ -608,6 +616,7 @@ class TargetSerializer(serializers.ModelSerializer):
             'action_radius',
             'lat',
             'lng',
+            'antenna_height_m',
             'country',
             'marker',
             'parent',
@@ -680,6 +689,7 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'action_radius',
             'lat',
             'lng',
+            'antenna_height_m',
             'parent',
             'actions',
             'deployed_equipment',

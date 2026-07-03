@@ -2,6 +2,7 @@ import React from 'react';
 import './ZoneHoverListPanel.css';
 import { formatZoneListLine } from '../../utils/buildVisibleZones';
 import { getLegendSampleStyle } from '../../utils/actionZoneStyle';
+import { isTerrainZoneEnabled } from '../../utils/computeLosZone';
 
 const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
   zones = [],
@@ -9,6 +10,7 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
   selectedEntryId = null,
   onSelectZone,
   onClose,
+  terrainTypeIds,
 }) {
   if (!zones.length) return null;
 
@@ -35,6 +37,7 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
           </button>
         )}
       </div>
+
       <ul className="zone-hover-list__items">
         {zones.map((zone) => {
           const key = zone.entryId || zone.zoneKey;
@@ -47,8 +50,12 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
               aria-hidden
             />
           );
+          const terrainLabel = isTerrainZoneEnabled(zone, terrainTypeIds) ? ' · рельеф' : '';
           const text = (
-            <span className="zone-hover-list__text">{formatZoneListLine(zone)}</span>
+            <span className="zone-hover-list__text">
+              {formatZoneListLine(zone)}
+              {terrainLabel}
+            </span>
           );
 
           if (isPinned) {
