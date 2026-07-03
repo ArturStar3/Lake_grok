@@ -99,12 +99,13 @@ PostgreSQL на хосте (`DB_HOST: host.docker.internal`).
 
 ## TileServer / Docker
 
-| Проблема | Рекомендация |
-|----------|--------------|
-| Нет healthcheck | `healthcheck` в docker-compose |
-| PNG-тайлы | приемлемо для оффлайн; вектор — опционально |
-| Нет fallback UI | обработчик ошибки TileLayer |
-| `CHOKIDAR_USEPOLLING` в dev | не использовать в production-сборке |
+| Проблема | Статус | Рекомендация |
+|----------|--------|--------------|
+| Много PNG-стилей перегружают TileServer | ✅ Исправлено | единый векторный стиль `infolake-unified` + MapLibre на клиенте |
+| Нет healthcheck | ✅ Исправлено | `healthcheck` в docker-compose |
+| Нет лимита памяти tileserver | ✅ Исправлено | `mem_limit: 4g`, `cpus: 2` |
+| Нет fallback UI | ✅ Исправлено | баннер ошибки векторной карты; `VITE_MAP_VECTOR=false` для PNG |
+| `CHOKIDAR_USEPOLLING` в dev | ⚠️ Открыто | не использовать в production-сборке |
 
 ---
 

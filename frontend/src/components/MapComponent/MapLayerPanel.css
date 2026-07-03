@@ -109,3 +109,20 @@
     font-weight: 600;
     color: #1a1a1a;
 }
+
+.map-layer-panel__hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #6a6a6a;
+}
+
+.map-layer-panel__item--unavailable .map-layer-panel__label {
+    color: #9ca3af;
+}
+
+.map-layer-panel__zoom-hint {
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 400;
+}

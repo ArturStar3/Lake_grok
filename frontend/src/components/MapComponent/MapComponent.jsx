@@ -16,6 +16,7 @@ import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import ActionZonesLayer from "./ActionZonesLayer";
+import MapVectorBaseLayer from "./MapVectorBaseLayer";
 import MapOverlayLayers from "./MapOverlayLayers";
 import MapLayerPanel from "./MapLayerPanel";
 import { useMapOverlayLayers } from "../../hooks/useMapOverlayLayers";
@@ -26,7 +27,7 @@ import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
 import { isFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
-import { TILE_RASTER_URL } from "../../config/tiles";
+import { TILE_RASTER_URL, USE_VECTOR_MAP } from "../../config/tiles";
 import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
 import { clearMarkerIconCache } from "../../utils/markerIconCache";
 import { clearEnrichSvgCache } from "../../utils/svgUtils";
@@ -738,7 +739,10 @@ function MapComponent({
     tableTab
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers();
+    const maplibreMapRef = useRef(null);
+    const [maplibreReady, setMaplibreReady] = useState(false);
+    const [vectorMapError, setVectorMapError] = useState(null);
+    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers(maplibreMapRef, maplibreReady);
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
@@ -761,6 +765,16 @@ function MapComponent({
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [markerVersion, setMarkerVersion] = useState(0);
+
+    const handleMaplibreReady = useCallback((map) => {
+        maplibreMapRef.current = map;
+        setVectorMapError(null);
+        setMaplibreReady(true);
+    }, []);
+
+    const handleMaplibreError = useCallback((message) => {
+        setVectorMapError(message);
+    }, []);
 
     // Stable Set for O(1) lookups in heavy filters / renders (avoids .includes on every item during flyTo re-renders etc)
     const handleFullscreenTabChange = useCallback((tab) => {
@@ -1608,6 +1622,11 @@ function MapComponent({
             ref={containerRef}
             onContextMenu={handleMapContextMenu}
         >
+            {vectorMapError && USE_VECTOR_MAP && (
+                <div className="map__vector-error" role="alert">
+                    Ошибка загрузки векторной карты: {vectorMapError}
+                </div>
+            )}
             {isFullscreen && isSidebarOpen && (
                 <div className="map__sidebar" ref={sidebarRef}>
                     <div className="map__sidebar-header">
@@ -1669,6 +1688,7 @@ function MapComponent({
                     <div className="map__sidebar-section">
                         <MapLayerPanel
                             enabledById={overlayEnabledById}
+                            currentZoom={currentZoom}
                             onToggle={toggleOverlayLayer}
                             onSetAll={setAllOverlayLayers}
                         />
@@ -1807,13 +1827,22 @@ function MapComponent({
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <MapScaleBar isFullscreen={isFullscreen} />
                 <MapEventBridge apiRef={mapEventApiRef} />
-                <TileLayer
-                    url={TILE_RASTER_URL}
-                    minZoom={2}
-                    maxZoom={19}
-                    attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
-                />
-                <MapOverlayLayers activeLayers={activeOverlayLayers} />
+                {USE_VECTOR_MAP ? (
+                    <MapVectorBaseLayer
+                        onMapReady={handleMaplibreReady}
+                        onError={handleMaplibreError}
+                    />
+                ) : (
+                    <>
+                        <TileLayer
+                            url={TILE_RASTER_URL}
+                            minZoom={2}
+                            maxZoom={19}
+                            attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
+                        />
+                        <MapOverlayLayers activeLayers={activeOverlayLayers} />
+                    </>
+                )}
                 <MarkerInitializer 
                     key={`markers-v${markerVersion}`}
                     objects={flagObjectsForMap} 

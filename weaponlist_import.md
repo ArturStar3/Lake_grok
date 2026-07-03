@@ -1,12 +1,9 @@
-# Оффлайн-миграция InfoLake (ветка develop-weaponlist)
+# Оффлайн-миграция InfoLake (каталог вооружения и legacy)
 
-Полная инструкция по переносу проекта на компьютер **без интернета**: Docker-образы, база данных, каталог вооружения (49 образцов, ВВС / СВ / ПВО / ВМФ).
+> **Актуальная общая инструкция по миграции на оффлайн-сервер:**  
+> **[OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md)**
 
-Связанные документы:
-
-- [docker_instruction.md](docker_instruction.md) — детали по Docker save/load
-- [backend/equipment/catalog/EQUIPMENT_CATALOG_OFFLINE.md](backend/equipment/catalog/EQUIPMENT_CATALOG_OFFLINE.md) — только каталог техники
-- [tileserver_start_guide.md](tileserver_start_guide.md) — карта (MBTiles)
+Этот документ дополняет OFFLINE_MIGRATION.md разделом про каталог вооружения (ветка develop-weaponlist).
 
 ---
 

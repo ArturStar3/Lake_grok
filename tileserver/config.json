@@ -16,6 +16,9 @@
     "borders-labels": {
       "style": "borders-labels.json"
     },
+    "infolake-unified": {
+      "style": "infolake-unified.json"
+    },
     "basic": {
       "style": "basic.json"
     },

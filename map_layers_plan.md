@@ -49,18 +49,24 @@
 
 ## Архитектура
 
-Базовый стек не менялся: **Leaflet + растровые PNG** из TileServer GL. Каждый слой — отдельный
-**прозрачный** стиль в TileServer, который рендерится как дополнительный `TileLayer` в Leaflet.
+**Production (по умолчанию):** **Leaflet + MapLibre GL** (`@maplibre/maplibre-gl-leaflet`) с единым векторным стилем `infolake-unified`. TileServer отдаёт `style.json` и векторные тайлы `.pbf` из `map.mbtiles`; переключение оверлеев — `setLayoutProperty(visibility)` на клиенте без новых HTTP-запросов.
+
+**Legacy (откат):** `VITE_MAP_VECTOR=false` — растровые PNG: базовый `borders-labels` + отдельные `overlay-*` стили.
 
 ```mermaid
 flowchart LR
-  MBTiles["map.mbtiles\nOpenMapTiles vector"] --> TileServer["TileServer GL"]
-  Sprite["sprites/basic\n(иконки POI/аэропортов)"] --> TileServer
-  TileServer --> Base["borders-labels\nбазовый PNG"]
-  TileServer --> Overlays["11 overlay-*\nстилей (см. таблицу выше)"]
-  Base --> Leaflet["Leaflet MapComponent"]
-  Overlays --> Leaflet
+  MBTiles["map.mbtiles"] --> TileServer["TileServer GL"]
+  TileServer --> PBF["openmaptiles.pbf"]
+  TileServer --> Unified["infolake-unified style.json"]
+  PBF --> MapLibre["MapLibre в Leaflet"]
+  Unified --> MapLibre
+  MapLibre --> Toggle["visibility toggle"]
+  LeafletMarkers["Leaflet маркеры/зоны"] --> MapLibre
 ```
+
+Сборка unified-стиля: `npm run build:map-style` (из `frontend/`) или `node tileserver/scripts/build-unified-style.js`.
+
+Старые `overlay-*` PNG-стили оставлены для отладки и legacy-режима.
 
 ## Иконки (спрайты)
 
@@ -105,7 +111,9 @@ overlay-poi-services         — 320
 ## Файлы
 
 ### TileServer
-- `tileserver/styles/overlay-water.json`, `overlay-hydro-labels.json`, `overlay-railways.json`, `overlay-ferry.json`
+- `tileserver/styles/infolake-unified.json` — единый стиль (генерируется скриптом)
+- `tileserver/scripts/build-unified-style.js` — сборка unified + `frontend/src/config/unifiedLayerMapping.json`
+- `tileserver/styles/overlay-water.json`, ...
 - `tileserver/styles/overlay-road-labels.json`, `overlay-aeroway.json`, `overlay-mountain-peaks.json`
 - `tileserver/styles/overlay-districts.json`, `overlay-house-numbers.json`
 - `tileserver/styles/overlay-poi-infrastructure.json`, `overlay-poi-transport.json`, `overlay-poi-services.json`
@@ -119,11 +127,12 @@ overlay-poi-services         — 320
 ```
 
 ### Frontend
-- `frontend/src/config/tiles.js` — `MAP_OVERLAY_LAYERS`, `overlayTileUrl()`
-- `frontend/src/hooks/useMapOverlayLayers.js` — состояние + persist в `localStorage` (`infolake.mapLayers.v1`)
-- `frontend/src/components/MapComponent/MapOverlayLayers.jsx` — рендер активных `TileLayer`
+- `frontend/src/config/tiles.js` — `MAP_OVERLAY_LAYERS`, `UNIFIED_STYLE_URL`, `USE_VECTOR_MAP`
+- `frontend/src/config/unifiedLayerMapping.json` — маппинг id слоя → maplibre layer ids
+- `frontend/src/components/MapComponent/MapVectorBaseLayer.jsx` — векторный базовый слой
+- `frontend/src/hooks/useMapOverlayLayers.js` — visibility + persist в `localStorage`
 - `frontend/src/components/MapComponent/MapLayerPanel.jsx` / `.css` — панель чекбоксов
-- `frontend/src/components/MapComponent/MapComponent.jsx` — интеграция (секция «Слои карты» в fullscreen sidebar + рендер оверлеев после базового `TileLayer`)
+- `frontend/src/components/MapComponent/MapOverlayLayers.jsx` — legacy PNG-оверлеи (`VITE_MAP_VECTOR=false`)
 
 ## Проверка
 

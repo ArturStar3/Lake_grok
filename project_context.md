@@ -94,7 +94,7 @@
 | Категория | Технология |
 |-----------|------------|
 | Оркестрация | docker-compose.yml (3 сервиса) |
-| Оффлайн | `export-offline.ps1`, `import-and-start.ps1`, `weaponlist_import.md`, `offline/python-wheels/` |
+| Оффлайн | `OFFLINE_MIGRATION.md`, `export-offline.ps1`, `import-and-start.ps1`, `infolake_full_offline.tar`, `offline/python-wheels/` |
 | Данные для seed | `Data.xlsx`, папка `Значки/` (SVG-иконки) |
 
 ---

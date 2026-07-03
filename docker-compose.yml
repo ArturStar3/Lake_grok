@@ -1,36 +1,25 @@
 # =============================================================================
-# Оффлайн-развёртывание (целевая машина БЕЗ интернета)
+# ОФФЛАЙН-РАЗВЁРТЫВАНИЕ — см. OFFLINE_MIGRATION.md
 # =============================================================================
-# 1. На машине с интернетом выполни:
-#      docker compose build
+# На машине С интернетом (подготовка пакета):
+#   .\export-offline.ps1
+#   → infolake_full_offline.tar + offline-package-manifest.txt
 #
-#      # PowerShell — лучший способ (берёт образы из docker-compose.yml):
-#      $images = (Get-Content docker-compose.yml | Select-String -Pattern '^\s+image:') -replace '.*image:\s*', ''
-#      docker save -o infolake_full_offline.tar $images
+# На оффлайн-машине (запуск):
+#   .\import-and-start.ps1
+#   → docker load + docker compose up -d --no-build --pull never
 #
-#      # Альтернатива (если контейнеры уже запущены):
-#      # $images = docker compose images --format json | ConvertFrom-Json |
-#      #           ForEach-Object { "$($_.Repository):$($_.Tag)" }
-#      # docker save -o infolake_full_offline.tar $images
+# ЗАПРЕЩЕНО на оффлайн-машине:
+#   docker compose build | docker compose pull | docker pull
 #
-#      # Bash:
-#      # images=$(grep -E '^\s+image:' docker-compose.yml | sed -E 's/.*image:\s*//')
-#      # docker save -o infolake_full_offline.tar $images
-#
-# 2. Скопируй файл infolake_full_offline.tar на целевую машину.
-#
-# 3. На целевой машине (без интернета):
-#      docker load -i infolake_full_offline.tar
-#      docker compose up -d --no-build
-#
-# ВАЖНО:
-# - Никогда не запускай `docker compose build` на машине без интернета!
-# - Всегда используй флаг --no-build.
-# - Все слои (включая python:3.12-slim и node:20-alpine) сохраняются внутри .tar.
+# Образы (pull_policy: never — не тянуть из сети):
+#   infolake-backend:latest, infolake-frontend:latest, maptiler/tileserver-gl:latest
 # =============================================================================
 
 services:
   tileserver:
+    # Используйте тег, который уже есть локально (offline: docker load).
+    # При смене тега на машине с интернетом: docker pull maptiler/tileserver-gl:<tag>
     image: maptiler/tileserver-gl:latest
     container_name: tileserver-gl
     restart: unless-stopped
@@ -39,15 +28,21 @@ services:
     volumes:
       - ./tileserver:/data
     environment:
-      # Разрешаем подключения не только с localhost, но и через host.docker.internal / IP машины.
-      # Это нужно, когда фронт (или другие клиенты) обращаются к тайлам по IP Windows-хоста.
       TILESERVER_GL_ALLOWED_HOSTS: "localhost,127.0.0.1,host.docker.internal"
     command:
       - "--config"
       - "config.json"
       - "--public_url"
       - "http://localhost:8080/"
-    pull_policy: never   # образ уже должен быть загружен через docker load
+    pull_policy: never
+    mem_limit: 4g
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
 
   backend:
     build:

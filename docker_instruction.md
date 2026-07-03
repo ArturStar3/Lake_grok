@@ -1,7 +1,9 @@
 # Инструкции по экспорту и импорту Docker-образов (оффлайн-развёртывание)
 
-> **Полная инструкция по оффлайн-миграции** (Docker + PostgreSQL + каталог вооружения):  
-> **[weaponlist_import.md](weaponlist_import.md)**
+> **Главная инструкция по миграции на оффлайн-сервер:**  
+> **[OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md)**
+
+> Дополнительно (каталог вооружения): [weaponlist_import.md](weaponlist_import.md)
 
 ## Введение
 
@@ -99,9 +101,14 @@
    docker load -i infolake_full_offline_20250618_153045.tar
    ```
 
-3. Запустите контейнеры **обязательно** с флагом `--no-build`:
+3. Запустите контейнеры **обязательно** с флагами `--no-build --pull never`:
    ```powershell
-   docker compose up -d --no-build
+   docker compose up -d --no-build --pull never
+   ```
+
+   Или используйте скрипт:
+   ```powershell
+   .\import-and-start.ps1
    ```
 
 4. Проверьте статус:

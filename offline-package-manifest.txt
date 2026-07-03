@@ -1,0 +1,30 @@
+﻿InfoLake offline package manifest
+Generated: 2026-07-03 15:27:50
+Git branch: develop-cards
+
+Docker images in infolake_full_offline.tar:
+  - maptiler/tileserver-gl:latest
+  - infolake-backend:latest
+  - infolake-frontend:latest
+
+Archive:
+  Stable:    .\infolake_full_offline.tar
+  Timestamp: .\infolake_full_offline_20260703_152708.tar
+  Size:      1876 MB
+
+Copy to offline server:
+  1. infolake_full_offline.tar (this archive)
+  2. Full project folder (git clone / zip), EXCLUDING:
+     - node_modules, __pycache__, .git (optional)
+     - frontend/dist (optional if using Vite dev in Docker)
+  3. tileserver/data/map.mbtiles (NOT in git, copy separately)
+  4. backend/.env (create from .env.example on target)
+
+On offline server:
+  .\import-and-start.ps1
+  See OFFLINE_MIGRATION.md
+
+NEVER on offline machine:
+  docker compose build
+  docker compose pull
+  docker pull

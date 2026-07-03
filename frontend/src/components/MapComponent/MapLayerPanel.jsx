@@ -14,10 +14,13 @@ function readInitialCollapsed() {
 
 /**
  * Панель переключения картографических слоёв (гидрография, транспорт, POI и т.д.).
- * Слои сгруппированы по полю `group`. Панель сворачиваемая; есть общий чекбокс
- * «Выделить все / Снять выделение».
  */
-export default function MapLayerPanel({ enabledById = {}, onToggle, onSetAll }) {
+export default function MapLayerPanel({
+  enabledById = {},
+  currentZoom = 0,
+  onToggle,
+  onSetAll,
+}) {
   const [collapsed, setCollapsed] = useState(readInitialCollapsed);
   const selectAllRef = useRef(null);
 
@@ -48,12 +51,24 @@ export default function MapLayerPanel({ enabledById = {}, onToggle, onSetAll }) 
     }
   }, [collapsed]);
 
-  // Промежуточное (indeterminate) состояние общего чекбокса задаётся только через DOM.
   useEffect(() => {
     if (selectAllRef.current) {
       selectAllRef.current.indeterminate = someEnabled;
     }
   }, [someEnabled]);
+
+  const handleSetAll = (checked) => {
+    if (checked) {
+      const ok = window.confirm(
+        'Включить все слои? На мелком масштабе это может замедлить отрисовку карты на слабых устройствах.',
+      );
+      if (!ok) return;
+    }
+    onSetAll?.(checked);
+  };
+
+  const isLayerUnavailable = (layer) =>
+    typeof layer.minZoom === 'number' && currentZoom < layer.minZoom;
 
   return (
     <div className="map-layer-panel">
@@ -75,12 +90,16 @@ export default function MapLayerPanel({ enabledById = {}, onToggle, onSetAll }) 
 
       {!collapsed && (
         <>
+          <p className="map-layer-panel__hint">
+            Слои с пометкой zoom включаются при приближении карты.
+          </p>
+
           <label className="map-layer-panel__item map-layer-panel__item--all">
             <input
               ref={selectAllRef}
               type="checkbox"
               checked={allEnabled}
-              onChange={(e) => onSetAll?.(e.target.checked)}
+              onChange={(e) => handleSetAll(e.target.checked)}
             />
             <span className="map-layer-panel__label map-layer-panel__label--all">
               {allEnabled ? "Снять выделение" : "Выделить все"}
@@ -91,16 +110,34 @@ export default function MapLayerPanel({ enabledById = {}, onToggle, onSetAll }) 
             {groups.map(([groupTitle, layers]) => (
               <div key={groupTitle} className="map-layer-panel__group">
                 <div className="map-layer-panel__group-title">{groupTitle}</div>
-                {layers.map((layer) => (
-                  <label key={layer.id} className="map-layer-panel__item">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(enabledById[layer.id])}
-                      onChange={() => onToggle?.(layer.id)}
-                    />
-                    <span className="map-layer-panel__label">{layer.label}</span>
-                  </label>
-                ))}
+                {layers.map((layer) => {
+                  const unavailable = isLayerUnavailable(layer);
+                  return (
+                    <label
+                      key={layer.id}
+                      className={`map-layer-panel__item${unavailable ? " map-layer-panel__item--unavailable" : ""}`}
+                      title={
+                        unavailable
+                          ? `Рекомендуется с zoom ${layer.minZoom} и выше (сейчас ${currentZoom})`
+                          : undefined
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(enabledById[layer.id])}
+                        onChange={() => onToggle?.(layer.id)}
+                      />
+                      <span className="map-layer-panel__label">
+                        {layer.label}
+                        {unavailable && (
+                          <span className="map-layer-panel__zoom-hint">
+                            {' '}(zoom ≥{layer.minZoom})
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             ))}
           </div>

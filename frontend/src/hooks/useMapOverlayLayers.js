@@ -25,9 +25,34 @@ function readInitialState() {
 }
 
 /**
- * Состояние переключаемых слоёв карты с сохранением в localStorage.
+ * Применяет видимость оверлей-слоёв в едином MapLibre-стиле.
  */
-export function useMapOverlayLayers() {
+export function applyOverlayVisibility(maplibreMap, enabledById) {
+  if (!maplibreMap || !enabledById) return;
+
+  const apply = () => {
+    MAP_OVERLAY_LAYERS.forEach((layer) => {
+      const visibility = enabledById[layer.id] ? 'visible' : 'none';
+      (layer.maplibreLayerIds || []).forEach((layerId) => {
+        if (maplibreMap.getLayer(layerId)) {
+          maplibreMap.setLayoutProperty(layerId, 'visibility', visibility);
+        }
+      });
+    });
+  };
+
+  if (maplibreMap.isStyleLoaded()) {
+    apply();
+  } else {
+    maplibreMap.once('load', apply);
+  }
+}
+
+/**
+ * Состояние переключаемых слоёв карты с сохранением в localStorage.
+ * @param {import('react').MutableRefObject<import('maplibre-gl').Map|null>} maplibreMapRef
+ */
+export function useMapOverlayLayers(maplibreMapRef = null, maplibreReady = false) {
   const [enabledById, setEnabledById] = useState(readInitialState);
 
   useEffect(() => {
@@ -37,6 +62,13 @@ export function useMapOverlayLayers() {
       // localStorage недоступен — молча пропускаем
     }
   }, [enabledById]);
+
+  useEffect(() => {
+    const map = maplibreMapRef?.current;
+    if (map && maplibreReady) {
+      applyOverlayVisibility(map, enabledById);
+    }
+  }, [enabledById, maplibreMapRef, maplibreReady]);
 
   const toggleLayer = useCallback((layerId) => {
     setEnabledById((prev) => ({ ...prev, [layerId]: !prev[layerId] }));
