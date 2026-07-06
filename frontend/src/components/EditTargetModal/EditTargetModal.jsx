@@ -14,6 +14,8 @@ import {
     filterParentOptionsForTarget,
 } from '../../utils/targetTypeTree';
 import PersonEditor from '../PersonEditor/PersonEditor';
+import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
@@ -559,10 +561,10 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                 {section.title}
                             </label>
                         )}
-                        <textarea
-                            className="edit-target-modal__textarea"
+                        <MarkdownEditor
+                            className="edit-target-modal__markdown"
                             value={formularData[section.id] || ''}
-                            onChange={(e) => handleFormularChange(section.id, e.target.value)}
+                            onChange={(val) => handleFormularChange(section.id, val)}
                             placeholder="Введите информацию..."
                             rows={2}
                         />
@@ -582,7 +584,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                             </button>
                                             <div className="edit-target-modal__attachment-info">
                                                 <strong>{item.title}</strong>
-                                                {item.description && <p>{item.description}</p>}
+                                                {item.description && (
+                                                    <MarkdownContent variant="compact">{item.description}</MarkdownContent>
+                                                )}
                                             </div>
                                             <button
                                                 type="button"
@@ -617,12 +621,12 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                         value={draft.title}
                                         onChange={(e) => handleAttachmentDraftChange(section.id, "title", e.target.value)}
                                     />
-                                    <textarea
-                                        className="edit-target-modal__textarea"
+                                    <MarkdownEditor
+                                        variant="compact"
+                                        value={draft.description}
+                                        onChange={(val) => handleAttachmentDraftChange(section.id, 'description', val)}
                                         placeholder="Описание (необязательно)"
                                         rows={2}
-                                        value={draft.description}
-                                        onChange={(e) => handleAttachmentDraftChange(section.id, "description", e.target.value)}
                                     />
                                     <input
                                         type="file"
@@ -1216,7 +1220,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                         <img src={previewImage.image} alt={previewImage.title} />
                         <div className="edit-target-modal__image-preview-caption">
                             <strong>{previewImage.title}</strong>
-                            {previewImage.description && <p>{previewImage.description}</p>}
+                            {previewImage.description && (
+                                <MarkdownContent variant="compact">{previewImage.description}</MarkdownContent>
+                            )}
                         </div>
                     </div>
                 </div>

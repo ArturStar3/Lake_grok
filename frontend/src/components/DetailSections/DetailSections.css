@@ -275,9 +275,8 @@
 
 .detail-sections__block-content {
   margin: 0;
-  line-height: 1.55;
+  line-height: 1.5;
   color: #555;
-  white-space: pre-wrap;
   font-size: 0.95rem;
 }
 

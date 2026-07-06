@@ -20,6 +20,11 @@
   pointer-events: auto;
 }
 
+.map-settings-drawer__icon {
+  display: block;
+  flex-shrink: 0;
+}
+
 .map-settings-drawer__trigger:hover {
   background: rgba(0, 0, 0, 0.78);
   transform: scale(1.04);

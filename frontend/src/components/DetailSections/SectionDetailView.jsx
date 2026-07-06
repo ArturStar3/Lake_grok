@@ -3,6 +3,7 @@ import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDispla
 import SubordinationTree from './SubordinationTree';
 import FormularCompletionCard from './FormularCompletionCard';
 import PersonDetailView from './PersonDetailView';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import { itemHasVisibleContent } from '../../utils/organizeSectionData';
 import './DetailSections.css';
 
@@ -16,7 +17,9 @@ function SectionContent({ item, attachmentsBySection }) {
         <h3 className="detail-sections__block-title">{section.title}</h3>
       )}
       {item.content && (
-        <div className="detail-sections__block-content">{item.content}</div>
+        <MarkdownContent className="detail-sections__block-content">
+          {item.content}
+        </MarkdownContent>
       )}
       <AttachmentGallery attachments={attachments} />
     </article>

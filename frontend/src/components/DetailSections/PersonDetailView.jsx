@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import AttachmentGallery from './AttachmentGallery';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import noUserIcon from '../../assets/images/no_user.png';
 import './DetailSections.css';
 
@@ -106,7 +107,9 @@ function PersonFullDetail({ person, onBack }) {
                   <h5 className="person-detail-view__section-title">{item.section?.title}</h5>
                 )}
                 {item.content && (
-                  <div className="detail-sections__block-content">{item.content}</div>
+                  <MarkdownContent className="detail-sections__block-content">
+                    {item.content}
+                  </MarkdownContent>
                 )}
                 <AttachmentGallery attachments={attachments} />
               </div>

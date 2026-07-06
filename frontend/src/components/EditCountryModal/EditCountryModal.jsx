@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './EditCountryModal.css';
 import { API_URL } from '../../config/api';
 
@@ -506,13 +508,12 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                                                         ✕
                                                     </button>
                                                 </div>
-                                                <textarea
+                                                <MarkdownEditor
                                                     value={info.content || ''}
-                                                    onChange={(e) => handleCountryInfoChange(index, e.target.value)}
-                                                    className="edit-country-modal__textarea"
-                                                    rows="4"
-                                                    disabled={isSubmitting}
+                                                    onChange={(val) => handleCountryInfoChange(index, val)}
                                                     placeholder="Введите содержание"
+                                                    rows={4}
+                                                    disabled={isSubmitting}
                                                 />
                                                 {info.section?.id ? (
                                                     <div className="edit-country-modal__attachments">
@@ -538,7 +539,11 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                                                                                     </button>
                                                                                     <div className="edit-country-modal__attachment-info">
                                                                                         <strong>{item.title}</strong>
-                                                                                        {item.description && <p>{item.description}</p>}
+                                                                                        {item.description && (
+                                                                                            <MarkdownContent variant="compact">
+                                                                                                {item.description}
+                                                                                            </MarkdownContent>
+                                                                                        )}
                                                                                     </div>
                                                                                     <button
                                                                                         type="button"
@@ -577,12 +582,12 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                                                                                 value={draft.title}
                                                                                 onChange={(e) => handleAttachmentDraftChange(sectionId, 'title', e.target.value)}
                                                                             />
-                                                                            <textarea
-                                                                                className="edit-country-modal__textarea"
+                                                                            <MarkdownEditor
+                                                                                variant="compact"
+                                                                                value={draft.description}
+                                                                                onChange={(val) => handleAttachmentDraftChange(sectionId, 'description', val)}
                                                                                 placeholder="Описание (необязательно)"
                                                                                 rows={2}
-                                                                                value={draft.description}
-                                                                                onChange={(e) => handleAttachmentDraftChange(sectionId, 'description', e.target.value)}
                                                                             />
                                                                             <input
                                                                                 type="file"
@@ -673,7 +678,9 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                         <img src={previewImage.image} alt={previewImage.title} />
                         <div className="edit-country-modal__image-preview-caption">
                             <strong>{previewImage.title}</strong>
-                            {previewImage.description && <p>{previewImage.description}</p>}
+                            {previewImage.description && (
+                                <MarkdownContent variant="compact">{previewImage.description}</MarkdownContent>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -185,6 +185,7 @@ tileserver/terrain.mbtiles
 
 # Артефакты скачиваний и мусор (не должны появляться)
 tileserver/curl.exe
+**/CursorUserSetup*.exe
 tileserver/test_data.zip/
 tileserver/$null
 tileserver/-L

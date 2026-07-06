@@ -22,6 +22,7 @@ from django.views.generic import RedirectView
 
 from api import urls as api_urls
 from equipment.admin_redirects import equipment_admin_redirect_urlpatterns
+from infolake.admin_views import markdown_preview
 
 urlpatterns = [
     path(
@@ -30,6 +31,7 @@ urlpatterns = [
         name='root',
     ),
     *equipment_admin_redirect_urlpatterns(),
+    path('admin/markdown-preview/', markdown_preview, name='admin_markdown_preview'),
     path('admin/', admin.site.urls),
     path('api/v1/', include(api_urls))
 ]

@@ -26,6 +26,7 @@ import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopup
 import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
+import MarkdownContent from "../common/MarkdownEditor/MarkdownContent";
 import { isFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
 import { TILE_RASTER_URL, USE_VECTOR_MAP } from "../../config/tiles";
@@ -1443,7 +1444,7 @@ function MapComponent({
             : "—";
         const countryTitle = eventItem.country?.title || "—";
         const objectName = eventItem.object_name || "—";
-        const description = eventItem.description || "—";
+        const description = eventItem.description?.trim() || "";
         const markerPath = eventItem.marker?.path;
         const markerSvg = eventItem.marker?.id ? eventMarkerSvgs.get(eventItem.marker.id) : null;
         const eventColor = eventItem.color || "#2f80ed";
@@ -1471,7 +1472,12 @@ function MapComponent({
                     <br />
                     Время: {timeLabel}
                     <br />
-                    Доп. информация: {description}
+                    Доп. информация:{' '}
+                    {description ? (
+                        <MarkdownContent variant="popup">{description}</MarkdownContent>
+                    ) : (
+                        '—'
+                    )}
                 </div>
             </Popup>
         );

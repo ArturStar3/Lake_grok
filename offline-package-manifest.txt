@@ -1,5 +1,5 @@
 ﻿InfoLake offline package manifest
-Generated: 2026-07-03 15:27:50
+Generated: 2026-07-06 20:28:42
 Git branch: develop-cards
 
 Docker images in infolake_full_offline.tar:
@@ -9,8 +9,8 @@ Docker images in infolake_full_offline.tar:
 
 Archive:
   Stable:    .\infolake_full_offline.tar
-  Timestamp: .\infolake_full_offline_20260703_152708.tar
-  Size:      1876 MB
+  Timestamp: .\infolake_full_offline_20260706_202718.tar
+  Size:      2673.5 MB
 
 Copy to offline server:
   1. infolake_full_offline.tar (this archive)

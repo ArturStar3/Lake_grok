@@ -7,6 +7,10 @@ from .models import (
     CountryInfo,
     Formular,
     Person,
+    PersonInfo,
+    PersonPhoto,
+    PersonAttachment,
+    PersonRelation,
 )
 
 
@@ -150,3 +154,55 @@ class PersonInlineAdmin(TabularInline):
     tab = True
     verbose_name = 'Лицо'
     verbose_name_plural = 'Персоналии'
+
+
+class PersonInfoInlineAdmin(TabularInline):
+    """Данные по разделам персоналии"""
+
+    model = PersonInfo
+    fields = ('section', 'content')
+    autocomplete_fields = ('section',)
+    extra = 0
+    show_change_link = True
+    tab = True
+    verbose_name = 'Раздел'
+    verbose_name_plural = 'Данные по разделам'
+
+
+class PersonPhotoInlineAdmin(TabularInline):
+    """Фотографии лица"""
+
+    model = PersonPhoto
+    fields = ('title', 'order', 'image')
+    extra = 0
+    show_change_link = True
+    tab = True
+    verbose_name = 'Фото'
+    verbose_name_plural = 'Фотографии'
+
+
+class PersonAttachmentInlineAdmin(TabularInline):
+    """Изображения по разделам"""
+
+    model = PersonAttachment
+    fields = ('section', 'title', 'image', 'description')
+    autocomplete_fields = ('section',)
+    extra = 0
+    show_change_link = True
+    tab = True
+    verbose_name = 'Изображение'
+    verbose_name_plural = 'Изображения по разделам'
+
+
+class PersonRelationFromInlineAdmin(TabularInline):
+    """Исходящие связи лица"""
+
+    model = PersonRelation
+    fk_name = 'person_from'
+    fields = ('relation_type', 'person_to', 'notes')
+    autocomplete_fields = ('relation_type', 'person_to')
+    extra = 0
+    show_change_link = True
+    tab = True
+    verbose_name = 'Связь'
+    verbose_name_plural = 'Связи (от этого лица)'

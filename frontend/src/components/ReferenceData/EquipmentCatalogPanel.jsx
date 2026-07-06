@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
+import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import {
   EMPTY_EQUIPMENT_FORM,
   equipmentToForm,
@@ -312,10 +313,11 @@ export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = n
 
               <label className="equipment-catalog-panel__field equipment-catalog-panel__field--full">
                 <span>Описание</span>
-                <textarea
-                  rows={3}
+                <MarkdownEditor
                   value={form.description}
-                  onChange={(e) => handleFormChange('description', e.target.value)}
+                  onChange={(val) => handleFormChange('description', val)}
+                  placeholder="Описание образца техники"
+                  rows={3}
                 />
               </label>
 

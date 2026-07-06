@@ -3,7 +3,13 @@ import { Circle, CircleMarker, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import DashCrossZoneLayer from './DashCrossZoneLayer';
 import { buildVisibleZones } from '../../utils/buildVisibleZones';
-import { getZoneDashArray, usesDashCrossMarkers } from '../../utils/actionZoneStyle';
+import {
+  getZonePolygonStrokeStyle,
+  getZoneStrokeStyle,
+  usesDashCrossMarkers,
+  ZONE_CENTER_HIGHLIGHT_WEIGHT,
+  ZONE_STROKE_WEIGHT,
+} from '../../utils/actionZoneStyle';
 import { getZonePolygonPositions, isTerrainZoneEnabled } from '../../utils/computeLosZone';
 
 const VIEWPORT_DEBOUNCE_MS = 80;
@@ -84,18 +90,7 @@ function ZoneCircleLayer({
 }) {
   const circleRef = useRef(null);
   const { obj, centerLat, centerLng, radiusMeters, color, lineType } = zone;
-  const dashArray = getZoneDashArray(lineType);
-
-  const baseStyle = useMemo(() => ({
-    color,
-    weight: 2,
-    hoverWeight: 3.5,
-    opacity: 0.65,
-    hoverOpacity: 0.95,
-    dashArray,
-    fillColor: color,
-    fillOpacity: 0.09,
-  }), [color, dashArray]);
+  const baseStyle = useMemo(() => getZoneStrokeStyle(color, lineType), [color, lineType]);
 
   useEffect(() => {
     const layer = circleRef.current;
@@ -122,10 +117,10 @@ function ZoneCircleLayer({
       pathOptions={{
         color,
         fillColor: color,
-        fillOpacity: 0.09,
-        weight: 2,
-        opacity: 0.65,
-        dashArray,
+        fillOpacity: baseStyle.fillOpacity,
+        weight: ZONE_STROKE_WEIGHT,
+        opacity: baseStyle.opacity,
+        dashArray: baseStyle.dashArray,
         className: 'action-radius-circle',
         interactive: true,
       }}
@@ -145,18 +140,7 @@ function ZonePolygonLayer({
 }) {
   const polygonRef = useRef(null);
   const { obj, color, lineType } = zone;
-  const dashArray = getZoneDashArray(lineType);
-
-  const baseStyle = useMemo(() => ({
-    color,
-    weight: 2,
-    hoverWeight: 3.5,
-    opacity: 0.75,
-    hoverOpacity: 0.95,
-    dashArray,
-    fillColor: color,
-    fillOpacity: 0.12,
-  }), [color, dashArray]);
+  const baseStyle = useMemo(() => getZonePolygonStrokeStyle(color, lineType), [color, lineType]);
 
   useEffect(() => {
     const layer = polygonRef.current;
@@ -184,10 +168,10 @@ function ZonePolygonLayer({
       pathOptions={{
         color,
         fillColor: color,
-        fillOpacity: 0.12,
-        weight: 2,
-        opacity: 0.75,
-        dashArray,
+        fillOpacity: baseStyle.fillOpacity,
+        weight: ZONE_STROKE_WEIGHT,
+        opacity: baseStyle.opacity,
+        dashArray: baseStyle.dashArray,
         className: 'action-radius-polygon action-radius-polygon--los',
         interactive: true,
       }}
@@ -357,7 +341,7 @@ function ZoneCenterHighlight({ centerKey, lat, lng, color, objId, hoverControlle
         color,
         fillColor: color,
         fillOpacity: 0.18,
-        weight: 2,
+        weight: ZONE_CENTER_HIGHLIGHT_WEIGHT,
         opacity: 0.9,
         className: 'action-radius-marker-highlight',
         interactive: false,

@@ -1,3 +1,9 @@
+import {
+  ZONE_CENTER_HIGHLIGHT_HOVER_WEIGHT,
+  ZONE_CENTER_HIGHLIGHT_WEIGHT,
+  ZONE_STROKE_HOVER_WEIGHT,
+} from './actionZoneStyle';
+
 function setsEqual(a, b) {
   if (a.size !== b.size) return false;
   for (const id of a) {
@@ -21,11 +27,11 @@ export function createZoneHoverController() {
 
   const applyLayerStyle = (layer, style, hovered, isCross = false) => {
     if (!layer?.setStyle) return;
-    const weight = hovered ? (style.hoverWeight ?? 3.5) : style.weight;
+    const weight = hovered ? (style.hoverWeight ?? ZONE_STROKE_HOVER_WEIGHT) : style.weight;
     const opacity = hovered ? (style.hoverOpacity ?? 0.95) : style.opacity;
     layer.setStyle({
       color: style.color,
-      weight: isCross ? weight + 0.5 : weight,
+      weight: isCross ? weight + 0.25 : weight,
       opacity: isCross ? Math.min(opacity + 0.15, 1) : opacity,
       dashArray: style.dashArray,
       fillColor: style.fillColor,
@@ -48,7 +54,7 @@ export function createZoneHoverController() {
           color: baseStyle.color,
           fillColor: baseStyle.color,
           fillOpacity: hovered ? 0.28 : 0.18,
-          weight: hovered ? 4 : 2,
+          weight: hovered ? ZONE_CENTER_HIGHLIGHT_HOVER_WEIGHT : ZONE_CENTER_HIGHLIGHT_WEIGHT,
           opacity: 0.9,
         });
       }

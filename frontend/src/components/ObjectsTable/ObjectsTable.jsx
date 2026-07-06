@@ -1,18 +1,18 @@
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
     groupObjectsByCountryAndTypeTree,
     makeTypeExpandKey,
     collectAllTypeExpandKeys,
 } from "../../utils/targetTypeTree";
 
-function ObjectRow({
+const ObjectRow = memo(function ObjectRow({
     item,
-    selectedObj,
+    isSelected,
+    isHovered,
     onCheckboxChange,
     onObjectClick,
     onTitleClick,
-    hoveredTargetId,
     onRowHover,
     onEditClick,
     onDeleteClick,
@@ -20,7 +20,7 @@ function ObjectRow({
     return (
         <div
             className={`formular__table-row object-row${
-                hoveredTargetId === item.id ? " formular__table-row--hovered" : ""
+                isHovered ? " formular__table-row--hovered" : ""
             }`}
         >
             <div className="formular__table-data">
@@ -28,7 +28,7 @@ function ObjectRow({
                     type="checkbox"
                     name="object"
                     value={item.id}
-                    checked={selectedObj.includes(item.id)}
+                    checked={isSelected}
                     onChange={(e) => onCheckboxChange(item.id, e.target.checked)}
                 />
             </div>
@@ -93,7 +93,7 @@ function ObjectRow({
             </div>
         </div>
     );
-}
+});
 
 function toggleSetKey(setter, key) {
     setter((prev) => {
@@ -104,13 +104,14 @@ function toggleSetKey(setter, key) {
     });
 }
 
-function TypeGroupNode({
+const TypeGroupNode = memo(function TypeGroupNode({
     node,
     countryKey,
     depth,
     expandedTypes,
     onToggleType,
     selectedSet,
+    hoveredTargetId,
     onTypeCheckbox,
     rowProps,
 }) {
@@ -159,7 +160,13 @@ function TypeGroupNode({
 
             <div className="branch-objects">
                 {node.items.map((item) => (
-                    <ObjectRow key={item.id} item={item} {...rowProps} />
+                    <ObjectRow
+                        key={item.id}
+                        item={item}
+                        isSelected={selectedSet.has(item.id)}
+                        isHovered={hoveredTargetId === item.id}
+                        {...rowProps}
+                    />
                 ))}
                 {node.children.map((child) => (
                     <TypeGroupNode
@@ -170,6 +177,7 @@ function TypeGroupNode({
                         expandedTypes={expandedTypes}
                         onToggleType={onToggleType}
                         selectedSet={selectedSet}
+                        hoveredTargetId={hoveredTargetId}
                         onTypeCheckbox={onTypeCheckbox}
                         rowProps={rowProps}
                     />
@@ -177,7 +185,7 @@ function TypeGroupNode({
             </div>
         </details>
     );
-}
+});
 
 export default function ObjectsTable({
     data,
@@ -191,7 +199,7 @@ export default function ObjectsTable({
     onEditClick,
     onDeleteClick,
 }) {
-    const selectedSet = new Set(selectedObj);
+    const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
 
     const countryTypeGroups = useMemo(
         () => groupObjectsByCountryAndTypeTree(data, targetTypes),
@@ -213,7 +221,7 @@ export default function ObjectsTable({
         setExpandedTypes(new Set());
     };
 
-    const dataIds = data.map((item) => item.id);
+    const dataIds = useMemo(() => data.map((item) => item.id), [data]);
     const isAllSelected = data.length > 0 && dataIds.every((id) => selectedSet.has(id));
 
     const handleSelectAllChange = (e) => {
@@ -221,27 +229,28 @@ export default function ObjectsTable({
         dataIds.forEach((id) => onCheckboxChange(id, isChecked));
     };
 
-    const handleCountryCheckbox = (items, checked) => {
+    const handleCountryCheckbox = useCallback((items, checked) => {
         items.forEach((item) => onCheckboxChange(item.id, checked));
-    };
+    }, [onCheckboxChange]);
 
-    const handleTypeCheckbox = (items, checked) => {
+    const handleTypeCheckbox = useCallback((items, checked) => {
         items.forEach((item) => onCheckboxChange(item.id, checked));
-    };
+    }, [onCheckboxChange]);
 
     const toggleCountry = (countryKey) => toggleSetKey(setExpandedCountries, countryKey);
-    const toggleType = (typeKey) => toggleSetKey(setExpandedTypes, typeKey);
+    const toggleType = useCallback((typeKey) => toggleSetKey(setExpandedTypes, typeKey), []);
 
-    const rowProps = {
-        selectedObj,
+    // Стабильная ссылка на набор колбэков строки — без этого React.memo у ObjectRow
+    // не срабатывал бы и таблица из сотен строк перерисовывалась целиком при каждом
+    // наведении курсора на маркер карты (hoveredTargetId меняется очень часто).
+    const rowProps = useMemo(() => ({
         onCheckboxChange,
         onObjectClick,
         onTitleClick,
-        hoveredTargetId,
         onRowHover,
         onEditClick,
         onDeleteClick,
-    };
+    }), [onCheckboxChange, onObjectClick, onTitleClick, onRowHover, onEditClick, onDeleteClick]);
 
     return (
         <div className="formular__data">
@@ -320,6 +329,7 @@ export default function ObjectsTable({
                                         expandedTypes={expandedTypes}
                                         onToggleType={toggleType}
                                         selectedSet={selectedSet}
+                                        hoveredTargetId={hoveredTargetId}
                                         onTypeCheckbox={handleTypeCheckbox}
                                         rowProps={rowProps}
                                     />
@@ -333,7 +343,13 @@ export default function ObjectsTable({
                                         </summary>
                                         <div className="branch-objects">
                                             {orphanItems.map((item) => (
-                                                <ObjectRow key={item.id} item={item} {...rowProps} />
+                                                <ObjectRow
+                                                    key={item.id}
+                                                    item={item}
+                                                    isSelected={selectedSet.has(item.id)}
+                                                    isHovered={hoveredTargetId === item.id}
+                                                    {...rowProps}
+                                                />
                                             ))}
                                         </div>
                                     </details>

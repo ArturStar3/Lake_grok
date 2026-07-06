@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
+import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import '../FormularEditor/FormularEditor.css';
 import './PersonEditor.css';
 import { API_URL } from '../../config/api';
@@ -240,7 +242,7 @@ export default function PersonEditor({
   const handleAddRelation = async (currentPersonId) => {
     if (!newRelationPersonId || !newRelationTypeId || !currentPersonId) return;
     try {
-      const res = await axios.post(`${API_ROOT}/api/v1/person-relations/`, {
+      await axios.post(`${API_ROOT}/api/v1/person-relations/`, {
         person_from: currentPersonId,
         person_to: newRelationPersonId,
         relation_type: newRelationTypeId,
@@ -323,10 +325,10 @@ export default function PersonEditor({
         ) : (
           <div className={`formular-editor__field${level === 0 ? ' formular-editor__field--root' : ''}`}>
             <label className="formular-editor__label">{section.title}</label>
-            <textarea
-              className="formular-editor__textarea"
+            <MarkdownEditor
+              className="formular-editor__markdown"
               value={infoData[section.id] || ''}
-              onChange={(e) => handleContentChange(section.id, e.target.value)}
+              onChange={(val) => handleContentChange(section.id, val)}
               placeholder="Введите информацию..."
               rows={3}
             />
@@ -341,7 +343,9 @@ export default function PersonEditor({
                       </button>
                       <div className="formular-editor__attachment-info">
                         <strong>{item.title}</strong>
-                        {item.description && <p>{item.description}</p>}
+                        {item.description && (
+                          <MarkdownContent variant="compact">{item.description}</MarkdownContent>
+                        )}
                       </div>
                       <button type="button" className="formular-editor__attachment-remove" onClick={() => handleAttachmentDelete(section.id, item.id)}>✕</button>
                     </div>
@@ -374,12 +378,12 @@ export default function PersonEditor({
                     value={draft.title}
                     onChange={(e) => handleAttachmentDraftChange(section.id, 'title', e.target.value)}
                   />
-                  <textarea
-                    className="formular-editor__textarea"
+                  <MarkdownEditor
+                    variant="compact"
+                    value={draft.description}
+                    onChange={(val) => handleAttachmentDraftChange(section.id, 'description', val)}
                     placeholder="Описание (необязательно)"
                     rows={2}
-                    value={draft.description}
-                    onChange={(e) => handleAttachmentDraftChange(section.id, 'description', e.target.value)}
                   />
                   <input
                     type="file"

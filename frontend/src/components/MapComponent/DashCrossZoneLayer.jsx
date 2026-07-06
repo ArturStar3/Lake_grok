@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Circle, Polyline } from 'react-leaflet';
 import {
+  getZoneStrokeStyle,
+  ZONE_CROSS_STROKE_WEIGHT,
+  ZONE_STROKE_WEIGHT,
+} from '../../utils/actionZoneStyle';
+import {
   computeDashCrossCount,
   generateCircleRing,
   generateDashCrossMarkers,
@@ -40,16 +45,7 @@ export default function DashCrossZoneLayer({
     [centerLat, centerLng, radiusMeters, crossCount],
   );
 
-  const baseStyle = useMemo(() => ({
-    color,
-    weight: 2,
-    hoverWeight: 3.5,
-    opacity: 0.65,
-    hoverOpacity: 0.95,
-    dashArray: '16, 14',
-    fillColor: color,
-    fillOpacity: 0.09,
-  }), [color]);
+  const baseStyle = useMemo(() => getZoneStrokeStyle(color, 'dash_x'), [color]);
 
   useEffect(() => {
     crossRefs.current = [];
@@ -104,9 +100,9 @@ export default function DashCrossZoneLayer({
         positions={ring}
         pathOptions={{
           color,
-          weight: 2,
-          opacity: 0.65,
-          dashArray: '16, 14',
+          weight: ZONE_STROKE_WEIGHT,
+          opacity: baseStyle.opacity,
+          dashArray: baseStyle.dashArray,
           interactive: false,
         }}
       />
@@ -120,7 +116,7 @@ export default function DashCrossZoneLayer({
             positions={positions}
             pathOptions={{
               color,
-              weight: 2.5,
+              weight: ZONE_CROSS_STROKE_WEIGHT,
               opacity: 0.8,
               interactive: false,
             }}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './DetailSections.css';
 
 export default function AttachmentGallery({ attachments = [], classPrefix = 'detail-sections' }) {
@@ -20,7 +21,9 @@ export default function AttachmentGallery({ attachments = [], classPrefix = 'det
             </button>
             <div className={`${classPrefix}__attachment-info`}>
               <strong>{item.title}</strong>
-              {item.description && <p>{item.description}</p>}
+              {item.description && (
+                <MarkdownContent variant="compact">{item.description}</MarkdownContent>
+              )}
             </div>
           </div>
         ))}
@@ -46,7 +49,9 @@ export default function AttachmentGallery({ attachments = [], classPrefix = 'det
             <img src={previewImage.image} alt={previewImage.title} />
             <div className={`${classPrefix}__image-preview-caption`}>
               <strong>{previewImage.title}</strong>
-              {previewImage.description && <p>{previewImage.description}</p>}
+              {previewImage.description && (
+                <MarkdownContent variant="compact">{previewImage.description}</MarkdownContent>
+              )}
             </div>
           </div>
         </div>

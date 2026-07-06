@@ -1,3 +1,5 @@
+import { stripMarkdown } from './markdown';
+
 const EXCERPT_MAX_LEN = 120;
 
 export function getOrderValue(value) {
@@ -7,7 +9,7 @@ export function getOrderValue(value) {
 
 export function truncateExcerpt(text, maxLen = EXCERPT_MAX_LEN) {
   if (!text || typeof text !== 'string') return '';
-  const trimmed = text.trim();
+  const trimmed = stripMarkdown(text);
   if (!trimmed) return '';
   if (trimmed.length <= maxLen) return trimmed;
   return `${trimmed.slice(0, maxLen).trim()}…`;

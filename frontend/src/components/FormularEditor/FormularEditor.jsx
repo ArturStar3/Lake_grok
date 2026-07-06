@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './FormularEditor.css';
 
 import { API_URL as API_ROOT } from '../../config/api';
@@ -242,10 +244,10 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                                 {section.title}
                             </label>
                         )}
-                        <textarea
-                            className="formular-editor__textarea"
+                        <MarkdownEditor
+                            className="formular-editor__markdown"
                             value={formularData[section.id] || ''}
-                            onChange={(e) => handleContentChange(section.id, e.target.value)}
+                            onChange={(val) => handleContentChange(section.id, val)}
                             placeholder="Введите информацию..."
                             rows={3}
                         />
@@ -265,7 +267,9 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                                             </button>
                                             <div className="formular-editor__attachment-info">
                                                 <strong>{item.title}</strong>
-                                                {item.description && <p>{item.description}</p>}
+                                                {item.description && (
+                                                    <MarkdownContent variant="compact">{item.description}</MarkdownContent>
+                                                )}
                                             </div>
                                             <button
                                                 type="button"
@@ -300,12 +304,12 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                                         value={draft.title}
                                         onChange={(e) => handleAttachmentDraftChange(section.id, "title", e.target.value)}
                                     />
-                                    <textarea
-                                        className="formular-editor__textarea"
+                                    <MarkdownEditor
+                                        variant="compact"
+                                        value={draft.description}
+                                        onChange={(val) => handleAttachmentDraftChange(section.id, 'description', val)}
                                         placeholder="Описание (необязательно)"
                                         rows={2}
-                                        value={draft.description}
-                                        onChange={(e) => handleAttachmentDraftChange(section.id, "description", e.target.value)}
                                     />
                                     <input
                                         type="file"
@@ -417,7 +421,9 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                         <img src={previewImage.image} alt={previewImage.title} />
                         <div className="formular-editor__image-preview-caption">
                             <strong>{previewImage.title}</strong>
-                            {previewImage.description && <p>{previewImage.description}</p>}
+                            {previewImage.description && (
+                                <MarkdownContent variant="compact">{previewImage.description}</MarkdownContent>
+                            )}
                         </div>
                     </div>
                 </div>

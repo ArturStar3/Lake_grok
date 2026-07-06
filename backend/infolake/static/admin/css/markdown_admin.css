@@ -1,0 +1,321 @@
+/* Markdown-виджет для Django admin (оффлайн, без CDN) */
+
+.markdown-widget {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 960px;
+  border: 1px solid var(--color-base-200, #e5e7eb);
+  border-radius: 6px;
+  background: var(--color-base-50, #fff);
+  overflow: hidden;
+}
+
+.markdown-widget--inline {
+  max-width: 100%;
+  min-width: 280px;
+}
+
+.markdown-widget__tabs {
+  display: flex;
+  position: relative;
+  z-index: 2;
+  border-bottom: 1px solid var(--color-base-200, #e5e7eb);
+  background: var(--color-base-100, #f9fafb);
+}
+
+.markdown-widget__tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-base-500, #6b7280);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.markdown-widget__tab:hover {
+  color: var(--color-base-700, #374151);
+}
+
+.markdown-widget__tab--active {
+  color: var(--color-primary-600, #2563eb);
+  border-bottom-color: var(--color-primary-600, #2563eb);
+  background: var(--color-base-50, #fff);
+}
+
+.markdown-widget__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  position: relative;
+  z-index: 2;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-base-200, #e5e7eb);
+  background: var(--color-base-100, #fafafa);
+}
+
+.markdown-widget--inline .markdown-widget__toolbar {
+  padding: 4px 6px;
+  gap: 1px;
+}
+
+.markdown-widget__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--color-base-700, #374151);
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.markdown-widget--inline .markdown-widget__btn {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.dark .markdown-widget__btn {
+  color: #e5e7eb;
+  background: #374151;
+  border-color: #4b5563;
+}
+
+.markdown-widget__btn:hover {
+  background: var(--color-base-200, #e5e7eb);
+  border-color: var(--color-base-300, #d1d5db);
+}
+
+.markdown-widget__divider {
+  width: 1px;
+  height: 20px;
+  margin: 4px;
+  background: var(--color-base-200, #e5e7eb);
+  align-self: center;
+}
+
+.markdown-widget__body {
+  min-height: 0;
+}
+
+.markdown-widget__textarea,
+.markdown-widget textarea.markdown-widget__textarea {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-base-900, #1f2937);
+  background: var(--color-base-50, #fff);
+  border: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.markdown-widget--inline .markdown-widget__textarea,
+.markdown-widget--inline textarea.markdown-widget__textarea {
+  min-height: 72px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+.markdown-widget__textarea:focus {
+  outline: none;
+}
+
+.markdown-widget[data-active-tab="edit"] [data-markdown-preview] {
+  display: none !important;
+}
+
+.markdown-widget[data-active-tab="preview"] textarea {
+  display: none !important;
+}
+
+.markdown-widget[data-active-tab="preview"] [data-markdown-preview] {
+  display: block !important;
+}
+
+.markdown-widget[data-active-tab="preview"] .markdown-widget__toolbar {
+  display: none !important;
+}
+
+.markdown-widget__preview {
+  padding: 10px 12px;
+  min-height: 120px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--color-base-100, #fafafa);
+  white-space: normal;
+}
+
+.markdown-widget--inline .markdown-widget__preview {
+  min-height: 72px;
+  max-height: 240px;
+  font-size: 13px;
+}
+
+.markdown-widget__preview--loading {
+  color: var(--color-base-400, #9ca3af);
+  font-style: italic;
+}
+
+.markdown-widget__preview--empty {
+  color: var(--color-base-400, #9ca3af);
+  font-style: italic;
+}
+
+/* Стили отображения (как на фронтенде) */
+.markdown-content {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1f2937;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  margin: 0.75em 0 0.35em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #111827;
+}
+
+.markdown-content h1 { font-size: 1.35em; }
+.markdown-content h2 { font-size: 1.2em; }
+.markdown-content h3 { font-size: 1.08em; }
+.markdown-content h4 { font-size: 1em; }
+
+.markdown-content > h1:first-child,
+.markdown-content > h2:first-child,
+.markdown-content > h3:first-child,
+.markdown-content > h4:first-child {
+  margin-top: 0;
+}
+
+.markdown-content p {
+  margin: 0 0 0.5em;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.35em 0 0.5em;
+  padding-left: 1.35em;
+}
+
+.markdown-content li {
+  margin: 0;
+  padding: 0;
+  line-height: 1.45;
+}
+
+.markdown-content li + li {
+  margin-top: 0.2em;
+}
+
+.markdown-content li > p {
+  margin: 0;
+}
+
+.markdown-content li > p + p {
+  margin-top: 0.35em;
+}
+
+.markdown-content li > ul,
+.markdown-content li > ol {
+  margin: 0.2em 0 0;
+  padding-left: 1.25em;
+}
+
+.markdown-content blockquote {
+  margin: 0.35em 0 0.5em;
+  padding: 0.4em 0.65em;
+  border-left: 3px solid #3b82f6;
+  background: #f0f7ff;
+  color: #374151;
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-content code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.9em;
+  padding: 0.15em 0.4em;
+  background: #f3f4f6;
+  border-radius: 4px;
+  color: #be185d;
+}
+
+.markdown-content pre {
+  margin: 0.35em 0 0.5em;
+  padding: 0.75em 1em;
+  background: #1f2937;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.markdown-content pre code {
+  padding: 0;
+  background: transparent;
+  color: #e5e7eb;
+}
+
+.markdown-content a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.markdown-content hr {
+  margin: 0.65em 0;
+  border: none;
+  border-top: 1px solid #e5e7eb;
+}
+
+.markdown-content table {
+  width: 100%;
+  margin: 0.35em 0 0.5em;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 0.4em 0.6em;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+
+/* Табличные инлайны: виджет в ячейке */
+.inline-group .tabular td .markdown-widget {
+  margin: 0;
+}
+
+.inline-group .tabular td .markdown-widget__tabs {
+  font-size: 11px;
+}
+
+.inline-group .tabular td .markdown-widget__tab {
+  padding: 4px 8px;
+}

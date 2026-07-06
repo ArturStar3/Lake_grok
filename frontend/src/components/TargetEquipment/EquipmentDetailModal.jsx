@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
+import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './EquipmentDetailModal.css';
 
 export default function EquipmentDetailModal({
@@ -129,7 +130,7 @@ export default function EquipmentDetailModal({
               {equipment?.description && (
                 <section className="equipment-detail-modal__section">
                   <h3>Описание</h3>
-                  <p>{equipment.description}</p>
+                  <MarkdownContent>{equipment.description}</MarkdownContent>
                 </section>
               )}
 

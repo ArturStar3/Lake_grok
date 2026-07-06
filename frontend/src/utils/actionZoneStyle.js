@@ -13,6 +13,34 @@ export const LINE_TYPE_LABELS = {
 const DEFAULT_ZONE_COLOR = '#3388ff';
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
+/** Толщина обводки окружности/полигона зоны действия (Leaflet weight). */
+export const ZONE_STROKE_WEIGHT = 1.5;
+export const ZONE_STROKE_HOVER_WEIGHT = 2.5;
+export const ZONE_CROSS_STROKE_WEIGHT = 2;
+export const ZONE_CENTER_HIGHLIGHT_WEIGHT = 1.5;
+export const ZONE_CENTER_HIGHLIGHT_HOVER_WEIGHT = 2.5;
+
+export function getZoneStrokeStyle(color, lineType) {
+  return {
+    color,
+    weight: ZONE_STROKE_WEIGHT,
+    hoverWeight: ZONE_STROKE_HOVER_WEIGHT,
+    opacity: 0.65,
+    hoverOpacity: 0.95,
+    dashArray: getZoneDashArray(lineType),
+    fillColor: color,
+    fillOpacity: 0.09,
+  };
+}
+
+export function getZonePolygonStrokeStyle(color, lineType) {
+  return {
+    ...getZoneStrokeStyle(color, lineType),
+    opacity: 0.75,
+    fillOpacity: 0.12,
+  };
+}
+
 /** Нормализация цвета зоны для input[type=color] и API. */
 export function normalizeHexColor(value, fallback = DEFAULT_ZONE_COLOR) {
   if (typeof value === 'string' && HEX_COLOR_RE.test(value)) return value;

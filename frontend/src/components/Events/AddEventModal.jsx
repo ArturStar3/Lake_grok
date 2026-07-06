@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useDropdownWithSearch } from "../../hooks/useDropdownWithSearch";
+import MarkdownEditor from "../common/MarkdownEditor/MarkdownEditor";
 import "./AddEventModal.css";
 
 import { API_URL as API_ROOT } from '../../config/api';
@@ -593,13 +594,11 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 
 						<div className="event-modal__field event-modal__field--full">
 							<label className="event-modal__label">Дополнительная информация</label>
-							<textarea
-								name="info"
+							<MarkdownEditor
 								value={formData.info}
-								onChange={handleChange}
-								className="event-modal__textarea"
-								rows={4}
+								onChange={(val) => setFormData((prev) => ({ ...prev, info: val }))}
 								placeholder="Дополнительная информация"
+								rows={4}
 							/>
 						</div>
 						{renderGeoInputs()}

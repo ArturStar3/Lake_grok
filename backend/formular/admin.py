@@ -11,9 +11,11 @@ from infolake.admin_base import ModelAdmin
 from .forms import CountryForm, ActionTypeForm
 from .models import (
     Country,
+    CountryInfo,
     Target,
     TargetEquipment,
     Marker,
+    Event,
     EventType,
     EventMarker,
     ActionType,
@@ -21,11 +23,13 @@ from .models import (
     CountrySections,
     CountryAttachment,
     FormularSections,
+    Formular,
     TargetType,
     FormularAttachment,
     PersonSections,
     RelationType,
     Person,
+    PersonInfo,
     PersonAttachment,
     PersonPhoto,
     PersonRelation,
@@ -39,6 +43,10 @@ from .admin_inlines import (
     FormularInlineAdmin,
     TargetChildrenInline,
     PersonInlineAdmin,
+    PersonInfoInlineAdmin,
+    PersonPhotoInlineAdmin,
+    PersonAttachmentInlineAdmin,
+    PersonRelationFromInlineAdmin,
 )
 
 EMPTY_VALUE_DISPLAY = '<пусто>'
@@ -157,8 +165,8 @@ class TargetAdmin(ModelAdmin):
 @admin.register(ActionType)
 class ActionTypeAdmin(ModelAdmin):
     form = ActionTypeForm
-    list_display = ('title', 'color_display', 'line_type')
-    list_editable = ('line_type',)
+    list_display = ('title', 'color_display', 'line_type', 'zone_mode')
+    list_editable = ('line_type', 'zone_mode')
     search_fields = ('title',)
     list_per_page = 50
 
@@ -277,6 +285,17 @@ class EventMarkerAdmin(ModelAdmin):
     list_per_page = 50
 
 
+@admin.register(Event)
+class EventAdmin(ModelAdmin):
+    list_display = ('title', 'event_type', 'country', 'date_start', 'date_end')
+    list_filter = ('event_type', 'country')
+    search_fields = ('title', 'object_name', 'description')
+    autocomplete_fields = ('event_type', 'country', 'marker')
+    list_select_related = ('event_type', 'country', 'marker')
+    date_hierarchy = 'date_start'
+    list_per_page = 50
+
+
 @admin.register(CountrySections)
 class CountrySectionsAdmin(ModelAdmin):
     list_display = ('title', 'parent', 'order')
@@ -288,7 +307,7 @@ class CountrySectionsAdmin(ModelAdmin):
 
 @admin.register(FormularSections)
 class FormularSectionsAdmin(ModelAdmin):
-    list_display = ('title', 'parent', 'order')
+    list_display = ('title', 'parent', 'order', 'is_hidden')
     list_editable = ('order',)
     autocomplete_fields = ('parent',)
     search_fields = ('title',)
@@ -312,6 +331,24 @@ class CountryAttachmentAdmin(ModelAdmin):
     list_filter = ('section',)
     autocomplete_fields = ('country', 'section')
     list_select_related = ('country', 'section')
+    list_per_page = 50
+
+
+@admin.register(CountryInfo)
+class CountryInfoAdmin(ModelAdmin):
+    list_display = ('country', 'section')
+    search_fields = ('country__title', 'section__title', 'content')
+    autocomplete_fields = ('country', 'section')
+    list_select_related = ('country', 'section')
+    list_per_page = 50
+
+
+@admin.register(Formular)
+class FormularAdmin(ModelAdmin):
+    list_display = ('target', 'section')
+    search_fields = ('target__title', 'section__title', 'content')
+    autocomplete_fields = ('target', 'section')
+    list_select_related = ('target', 'section')
     list_per_page = 50
 
 
@@ -346,6 +383,21 @@ class PersonAdmin(ModelAdmin):
     search_fields = ('full_name', 'position', 'target__title')
     autocomplete_fields = ('target',)
     list_select_related = ('target',)
+    list_per_page = 50
+    inlines = (
+        PersonInfoInlineAdmin,
+        PersonPhotoInlineAdmin,
+        PersonAttachmentInlineAdmin,
+        PersonRelationFromInlineAdmin,
+    )
+
+
+@admin.register(PersonInfo)
+class PersonInfoAdmin(ModelAdmin):
+    list_display = ('person', 'section')
+    search_fields = ('person__full_name', 'section__title', 'content')
+    autocomplete_fields = ('person', 'section')
+    list_select_related = ('person', 'section')
     list_per_page = 50
 
 
