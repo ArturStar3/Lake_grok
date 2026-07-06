@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { addColorClassToSvg } from '../../utils/svgUtils';
 import { useActionsArray } from '../../hooks/useActionsArray';
@@ -9,6 +9,7 @@ import {
     flattenTargetTypeTree,
     formatTypeOptionLabel,
     filterTargetTypesForCountry,
+    filterParentOptionsForTarget,
 } from '../../utils/targetTypeTree';
 import './AddTargetModal.css';
 
@@ -66,8 +67,22 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
     );
     
     // Dropdown для выбора parent (вышестоящий объект)
-    // Исключаем себя (для edit будет отдельно), но в add просто все
-    const parentOptions = targets;
+    const parentOptions = useMemo(
+        () => filterParentOptionsForTarget(targets, targetTypes, {
+            countryId: formData.country,
+            typeId: formData.type,
+        }),
+        [targets, targetTypes, formData.country, formData.type],
+    );
+
+    useEffect(() => {
+        if (!formData.parent) return;
+        const stillValid = parentOptions.some((t) => t.id === formData.parent);
+        if (!stillValid) {
+            setFormData((prev) => ({ ...prev, parent: '' }));
+        }
+    }, [parentOptions, formData.parent]);
+
     const parentDropdown = useDropdownWithSearch(
         parentOptions,
         (id) => {

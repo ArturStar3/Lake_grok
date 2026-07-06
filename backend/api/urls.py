@@ -18,6 +18,14 @@ from .views import (
     FormularSectionsViewSet,
     FormularBulkUpdateView,
     FormularAttachmentViewSet,
+    PersonSectionsViewSet,
+    RelationTypeViewSet,
+    PersonViewSet,
+    PersonDetailView,
+    PersonBulkUpdateView,
+    PersonAttachmentViewSet,
+    PersonPhotoViewSet,
+    PersonRelationViewSet,
     EquipmentCategoryViewSet,
     EquipmentParameterDefinitionViewSet,
     UnitOfMeasureViewSet,
@@ -106,6 +114,42 @@ router.register(
 )
 
 router.register(
+    r'person-sections',
+    PersonSectionsViewSet,
+    basename='person-sections'
+)
+
+router.register(
+    r'relation-types',
+    RelationTypeViewSet,
+    basename='relation-types'
+)
+
+router.register(
+    r'persons',
+    PersonViewSet,
+    basename='persons'
+)
+
+router.register(
+    r'person-attachments',
+    PersonAttachmentViewSet,
+    basename='person-attachments'
+)
+
+router.register(
+    r'person-photos',
+    PersonPhotoViewSet,
+    basename='person-photos'
+)
+
+router.register(
+    r'person-relations',
+    PersonRelationViewSet,
+    basename='person-relations'
+)
+
+router.register(
     r'equipment-categories',
     EquipmentCategoryViewSet,
     basename='equipment-categories'
@@ -140,4 +184,6 @@ urlpatterns = [
     path('country/<str:iso_code>/', CountryInfoView.as_view(), name='country-info'),
     path('formular/<uuid:target_id>/', FormularView.as_view(), name='formular'),
     path('formular/<uuid:target_id>/bulk/', FormularBulkUpdateView.as_view(), name='formular-bulk'),
+    path('person/<uuid:person_id>/', PersonDetailView.as_view(), name='person-detail'),
+    path('person/<uuid:person_id>/bulk/', PersonBulkUpdateView.as_view(), name='person-bulk'),
 ]

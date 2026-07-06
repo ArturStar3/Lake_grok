@@ -1,0 +1,18 @@
+# Production-frontend для оффлайн-сервера (без HMR, без dev-watch).
+# Сборка на машине с интернетом:
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml build frontend
+# Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d
+#
+# На уже загруженном оффлайн-образе достаточно VITE_DISABLE_HMR=true в docker-compose.yml
+# и перезапуска frontend: docker compose restart frontend
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.server
+    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
+    environment:
+      VITE_DISABLE_HMR: "true"
+      CHOKIDAR_USEPOLLING: "false"

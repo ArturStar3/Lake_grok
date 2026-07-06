@@ -20,6 +20,7 @@ const FormularModal = ({
   const [error, setError] = useState(null);
   const [targetTitle, setTargetTitle] = useState('');
   const [targetMeta, setTargetMeta] = useState(null);
+  const [persons, setPersons] = useState([]);
 
   useEffect(() => {
     if (!targetId) return;
@@ -86,9 +87,21 @@ const FormularModal = ({
       }
     };
 
+    const fetchPersons = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/v1/persons/?target=${targetId}`);
+        if (!response.ok) return;
+        const result = await response.json();
+        setPersons(Array.isArray(result) ? result : []);
+      } catch (err) {
+        console.warn('Ошибка загрузки персоналий:', err);
+      }
+    };
+
     fetchFormular();
     fetchAttachments();
     fetchTargetDetails();
+    fetchPersons();
   }, [targetId]);
 
   const sectionCards = useMemo(() => {
@@ -127,12 +140,23 @@ const FormularModal = ({
       });
     }
 
+    if (persons.length > 0) {
+      extraCards.push({
+        id: 'persons',
+        title: 'Персоналии',
+        excerpt: `${persons.length} ${persons.length === 1 ? 'лицо' : 'лиц'}`,
+        badge: { photos: 0, subsections: 0, items: persons.length },
+        kind: 'persons',
+        payload: { persons },
+      });
+    }
+
     return buildSectionCards({
       organized,
       attachmentsBySection,
       extraCards,
     });
-  }, [data, attachmentsBySection, deployedEquipment, subordinates, targetId, targetTitle, targetMeta]);
+  }, [data, attachmentsBySection, deployedEquipment, subordinates, persons, targetId, targetTitle, targetMeta]);
 
   const handleOverlayClick = (e) => {
     if (e.target.className === 'formular-modal-overlay') {

@@ -46,6 +46,8 @@ export const useTargetFormData = (isOpen, cachedTargets = null) => {
               id: t.id,
               title: t.title,
               label: t.label,
+              country: t.country?.id ?? t.country,
+              type: t.type?.id ?? t.type,
             }))
           );
         } else {

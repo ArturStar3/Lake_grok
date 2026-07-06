@@ -156,6 +156,24 @@
     color: #333;
 }
 
+.formular-editor__input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #333;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.formular-editor__input:focus {
+    outline: none;
+    border-color: #008dd2;
+    box-shadow: 0 0 0 3px rgba(0, 141, 210, 0.1);
+}
+
 .formular-editor__textarea {
     width: 100%;
     padding: 10px 12px;
@@ -182,6 +200,13 @@
     font-weight: 600;
     color: #1f2937;
     margin-bottom: 8px;
+}
+
+.formular-editor__attachments-hint {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #64748b;
+    font-style: italic;
 }
 
 .formular-editor__attachments-list {

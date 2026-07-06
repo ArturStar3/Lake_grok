@@ -818,3 +818,288 @@ class FormularAttachment(models.Model):
     def __str__(self):
         return f"{self.target.title} - {self.section.title} - {self.title}"
 
+
+class PersonSections(models.Model):
+    """Разделы информации по персоналиям"""
+
+    title = models.CharField(
+        max_length=250,
+        verbose_name='Название раздела',
+    )
+    order = models.PositiveSmallIntegerField(
+        verbose_name='Порядок',
+        default=1,
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        verbose_name='Родительский раздел',
+        related_name='children',
+        null=True,
+        blank=True,
+    )
+    is_hidden = models.BooleanField(
+        verbose_name='Скрыть раздел',
+        default=False,
+    )
+
+    class Meta:
+        verbose_name = 'Раздел персоналий'
+        verbose_name_plural = 'Разделы персоналий'
+        ordering = ['order', 'title']
+        indexes = [
+            models.Index(fields=('title',)),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
+class RelationType(models.Model):
+    """Характер связи между лицами"""
+
+    title = models.CharField(
+        max_length=150,
+        verbose_name='Название (прямое)',
+    )
+    reverse_title = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name='Название (обратное)',
+        help_text='Если пусто — совпадает с прямым (симметричная связь)',
+    )
+
+    class Meta:
+        verbose_name = 'Характер связи'
+        verbose_name_plural = 'Характеры связей'
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def effective_reverse_title(self):
+        return self.reverse_title.strip() or self.title
+
+
+class Person(models.Model):
+    """Лицо (персона), привязанное к объекту"""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    target = models.ForeignKey(
+        Target,
+        on_delete=models.CASCADE,
+        related_name='persons',
+        verbose_name='Объект',
+    )
+    full_name = models.CharField(
+        max_length=250,
+        verbose_name='ФИО',
+    )
+    position = models.CharField(
+        max_length=250,
+        blank=True,
+        verbose_name='Должность',
+    )
+
+    class Meta:
+        verbose_name = 'Лицо'
+        verbose_name_plural = 'Список лиц'
+        indexes = [
+            models.Index(fields=('target',)),
+        ]
+
+    def __str__(self):
+        return self.full_name
+
+
+class PersonInfo(models.Model):
+    """Данные по лицу и разделу"""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name='info',
+        verbose_name='Лицо',
+    )
+    section = models.ForeignKey(
+        PersonSections,
+        on_delete=models.CASCADE,
+        related_name='person_sections',
+        verbose_name='Раздел',
+    )
+    content = models.TextField(
+        verbose_name='Содержание',
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = 'Данные по лицу'
+        verbose_name_plural = 'Данные по лицам'
+        indexes = [
+            models.Index(fields=('person',)),
+            models.Index(fields=('section',)),
+        ]
+
+    def __str__(self):
+        return f"{self.person.full_name} - {self.section.title}"
+
+
+class PersonAttachment(models.Model):
+    """Изображения по разделам персоналий"""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        verbose_name='Лицо',
+    )
+    section = models.ForeignKey(
+        PersonSections,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        verbose_name='Раздел',
+    )
+    title = models.CharField(
+        max_length=250,
+        verbose_name='Название',
+    )
+    description = models.TextField(
+        verbose_name='Описание',
+        null=True,
+        blank=True,
+    )
+    image = models.ImageField(
+        upload_to='person_attachments',
+        verbose_name='Изображение',
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Создано',
+    )
+
+    class Meta:
+        verbose_name = 'Изображение персоналии'
+        verbose_name_plural = 'Изображения персоналий'
+        indexes = [
+            models.Index(fields=('person',)),
+            models.Index(fields=('section',)),
+        ]
+
+    def __str__(self):
+        return f"{self.person.full_name} - {self.section.title} - {self.title}"
+
+
+class PersonPhoto(models.Model):
+    """Фотографии лица (order=1 — аватар)"""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name='photos',
+        verbose_name='Лицо',
+    )
+    title = models.CharField(
+        max_length=250,
+        blank=True,
+        default='',
+        verbose_name='Название',
+    )
+    image = models.ImageField(
+        upload_to='person_photos',
+        verbose_name='Изображение',
+    )
+    order = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Порядок',
+        help_text='Фото с order=1 используется как аватар',
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Создано',
+    )
+
+    class Meta:
+        verbose_name = 'Фото лица'
+        verbose_name_plural = 'Фото лиц'
+        ordering = ['order', 'created_at']
+        indexes = [
+            models.Index(fields=('person', 'order')),
+        ]
+
+    def __str__(self):
+        label = self.title or f'Фото #{self.order}'
+        return f"{self.person.full_name} - {label}"
+
+
+class PersonRelation(models.Model):
+    """Связь между двумя лицами"""
+
+    person_from = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name='relations_from',
+        verbose_name='Лицо (от)',
+    )
+    person_to = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name='relations_to',
+        verbose_name='Лицо (к)',
+    )
+    relation_type = models.ForeignKey(
+        RelationType,
+        on_delete=models.PROTECT,
+        related_name='relations',
+        verbose_name='Характер связи',
+    )
+    notes = models.CharField(
+        max_length=250,
+        blank=True,
+        verbose_name='Примечание',
+    )
+
+    class Meta:
+        verbose_name = 'Связь между лицами'
+        verbose_name_plural = 'Связи между лицами'
+        unique_together = ('person_from', 'person_to', 'relation_type')
+        indexes = [
+            models.Index(fields=('person_from',)),
+            models.Index(fields=('person_to',)),
+        ]
+
+    def clean(self):
+        if self.person_from_id and self.person_to_id and self.person_from_id == self.person_to_id:
+            raise ValidationError('Лицо не может быть связано само с собой')
+
+    def __str__(self):
+        return f"{self.person_from} → {self.relation_type} → {self.person_to}"
+

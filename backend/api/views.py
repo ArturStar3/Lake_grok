@@ -40,6 +40,17 @@ from .serializers import (
     EquipmentSerializer,
     EquipmentWriteSerializer,
     EquipmentImageSerializer,
+    PersonSectionsListSerializer,
+    PersonInfoSerializer,
+    PersonBulkUpdateSerializer,
+    PersonAttachmentSerializer,
+    PersonPhotoSerializer,
+    RelationTypeSerializer,
+    PersonListSerializer,
+    PersonSerializer,
+    PersonCreateSerializer,
+    PersonRelationSerializer,
+    PersonRelationWriteSerializer,
 )
 from formular.models import (
     Target,
@@ -58,6 +69,13 @@ from formular.models import (
     TargetType,
     EventType,
     Event,
+    PersonSections,
+    RelationType,
+    Person,
+    PersonInfo,
+    PersonAttachment,
+    PersonPhoto,
+    PersonRelation,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -159,8 +177,58 @@ class TargetViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='parent-options')
     def parent_options(self, request):
         """Лёгкий список объектов для выбора родителя (без вложенных actions/country)."""
-        qs = Target.objects.only('id', 'title', 'label').order_by('title')
+        qs = (
+            Target.objects.select_related('type')
+            .only('id', 'title', 'label', 'country_id', 'type_id')
+            .order_by('title')
+        )
         return Response(TargetParentPickerSerializer(qs, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='formular-completion')
+    def formular_completion(self, request):
+        """Заполненность формуляра по объектам страны."""
+        country_id = request.query_params.get('country')
+        targets = Target.objects.filter(country_id=country_id) if country_id else Target.objects.all()
+        targets = targets.order_by('title')
+
+        leaf_sections = (
+            FormularSections.objects.filter(is_hidden=False)
+            .exclude(
+                id__in=FormularSections.objects.filter(parent__isnull=False).values('parent')
+            )
+            .order_by('order', 'title')
+        )
+
+        filled = (
+            Formular.objects.filter(target__in=targets, section__in=leaf_sections)
+            .exclude(content__isnull=True)
+            .exclude(content__exact='')
+            .values_list('target_id', 'section_id')
+        )
+        attached = (
+            FormularAttachment.objects.filter(target__in=targets, section__in=leaf_sections)
+            .values_list('target_id', 'section_id')
+        )
+
+        filled_pairs = set(filled) | set(attached)
+        total = leaf_sections.count()
+
+        result_targets = []
+        for t in targets:
+            filled_ids = {sec_id for (tgt_id, sec_id) in filled_pairs if tgt_id == t.id}
+            percent = round(len(filled_ids) * 100 / total, 1) if total else 0
+            result_targets.append({
+                'id': t.id,
+                'title': t.title,
+                'label': t.label,
+                'percent': percent,
+                'sections': {str(sec.id): sec.id in filled_ids for sec in leaf_sections},
+            })
+
+        return Response({
+            'sections': [{'id': s.id, 'title': s.title} for s in leaf_sections],
+            'targets': result_targets,
+        })
 
     @transaction.atomic
     def update(self, request, *args, **kwargs):
@@ -787,4 +855,212 @@ class EventViewSet(viewsets.ModelViewSet):
                 Q(time_start__lte=time_to) | Q(time_start__isnull=True, time_end__lte=time_to)
             )
 
+        return qs
+
+
+class PersonSectionsViewSet(viewsets.ReadOnlyModelViewSet):
+    """Список разделов персоналий"""
+
+    serializer_class = PersonSectionsListSerializer
+    permission_classes = [AllowAny]
+    queryset = PersonSections.objects.all().order_by('order', 'title')
+
+
+class RelationTypeViewSet(viewsets.ModelViewSet):
+    """Характеры связи между лицами"""
+
+    serializer_class = RelationTypeSerializer
+    permission_classes = [AllowAny]
+    queryset = RelationType.objects.all().order_by('title')
+
+
+class PersonViewSet(viewsets.ModelViewSet):
+    """Лица, привязанные к объектам"""
+
+    permission_classes = [AllowAny]
+    queryset = Person.objects.select_related('target').prefetch_related(
+        Prefetch('photos', queryset=PersonPhoto.objects.order_by('order', 'created_at')),
+    ).order_by('full_name')
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return PersonCreateSerializer
+        if self.action == 'list':
+            return PersonListSerializer
+        return PersonSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.setdefault('request', self.request)
+        return context
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        target_id = self.request.query_params.get('target')
+        if target_id:
+            qs = qs.filter(target_id=target_id)
+        return qs
+
+
+class PersonDetailView(APIView):
+    """Данные по лицу: разделы и связи"""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, person_id):
+        try:
+            person = Person.objects.prefetch_related(
+                Prefetch('photos', queryset=PersonPhoto.objects.order_by('order', 'created_at')),
+            ).get(pk=person_id)
+        except Person.DoesNotExist:
+            return Response({'detail': 'Person not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        info_items = PersonInfo.objects.filter(person=person).select_related('section', 'section__parent')
+        info_serializer = PersonInfoSerializer(info_items, many=True)
+
+        relations = PersonRelation.objects.filter(
+            Q(person_from=person) | Q(person_to=person)
+        ).select_related('person_from', 'person_to', 'relation_type')
+        relations_serializer = PersonRelationSerializer(
+            relations,
+            many=True,
+            context={'person_id': person_id},
+        )
+
+        photos = PersonPhoto.objects.filter(person=person).order_by('order', 'created_at')
+        photos_serializer = PersonPhotoSerializer(
+            photos,
+            many=True,
+            context={'request': request},
+        )
+
+        return Response({
+            'person': PersonSerializer(person, context={'request': request}).data,
+            'info': info_serializer.data,
+            'relations': relations_serializer.data,
+            'photos': photos_serializer.data,
+        })
+
+
+class PersonBulkUpdateView(APIView):
+    """Массовое обновление данных по разделам лица"""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, person_id):
+        try:
+            person = Person.objects.get(pk=person_id)
+        except Person.DoesNotExist:
+            return Response({'detail': 'Person not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        items = request.data.get('items', [])
+        if not isinstance(items, list):
+            return Response({'detail': 'items must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+
+        for item in items:
+            serializer = PersonBulkUpdateSerializer(data=item)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        section_ids = [item['section_id'] for item in items]
+        sections_by_id = PersonSections.objects.in_bulk(section_ids)
+        missing = sorted(set(section_ids) - set(sections_by_id.keys()))
+        if missing:
+            return Response(
+                {'detail': 'Unknown section_id', 'ids': missing},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            existing = {
+                row.section_id: row
+                for row in PersonInfo.objects.filter(person=person, section_id__in=section_ids)
+            }
+            to_create = []
+            to_update = []
+            for item in items:
+                section_id = item['section_id']
+                content = item.get('content', '')
+                if section_id in existing:
+                    row = existing[section_id]
+                    if row.content != content:
+                        row.content = content
+                        to_update.append(row)
+                else:
+                    to_create.append(
+                        PersonInfo(person=person, section_id=section_id, content=content)
+                    )
+            if to_create:
+                PersonInfo.objects.bulk_create(to_create)
+            if to_update:
+                PersonInfo.objects.bulk_update(to_update, ['content'])
+
+        return Response({'detail': 'Person info updated successfully'}, status=status.HTTP_200_OK)
+
+
+class PersonAttachmentViewSet(viewsets.ModelViewSet):
+    """Изображения персоналий"""
+
+    serializer_class = PersonAttachmentSerializer
+    permission_classes = [AllowAny]
+    queryset = PersonAttachment.objects.select_related('person', 'section').order_by('-created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        person_id = params.get('person')
+        section_id = params.get('section')
+
+        if self.action == 'list' and not person_id and not section_id:
+            return qs.none()
+
+        if person_id:
+            qs = qs.filter(person_id=person_id)
+        if section_id:
+            qs = qs.filter(section_id=section_id)
+        return qs
+
+
+class PersonPhotoViewSet(viewsets.ModelViewSet):
+    """Фотографии лица"""
+
+    serializer_class = PersonPhotoSerializer
+    permission_classes = [AllowAny]
+    queryset = PersonPhoto.objects.select_related('person').order_by('order', 'created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        person_id = self.request.query_params.get('person')
+        if self.action == 'list' and not person_id:
+            return qs.none()
+        if person_id:
+            qs = qs.filter(person_id=person_id)
+        return qs
+
+
+class PersonRelationViewSet(viewsets.ModelViewSet):
+    """Связи между лицами"""
+
+    permission_classes = [AllowAny]
+    queryset = PersonRelation.objects.select_related(
+        'person_from', 'person_to', 'relation_type'
+    ).order_by('id')
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return PersonRelationWriteSerializer
+        return PersonRelationSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        person_id = self.request.query_params.get('person')
+        if person_id:
+            context['person_id'] = person_id
+        return context
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        person_id = self.request.query_params.get('person')
+        if person_id:
+            qs = qs.filter(Q(person_from_id=person_id) | Q(person_to_id=person_id))
         return qs

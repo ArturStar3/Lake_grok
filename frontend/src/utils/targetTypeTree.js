@@ -267,6 +267,23 @@ export function filterTargetTypesForCountry(targetTypes, countryId) {
   });
 }
 
+/** Кандидаты в родители: та же страна, order типа не выше текущего. */
+export function filterParentOptionsForTarget(targets, targetTypes, { countryId, typeId, excludeId }) {
+  if (!countryId) return [];
+  const orderByTypeId = new Map(
+    (targetTypes || []).map((t) => [Number(t.id), Number(t.order)]),
+  );
+  const currentOrder = typeId ? orderByTypeId.get(Number(typeId)) : undefined;
+
+  return (targets || []).filter((t) => {
+    if (excludeId && t.id === excludeId) return false;
+    if (Number(t.country) !== Number(countryId)) return false;
+    if (currentOrder == null) return true;
+    const candidateOrder = t.type ? orderByTypeId.get(Number(t.type)) : undefined;
+    return candidateOrder == null || candidateOrder <= currentOrder;
+  });
+}
+
 export function getAllTypeTitlesInObjects(objects) {
   return [...new Set(objects.map((o) => o.type?.title).filter(Boolean))];
 }

@@ -1,0 +1,33 @@
+# Production-сборка фронта для сервера (статика + vite preview, без dev/HMR).
+# Собирается на машине с интернетом, на оффлайн-машине: docker load + up --no-build.
+
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm install
+
+COPY . .
+
+ARG VITE_API_URL=http://localhost:8000
+ARG VITE_TILESERVER_URL=http://localhost:8080
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_TILESERVER_URL=$VITE_TILESERVER_URL
+ENV VITE_DISABLE_HMR=true
+
+RUN npm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm install
+
+COPY --from=build /app/dist ./dist
+COPY vite.config.js ./vite.config.js
+
+EXPOSE 5173
+
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]

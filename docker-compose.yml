@@ -92,22 +92,18 @@ services:
       - /app/node_modules
     environment:
       # URL для браузера на хосте (не внутренние имена контейнеров).
-      # localhost работает, когда браузер на той же Windows-машине (через port publishing).
-      # При необходимости открыть с других устройств в LAN — поменяй на http://<твой-windows-ip>:8000 и :8080.
       VITE_API_URL: http://localhost:8000
       VITE_TILESERVER_URL: http://localhost:8080
 
-      # HMR host для Vite WebSocket (критично при Docker).
-      # ДЕФОЛТ: "localhost" — работает при обычном доступе http://localhost:5173 (или 127.0.0.1).
-      # Если открываешь фронт по IP машины (http://<windows-ip>:5173) из сети/LAN:
-      #   1) Поставь сюда реальный IP (например VITE_HMR_HOST: 192.168.1.42) ИЛИ
-      #   2) Попробуй VITE_HMR_HOST: host.docker.internal (Docker Desktop резолвит его на хост).
-      # После смены — обязательно пересобери фронтенд.
+      # Серверный режим: без HMR и без polling — страница не перезагружается сама.
+      # Для локальной разработки с hot-reload поставьте "false".
+      VITE_DISABLE_HMR: "true"
+
+      # HMR (только если VITE_DISABLE_HMR=false)
       VITE_HMR_HOST: localhost
 
-      # Polling для hot-reload через bind mount (Windows / Docker Desktop)
-      CHOKIDAR_USEPOLLING: "true"
-      CHOKIDAR_INTERVAL: "1000"
+      # Polling (только если VITE_DISABLE_HMR=false)
+      CHOKIDAR_USEPOLLING: "false"
     depends_on:
       - backend
       - tileserver

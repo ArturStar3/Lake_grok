@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import EquipmentReferencePanel from './EquipmentReferencePanel';
 import ActionTypesPanel from './ActionTypesPanel';
+import RelationTypesPanel from './RelationTypesPanel';
 import TargetTypesPanel from './TargetTypesPanel';
 import './ReferenceDataModal.css';
 
@@ -8,6 +9,7 @@ const TABS = [
   { id: 'equipment', label: 'Вооружение и техника' },
   { id: 'target-types', label: 'Типы объектов' },
   { id: 'action-types', label: 'Типы зон действия' },
+  { id: 'relation-types', label: 'Характеры связей' },
 ];
 
 export default function ReferenceDataModal({
@@ -99,6 +101,9 @@ export default function ReferenceDataModal({
               isActive={isOpen && activeTab === 'action-types'}
               onChanged={handleActionTypesChanged}
             />
+          )}
+          {activeTab === 'relation-types' && (
+            <RelationTypesPanel isActive={isOpen && activeTab === 'relation-types'} />
           )}
         </div>
       </div>

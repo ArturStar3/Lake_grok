@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from decimal import Decimal
+from django.db import transaction
+from django.db.models import Max
 
 from formular.models import (
     Target,
@@ -17,6 +19,13 @@ from formular.models import (
     FormularSections,
     FormularAttachment,
     Event,
+    PersonSections,
+    RelationType,
+    Person,
+    PersonInfo,
+    PersonAttachment,
+    PersonPhoto,
+    PersonRelation,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -631,9 +640,12 @@ class TargetSerializer(serializers.ModelSerializer):
 class TargetParentPickerSerializer(serializers.ModelSerializer):
     """Минимальный сериализатор для выбора родительского объекта."""
 
+    country = serializers.PrimaryKeyRelatedField(read_only=True)
+    type = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Target
-        fields = ('id', 'title', 'label')
+        fields = ('id', 'title', 'label', 'country', 'type')
 
 
 class TargetSubordinateSerializer(serializers.ModelSerializer):
@@ -695,7 +707,28 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'deployed_equipment',
         )
         read_only_fields = ('id',)
-    
+
+    def validate(self, attrs):
+        parent = attrs.get('parent', getattr(self.instance, 'parent', None))
+        country = attrs.get('country', getattr(self.instance, 'country', None))
+        target_type = attrs.get('type', getattr(self.instance, 'type', None))
+
+        if parent:
+            if country and parent.country_id != country.id:
+                raise serializers.ValidationError({
+                    'parent': 'Родительский объект должен принадлежать той же стране',
+                })
+            if target_type and parent.type_id:
+                parent_type = parent.type
+                if parent_type.order > target_type.order:
+                    raise serializers.ValidationError({
+                        'parent': (
+                            'Родительский объект не может иметь тип с более высоким '
+                            'порядком (order), чем текущий объект'
+                        ),
+                    })
+        return attrs
+
     def create(self, validated_data):
         actions_data = validated_data.pop('actions', [])
         deployed_data = validated_data.pop('deployed_equipment', None)
@@ -882,3 +915,269 @@ class FormularBulkUpdateSerializer(serializers.Serializer):
     
     section_id = serializers.IntegerField()
     content = serializers.CharField(allow_blank=True, required=False)
+
+
+class PersonSectionsListSerializer(serializers.ModelSerializer):
+    """Список разделов персоналий для редактора"""
+
+    class Meta:
+        model = PersonSections
+        fields = (
+            'id',
+            'title',
+            'order',
+            'parent',
+            'is_hidden',
+        )
+
+
+class PersonSectionsSerializer(serializers.ModelSerializer):
+    """Раздел персоналий (для чтения)"""
+
+    parent = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = PersonSections
+        fields = (
+            'id',
+            'title',
+            'order',
+            'parent',
+            'is_hidden',
+        )
+
+
+class PersonInfoSerializer(serializers.ModelSerializer):
+    """Данные по лицу и разделу"""
+
+    section = PersonSectionsSerializer()
+
+    class Meta:
+        model = PersonInfo
+        fields = (
+            'section',
+            'content',
+        )
+
+
+class PersonBulkUpdateSerializer(serializers.Serializer):
+    """Массовое обновление данных по разделам лица"""
+
+    section_id = serializers.IntegerField()
+    content = serializers.CharField(allow_blank=True, required=False)
+
+
+class PersonAttachmentSerializer(serializers.ModelSerializer):
+    """Изображения персоналий"""
+
+    class Meta:
+        model = PersonAttachment
+        fields = (
+            'id',
+            'person',
+            'section',
+            'title',
+            'description',
+            'image',
+            'created_at',
+        )
+
+
+def _person_avatar_photo(person):
+    photos = list(person.photos.all())
+    return next((photo for photo in photos if photo.order == 1), None)
+
+
+def _person_avatar_url(person, request):
+    photo = _person_avatar_photo(person)
+    if not photo or not photo.image:
+        return None
+    url = photo.image.url
+    if request:
+        return request.build_absolute_uri(url)
+    return url
+
+
+class PersonPhotoSerializer(serializers.ModelSerializer):
+    """Фотографии лица"""
+
+    class Meta:
+        model = PersonPhoto
+        fields = (
+            'id',
+            'person',
+            'title',
+            'image',
+            'order',
+            'created_at',
+        )
+        read_only_fields = ('id', 'created_at')
+
+    def validate_order(self, value):
+        if value < 1:
+            raise serializers.ValidationError('Порядок должен быть не меньше 1.')
+        return value
+
+    def _next_order(self, person, exclude_pk=None):
+        qs = PersonPhoto.objects.filter(person=person)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        current_max = qs.aggregate(max_order=Max('order'))['max_order']
+        return (current_max or 0) + 1
+
+    def _demote_current_avatar(self, person, new_order_for_old, exclude_pk=None):
+        qs = PersonPhoto.objects.filter(person=person, order=1)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        current_avatar = qs.first()
+        if current_avatar:
+            current_avatar.order = new_order_for_old
+            current_avatar.save(update_fields=['order'])
+
+    @transaction.atomic
+    def create(self, validated_data):
+        person = validated_data['person']
+        order = validated_data.get('order')
+        if order is None:
+            if not PersonPhoto.objects.filter(person=person).exists():
+                validated_data['order'] = 1
+            else:
+                validated_data['order'] = self._next_order(person)
+        elif order == 1:
+            self._demote_current_avatar(person, self._next_order(person))
+        return super().create(validated_data)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        old_order = instance.order
+        new_order = validated_data.get('order', old_order)
+        if new_order == 1 and old_order != 1:
+            other = PersonPhoto.objects.filter(
+                person=instance.person,
+                order=1,
+            ).exclude(pk=instance.pk).first()
+            if other:
+                other.order = old_order
+                other.save(update_fields=['order'])
+        return super().update(instance, validated_data)
+
+
+class RelationTypeSerializer(serializers.ModelSerializer):
+    """Характер связи между лицами"""
+
+    class Meta:
+        model = RelationType
+        fields = (
+            'id',
+            'title',
+            'reverse_title',
+        )
+
+
+class PersonListSerializer(serializers.ModelSerializer):
+    """Краткая информация о лице"""
+
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Person
+        fields = (
+            'id',
+            'full_name',
+            'position',
+            'target',
+            'avatar',
+        )
+
+    def get_avatar(self, obj):
+        return _person_avatar_url(obj, self.context.get('request'))
+
+
+class PersonSerializer(serializers.ModelSerializer):
+    """Лицо (чтение)"""
+
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Person
+        fields = (
+            'id',
+            'target',
+            'full_name',
+            'position',
+            'avatar',
+        )
+
+    def get_avatar(self, obj):
+        return _person_avatar_url(obj, self.context.get('request'))
+
+
+class PersonCreateSerializer(serializers.ModelSerializer):
+    """Создание/обновление лица"""
+
+    class Meta:
+        model = Person
+        fields = (
+            'id',
+            'target',
+            'full_name',
+            'position',
+        )
+        read_only_fields = ('id',)
+
+
+class PersonRelationSerializer(serializers.ModelSerializer):
+    """Связь между лицами"""
+
+    person_from = PersonListSerializer(read_only=True)
+    person_to = PersonListSerializer(read_only=True)
+    relation_type = RelationTypeSerializer(read_only=True)
+    direction = serializers.SerializerMethodField()
+    label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PersonRelation
+        fields = (
+            'id',
+            'person_from',
+            'person_to',
+            'relation_type',
+            'notes',
+            'direction',
+            'label',
+        )
+
+    def get_direction(self, obj):
+        context_person_id = self.context.get('person_id')
+        if context_person_id and str(obj.person_from_id) == str(context_person_id):
+            return 'out'
+        if context_person_id and str(obj.person_to_id) == str(context_person_id):
+            return 'in'
+        return 'out'
+
+    def get_label(self, obj):
+        context_person_id = self.context.get('person_id')
+        if context_person_id and str(obj.person_to_id) == str(context_person_id):
+            return obj.relation_type.effective_reverse_title
+        return obj.relation_type.title
+
+
+class PersonRelationWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление связи между лицами"""
+
+    class Meta:
+        model = PersonRelation
+        fields = (
+            'id',
+            'person_from',
+            'person_to',
+            'relation_type',
+            'notes',
+        )
+
+    def validate(self, attrs):
+        person_from = attrs.get('person_from', getattr(self.instance, 'person_from', None))
+        person_to = attrs.get('person_to', getattr(self.instance, 'person_to', None))
+        if person_from and person_to and person_from.id == person_to.id:
+            raise serializers.ValidationError('Лицо не может быть связано само с собой')
+        return attrs

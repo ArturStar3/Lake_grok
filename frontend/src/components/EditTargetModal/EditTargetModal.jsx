@@ -11,7 +11,10 @@ import {
     flattenTargetTypeTree,
     formatTypeOptionLabel,
     filterTargetTypesForCountry,
+    filterParentOptionsForTarget,
 } from '../../utils/targetTypeTree';
+import PersonEditor from '../PersonEditor/PersonEditor';
+import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
 
@@ -38,6 +41,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const [attachmentDrafts, setAttachmentDrafts] = useState({});
     const [attachmentFormsOpen, setAttachmentFormsOpen] = useState({});
     const [previewImage, setPreviewImage] = useState(null);
+    const [persons, setPersons] = useState([]);
+    const [personEditorOpen, setPersonEditorOpen] = useState(false);
+    const [editingPersonId, setEditingPersonId] = useState(null);
     
     const [countries, setCountries] = useState([]);
     const [markers, setMarkers] = useState([]);
@@ -87,7 +93,23 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     );
     
     // Dropdown для parent (исключаем себя)
-    const parentOptions = targets.filter(t => t.id !== targetId);
+    const parentOptions = useMemo(
+        () => filterParentOptionsForTarget(targets, targetTypes, {
+            countryId: formData.country,
+            typeId: formData.type,
+            excludeId: targetId,
+        }),
+        [targets, targetTypes, formData.country, formData.type, targetId],
+    );
+
+    useEffect(() => {
+        if (!formData.parent) return;
+        const stillValid = parentOptions.some((t) => t.id === formData.parent);
+        if (!stillValid) {
+            setFormData((prev) => ({ ...prev, parent: '' }));
+        }
+    }, [parentOptions, formData.parent]);
+
     const parentDropdown = useDropdownWithSearch(
         parentOptions,
         (id) => {
@@ -149,7 +171,13 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
 
                 const cachedParents = cachedTargetsRef.current;
                 if (cachedParents && cachedParents.length > 0) {
-                    setTargets(cachedParents.map((t) => ({ id: t.id, title: t.title, label: t.label })));
+                    setTargets(cachedParents.map((t) => ({
+                        id: t.id,
+                        title: t.title,
+                        label: t.label,
+                        country: t.country?.id ?? t.country,
+                        type: t.type?.id ?? t.type,
+                    })));
                 } else {
                     const parentsRes = await axios.get(`${API_ROOT}/api/v1/targets/parent-options/`, {
                         signal: controller.signal,
@@ -217,6 +245,18 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                     if (err?.code === 'ERR_CANCELED' || axios.isCancel?.(err)) return;
                     console.warn('Ошибка загрузки изображений формуляра:', err);
                     setAttachmentsBySection({});
+                }
+
+                try {
+                    const personsRes = await axios.get(`${API_ROOT}/api/v1/persons/`, {
+                        params: { target: targetId },
+                        signal: controller.signal,
+                    });
+                    if (seq !== loadSeqRef.current) return;
+                    setPersons(personsRes.data || []);
+                } catch (err) {
+                    if (err?.code === 'ERR_CANCELED' || axios.isCancel?.(err)) return;
+                    setPersons([]);
                 }
             } catch (error) {
                 if (error?.code === 'ERR_CANCELED' || axios.isCancel?.(error)) return;
@@ -411,6 +451,26 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
+    };
+
+    const reloadPersons = async () => {
+        if (!targetId) return;
+        try {
+            const res = await axios.get(`${API_ROOT}/api/v1/persons/`, { params: { target: targetId } });
+            setPersons(res.data || []);
+        } catch (err) {
+            console.warn('Ошибка загрузки персоналий:', err);
+        }
+    };
+
+    const handleDeletePerson = async (id) => {
+        if (!window.confirm('Удалить лицо?')) return;
+        try {
+            await axios.delete(`${API_ROOT}/api/v1/persons/${id}/`);
+            await reloadPersons();
+        } catch (err) {
+            console.error(err);
+        }
     };
     
     const handleSave = async () => {
@@ -648,6 +708,12 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                         onClick={() => setActiveTab('formular')}
                     >
                         Формуляр
+                    </button>
+                    <button
+                        className={`edit-target-modal__tab ${activeTab === 'persons' ? 'edit-target-modal__tab--active' : ''}`}
+                        onClick={() => setActiveTab('persons')}
+                    >
+                        Персоналии
                     </button>
                 </div>
                 
@@ -1052,6 +1118,67 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                     {sections.map(section => renderSection(section))}
                                 </div>
                             )}
+
+                            {activeTab === 'persons' && (
+                                <div className="edit-target-modal__tab-content">
+                                    <div className="edit-target-modal__persons-toolbar">
+                                        <button
+                                            type="button"
+                                            className="edit-target-modal__button-add-action"
+                                            onClick={() => {
+                                                setEditingPersonId(null);
+                                                setPersonEditorOpen(true);
+                                            }}
+                                        >
+                                            + Добавить лицо
+                                        </button>
+                                    </div>
+                                    {persons.length === 0 ? (
+                                        <p className="edit-target-modal__persons-empty">Персоналии не указаны.</p>
+                                    ) : (
+                                        <ul className="edit-target-modal__persons-list">
+                                            {persons.map((person) => (
+                                                <li key={person.id} className="edit-target-modal__persons-item">
+                                                    <img
+                                                        className="edit-target-modal__persons-avatar"
+                                                        src={person.avatar || noUserIcon}
+                                                        alt=""
+                                                    />
+                                                    <div className="edit-target-modal__persons-info">
+                                                        <div className="edit-target-modal__persons-name">
+                                                            {person.full_name}
+                                                        </div>
+                                                        {person.position && (
+                                                            <div className="edit-target-modal__persons-position">
+                                                                {person.position}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="edit-target-modal__persons-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="edit-target-modal__persons-action edit-target-modal__persons-action--edit"
+                                                            onClick={() => {
+                                                                setEditingPersonId(person.id);
+                                                                setPersonEditorOpen(true);
+                                                            }}
+                                                        >
+                                                            Редактировать
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="edit-target-modal__persons-action edit-target-modal__persons-action--delete"
+                                                            onClick={() => handleDeletePerson(person.id)}
+                                                        >
+                                                            Удалить
+                                                        </button>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
                         </>
                     )}
                 </div>
@@ -1093,6 +1220,18 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                         </div>
                     </div>
                 </div>
+            )}
+            {personEditorOpen && (
+                <PersonEditor
+                    personId={editingPersonId}
+                    targetId={targetId}
+                    isOpen={personEditorOpen}
+                    onClose={() => {
+                        setPersonEditorOpen(false);
+                        setEditingPersonId(null);
+                    }}
+                    onSaved={reloadPersons}
+                />
             )}
         </div>
     );

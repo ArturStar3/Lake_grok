@@ -1,0 +1,133 @@
+.formular-completion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formular-completion__tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.formular-completion__tab {
+  padding: 6px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.formular-completion__tab--active {
+  border-color: #0d8f9b;
+  background: #f0fafb;
+  font-weight: 600;
+}
+
+.formular-completion__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.formular-completion__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formular-completion__row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.formular-completion__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.formular-completion__label {
+  font-size: 12px;
+  color: #666;
+}
+
+.formular-completion__percent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0a5c64;
+  white-space: nowrap;
+}
+
+.formular-completion__bar {
+  height: 8px;
+  border-radius: 4px;
+  background: #e8ecef;
+  overflow: hidden;
+}
+
+.formular-completion__bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #0d8f9b, #22c55e);
+  transition: width 0.25s ease;
+}
+
+.formular-completion__table-wrap {
+  overflow: auto;
+  max-height: 60vh;
+}
+
+.formular-completion__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.formular-completion__table th,
+.formular-completion__table td {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.formular-completion__table th {
+  background: #f5f7f8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.formular-completion__table td:first-child,
+.formular-completion__table th:first-child {
+  text-align: left;
+  min-width: 140px;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.formular-completion__table th:first-child {
+  background: #f5f7f8;
+}
+
+.formular-completion__cell--filled {
+  background: #dcfce7;
+}
+
+.formular-completion__cell--empty {
+  background: #f8fafc;
+}
+
+.formular-completion__empty {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}

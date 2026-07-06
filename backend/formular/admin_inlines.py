@@ -6,6 +6,7 @@ from .models import (
     TargetAction,
     CountryInfo,
     Formular,
+    Person,
 )
 
 
@@ -134,3 +135,18 @@ class TargetChildrenInline(TabularInline):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+class PersonInlineAdmin(TabularInline):
+    """Персоналии объекта"""
+
+    model = Person
+    fields = (
+        'full_name',
+        'position',
+    )
+    extra = 0
+    show_change_link = True
+    tab = True
+    verbose_name = 'Лицо'
+    verbose_name_plural = 'Персоналии'

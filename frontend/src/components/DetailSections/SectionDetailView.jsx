@@ -1,6 +1,8 @@
 import AttachmentGallery from './AttachmentGallery';
 import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDisplay';
 import SubordinationTree from './SubordinationTree';
+import FormularCompletionCard from './FormularCompletionCard';
+import PersonDetailView from './PersonDetailView';
 import { itemHasVisibleContent } from '../../utils/organizeSectionData';
 import './DetailSections.css';
 
@@ -83,6 +85,27 @@ export default function SectionDetailView({
           onSubordinateOpenDetails={onSubordinateOpenDetails}
           hideTitle
         />
+      </div>
+    );
+  }
+
+  if (card.kind === 'formular-completion') {
+    return (
+      <div className="detail-sections__detail">
+        <h3 className="detail-sections__group-title">{card.title}</h3>
+        <FormularCompletionCard
+          sections={card.payload.sections || []}
+          targets={card.payload.targets || []}
+        />
+      </div>
+    );
+  }
+
+  if (card.kind === 'persons') {
+    return (
+      <div className="detail-sections__detail">
+        <h3 className="detail-sections__group-title">{card.title}</h3>
+        <PersonDetailView persons={card.payload.persons || []} />
       </div>
     );
   }

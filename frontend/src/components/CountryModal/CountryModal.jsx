@@ -5,6 +5,7 @@ import DetailSectionNavigator from "../DetailSections/DetailSectionNavigator";
 import "./CountryModal.css";
 import { API_URL } from "../../config/api";
 import { buildSectionCards, organizeSectionData } from "../../utils/organizeSectionData";
+import { useFormularCompletion } from "../../hooks/formular/useFormularCompletion";
 
 const API_ROOT = API_URL;
 
@@ -25,6 +26,7 @@ export default function CountryModal({ countryIso, onClose }) {
     const [countryExists, setCountryExists] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [attachmentsBySection, setAttachmentsBySection] = useState({});
+    const { sections: completionSections, targets: completionTargets } = useFormularCompletion(countryId);
 
     useEffect(() => {
         if (!countryIso) return;
@@ -89,8 +91,16 @@ export default function CountryModal({ countryIso, onClose }) {
     const sectionCards = useMemo(() => {
         if (!data || !Array.isArray(data)) return [];
         const organized = organizeSectionData(data);
-        return buildSectionCards({ organized, attachmentsBySection });
-    }, [data, attachmentsBySection]);
+        const extraCards = completionTargets.length > 0 ? [{
+            id: 'formular-completion',
+            title: 'Заполненность формуляров',
+            excerpt: `${completionTargets.length} объектов`,
+            badge: { photos: 0, subsections: 0, items: completionTargets.length },
+            kind: 'formular-completion',
+            payload: { sections: completionSections, targets: completionTargets },
+        }] : [];
+        return buildSectionCards({ organized, attachmentsBySection, extraCards });
+    }, [data, attachmentsBySection, completionSections, completionTargets]);
 
     const handleOverlayClick = (e) => {
         if (e.target === e.currentTarget) {

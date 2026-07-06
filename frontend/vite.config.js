@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import process from 'node:process'
 
+const disableHmr = process.env.VITE_DISABLE_HMR === 'true'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -18,20 +20,24 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    // Windows + Docker bind mount: inotify в контейнере не видит правки на хосте
-    watch: {
-      usePolling: true,
-      interval: 1000,
-    },
-    // HMR host is configurable via VITE_HMR_HOST env (important for Docker + access by machine IP).
-    // Default = 'localhost' (works when opening http://localhost:5173 on the same machine).
-    // For LAN/IP access (http://<your-windows-ip>:5173) override in docker-compose:
-    //   VITE_HMR_HOST: <your-ip>   or try host.docker.internal .
-    // server.host: '0.0.0.0' ensures the dev server accepts connections on all interfaces.
-    hmr: {
-      host: process.env.VITE_HMR_HOST || 'localhost',
-      port: 5173,
-      clientPort: 5173,
-    },
+    // На сервере (оффлайн/Docker) отключаем HMR и watch — иначе polling
+    // даёт ложные изменения файлов и страница периодически перезагружается.
+    watch: disableHmr
+      ? null
+      : {
+          usePolling: true,
+          interval: 1000,
+        },
+    hmr: disableHmr
+      ? false
+      : {
+          host: process.env.VITE_HMR_HOST || 'localhost',
+          port: 5173,
+          clientPort: 5173,
+        },
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 5173,
   },
 })

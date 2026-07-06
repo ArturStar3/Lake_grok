@@ -23,6 +23,12 @@ from .models import (
     FormularSections,
     TargetType,
     FormularAttachment,
+    PersonSections,
+    RelationType,
+    Person,
+    PersonAttachment,
+    PersonPhoto,
+    PersonRelation,
 )
 from .admin_inlines import (
     TargetInlineAdmin,
@@ -32,6 +38,7 @@ from .admin_inlines import (
     CountryInfoInlineAdmin,
     FormularInlineAdmin,
     TargetChildrenInline,
+    PersonInlineAdmin,
 )
 
 EMPTY_VALUE_DISPLAY = '<пусто>'
@@ -120,6 +127,7 @@ class TargetAdmin(ModelAdmin):
         TargetActionInlineAdmin,
         TargetEquipmentInlineAdmin,
         FormularInlineAdmin,
+        PersonInlineAdmin,
         TargetChildrenInline,
     )
 
@@ -313,4 +321,58 @@ class TargetTypeAdmin(ModelAdmin):
     list_editable = ('order',)
     autocomplete_fields = ('parent', 'countries')
     search_fields = ('title',)
+    list_per_page = 50
+
+
+@admin.register(PersonSections)
+class PersonSectionsAdmin(ModelAdmin):
+    list_display = ('title', 'parent', 'order', 'is_hidden')
+    list_editable = ('order',)
+    autocomplete_fields = ('parent',)
+    search_fields = ('title',)
+    list_per_page = 50
+
+
+@admin.register(RelationType)
+class RelationTypeAdmin(ModelAdmin):
+    list_display = ('title', 'reverse_title')
+    search_fields = ('title', 'reverse_title')
+    list_per_page = 50
+
+
+@admin.register(Person)
+class PersonAdmin(ModelAdmin):
+    list_display = ('full_name', 'position', 'target')
+    search_fields = ('full_name', 'position', 'target__title')
+    autocomplete_fields = ('target',)
+    list_select_related = ('target',)
+    list_per_page = 50
+
+
+@admin.register(PersonAttachment)
+class PersonAttachmentAdmin(ModelAdmin):
+    list_display = ('title', 'person', 'section', 'created_at')
+    search_fields = ('title', 'person__full_name', 'section__title')
+    list_filter = ('section',)
+    autocomplete_fields = ('person', 'section')
+    list_select_related = ('person', 'section')
+    list_per_page = 50
+
+
+@admin.register(PersonPhoto)
+class PersonPhotoAdmin(ModelAdmin):
+    list_display = ('person', 'title', 'order', 'created_at')
+    search_fields = ('title', 'person__full_name')
+    list_filter = ('order',)
+    autocomplete_fields = ('person',)
+    list_select_related = ('person',)
+    list_per_page = 50
+
+
+@admin.register(PersonRelation)
+class PersonRelationAdmin(ModelAdmin):
+    list_display = ('person_from', 'relation_type', 'person_to', 'notes')
+    search_fields = ('person_from__full_name', 'person_to__full_name', 'relation_type__title')
+    autocomplete_fields = ('person_from', 'person_to', 'relation_type')
+    list_select_related = ('person_from', 'person_to', 'relation_type')
     list_per_page = 50
