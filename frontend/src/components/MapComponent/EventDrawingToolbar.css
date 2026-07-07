@@ -1,0 +1,157 @@
+.map__event-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: fit-content;
+  max-width: min(420px, calc(100% - 24px));
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.map--fullscreen .map__event-toolbar {
+  top: 10px;
+}
+
+.map__event-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.map__event-toolbar-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.map__event-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.map__event-toolbar-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.map__event-toolbar-btn--active {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.map__event-toolbar-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.map__event-toolbar-icon {
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.map__event-toolbar-hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #4b5563;
+  text-align: center;
+}
+
+.map__event-toolbar-error {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #b91c1c;
+  text-align: center;
+}
+
+.map__event-toolbar-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.map__event-toolbar-action {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.map__event-toolbar-action--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.map__event-toolbar-action:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.map__event-toolbar-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.map__event-toolbar-action--primary {
+  color: #1d4ed8;
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.map__event-toolbar-action--confirm {
+  color: #fff;
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.map__event-toolbar-action--confirm:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.map__event-toolbar-action--cancel {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.map__event-toolbar-action--cancel:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.map--drawing-event .leaflet-container {
+  cursor: crosshair;
+}
+
+.leaflet-interactive.event-polygon-edge {
+  cursor: copy;
+}

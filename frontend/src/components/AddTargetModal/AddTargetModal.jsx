@@ -17,7 +17,19 @@ import { API_URL } from '../../config/api';
 
 const API_ROOT = API_URL;
 
-export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTargetAddedWithFormular, cachedTargets = null }) {
+const formatCoord = (value) => {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '';
+    return Number(value).toFixed(6);
+};
+
+export default function AddTargetModal({
+    isOpen,
+    onClose,
+    initialCoords = null,
+    onTargetAdded,
+    onTargetAddedWithFormular,
+    cachedTargets = null,
+}) {
     const [formData, setFormData] = useState({
         country: '',
         title: '',
@@ -92,6 +104,21 @@ export default function AddTargetModal({ isOpen, onClose, onTargetAdded, onTarge
             }
         }
     );
+
+    useEffect(() => {
+        if (!isOpen || !initialCoords) return;
+
+        const countryId = initialCoords.countryIso
+            ? countries.find((c) => c.iso_code === initialCoords.countryIso)?.id || ''
+            : '';
+
+        setFormData((prev) => ({
+            ...prev,
+            lat: formatCoord(initialCoords.lat),
+            lng: formatCoord(initialCoords.lng),
+            country: countryId || prev.country,
+        }));
+    }, [isOpen, initialCoords, countries]);
 
     // Получаем цвет выбранной страны
     const selectedCountryColor = formData.country 

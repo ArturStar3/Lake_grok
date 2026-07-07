@@ -27,6 +27,10 @@ import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
 import MarkdownContent from "../common/MarkdownEditor/MarkdownContent";
+import EventDrawingToolbar from "./EventDrawingToolbar";
+import EventDraftLayer from "./EventDraftLayer";
+import { useEventDrawing } from "../../hooks/map/useEventDrawing";
+import { calcDistanceMeters } from "../../utils/geoUtils";
 import { isFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
 import { TILE_RASTER_URL, USE_VECTOR_MAP } from "../../config/tiles";
@@ -342,11 +346,26 @@ const FlagMapMarker = React.memo(function FlagMapMarker({
     obj,
     icon,
     measureMode,
+    eventDrawingActive,
+    altAddTargetActive,
+    onEventMapClick,
+    onAltClickAddTarget,
     onMarkerClick,
     onMarkerHover,
 }) {
     const eventHandlers = useMemo(() => ({
         click: (e) => {
+            if (eventDrawingActive) {
+                onEventMapClick?.(e.latlng, e.target._map);
+                return;
+            }
+            if (altAddTargetActive && e.originalEvent?.altKey) {
+                onAltClickAddTarget?.({
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                });
+                return;
+            }
             if (measureMode && e.originalEvent?.ctrlKey) return;
             if (onMarkerClick && obj.id) onMarkerClick(obj.id);
         },
@@ -354,7 +373,7 @@ const FlagMapMarker = React.memo(function FlagMapMarker({
             if (obj.id) onMarkerHover(obj.id);
         },
         mouseout: () => onMarkerHover(null),
-    }), [obj.id, measureMode, onMarkerClick, onMarkerHover]);
+    }), [obj.id, measureMode, eventDrawingActive, altAddTargetActive, onEventMapClick, onAltClickAddTarget, onMarkerClick, onMarkerHover]);
 
     if (!icon) return null;
 
@@ -373,7 +392,7 @@ function getFlagMarkerKey(o) {
     return `${o.id}-${markerId}`;
 }
 
-function FlagMarkersLayer({ markers, iconsById, measureMode, onMarkerClick, onMarkerHover }) {
+function FlagMarkersLayer({ markers, iconsById, measureMode, eventDrawingActive, altAddTargetActive, onEventMapClick, onAltClickAddTarget, onMarkerClick, onMarkerHover }) {
     const visible = useMapViewportMarkers(markers);
     return visible.map((obj) => (
         <FlagMapMarker
@@ -381,6 +400,10 @@ function FlagMarkersLayer({ markers, iconsById, measureMode, onMarkerClick, onMa
             obj={obj}
             icon={iconsById[obj.id]}
             measureMode={measureMode}
+            eventDrawingActive={eventDrawingActive}
+            altAddTargetActive={altAddTargetActive}
+            onEventMapClick={onEventMapClick}
+            onAltClickAddTarget={onAltClickAddTarget}
             onMarkerClick={onMarkerClick}
             onMarkerHover={onMarkerHover}
         />
@@ -391,6 +414,10 @@ const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
     obj,
     icon,
     measureMode,
+    eventDrawingActive,
+    altAddTargetActive,
+    onEventMapClick,
+    onAltClickAddTarget,
     pinnedGroupId,
     onMarkerClick,
     onMarkerHover,
@@ -413,6 +440,17 @@ const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
             }
         },
         click: (e) => {
+            if (eventDrawingActive) {
+                onEventMapClick?.(e.latlng, e.target._map);
+                return;
+            }
+            if (altAddTargetActive && e.originalEvent?.altKey) {
+                onAltClickAddTarget?.({
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                });
+                return;
+            }
             if (obj.isGroupIcon) {
                 e.originalEvent.stopPropagation();
                 if (pinnedGroupId === obj.groupId) {
@@ -431,6 +469,10 @@ const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
         obj.isGroupIcon,
         obj.groupId,
         measureMode,
+        eventDrawingActive,
+        altAddTargetActive,
+        onEventMapClick,
+        onAltClickAddTarget,
         pinnedGroupId,
         onMarkerClick,
         onMarkerHover,
@@ -457,6 +499,10 @@ function NonFlagMarkersLayer({
     currentZoom,
     pinnedGroupId,
     measureMode,
+    eventDrawingActive,
+    altAddTargetActive,
+    onEventMapClick,
+    onAltClickAddTarget,
     onMarkerClick,
     onMarkerHover,
     onGroupHover,
@@ -481,6 +527,10 @@ function NonFlagMarkersLayer({
                 obj={obj}
                 icon={iconsById[obj.isGroupIcon ? obj.groupId : obj.id]}
                 measureMode={measureMode}
+                eventDrawingActive={eventDrawingActive}
+                altAddTargetActive={altAddTargetActive}
+                onEventMapClick={onEventMapClick}
+                onAltClickAddTarget={onAltClickAddTarget}
                 pinnedGroupId={pinnedGroupId}
                 onMarkerClick={onMarkerClick}
                 onMarkerHover={onMarkerHover}
@@ -493,7 +543,7 @@ function NonFlagMarkersLayer({
 
 // Компонент для отображения элементов группы в круге при наведении.
 // Оптимизация: React.memo + вычисления зависят только от displayGroupId + groupedObjects.
-const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, svgCache, onMarkerClick, measureMode, onMarkerHover }) {
+const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjects, hoveredGroupId, pinnedGroupId, onPinGroup, iconsById, svgCache, onMarkerClick, measureMode, eventDrawingActive, altAddTargetActive, onEventMapClick, onAltClickAddTarget, onMarkerHover }) {
     const [mapRevision, setMapRevision] = React.useState(0);
     const mapInstance = useMapEvents({
         zoomend: () => setMapRevision((v) => v + 1),
@@ -617,6 +667,19 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
                             click: (e) => {
                                 e.originalEvent.stopPropagation();
 
+                                if (eventDrawingActive) {
+                                    onEventMapClick?.(e.latlng, e.target._map);
+                                    return;
+                                }
+
+                                if (altAddTargetActive && e.originalEvent?.altKey) {
+                                    onAltClickAddTarget?.({
+                                        lat: e.latlng.lat,
+                                        lng: e.latlng.lng,
+                                    });
+                                    return;
+                                }
+
                                 handleCloseCircle();
                                 if (measureMode && e.originalEvent?.ctrlKey) {
                                     return;
@@ -669,6 +732,12 @@ function ZoomTracker({ onZoomChange }) {
 function MapEventBridge({ apiRef }) {
     const map = useMapEvents({
         click: (e) => apiRef.current?.onClick?.(e, map),
+        dblclick: (e) => {
+            const handled = apiRef.current?.onDblClick?.(e, map);
+            if (handled) {
+                L.DomEvent.stopPropagation(e);
+            }
+        },
         mousemove: (e) => apiRef.current?.onMouseMove?.(e, map),
         mouseout: (e) => apiRef.current?.onMouseOut?.(e, map),
     });
@@ -724,6 +793,7 @@ function MapComponent({
     onTableTabChange,
     onMarkerClick,
     onMarkerHover,
+    onAltClickAddTarget,
     onEditClick,
     onDeleteClick,
     onEventSave,
@@ -770,10 +840,6 @@ function MapComponent({
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
     const [selectedCountryIso, setSelectedCountryIso] = useState(null);
-    const [eventContextMenu, setEventContextMenu] = useState(null);
-    const [eventDrawMode, setEventDrawMode] = useState(null);
-    const [eventDrawPoints, setEventDrawPoints] = useState([]);
-    const [polygonContextMenu, setPolygonContextMenu] = useState(null);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [markerVersion, setMarkerVersion] = useState(0);
@@ -804,6 +870,8 @@ function MapComponent({
     const skipZoneHoverUpdatesRef = useRef(false);
     const suppressNextMapClickRef = useRef(false);
     const mapEventApiRef = useRef({});
+    const countryClickApiRef = useRef({});
+    const altAddTargetApiRef = useRef({});
     const zoneHoverControllerRef = useRef(null);
     if (!zoneHoverControllerRef.current) {
         zoneHoverControllerRef.current = createZoneHoverController();
@@ -823,19 +891,16 @@ function MapComponent({
     const mapMaxBounds = [[-85.0511287798, -180], [85.0511287798, 180]];
 
     const isEventEditModeActive = isEditEventMode && !!editEventDrawMode;
-    const activeEventDrawMode = isEventEditModeActive ? editEventDrawMode : eventDrawMode;
-    const activeEventDrawPoints = isEventEditModeActive ? editEventDrawPoints : eventDrawPoints;
-    const updateActiveEventDrawPoints = useCallback((updater) => {
-        if (isEventEditModeActive) {
-            onEditEventDrawPointsChange((prev) =>
-                typeof updater === "function" ? updater(prev) : updater
-            );
-            return;
-        }
-        setEventDrawPoints((prev) =>
-            typeof updater === "function" ? updater(prev) : updater
-        );
-    }, [isEventEditModeActive, onEditEventDrawPointsChange]);
+    const eventsTabActive = tableTab === 'events';
+    const eventsDrawingEnabled = eventsTabActive || isEventEditModeActive;
+
+    const eventDrawing = useEventDrawing({
+        enabled: eventsDrawingEnabled,
+        isEditMode: isEventEditModeActive,
+        drawMode: editEventDrawMode,
+        drawPoints: editEventDrawPoints,
+        onDrawPointsChange: onEditEventDrawPointsChange,
+    });
 
     // Пересоздаём маркеры только при изменении полного набора объектов, а не при filterCountry на карте
     const objectsDataKey = useMemo(() => {
@@ -911,6 +976,66 @@ function MapComponent({
     const effectiveMeasureMode = isFullscreen ? isMeasureMode : measureMode;
     const effectiveMeasurePoints = isFullscreen ? measurePoints : measurements;
 
+    const handleSelectEventTool = useCallback((tool) => {
+        if (effectiveMeasureMode) {
+            if (isFullscreen) {
+                setIsMeasureMode(false);
+            }
+            onMeasureModeChange?.(false);
+        }
+        eventDrawing.selectTool(tool);
+    }, [effectiveMeasureMode, isFullscreen, onMeasureModeChange, eventDrawing]);
+
+    const handleEventConfirm = useCallback(() => {
+        if (eventDrawing.validateBeforeSave()) return;
+        setIsEventModalOpen(true);
+    }, [eventDrawing]);
+
+    const handleEventCancel = useCallback(() => {
+        eventDrawing.clearDraft();
+        setIsEventModalOpen(false);
+    }, [eventDrawing]);
+
+    const isEventDrawingActive = eventsDrawingEnabled && Boolean(eventDrawing.drawMode);
+
+    const handleEventMapClick = useCallback((latlng, map) => {
+        if (!isEventDrawingActive) return;
+        if (isEventPointDraggingRef.current || isEventPointPointerDownRef.current) return;
+        eventDrawing.handleMapClick(latlng, map || mapRef.current);
+    }, [isEventDrawingActive, eventDrawing]);
+
+    const handleEventMapDblClick = useCallback((latlng, map) => {
+        if (!isEventDrawingActive) return false;
+        if (isEventPointDraggingRef.current || isEventPointPointerDownRef.current) return false;
+        return eventDrawing.handleMapDblClick(latlng, map || mapRef.current);
+    }, [isEventDrawingActive, eventDrawing]);
+
+    const handleMarkerClickGuarded = useCallback((id) => {
+        if (isEventDrawingActive) return;
+        onMarkerClick?.(id);
+    }, [isEventDrawingActive, onMarkerClick]);
+
+    const handleAltClickAddTarget = useCallback((payload) => {
+        setSelectedCountryIso(null);
+        onAltClickAddTarget?.(payload);
+    }, [onAltClickAddTarget]);
+
+    const isAltAddTargetActive = !isEventDrawingActive && Boolean(onAltClickAddTarget);
+
+    countryClickApiRef.current.isEventDrawingActive = isEventDrawingActive;
+    countryClickApiRef.current.handleEventMapClick = handleEventMapClick;
+    countryClickApiRef.current.setSelectedCountryIso = setSelectedCountryIso;
+    countryClickApiRef.current.onAltClickAddTarget = handleAltClickAddTarget;
+
+    altAddTargetApiRef.current.isEventDrawingActive = isEventDrawingActive;
+    altAddTargetApiRef.current.onAltClickAddTarget = handleAltClickAddTarget;
+
+    useEffect(() => {
+        if (isEventDrawingActive) {
+            setSelectedCountryIso(null);
+        }
+    }, [isEventDrawingActive]);
+
     // Cleanup zone panel when the "Зона действия" tool is turned off
     useEffect(() => {
         if (!showActionRadius) {
@@ -972,14 +1097,12 @@ function MapComponent({
                     zoneHoverControllerRef.current?.clear();
                 } else if (pinnedGroupId) {
                     setPinnedGroupId(null);
-                } else if (isFullscreen) {
-                    setIsFullscreen(false);
                 }
             }
         };
         document.addEventListener("keydown", handleEsc);
         return () => document.removeEventListener("keydown", handleEsc)
-    }, [isFullscreen, pinnedGroupId, pinnedZonePanel]);
+    }, [pinnedGroupId, pinnedZonePanel]);
 
     useEffect(() => {
         const observer = new ResizeObserver(() => {
@@ -1051,14 +1174,26 @@ function MapComponent({
 
         layer.on({
             click: (e) => {
-                if (e.originalEvent?.altKey) {
+                const api = countryClickApiRef.current;
+                if (api.isEventDrawingActive) {
+                    L.DomEvent.stopPropagation(e);
+                    api.handleEventMapClick?.(e.latlng, e.target._map);
+                    return;
+                }
+                if (e.originalEvent?.altKey && api.onAltClickAddTarget) {
+                    L.DomEvent.stopPropagation(e);
+                    api.onAltClickAddTarget({
+                        lat: e.latlng.lat,
+                        lng: e.latlng.lng,
+                        countryIso,
+                    });
                     return;
                 }
                 // Не открываем модальное окно если нажат Ctrl (в режиме измерения для добавления точки)
                 if (e.originalEvent.ctrlKey) {
                     return;
                 }
-                setSelectedCountryIso(countryIso);
+                api.setSelectedCountryIso?.(countryIso);
             }
         })
         layer.on({
@@ -1086,157 +1221,6 @@ function MapComponent({
         setNonFlagData(data);
     }, []);
 
-    const getOrderedPolygonPoints = (points) => {
-        if (!points || points.length < 3) return points;
-        const center = points.reduce(
-            (acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }),
-            { lat: 0, lng: 0 }
-        );
-        const c = { lat: center.lat / points.length, lng: center.lng / points.length };
-        return [...points].sort((a, b) => {
-            const angleA = Math.atan2(a.lat - c.lat, a.lng - c.lng);
-            const angleB = Math.atan2(b.lat - c.lat, b.lng - c.lng);
-            return angleA - angleB;
-        });
-    };
-
-    const orientation = (p, q, r) => {
-        const val = (q.lng - p.lng) * (r.lat - q.lat) - (q.lat - p.lat) * (r.lng - q.lng);
-        if (Math.abs(val) < 1e-12) return 0;
-        return val > 0 ? 1 : 2;
-    };
-
-    const onSegment = (p, q, r) => {
-        return (
-            q.lng <= Math.max(p.lng, r.lng) &&
-            q.lng >= Math.min(p.lng, r.lng) &&
-            q.lat <= Math.max(p.lat, r.lat) &&
-            q.lat >= Math.min(p.lat, r.lat)
-        );
-    };
-
-    const segmentsIntersect = (p1, q1, p2, q2) => {
-        const o1 = orientation(p1, q1, p2);
-        const o2 = orientation(p1, q1, q2);
-        const o3 = orientation(p2, q2, p1);
-        const o4 = orientation(p2, q2, q1);
-
-        if (o1 !== o2 && o3 !== o4) return true;
-
-        if (o1 === 0 && onSegment(p1, p2, q1)) return true;
-        if (o2 === 0 && onSegment(p1, q2, q1)) return true;
-        if (o3 === 0 && onSegment(p2, p1, q2)) return true;
-        if (o4 === 0 && onSegment(p2, q1, q2)) return true;
-
-        return false;
-    };
-
-    const isSelfIntersecting = (points) => {
-        if (!points || points.length < 4) return false;
-        const n = points.length;
-        for (let i = 0; i < n; i++) {
-            const a1 = points[i];
-            const a2 = points[(i + 1) % n];
-            for (let j = i + 1; j < n; j++) {
-                if (Math.abs(i - j) <= 1) continue;
-                if (i === 0 && j === n - 1) continue;
-                const b1 = points[j];
-                const b2 = points[(j + 1) % n];
-                if (segmentsIntersect(a1, a2, b1, b2)) return true;
-            }
-        }
-        return false;
-    };
-
-    const normalizePolygonPoints = (points) => {
-        if (!points || points.length < 3) return points;
-        if (isSelfIntersecting(points)) {
-            return getOrderedPolygonPoints(points);
-        }
-        return points;
-    };
-
-    const isEventReady = () => {
-        if (!activeEventDrawMode) return false;
-        if (activeEventDrawMode === "point") return activeEventDrawPoints.length >= 1;
-        if (activeEventDrawMode === "circle") return activeEventDrawPoints.length >= 2;
-        if (activeEventDrawMode === "rectangle") return activeEventDrawPoints.length >= 4;
-        if (activeEventDrawMode === "polygon") return activeEventDrawPoints.length >= 3;
-        return false;
-    };
-
-    const clearEventDraft = () => {
-        setEventDrawMode(null);
-        setEventDrawPoints([]);
-        setPolygonContextMenu(null);
-    };
-
-    const getMenuPosition = (evt) => {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) {
-            return { x: evt.clientX, y: evt.clientY };
-        }
-        return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    };
-
-    const isPointInPolygon = (point, polygon) => {
-        if (!polygon || polygon.length < 3) return false;
-        let inside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i].lng;
-            const yi = polygon[i].lat;
-            const xj = polygon[j].lng;
-            const yj = polygon[j].lat;
-
-            const intersect = ((yi > point.lat) !== (yj > point.lat)) &&
-                (point.lng < (xj - xi) * (point.lat - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    };
-
-    const initEventPoints = (shape, anchor) => {
-        if (!anchor) return [];
-        const baseLat = anchor.lat;
-        const baseLng = anchor.lng;
-        const delta = 0.05;
-
-        if (shape === "point") {
-            return [{ lat: baseLat, lng: baseLng }];
-        }
-        if (shape === "circle") {
-            return [
-                { lat: baseLat, lng: baseLng },
-                { lat: baseLat, lng: baseLng + delta }
-            ];
-        }
-        if (shape === "rectangle") {
-            return [
-                { lat: baseLat + delta, lng: baseLng - delta },
-                { lat: baseLat + delta, lng: baseLng + delta },
-                { lat: baseLat - delta, lng: baseLng + delta },
-                { lat: baseLat - delta, lng: baseLng - delta }
-            ];
-        }
-        if (shape === "polygon") {
-            return [
-                { lat: baseLat + delta, lng: baseLng - delta },
-                { lat: baseLat + delta, lng: baseLng + delta },
-                { lat: baseLat - delta, lng: baseLng }
-            ];
-        }
-        return [];
-    };
-
-    const updateEventPoint = (index, latlng) => {
-        updateActiveEventDrawPoints((prev) => {
-            const next = [...prev];
-            next[index] = { lat: latlng.lat, lng: latlng.lng };
-            return next;
-        });
-    };
-
-
     // Используем clusteredObjects для отображения маркеров (с примененными офсетами)
     // Исключаем non-flag объекты - они будут отображаться отдельно
     // Memoized + use a Set for O(1) selected check to reduce work on re-renders
@@ -1257,14 +1241,11 @@ function MapComponent({
     // их срабатывания — каждый блок изолирован своим замыканием, чтобы `return`
     // прерывал только свою секцию, как это было у отдельных useMapEvents.
     mapEventApiRef.current.onClick = (e, map) => {
-        // 1) Клик по карте: закрытие меню полигона / группы / панели зон
+        // 1) Клик по карте: закрытие меню группы / панели зон
         (() => {
             if (suppressNextMapClickRef.current) {
                 suppressNextMapClickRef.current = false;
                 return;
-            }
-            if (polygonContextMenu) {
-                setPolygonContextMenu(null);
             }
             if (pinnedGroupId) {
                 setPinnedGroupId(null);
@@ -1284,30 +1265,34 @@ function MapComponent({
             onAddPoint({ lat, lng });
         })();
 
-        // 3) Контекст события: Alt+клик открывает меню (вне режима редактирования)
+        // 3) Рисование события: клик по карте при выбранном инструменте
         (() => {
-            if (isEventEditModeActive) {
-                if (eventContextMenu) setEventContextMenu(null);
-                return;
-            }
-            if (e.originalEvent?.altKey) {
-                const point = map.mouseEventToContainerPoint(e.originalEvent);
-                setEventContextMenu({
-                    x: point.x,
-                    y: point.y,
-                    lat: e.latlng.lat,
-                    lng: e.latlng.lng,
-                });
-                return;
-            }
-            if (eventContextMenu) setEventContextMenu(null);
+            handleEventMapClick(e.latlng, map);
         })();
+
+        // 4) Alt+клик: добавление объекта
+        (() => {
+            const api = altAddTargetApiRef.current;
+            if (!e.originalEvent?.altKey || api.isEventDrawingActive || !api.onAltClickAddTarget) return;
+            api.onAltClickAddTarget({
+                lat: e.latlng.lat,
+                lng: e.latlng.lng,
+            });
+        })();
+    };
+
+    mapEventApiRef.current.onDblClick = (e, map) => {
+        if (e.originalEvent?.altKey) return false;
+        return handleEventMapDblClick(e.latlng, map);
     };
 
     // Трекер координат курсора (обновляет DOM напрямую, без ре-рендера React).
     mapEventApiRef.current.onMouseMove = (e) => {
         if (isEventPointDraggingRef.current) return;
         if (isEventPointPointerDownRef.current) return;
+        if (eventsDrawingEnabled && eventDrawing.drawMode) {
+            eventDrawing.handleMapMove(e.latlng);
+        }
         const el = cursorCoordsRef.current;
         if (!el) return;
         el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
@@ -1320,14 +1305,16 @@ function MapComponent({
 
     // Новый обработчик hover: синхронизирует локальное состояние и родительский callback
     const handleMarkerHover = useCallback((targetId) => {
+        if (isEventDrawingActive) return;
         if (skipZoneHoverUpdatesRef.current) return;
         if (lastMarkerHoverRef.current === targetId) return;
         lastMarkerHoverRef.current = targetId;
         zoneHoverControllerRef.current?.setHovered(targetId ? [targetId] : []);
         onMarkerHover?.(targetId);
-    }, [onMarkerHover]);
+    }, [onMarkerHover, isEventDrawingActive]);
 
     const updateGroupHover = useCallback((groupId) => {
+        if (isEventDrawingActive) return;
         if (skipZoneHoverUpdatesRef.current) return;
         setHoveredGroupId(groupId);
         if (!groupId) {
@@ -1338,7 +1325,7 @@ function MapComponent({
             .filter((o) => o.groupId === groupId && !o.isGroupIcon && o.id)
             .map((o) => o.id);
         zoneHoverControllerRef.current?.setHovered(memberIds);
-    }, [nonFlagData.groupedObjects]);
+    }, [nonFlagData.groupedObjects, isEventDrawingActive]);
 
     const handleZonePanelClose = useCallback(() => {
         setPinnedZonePanel(null);
@@ -1388,6 +1375,10 @@ function MapComponent({
     }, [pinnedZonePanel]);
 
     const handleZoneClickAt = useCallback((e, candidates) => {
+        if (isEventDrawingActive) {
+            handleEventMapClick(e.latlng, e.target?._map);
+            return;
+        }
         if (!candidates?.length || !isFullscreen) return;
 
         suppressNextMapClickRef.current = true;
@@ -1405,7 +1396,7 @@ function MapComponent({
         setSelectedZoneEntryId(null);
         setActiveZonePopup(null);
         zoneHoverControllerRef.current?.setHoveredEntries(candidates.map((z) => z.entryId));
-    }, [isFullscreen, onCheckboxChange, selectedSet]);
+    }, [isFullscreen, onCheckboxChange, selectedSet, isEventDrawingActive, handleEventMapClick]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1419,22 +1410,13 @@ function MapComponent({
         return meters >= 1000 ? `${(meters / 1000).toFixed(2)} км` : `${meters.toFixed(0)} м`;
     };
 
-    const toRadians = (deg) => (deg * Math.PI) / 180;
-    const calcDistanceMeters = (from, to) => {
-        const R = 6371e3;
-        const phi1 = toRadians(from.lat);
-        const phi2 = toRadians(to.lat);
-        const deltaPhi = toRadians(to.lat - from.lat);
-        const deltaLambda = toRadians(to.lng - from.lng);
-
-        const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-    };
-
     const renderEventShape = (eventItem) => {
         const shape = eventItem?.shape;
         if (!shape || !shape.type) return null;
+
+        const layerInteraction = isEventDrawingActive
+            ? { interactive: false, bubblingMouseEvents: false }
+            : {};
 
         const dateLabel = eventItem.date_start
             ? `с ${eventItem.date_start}${eventItem.date_end ? ` по ${eventItem.date_end}` : ""}`
@@ -1520,6 +1502,7 @@ function MapComponent({
                     key={`event-point-${eventItem.id}`}
                     position={[shape.geometry.lat, shape.geometry.lng]}
                     icon={icon}
+                    {...layerInteraction}
                 >
                     {popupContent}
                 </Marker>
@@ -1535,6 +1518,7 @@ function MapComponent({
                         center={[shape.geometry.lat, shape.geometry.lng]}
                         radius={shape.geometry.radius || 0}
                         pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1 }}
+                        {...layerInteraction}
                     >
                         {popupContent}
                     </Circle>
@@ -1543,6 +1527,7 @@ function MapComponent({
                             key={`event-circle-marker-${eventItem.id}`}
                             position={markerPosition}
                             icon={icon}
+                            {...layerInteraction}
                         />
                     )}
                 </React.Fragment>
@@ -1557,6 +1542,7 @@ function MapComponent({
                     <Polygon
                         positions={shape.geometry.points.map((p) => [p.lat, p.lng])}
                         pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1 }}
+                        {...layerInteraction}
                     >
                         {popupContent}
                     </Polygon>
@@ -1565,6 +1551,7 @@ function MapComponent({
                             key={`event-area-marker-${eventItem.id}`}
                             position={markerPosition}
                             icon={icon}
+                            {...layerInteraction}
                         />
                     )}
                 </React.Fragment>
@@ -1585,59 +1572,12 @@ function MapComponent({
         });
     }, [measurePoints]);
 
-    const handleMapContextMenu = (e) => {
-        if (isEventEditModeActive) return;
-        if (activeEventDrawMode !== "polygon") return;
-        if (!mapRef?.current) return;
-        if (activeEventDrawPoints.length < 3) return;
-
-        e.preventDefault();
-
-        const { x, y } = getMenuPosition(e);
-        const latlng = mapRef.current.mouseEventToLatLng(e);
-
-        const clickPoint = mapRef.current.latLngToContainerPoint(latlng);
-        const hitIndex = activeEventDrawPoints.findIndex((p) => {
-            const pPoint = mapRef.current.latLngToContainerPoint(p);
-            return clickPoint.distanceTo(pPoint) <= 12;
-        });
-
-        if (hitIndex >= 0) {
-            setPolygonContextMenu({ x, y, lat: latlng.lat, lng: latlng.lng, targetIndex: hitIndex });
-            return;
-        }
-
-        const normalizedPoints = normalizePolygonPoints(activeEventDrawPoints);
-        if (isPointInPolygon({ lat: latlng.lat, lng: latlng.lng }, normalizedPoints)) {
-            setPolygonContextMenu({ x, y, lat: latlng.lat, lng: latlng.lng, targetIndex: null });
-        }
-    };
-
-    const getSegmentLabels = (points) => {
-        if (!points || points.length < 2) return [];
-        const segments = [];
-        for (let i = 0; i < points.length; i += 1) {
-            const current = points[i];
-            const next = points[(i + 1) % points.length];
-            if (!current || !next) continue;
-            const midLat = (current.lat + next.lat) / 2;
-            const midLng = (current.lng + next.lng) / 2;
-            const distanceKm = calcDistanceMeters(current, next) / 1000;
-            segments.push({
-                key: `segment-${i}`,
-                lat: midLat,
-                lng: midLng,
-                label: `${distanceKm.toFixed(2)} км`
-            });
-        }
-        return segments;
-    };
+    const isMapDrawingEvent = isEventDrawingActive;
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen": ""}`}
+            className={`map ${isFullscreen ? "map--fullscreen": ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
             ref={containerRef}
-            onContextMenu={handleMapContextMenu}
         >
             {vectorMapError && USE_VECTOR_MAP && (
                 <div className="map__vector-error" role="alert">
@@ -1753,7 +1693,7 @@ function MapComponent({
                                     targetTypes={targetTypes}
                                     selectedObj={selectedObj}
                                     onCheckboxChange={onCheckboxChange}
-                                    onTitleClick={onMarkerClick}
+                                    onTitleClick={handleMarkerClickGuarded}
                                     hoveredTargetId={hoveredTargetId}
                                     onRowHover={setHoveredTargetId}
                                     onObjectClick={(obj) => {
@@ -1880,8 +1820,12 @@ function MapComponent({
                     onPinGroup={setPinnedGroupId}
                     iconsById={nonFlagData.iconsById}
                     svgCache={nonFlagData.svgCache}
-                    onMarkerClick={onMarkerClick}
+                    onMarkerClick={handleMarkerClickGuarded}
                     measureMode={effectiveMeasureMode}
+                    eventDrawingActive={isMapDrawingEvent}
+                    altAddTargetActive={isAltAddTargetActive}
+                    onEventMapClick={handleEventMapClick}
+                    onAltClickAddTarget={handleAltClickAddTarget}
                     onMarkerHover={handleMarkerHover}
                 />
                 {geoData && (
@@ -1891,144 +1835,21 @@ function MapComponent({
                             style={countryStyle}
                         />
                 )}
-                {activeEventDrawMode && activeEventDrawPoints.length > 0 && (
-                    <>
-                        {activeEventDrawMode === "point" && activeEventDrawPoints[0] && (
-                            <CircleMarker
-                                center={[activeEventDrawPoints[0].lat, activeEventDrawPoints[0].lng]}
-                                radius={6}
-                                pathOptions={{ color: "#ff9800", fillColor: "#ffcc80", fillOpacity: 0.9 }}
-                            />
-                        )}
-                        {activeEventDrawMode === "circle" && activeEventDrawPoints.length >= 2 && (
-                            <Circle
-                                center={[activeEventDrawPoints[0].lat, activeEventDrawPoints[0].lng]}
-                                radius={calcDistanceMeters(activeEventDrawPoints[0], activeEventDrawPoints[1])}
-                                pathOptions={{ color: "#ff9800", fillColor: "#ffcc80", fillOpacity: 0.2, weight: 1, interactive: false }}
-                            />
-                        )}
-                        {activeEventDrawMode === "circle" && activeEventDrawPoints.length >= 2 && (
-                            <Polyline
-                                positions={[
-                                    [activeEventDrawPoints[0].lat, activeEventDrawPoints[0].lng],
-                                    [activeEventDrawPoints[1].lat, activeEventDrawPoints[1].lng]
-                                ]}
-                                pathOptions={{ color: "#ff9800", weight: 1, dashArray: "4 6", interactive: false }}
-                                interactive={false}
-                                bubblingMouseEvents={false}
-                            />
-                        )}
-                        {activeEventDrawMode === "circle" && activeEventDrawPoints.length >= 2 && (
-                            <Marker
-                                position={[
-                                    activeEventDrawPoints[0].lat + (activeEventDrawPoints[1].lat - activeEventDrawPoints[0].lat) * 0.35,
-                                    activeEventDrawPoints[0].lng + (activeEventDrawPoints[1].lng - activeEventDrawPoints[0].lng) * 0.35
-                                ]}
-                                icon={L.divIcon({
-                                    className: "event-radius-label",
-                                    html: `<div class='event-radius-label__inner'>${(calcDistanceMeters(activeEventDrawPoints[0], activeEventDrawPoints[1]) / 1000).toFixed(2)} км</div>`
-                                })}
-                                interactive={false}
-                                bubblingMouseEvents={false}
-                                zIndexOffset={900}
-                            />
-                        )}
-                        {activeEventDrawMode === "rectangle" && activeEventDrawPoints.length === 4 && (
-                            <>
-                                <Polygon
-                                    positions={normalizePolygonPoints(activeEventDrawPoints).map((p) => [p.lat, p.lng])}
-                                    pathOptions={{ color: "#ff9800", fillColor: "#ffcc80", fillOpacity: 0.2, weight: 1, interactive: false }}
-                                />
-                                {getSegmentLabels(normalizePolygonPoints(activeEventDrawPoints)).map((segment) => (
-                                    <Marker
-                                        key={segment.key}
-                                        position={[segment.lat, segment.lng]}
-                                        icon={L.divIcon({
-                                            className: "event-segment-label",
-                                            html: `<div class='event-segment-label__inner'>${segment.label}</div>`
-                                        })}
-                                        interactive={false}
-                                        bubblingMouseEvents={false}
-                                        zIndexOffset={900}
-                                    />
-                                ))}
-                            </>
-                        )}
-                        {activeEventDrawMode === "polygon" && activeEventDrawPoints.length >= 3 && (
-                            <>
-                                <Polygon
-                                    positions={normalizePolygonPoints(activeEventDrawPoints).map((p) => [p.lat, p.lng])}
-                                    pathOptions={{ color: "#ff9800", fillColor: "#ffcc80", fillOpacity: 0.2, weight: 1, interactive: false }}
-                                />
-                                {getSegmentLabels(normalizePolygonPoints(activeEventDrawPoints)).map((segment) => (
-                                    <Marker
-                                        key={segment.key}
-                                        position={[segment.lat, segment.lng]}
-                                        icon={L.divIcon({
-                                            className: "event-segment-label",
-                                            html: `<div class='event-segment-label__inner'>${segment.label}</div>`
-                                        })}
-                                        interactive={false}
-                                        bubblingMouseEvents={false}
-                                        zIndexOffset={900}
-                                    />
-                                ))}
-                            </>
-                        )}
-                        {activeEventDrawPoints.map((point, index) => (
-                            <Marker
-                                key={`event-point-${index}`}
-                                position={[point.lat, point.lng]}
-                                draggable
-                                interactive
-                                bubblingMouseEvents={false}
-                                autoPan
-                                zIndexOffset={1000}
-                                icon={L.divIcon({
-                                    className: "event-point-icon",
-                                    html: "<div class='event-point-handle'></div>",
-                                    iconSize: [14, 14],
-                                    iconAnchor: [7, 7]
-                                })}
-                                eventHandlers={{
-                                    mousedown: () => {
-                                        isEventPointPointerDownRef.current = true;
-                                    },
-                                    mouseup: () => {
-                                        isEventPointPointerDownRef.current = false;
-                                    },
-                                    contextmenu: (e) => {
-                                        if (isEventEditModeActive) return;
-                                        if (activeEventDrawMode !== "polygon") return;
-                                        e.originalEvent?.preventDefault?.();
-                                        const { x, y } = getMenuPosition(e.originalEvent);
-                                        setPolygonContextMenu({
-                                            x,
-                                            y,
-                                            lat: point.lat,
-                                            lng: point.lng,
-                                            targetIndex: index
-                                        });
-                                    },
-                                    dragstart: () => {
-                                        isEventPointDraggingRef.current = true;
-                                        if (mapRef?.current?.dragging) {
-                                            mapRef.current.dragging.disable();
-                                        }
-                                    },
-                                    dragend: (e) => {
-                                        const { lat, lng } = e.target.getLatLng();
-                                        updateEventPoint(index, { lat, lng });
-                                        isEventPointDraggingRef.current = false;
-                                        isEventPointPointerDownRef.current = false;
-                                        if (mapRef?.current?.dragging) {
-                                            mapRef.current.dragging.enable();
-                                        }
-                                    }
-                                }}
-                            />
-                        ))}
-                    </>
+                {isMapDrawingEvent && (
+                    <EventDraftLayer
+                        drawMode={eventDrawing.drawMode}
+                        drawPoints={eventDrawing.drawPoints}
+                        previewPoint={eventDrawing.previewPoint}
+                        previewRectangle={eventDrawing.previewRectangle}
+                        previewPolygonPositions={eventDrawing.previewPolygonPositions}
+                        polygonClosed={eventDrawing.polygonClosed}
+                        mapRef={mapRef}
+                        isEventPointDraggingRef={isEventPointDraggingRef}
+                        isEventPointPointerDownRef={isEventPointPointerDownRef}
+                        onUpdatePoint={eventDrawing.updatePoint}
+                        onRemoveVertex={eventDrawing.removeVertexAt}
+                        onInsertVertexOnEdge={eventDrawing.insertVertexAtEdge}
+                    />
                 )}
                 {events
                     .filter((item) => selectedEventIds.includes(item.id))
@@ -2037,7 +1858,11 @@ function MapComponent({
                     markers={displayedObjectsForMarkers}
                     iconsById={markerData.iconsById}
                     measureMode={effectiveMeasureMode}
-                    onMarkerClick={onMarkerClick}
+                    eventDrawingActive={isMapDrawingEvent}
+                    altAddTargetActive={isAltAddTargetActive}
+                    onEventMapClick={handleEventMapClick}
+                    onAltClickAddTarget={handleAltClickAddTarget}
+                    onMarkerClick={handleMarkerClickGuarded}
                     onMarkerHover={handleMarkerHover}
                 />
                 <NonFlagMarkersLayer
@@ -2047,7 +1872,11 @@ function MapComponent({
                     currentZoom={currentZoom}
                     pinnedGroupId={pinnedGroupId}
                     measureMode={effectiveMeasureMode}
-                    onMarkerClick={onMarkerClick}
+                    eventDrawingActive={isMapDrawingEvent}
+                    altAddTargetActive={isAltAddTargetActive}
+                    onEventMapClick={handleEventMapClick}
+                    onAltClickAddTarget={handleAltClickAddTarget}
+                    onMarkerClick={handleMarkerClickGuarded}
                     onMarkerHover={handleMarkerHover}
                     onGroupHover={updateGroupHover}
                     onPinGroup={setPinnedGroupId}
@@ -2175,24 +2004,23 @@ function MapComponent({
                     ☰
                 </button>
             )}
-            {isEventReady() && !isEventModalOpen && !isEventEditModeActive && (
-                <div className="map__event-actions">
-                    <button
-                        className="map__event-action map__event-action--confirm"
-                        onClick={() => setIsEventModalOpen(true)}
-                        aria-label="Открыть регистрацию события"
-                    >
-                        ✓
-                    </button>
-                    <button
-                        className="map__event-action map__event-action--cancel"
-                        onClick={clearEventDraft}
-                        aria-label="Удалить событие"
-                    >
-                        ✕
-                    </button>
-                </div>
-            )}
+            <EventDrawingToolbar
+                visible={eventsDrawingEnabled && !isEventModalOpen}
+                isEditMode={isEventEditModeActive}
+                activeTool={eventDrawing.selectedTool}
+                drawMode={eventDrawing.drawMode}
+                hint={eventDrawing.getHint()}
+                validationError={eventDrawing.validationError}
+                polygonClosed={eventDrawing.polygonClosed}
+                canFinishPolygon={eventDrawing.drawMode === 'polygon' && eventDrawing.drawPoints.length >= 3 && !eventDrawing.polygonClosed}
+                canUndoPoint={eventDrawing.drawMode === 'polygon' && eventDrawing.drawPoints.length >= 1 && !eventDrawing.polygonClosed}
+                isReady={eventDrawing.isReady()}
+                onSelectTool={handleSelectEventTool}
+                onFinishPolygon={eventDrawing.finishPolygon}
+                onUndoPoint={eventDrawing.undoLastPoint}
+                onConfirm={handleEventConfirm}
+                onCancel={handleEventCancel}
+            />
             {selectedCountryIso && (
                 <CountryModal 
                     countryIso={selectedCountryIso}
@@ -2204,95 +2032,12 @@ function MapComponent({
                     isOpen={isEventModalOpen}
                     onClose={() => {
                         setIsEventModalOpen(false);
-                        clearEventDraft();
+                        handleEventCancel();
                     }}
-                    drawMode={eventDrawMode}
-                    drawPoints={eventDrawPoints}
+                    drawMode={eventDrawing.drawMode}
+                    drawPoints={eventDrawing.drawPoints}
                     onSave={onEventSave}
                 />
-            )}
-            {!isEventEditModeActive && eventContextMenu && (
-                <div
-                    className="map__event-menu"
-                    style={{ left: eventContextMenu.x, top: eventContextMenu.y }}
-                >
-                    <div className="map__event-menu-title">Форма события</div>
-                    <button
-                        type="button"
-                        className="map__event-menu-item"
-                        onClick={() => {
-                            setEventDrawMode("point");
-                            setEventDrawPoints(initEventPoints("point", eventContextMenu));
-                            setEventContextMenu(null);
-                        }}
-                    >
-                        Точка
-                    </button>
-                    <button
-                        type="button"
-                        className="map__event-menu-item"
-                        onClick={() => {
-                            setEventDrawMode("circle");
-                            setEventDrawPoints(initEventPoints("circle", eventContextMenu));
-                            setEventContextMenu(null);
-                        }}
-                    >
-                        Окружность
-                    </button>
-                    <button
-                        type="button"
-                        className="map__event-menu-item"
-                        onClick={() => {
-                            setEventDrawMode("rectangle");
-                            setEventDrawPoints(initEventPoints("rectangle", eventContextMenu));
-                            setEventContextMenu(null);
-                        }}
-                    >
-                        Территория (4 точки)
-                    </button>
-                    <button
-                        type="button"
-                        className="map__event-menu-item"
-                        onClick={() => {
-                            setEventDrawMode("polygon");
-                            setEventDrawPoints(initEventPoints("polygon", eventContextMenu));
-                            setEventContextMenu(null);
-                        }}
-                    >
-                        Произвольная форма
-                    </button>
-                </div>
-            )}
-            {!isEventEditModeActive && polygonContextMenu && (
-                <div
-                    className="map__event-menu map__event-menu--polygon"
-                    style={{ left: polygonContextMenu.x, top: polygonContextMenu.y }}
-                >
-                    <div className="map__event-menu-title">Произвольная форма</div>
-                    <button
-                        type="button"
-                        className="map__event-menu-item"
-                        onClick={() => {
-                            setEventDrawPoints((prev) => [...prev, { lat: polygonContextMenu.lat, lng: polygonContextMenu.lng }]);
-                            setPolygonContextMenu(null);
-                        }}
-                    >
-                        Добавить точку
-                    </button>
-                    <button
-                        type="button"
-                        className="map__event-menu-item"
-                        disabled={polygonContextMenu.targetIndex === null || eventDrawPoints.length <= 3}
-                        onClick={() => {
-                            if (polygonContextMenu.targetIndex === null) return;
-                            if (eventDrawPoints.length <= 3) return;
-                            setEventDrawPoints((prev) => prev.filter((_, idx) => idx !== polygonContextMenu.targetIndex));
-                            setPolygonContextMenu(null);
-                        }}
-                    >
-                        Удалить точку
-                    </button>
-                </div>
             )}
             {/* Координаты курсора отображаются всегда (когда доступны), как было реализовано до введения
                 радио "Считывание координат" в контексте инструмента "Зона действия".

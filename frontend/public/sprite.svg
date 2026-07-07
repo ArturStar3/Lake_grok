@@ -16,4 +16,32 @@
         <path d="M1024.7,303.9l298.5-2.1L894.1,730.9L467,303.7l287.6-1.9l0.3-282.7l269.9-1.3V303.9z"/>
         <path d="M1056.9,893.7l429.1-429.1l0,289.5l282.8,0.2l1.3,269.9l-285.7,0.5l1.9,298.3L1056.9,893.7L1056.9,893.7z"/>
     </symbol>
+    <symbol id="event-point" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="4" fill="currentColor"/>
+        <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="event-circle" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/>
+        <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="event-rectangle" viewBox="0 0 24 24" fill="none">
+        <rect x="5" y="7" width="14" height="10" rx="1" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="event-polygon" viewBox="0 0 24 24" fill="none">
+        <path d="M6 9L11 5L18 8L16 17H8L6 9Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="event-undo" viewBox="0 0 24 24" fill="none">
+        <path d="M8 7H5V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M5 7C6.5 4.8 9.2 3.5 12 3.5C16.7 3.5 20.5 7.3 20.5 12C20.5 16.7 16.7 20.5 12 20.5C8.4 20.5 5.4 18.2 4.2 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="event-finish" viewBox="0 0 24 24" fill="none">
+        <path d="M7 12L10.5 15.5L17 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="event-save" viewBox="0 0 24 24" fill="none">
+        <path d="M7 12.5L10.5 16L17 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="event-cancel" viewBox="0 0 24 24" fill="none">
+        <path d="M8 8L16 16M16 8L8 16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
 </svg>

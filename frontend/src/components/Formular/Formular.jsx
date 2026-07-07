@@ -37,6 +37,7 @@ export default function Formular() {
     const [selectedTargetId, setSelectedTargetId] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [isAddTargetModalOpen, setIsAddTargetModalOpen] = useState(false);
+    const [addTargetDraft, setAddTargetDraft] = useState(null);
     const [formularEditorTarget, setFormularEditorTarget] = useState(null);
     const [editTargetId, setEditTargetId] = useState(null);
     const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
@@ -165,6 +166,25 @@ export default function Formular() {
 
     const handleToggleTools = useCallback(() => setIsToolsOpen((prev) => !prev), []);
 
+    const handleMapAltClickAddTarget = useCallback(({ lat, lng, countryIso }) => {
+        setAddTargetDraft({
+            lat,
+            lng,
+            countryIso: countryIso || null,
+        });
+        setIsAddTargetModalOpen(true);
+    }, []);
+
+    const handleOpenAddTargetModal = useCallback(() => {
+        setAddTargetDraft(null);
+        setIsAddTargetModalOpen(true);
+    }, []);
+
+    const handleCloseAddTargetModal = useCallback(() => {
+        setIsAddTargetModalOpen(false);
+        setAddTargetDraft(null);
+    }, []);
+
     const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
 
     const handleTargetAddedWithFormular = useCallback((newTarget) => {
@@ -241,7 +261,7 @@ export default function Formular() {
                                 <button
                                     className="btn"
                                     type="button"
-                                    onClick={() => setIsAddTargetModalOpen(true)}
+                                    onClick={handleOpenAddTargetModal}
                                     aria-label="Добавить новый объект"
                                 >
                                     <svg className="formular__icon" width="24" height="24">
@@ -417,6 +437,7 @@ export default function Formular() {
                                 onTableTabChange={handleTabChange}
                                 onMarkerHover={handleMarkerHoverFromMap}
                                 onMarkerClick={setSelectedTargetId}
+                                onAltClickAddTarget={handleMapAltClickAddTarget}
                                 onEditClick={handleEditClick}
                                 onDeleteClick={handleDeleteClick}
                                 onEventSave={handleEventSave}
@@ -481,7 +502,8 @@ export default function Formular() {
 
             <AddTargetModal
                 isOpen={isAddTargetModalOpen}
-                onClose={() => setIsAddTargetModalOpen(false)}
+                onClose={handleCloseAddTargetModal}
+                initialCoords={addTargetDraft}
                 onTargetAdded={handleTargetAdded}
                 onTargetAddedWithFormular={handleTargetAddedWithFormular}
                 cachedTargets={objects}
