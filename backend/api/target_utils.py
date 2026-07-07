@@ -1,6 +1,12 @@
 """Утилиты для Target API: зоны техники, actions, сериализация."""
 
 from formular.models import ActionType, TargetAction, TargetEquipment
+from formular.enums import ZoneGeometryModes
+from formular.zone_geometry_validation import (
+    is_hydro_target_type,
+    validate_zone_geometry,
+    validate_zone_metadata,
+)
 from equipment.models import Equipment
 
 
@@ -106,6 +112,57 @@ def replace_target_equipment(target, deployed_data):
         TargetEquipment.objects.bulk_create(to_create)
 
 
+def _build_target_action(target, action_data, types_by_id):
+    action_type = types_by_id.get(action_data.get('action_type_id'))
+    if action_type is None:
+        return None
+
+    zone_mode = action_type.zone_mode
+    radius = action_data.get('radius')
+    zone_geometry = action_data.get('zone_geometry')
+    zone_metadata = validate_zone_metadata(action_data.get('zone_metadata'))
+
+    if zone_mode == ZoneGeometryModes.INUNDATION:
+        zone_geometry = validate_zone_geometry(zone_geometry)
+    elif zone_geometry:
+        zone_geometry = validate_zone_geometry(zone_geometry)
+
+    return TargetAction(
+        target=target,
+        action_type=action_type,
+        radius=radius if radius not in (None, '') else None,
+        zone_geometry=zone_geometry,
+        zone_metadata=zone_metadata,
+    )
+
+
+def validate_target_actions_for_target(actions_data, *, target_type=None):
+    if not actions_data:
+        return
+
+    type_ids = [a.get('action_type_id') for a in actions_data if a.get('action_type_id')]
+    types_by_id = ActionType.objects.in_bulk(type_ids)
+
+    for action_data in actions_data:
+        action_type = types_by_id.get(action_data.get('action_type_id'))
+        if action_type is None:
+            continue
+
+        zone_mode = action_type.zone_mode
+        radius = action_data.get('radius')
+        has_radius = radius not in (None, '') and float(radius) > 0
+
+        if zone_mode == ZoneGeometryModes.INUNDATION:
+            if not is_hydro_target_type(target_type):
+                raise ValueError(
+                    'Зоны затопления допустимы только для типа «Гидротехнические сооружения»'
+                )
+            validate_zone_geometry(action_data.get('zone_geometry'))
+            validate_zone_metadata(action_data.get('zone_metadata'))
+        elif not has_radius:
+            raise ValueError(f'Для типа «{action_type.title}» требуется радиус > 0')
+
+
 def replace_target_actions(target, actions_data):
     """
     Атомарная замена TargetAction для объекта.
@@ -113,19 +170,16 @@ def replace_target_actions(target, actions_data):
     """
     if actions_data is None:
         return
+    validate_target_actions_for_target(actions_data, target_type=getattr(target, 'type', None))
     target.actions.all().delete()
     if not actions_data:
         return
     type_ids = [a['action_type_id'] for a in actions_data]
     types_by_id = ActionType.objects.in_bulk(type_ids)
     to_create = [
-        TargetAction(
-            target=target,
-            action_type=types_by_id[action_data['action_type_id']],
-            radius=action_data.get('radius'),
-        )
+        action
         for action_data in actions_data
-        if action_data.get('action_type_id') in types_by_id
+        if (action := _build_target_action(target, action_data, types_by_id)) is not None
     ]
     if to_create:
         TargetAction.objects.bulk_create(to_create)
@@ -135,16 +189,13 @@ def create_target_actions(target, actions_data):
     """Создание TargetAction при POST (без удаления существующих)."""
     if not actions_data:
         return
+    validate_target_actions_for_target(actions_data, target_type=getattr(target, 'type', None))
     type_ids = [a['action_type_id'] for a in actions_data]
     types_by_id = ActionType.objects.in_bulk(type_ids)
     to_create = [
-        TargetAction(
-            target=target,
-            action_type=types_by_id[action_data['action_type_id']],
-            radius=action_data.get('radius'),
-        )
+        action
         for action_data in actions_data
-        if action_data.get('action_type_id') in types_by_id
+        if (action := _build_target_action(target, action_data, types_by_id)) is not None
     ]
     if to_create:
         TargetAction.objects.bulk_create(to_create)

@@ -158,6 +158,7 @@ class TargetActionSerializer(serializers.ModelSerializer):
             'radius',
             'zone_geometry',
             'zone_geometry_computed_at',
+            'zone_metadata',
         )
 
 
@@ -593,6 +594,9 @@ class TargetListSerializer(serializers.ModelSerializer):
             'lat',
             'lng',
             'antenna_height_m',
+            'crest_elevation_m',
+            'normal_pool_level_m',
+            'max_pool_level_m',
             'country',
             'marker',
         )
@@ -626,6 +630,9 @@ class TargetSerializer(serializers.ModelSerializer):
             'lat',
             'lng',
             'antenna_height_m',
+            'crest_elevation_m',
+            'normal_pool_level_m',
+            'max_pool_level_m',
             'country',
             'marker',
             'parent',
@@ -673,7 +680,9 @@ class TargetActionCreateSerializer(serializers.Serializer):
     """Сериализатор для создания действия объекта"""
     
     action_type_id = serializers.IntegerField()
-    radius = serializers.FloatField(min_value=Decimal('0'))
+    radius = serializers.FloatField(min_value=0, required=False, allow_null=True)
+    zone_geometry = serializers.JSONField(required=False, allow_null=True)
+    zone_metadata = serializers.JSONField(required=False, allow_null=True)
 
 
 class TargetDeployedEquipmentWriteSerializer(serializers.Serializer):
@@ -702,6 +711,9 @@ class TargetCreateSerializer(serializers.ModelSerializer):
             'lat',
             'lng',
             'antenna_height_m',
+            'crest_elevation_m',
+            'normal_pool_level_m',
+            'max_pool_level_m',
             'parent',
             'actions',
             'deployed_equipment',
@@ -727,6 +739,18 @@ class TargetCreateSerializer(serializers.ModelSerializer):
                             'порядком (order), чем текущий объект'
                         ),
                     })
+
+        actions_data = self.initial_data.get('actions')
+        if actions_data is not None:
+            from django.core.exceptions import ValidationError as DjangoValidationError
+
+            from .target_utils import validate_target_actions_for_target
+
+            try:
+                validate_target_actions_for_target(actions_data, target_type=target_type)
+            except (ValueError, DjangoValidationError) as exc:
+                raise serializers.ValidationError({'actions': str(exc)}) from exc
+
         return attrs
 
     def create(self, validated_data):

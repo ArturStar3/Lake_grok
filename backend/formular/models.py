@@ -465,6 +465,24 @@ class Target(models.Model):
         verbose_name='Высота антенны, м',
         help_text='Над уровнем земли в точке объекта (для расчёта покрытия РЛС)',
     )
+    crest_elevation_m = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name='Отметка гребня, м',
+        help_text='Для гидротехнических сооружений',
+    )
+    normal_pool_level_m = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name='НПУ, м',
+        help_text='Нормальный подпорный уровень',
+    )
+    max_pool_level_m = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name='ПМУ, м',
+        help_text='Проектный максимальный / аварийный уровень',
+    )
     equipment = models.ManyToManyField(
         'equipment.Equipment',
         through='TargetEquipment',
@@ -682,6 +700,13 @@ class TargetAction(models.Model):
         verbose_name='Зона рассчитана',
         null=True,
         blank=True,
+    )
+    zone_metadata = models.JSONField(
+        verbose_name='Метаданные сценария зоны',
+        null=True,
+        blank=True,
+        default=None,
+        help_text='Для затопления: water_level_m, scenario_label, notes',
     )
 
     def __str__(self):

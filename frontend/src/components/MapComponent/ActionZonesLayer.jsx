@@ -10,7 +10,8 @@ import {
   ZONE_CENTER_HIGHLIGHT_WEIGHT,
   ZONE_STROKE_WEIGHT,
 } from '../../utils/actionZoneStyle';
-import { getZonePolygonPositions, isTerrainZoneEnabled } from '../../utils/computeLosZone';
+import { getZonePolygonPositions, isInundationZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
+import { isPointInPolygon } from '../../utils/inundationZone';
 
 const VIEWPORT_DEBOUNCE_MS = 80;
 
@@ -25,12 +26,24 @@ function getZonesAtLatLng(zones, latlng, toleranceMeters = 1) {
   if (!latlng || !zones?.length) return [];
   const point = L.latLng(latlng.lat, latlng.lng);
   return zones.filter((zone) => {
+    if (zone.isInundationZone && zone.polygonPositions?.length) {
+      return isPointInPolygon(latlng.lat, latlng.lng, zone.polygonPositions);
+    }
     const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(point);
     return dist <= zone.radiusMeters + toleranceMeters;
   });
 }
 
 function isZoneInViewport(zone, bounds) {
+  if (zone.polygonBounds) {
+    const { minLat, maxLat, minLng, maxLng } = zone.polygonBounds;
+    const zoneBounds = L.latLngBounds(
+      [minLat, minLng],
+      [maxLat, maxLng],
+    );
+    return bounds.intersects(zoneBounds);
+  }
+
   const center = L.latLng(zone.centerLat, zone.centerLng);
   if (bounds.contains(center)) return true;
   const corners = [
@@ -137,10 +150,15 @@ function ZonePolygonLayer({
   onZonePointer,
   onZonePointerEnd,
   onZoneClick,
+  polygonClassName = 'action-radius-polygon action-radius-polygon--los',
+  inundation = false,
 }) {
   const polygonRef = useRef(null);
   const { obj, color, lineType } = zone;
-  const baseStyle = useMemo(() => getZonePolygonStrokeStyle(color, lineType), [color, lineType]);
+  const baseStyle = useMemo(
+    () => getZonePolygonStrokeStyle(color, lineType, { inundation }),
+    [color, lineType, inundation],
+  );
 
   useEffect(() => {
     const layer = polygonRef.current;
@@ -172,7 +190,7 @@ function ZonePolygonLayer({
         weight: ZONE_STROKE_WEIGHT,
         opacity: baseStyle.opacity,
         dashArray: baseStyle.dashArray,
-        className: 'action-radius-polygon action-radius-polygon--los',
+        className: polygonClassName,
         interactive: true,
       }}
       eventHandlers={pointerHandlers}
@@ -261,20 +279,41 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
       ))}
       {zonesWithEntryIds.map((zone) => {
         const useTerrainLos = isTerrainZoneEnabled(zone, terrainTypeIds);
+        const useInundation = isInundationZone(zone);
         const geometry = useTerrainLos
           ? (losGeometryByActionId[zone.actionId] || zone.zoneGeometry)
           : null;
-        const polygonPositions = useTerrainLos
+        const terrainPolygonPositions = useTerrainLos
           ? getZonePolygonPositions(geometry)
           : null;
+        const inundationPolygonPositions = useInundation
+          ? zone.polygonPositions
+          : null;
 
-        if (useTerrainLos && polygonPositions) {
+        if (useInundation && inundationPolygonPositions) {
           return (
             <ZonePolygonLayer
               key={zone.entryId}
               zone={zone}
               entryId={zone.entryId}
-              positions={polygonPositions}
+              positions={inundationPolygonPositions}
+              hoverController={hoverController}
+              onZonePointer={applyZoneHover}
+              onZonePointerEnd={clearZoneHover}
+              onZoneClick={handleZoneClick}
+              polygonClassName="action-radius-polygon action-radius-polygon--inundation"
+              inundation
+            />
+          );
+        }
+
+        if (useTerrainLos && terrainPolygonPositions) {
+          return (
+            <ZonePolygonLayer
+              key={zone.entryId}
+              zone={zone}
+              entryId={zone.entryId}
+              positions={terrainPolygonPositions}
               hoverController={hoverController}
               onZonePointer={applyZoneHover}
               onZonePointerEnd={clearZoneHover}

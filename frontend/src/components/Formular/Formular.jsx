@@ -13,6 +13,7 @@ import AddTargetModal from "../AddTargetModal/AddTargetModal";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
+import { pointsToGeoJsonPolygon } from "../../utils/inundationZone";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
@@ -40,6 +41,8 @@ export default function Formular() {
     const [addTargetDraft, setAddTargetDraft] = useState(null);
     const [formularEditorTarget, setFormularEditorTarget] = useState(null);
     const [editTargetId, setEditTargetId] = useState(null);
+    const [editTargetFormPatch, setEditTargetFormPatch] = useState(null);
+    const [inundationDrawSession, setInundationDrawSession] = useState(null);
     const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
     const [editingEvent, setEditingEvent] = useState(null);
     const [editEventDrawMode, setEditEventDrawMode] = useState(null);
@@ -183,6 +186,48 @@ export default function Formular() {
     const handleCloseAddTargetModal = useCallback(() => {
         setIsAddTargetModalOpen(false);
         setAddTargetDraft(null);
+    }, []);
+
+    const handleStartInundationDraw = useCallback((payload) => {
+        setInundationDrawSession({
+            actionIndex: payload.actionIndex,
+            points: payload.initialPoints || [],
+            formSnapshot: payload.formData,
+            formularSnapshot: payload.formularData,
+        });
+    }, []);
+
+    const handleInundationDrawPointsChange = useCallback((updater) => {
+        setInundationDrawSession((prev) => {
+            if (!prev) return prev;
+            const nextPoints = typeof updater === 'function' ? updater(prev.points) : updater;
+            return { ...prev, points: nextPoints };
+        });
+    }, []);
+
+    const handleInundationDrawComplete = useCallback((points) => {
+        setInundationDrawSession((prev) => {
+            if (!prev?.formSnapshot) return null;
+            const geometry = pointsToGeoJsonPolygon(points);
+            const nextFormData = { ...prev.formSnapshot };
+            const nextActions = [...(nextFormData.actions || [])];
+            nextActions[prev.actionIndex] = {
+                ...nextActions[prev.actionIndex],
+                zone_geometry: geometry,
+            };
+            nextFormData.actions = nextActions;
+            setEditTargetFormPatch(nextFormData);
+            return null;
+        });
+    }, []);
+
+    const handleInundationDrawCancel = useCallback(() => {
+        setInundationDrawSession((prev) => {
+            if (prev?.formSnapshot) {
+                setEditTargetFormPatch(prev.formSnapshot);
+            }
+            return null;
+        });
     }, []);
 
     const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
@@ -460,6 +505,10 @@ export default function Formular() {
                                 editEventDrawPoints={editEventDrawPoints}
                                 onEditEventDrawPointsChange={setEditEventDrawPoints}
                                 isEditEventMode={isEditEventModalOpen}
+                                inundationDrawSession={inundationDrawSession}
+                                onInundationDrawPointsChange={handleInundationDrawPointsChange}
+                                onInundationDrawComplete={handleInundationDrawComplete}
+                                onInundationDrawCancel={handleInundationDrawCancel}
                                 tableTab={activeTab}
                                 actionZoneAvailableByCountry={actionZoneAvailableByCountry}
                                 setShowZoneIntersections={setShowZoneIntersections}
@@ -521,10 +570,16 @@ export default function Formular() {
 
             <EditTargetModal
                 targetId={editTargetId}
-                isOpen={!!editTargetId}
-                onClose={() => setEditTargetId(null)}
+                isOpen={!!editTargetId && !inundationDrawSession}
+                onClose={() => {
+                    setEditTargetId(null);
+                    setEditTargetFormPatch(null);
+                }}
                 onTargetUpdated={handleTargetUpdated}
                 cachedTargets={objects}
+                onStartInundationDraw={handleStartInundationDraw}
+                formPatch={editTargetFormPatch}
+                onFormPatchApplied={() => setEditTargetFormPatch(null)}
             />
 
             {isEditEventModalOpen && (

@@ -18,11 +18,24 @@ import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
-import { API_URL } from '../../config/api';
+import {
+    geoJsonPolygonToDrawPoints,
+    isHydroTargetType,
+    isInundationActionType,
+} from '../../utils/inundationZone';
 
 const API_ROOT = API_URL;
 
-export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpdated, cachedTargets = null }) {
+export default function EditTargetModal({
+    targetId,
+    isOpen,
+    onClose,
+    onTargetUpdated,
+    cachedTargets = null,
+    onStartInundationDraw,
+    formPatch = null,
+    onFormPatchApplied,
+}) {
     const [activeTab, setActiveTab] = useState('target');
     const [formData, setFormData] = useState({
         country: '',
@@ -33,6 +46,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         parent: '',
         lat: '',
         lng: '',
+        crest_elevation_m: '',
+        normal_pool_level_m: '',
+        max_pool_level_m: '',
         actions: [],
         deployed_equipment: [],
     });
@@ -58,6 +74,87 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    const selectedTargetType = useMemo(
+        () => targetTypes.find((type) => String(type.id) === String(formData.type)),
+        [targetTypes, formData.type],
+    );
+    const isHydroTarget = isHydroTargetType(selectedTargetType);
+    const inundationActionTypes = useMemo(
+        () => actionTypes.filter((type) => isInundationActionType(type)),
+        [actionTypes],
+    );
+    const regularActionTypes = useMemo(
+        () => actionTypes.filter((type) => !isInundationActionType(type)),
+        [actionTypes],
+    );
+
+    useEffect(() => {
+        if (!formPatch) return;
+        setFormData(formPatch);
+        onFormPatchApplied?.();
+    }, [formPatch, onFormPatchApplied]);
+
+    const handleAddInundationAction = useCallback(() => {
+        setFormData((prev) => ({
+            ...prev,
+            actions: [
+                ...prev.actions,
+                {
+                    action_type_id: '',
+                    radius: '',
+                    zone_geometry: null,
+                    zone_metadata: {
+                        water_level_m: '',
+                        scenario_label: '',
+                        notes: '',
+                    },
+                },
+            ],
+        }));
+    }, []);
+
+    const handleInundationMetadataChange = useCallback((index, field, value) => {
+        setFormData((prev) => {
+            const nextActions = [...prev.actions];
+            const current = nextActions[index] || {};
+            nextActions[index] = {
+                ...current,
+                zone_metadata: {
+                    ...(current.zone_metadata || {}),
+                    [field]: value,
+                },
+            };
+            return { ...prev, actions: nextActions };
+        });
+    }, []);
+
+    const handleClearInundationPolygon = useCallback((index) => {
+        setFormData((prev) => {
+            const nextActions = [...prev.actions];
+            nextActions[index] = {
+                ...nextActions[index],
+                zone_geometry: null,
+            };
+            return { ...prev, actions: nextActions };
+        });
+    }, []);
+
+    const handleStartPolygonDraw = useCallback((index) => {
+        if (!onStartInundationDraw) return;
+        const action = formData.actions[index];
+        onStartInundationDraw({
+            actionIndex: index,
+            initialPoints: geoJsonPolygonToDrawPoints(action?.zone_geometry),
+            formData,
+            formularData,
+        });
+    }, [onStartInundationDraw, formData, formularData]);
+
+    const isInundationRow = useCallback((action) => {
+        if (action?.zone_metadata) return true;
+        return isInundationActionRow(action);
+    }, [isInundationActionRow]);
 
     const typeSelectOptions = useMemo(() => {
         const applicable = filterTargetTypesForCountry(targetTypes, formData.country);
@@ -197,9 +294,18 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                     parent: target.parent || '',
                     lat: target.lat || '',
                     lng: target.lng || '',
+                    crest_elevation_m: target.crest_elevation_m ?? '',
+                    normal_pool_level_m: target.normal_pool_level_m ?? '',
+                    max_pool_level_m: target.max_pool_level_m ?? '',
                     actions: target.actions?.map(a => ({
                         action_type_id: a.action_type?.id || '',
-                        radius: a.radius || 0
+                        radius: a.radius || 0,
+                        zone_geometry: a.zone_geometry || null,
+                        zone_metadata: a.zone_metadata || {
+                            water_level_m: '',
+                            scenario_label: '',
+                            notes: '',
+                        },
                     })) || [],
                     deployed_equipment: (target.deployed_equipment || []).map((row) => ({
                         equipment_id: row.equipment?.id || '',
@@ -427,6 +533,19 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
         }
         
         formData.actions.forEach((action, index) => {
+            const actionType = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
+            const isInundation = isInundationActionType(actionType);
+
+            if (isInundation) {
+                if (!action.action_type_id) {
+                    newErrors[`action_${index}_type`] = 'Выберите тип сценария';
+                }
+                if (!action.zone_geometry) {
+                    newErrors[`action_${index}_polygon`] = 'Нарисуйте полигон зоны затопления';
+                }
+                return;
+            }
+
             if (action.action_type_id && (!action.radius || parseFloat(action.radius) < 0)) {
                 newErrors[`action_${index}_radius`] = 'Введите корректный радиус';
             }
@@ -493,12 +612,37 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                 parent: formData.parent || null,
                 lat: parseFloat(formData.lat),
                 lng: parseFloat(formData.lng),
+                crest_elevation_m: formData.crest_elevation_m === '' ? null : parseFloat(formData.crest_elevation_m),
+                normal_pool_level_m: formData.normal_pool_level_m === '' ? null : parseFloat(formData.normal_pool_level_m),
+                max_pool_level_m: formData.max_pool_level_m === '' ? null : parseFloat(formData.max_pool_level_m),
                 actions: formData.actions
-                    .filter(action => action.action_type_id && action.radius > 0)
-                    .map(action => ({
-                        action_type_id: parseInt(action.action_type_id),
-                        radius: parseFloat(action.radius)
-                    })),
+                    .filter((action) => {
+                        if (!action.action_type_id) return false;
+                        const actionType = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
+                        if (isInundationActionType(actionType)) {
+                            return Boolean(action.zone_geometry);
+                        }
+                        return action.radius && parseFloat(action.radius) > 0;
+                    })
+                    .map((action) => {
+                        const actionType = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
+                        const payload = {
+                            action_type_id: parseInt(action.action_type_id, 10),
+                        };
+                        if (isInundationActionType(actionType)) {
+                            payload.zone_geometry = action.zone_geometry;
+                            payload.zone_metadata = {
+                                water_level_m: action.zone_metadata?.water_level_m === ''
+                                    ? null
+                                    : Number(action.zone_metadata?.water_level_m),
+                                scenario_label: action.zone_metadata?.scenario_label || '',
+                                notes: action.zone_metadata?.notes || '',
+                            };
+                            return payload;
+                        }
+                        payload.radius = parseFloat(action.radius);
+                        return payload;
+                    }),
                 deployed_equipment: (formData.deployed_equipment || [])
                     .filter((row) => row.equipment_id)
                     .map((row) => ({
@@ -1028,6 +1172,143 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                             )}
                                         </div>
                                     </div>
+
+                                    {isHydroTarget && (
+                                        <div className="edit-target-modal__section">
+                                            <label className="edit-target-modal__label">Параметры ГТС</label>
+                                            <div className="edit-target-modal__row">
+                                                <div className="edit-target-modal__field">
+                                                    <label className="edit-target-modal__label--small">Отметка гребня, м</label>
+                                                    <input
+                                                        type="number"
+                                                        name="crest_elevation_m"
+                                                        value={formData.crest_elevation_m}
+                                                        onChange={handleChange}
+                                                        step="0.1"
+                                                        className="edit-target-modal__input"
+                                                    />
+                                                </div>
+                                                <div className="edit-target-modal__field">
+                                                    <label className="edit-target-modal__label--small">НПУ, м</label>
+                                                    <input
+                                                        type="number"
+                                                        name="normal_pool_level_m"
+                                                        value={formData.normal_pool_level_m}
+                                                        onChange={handleChange}
+                                                        step="0.1"
+                                                        className="edit-target-modal__input"
+                                                    />
+                                                </div>
+                                                <div className="edit-target-modal__field">
+                                                    <label className="edit-target-modal__label--small">ПМУ, м</label>
+                                                    <input
+                                                        type="number"
+                                                        name="max_pool_level_m"
+                                                        value={formData.max_pool_level_m}
+                                                        onChange={handleChange}
+                                                        step="0.1"
+                                                        className="edit-target-modal__input"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <p className="edit-target-modal__hint">
+                                                Для просмотра зон затопления включите слой «Гидрография» на карте.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {isHydroTarget && (
+                                        <div className="edit-target-modal__section">
+                                            <div className="edit-target-modal__section-header">
+                                                <label className="edit-target-modal__label">
+                                                    Зоны затопления
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    className="edit-target-modal__button-add-action"
+                                                    onClick={handleAddInundationAction}
+                                                >
+                                                    + Добавить сценарий
+                                                </button>
+                                            </div>
+                                            {formData.actions.map((action, index) => {
+                                                if (!isInundationRow(action)) return null;
+
+                                                const metadata = action.zone_metadata || {};
+                                                return (
+                                                    <div key={`inundation-${index}`} className="edit-target-modal__action-item edit-target-modal__action-item--inundation">
+                                                        <div className="edit-target-modal__action-fields">
+                                                            <div className="edit-target-modal__field">
+                                                                <label className="edit-target-modal__label--small">Тип сценария</label>
+                                                                <select
+                                                                    value={action.action_type_id}
+                                                                    onChange={(e) => handleActionChange(index, 'action_type_id', e.target.value)}
+                                                                    className={`edit-target-modal__select ${errors[`action_${index}_type`] ? 'edit-target-modal__input--error' : ''}`}
+                                                                >
+                                                                    <option value="">Выберите тип</option>
+                                                                    {inundationActionTypes.map((type) => (
+                                                                        <option key={type.id} value={type.id}>{type.title}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            <div className="edit-target-modal__field">
+                                                                <label className="edit-target-modal__label--small">Уровень воды, м</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={metadata.water_level_m ?? ''}
+                                                                    onChange={(e) => handleInundationMetadataChange(index, 'water_level_m', e.target.value)}
+                                                                    step="0.1"
+                                                                    className="edit-target-modal__input"
+                                                                />
+                                                            </div>
+                                                            <div className="edit-target-modal__field">
+                                                                <label className="edit-target-modal__label--small">Подпись сценария</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={metadata.scenario_label ?? ''}
+                                                                    onChange={(e) => handleInundationMetadataChange(index, 'scenario_label', e.target.value)}
+                                                                    className="edit-target-modal__input"
+                                                                    placeholder="Например: НПУ"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="edit-target-modal__inundation-actions">
+                                                            <button
+                                                                type="button"
+                                                                className="edit-target-modal__button-add-action"
+                                                                onClick={() => handleStartPolygonDraw(index)}
+                                                            >
+                                                                {action.zone_geometry ? 'Перерисовать на карте' : 'Нарисовать на карте'}
+                                                            </button>
+                                                            {action.zone_geometry && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="edit-target-modal__button-remove-action"
+                                                                    onClick={() => handleClearInundationPolygon(index)}
+                                                                >
+                                                                    Очистить полигон
+                                                                </button>
+                                                            )}
+                                                            <span className="edit-target-modal__polygon-status">
+                                                                {action.zone_geometry ? 'Полигон задан' : 'Полигон не задан'}
+                                                            </span>
+                                                            {errors[`action_${index}_polygon`] && (
+                                                                <span className="edit-target-modal__error">{errors[`action_${index}_polygon`]}</span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            className="edit-target-modal__button-remove-action"
+                                                            onClick={() => handleRemoveAction(index)}
+                                                            aria-label="Удалить сценарий"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                     
                                     <div className="edit-target-modal__section">
                                         <div className="edit-target-modal__section-header">
@@ -1045,7 +1326,9 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                         
                                         {formData.actions.length > 0 && (
                                             <div className="edit-target-modal__actions-list">
-                                                {formData.actions.map((action, index) => (
+                                                {formData.actions.map((action, index) => {
+                                                    if (isInundationRow(action)) return null;
+                                                    return (
                                                     <div key={index} className="edit-target-modal__action-item">
                                                         <div className="edit-target-modal__action-fields">
                                                             <div className="edit-target-modal__field">
@@ -1058,7 +1341,7 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                                                     className={`edit-target-modal__select ${errors[`action_${index}_type`] ? 'edit-target-modal__input--error' : ''}`}
                                                                 >
                                                                     <option value="">Выберите тип</option>
-                                                                    {actionTypes.map(type => (
+                                                                    {regularActionTypes.map(type => (
                                                                         <option key={type.id} value={type.id}>
                                                                             {type.title}
                                                                         </option>
@@ -1097,7 +1380,8 @@ export default function EditTargetModal({ targetId, isOpen, onClose, onTargetUpd
                                                             ×
                                                         </button>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

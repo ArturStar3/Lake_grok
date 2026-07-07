@@ -1,0 +1,74 @@
+.inundation-draw-banner {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(920px, calc(100% - 24px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(18, 28, 42, 0.94);
+  color: #f4f8ff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(120, 170, 230, 0.35);
+}
+
+.inundation-draw-banner__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.inundation-draw-banner__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inundation-draw-banner__hint {
+  font-size: 12px;
+  color: #c9d7ea;
+}
+
+.inundation-draw-banner__error {
+  font-size: 12px;
+  color: #ff8f8f;
+}
+
+.inundation-draw-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.inundation-draw-banner__btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.inundation-draw-banner__btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.inundation-draw-banner__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.inundation-draw-banner__btn--primary {
+  background: #2f80ed;
+  border-color: #2f80ed;
+}
+
+.inundation-draw-banner__btn--primary:hover:not(:disabled) {
+  background: #2569c7;
+}

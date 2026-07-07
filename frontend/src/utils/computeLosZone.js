@@ -16,15 +16,17 @@ export async function computeLosZone(targetId, actionId, antennaHeightM = null) 
   return data;
 }
 
+import { getZonePolygonPositions, isInundationZoneMode } from './inundationZone';
+
+export { getZonePolygonPositions };
+
 export function isTerrainZoneEnabled(zone, terrainTypeIds) {
+  if (isInundationZoneMode(zone?.zoneMode)) return false;
   const typeId = zone?.actionTypeId ?? zone?.action?.action_type?.id;
   if (typeId == null || !terrainTypeIds?.size) return false;
   return terrainTypeIds.has(Number(typeId));
 }
 
-export function getZonePolygonPositions(zoneGeometry) {
-  if (!zoneGeometry || zoneGeometry.type !== 'Polygon') return null;
-  const ring = zoneGeometry.coordinates?.[0];
-  if (!ring?.length) return null;
-  return ring.map(([lng, lat]) => [lat, lng]);
+export function isInundationZone(zone) {
+  return isInundationZoneMode(zone?.zoneMode ?? zone?.action?.action_type?.zone_mode);
 }

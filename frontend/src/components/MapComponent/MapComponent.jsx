@@ -28,6 +28,7 @@ import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
 import MarkdownContent from "../common/MarkdownEditor/MarkdownContent";
 import EventDrawingToolbar from "./EventDrawingToolbar";
+import InundationDrawBanner from "./InundationDrawBanner";
 import EventDraftLayer from "./EventDraftLayer";
 import { useEventDrawing } from "../../hooks/map/useEventDrawing";
 import { calcDistanceMeters } from "../../utils/geoUtils";
@@ -816,6 +817,10 @@ function MapComponent({
     editEventDrawPoints = [],
     onEditEventDrawPointsChange = () => {},
     isEditEventMode = false,
+    inundationDrawSession = null,
+    onInundationDrawPointsChange = () => {},
+    onInundationDrawComplete = () => {},
+    onInundationDrawCancel = () => {},
     tableTab,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
@@ -900,6 +905,15 @@ function MapComponent({
         drawMode: editEventDrawMode,
         drawPoints: editEventDrawPoints,
         onDrawPointsChange: onEditEventDrawPointsChange,
+    });
+
+    const isInundationDrawActive = Boolean(inundationDrawSession);
+    const inundationDrawing = useEventDrawing({
+        enabled: isInundationDrawActive,
+        isEditMode: true,
+        drawMode: 'polygon',
+        drawPoints: inundationDrawSession?.points || [],
+        onDrawPointsChange: onInundationDrawPointsChange,
     });
 
     // Пересоздаём маркеры только при изменении полного набора объектов, а не при filterCountry на карте
@@ -997,44 +1011,46 @@ function MapComponent({
     }, [eventDrawing]);
 
     const isEventDrawingActive = eventsDrawingEnabled && Boolean(eventDrawing.drawMode);
+    const isMapDrawingActive = isEventDrawingActive || isInundationDrawActive;
+    const activeMapDrawing = isInundationDrawActive ? inundationDrawing : eventDrawing;
 
     const handleEventMapClick = useCallback((latlng, map) => {
-        if (!isEventDrawingActive) return;
+        if (!isMapDrawingActive) return;
         if (isEventPointDraggingRef.current || isEventPointPointerDownRef.current) return;
-        eventDrawing.handleMapClick(latlng, map || mapRef.current);
-    }, [isEventDrawingActive, eventDrawing]);
+        activeMapDrawing.handleMapClick(latlng, map || mapRef.current);
+    }, [isMapDrawingActive, activeMapDrawing]);
 
     const handleEventMapDblClick = useCallback((latlng, map) => {
-        if (!isEventDrawingActive) return false;
+        if (!isMapDrawingActive) return false;
         if (isEventPointDraggingRef.current || isEventPointPointerDownRef.current) return false;
-        return eventDrawing.handleMapDblClick(latlng, map || mapRef.current);
-    }, [isEventDrawingActive, eventDrawing]);
+        return activeMapDrawing.handleMapDblClick(latlng, map || mapRef.current);
+    }, [isMapDrawingActive, activeMapDrawing]);
 
     const handleMarkerClickGuarded = useCallback((id) => {
-        if (isEventDrawingActive) return;
+        if (isMapDrawingActive) return;
         onMarkerClick?.(id);
-    }, [isEventDrawingActive, onMarkerClick]);
+    }, [isMapDrawingActive, onMarkerClick]);
 
     const handleAltClickAddTarget = useCallback((payload) => {
         setSelectedCountryIso(null);
         onAltClickAddTarget?.(payload);
     }, [onAltClickAddTarget]);
 
-    const isAltAddTargetActive = !isEventDrawingActive && Boolean(onAltClickAddTarget);
+    const isAltAddTargetActive = !isMapDrawingActive && Boolean(onAltClickAddTarget);
 
-    countryClickApiRef.current.isEventDrawingActive = isEventDrawingActive;
+    countryClickApiRef.current.isEventDrawingActive = isMapDrawingActive;
     countryClickApiRef.current.handleEventMapClick = handleEventMapClick;
     countryClickApiRef.current.setSelectedCountryIso = setSelectedCountryIso;
     countryClickApiRef.current.onAltClickAddTarget = handleAltClickAddTarget;
 
-    altAddTargetApiRef.current.isEventDrawingActive = isEventDrawingActive;
+    altAddTargetApiRef.current.isEventDrawingActive = isMapDrawingActive;
     altAddTargetApiRef.current.onAltClickAddTarget = handleAltClickAddTarget;
 
     useEffect(() => {
-        if (isEventDrawingActive) {
+        if (isMapDrawingActive) {
             setSelectedCountryIso(null);
         }
-    }, [isEventDrawingActive]);
+    }, [isMapDrawingActive]);
 
     // Cleanup zone panel when the "Зона действия" tool is turned off
     useEffect(() => {
@@ -1293,6 +1309,9 @@ function MapComponent({
         if (eventsDrawingEnabled && eventDrawing.drawMode) {
             eventDrawing.handleMapMove(e.latlng);
         }
+        if (isInundationDrawActive) {
+            inundationDrawing.handleMapMove(e.latlng);
+        }
         const el = cursorCoordsRef.current;
         if (!el) return;
         el.textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
@@ -1305,16 +1324,16 @@ function MapComponent({
 
     // Новый обработчик hover: синхронизирует локальное состояние и родительский callback
     const handleMarkerHover = useCallback((targetId) => {
-        if (isEventDrawingActive) return;
+        if (isMapDrawingActive) return;
         if (skipZoneHoverUpdatesRef.current) return;
         if (lastMarkerHoverRef.current === targetId) return;
         lastMarkerHoverRef.current = targetId;
         zoneHoverControllerRef.current?.setHovered(targetId ? [targetId] : []);
         onMarkerHover?.(targetId);
-    }, [onMarkerHover, isEventDrawingActive]);
+    }, [onMarkerHover, isMapDrawingActive]);
 
     const updateGroupHover = useCallback((groupId) => {
-        if (isEventDrawingActive) return;
+        if (isMapDrawingActive) return;
         if (skipZoneHoverUpdatesRef.current) return;
         setHoveredGroupId(groupId);
         if (!groupId) {
@@ -1325,7 +1344,7 @@ function MapComponent({
             .filter((o) => o.groupId === groupId && !o.isGroupIcon && o.id)
             .map((o) => o.id);
         zoneHoverControllerRef.current?.setHovered(memberIds);
-    }, [nonFlagData.groupedObjects, isEventDrawingActive]);
+    }, [nonFlagData.groupedObjects, isMapDrawingActive]);
 
     const handleZonePanelClose = useCallback(() => {
         setPinnedZonePanel(null);
@@ -1375,7 +1394,7 @@ function MapComponent({
     }, [pinnedZonePanel]);
 
     const handleZoneClickAt = useCallback((e, candidates) => {
-        if (isEventDrawingActive) {
+        if (isMapDrawingActive) {
             handleEventMapClick(e.latlng, e.target?._map);
             return;
         }
@@ -1396,7 +1415,7 @@ function MapComponent({
         setSelectedZoneEntryId(null);
         setActiveZonePopup(null);
         zoneHoverControllerRef.current?.setHoveredEntries(candidates.map((z) => z.entryId));
-    }, [isFullscreen, onCheckboxChange, selectedSet, isEventDrawingActive, handleEventMapClick]);
+    }, [isFullscreen, onCheckboxChange, selectedSet, isMapDrawingActive, handleEventMapClick]);
 
     const createMeasureIcon = (label) => L.divIcon({
         className: "measure-marker",
@@ -1414,7 +1433,7 @@ function MapComponent({
         const shape = eventItem?.shape;
         if (!shape || !shape.type) return null;
 
-        const layerInteraction = isEventDrawingActive
+        const layerInteraction = isMapDrawingActive
             ? { interactive: false, bubblingMouseEvents: false }
             : {};
 
@@ -1572,7 +1591,15 @@ function MapComponent({
         });
     }, [measurePoints]);
 
-    const isMapDrawingEvent = isEventDrawingActive;
+    const handleInundationDrawConfirm = useCallback(() => {
+        if (!inundationDrawing.isReady()) {
+            inundationDrawing.validateBeforeSave();
+            return;
+        }
+        onInundationDrawComplete?.(inundationDrawing.drawPoints);
+    }, [inundationDrawing, onInundationDrawComplete]);
+
+    const isMapDrawingEvent = isMapDrawingActive;
 
     return (
         <div
@@ -1837,18 +1864,18 @@ function MapComponent({
                 )}
                 {isMapDrawingEvent && (
                     <EventDraftLayer
-                        drawMode={eventDrawing.drawMode}
-                        drawPoints={eventDrawing.drawPoints}
-                        previewPoint={eventDrawing.previewPoint}
-                        previewRectangle={eventDrawing.previewRectangle}
-                        previewPolygonPositions={eventDrawing.previewPolygonPositions}
-                        polygonClosed={eventDrawing.polygonClosed}
+                        drawMode={isInundationDrawActive ? inundationDrawing.drawMode : eventDrawing.drawMode}
+                        drawPoints={isInundationDrawActive ? inundationDrawing.drawPoints : eventDrawing.drawPoints}
+                        previewPoint={isInundationDrawActive ? inundationDrawing.previewPoint : eventDrawing.previewPoint}
+                        previewRectangle={isInundationDrawActive ? inundationDrawing.previewRectangle : eventDrawing.previewRectangle}
+                        previewPolygonPositions={isInundationDrawActive ? inundationDrawing.previewPolygonPositions : eventDrawing.previewPolygonPositions}
+                        polygonClosed={isInundationDrawActive ? inundationDrawing.polygonClosed : eventDrawing.polygonClosed}
                         mapRef={mapRef}
                         isEventPointDraggingRef={isEventPointDraggingRef}
                         isEventPointPointerDownRef={isEventPointPointerDownRef}
-                        onUpdatePoint={eventDrawing.updatePoint}
-                        onRemoveVertex={eventDrawing.removeVertexAt}
-                        onInsertVertexOnEdge={eventDrawing.insertVertexAtEdge}
+                        onUpdatePoint={isInundationDrawActive ? inundationDrawing.updatePoint : eventDrawing.updatePoint}
+                        onRemoveVertex={isInundationDrawActive ? inundationDrawing.removeVertexAt : eventDrawing.removeVertexAt}
+                        onInsertVertexOnEdge={isInundationDrawActive ? inundationDrawing.insertVertexAtEdge : eventDrawing.insertVertexAtEdge}
                     />
                 )}
                 {events
@@ -2005,7 +2032,7 @@ function MapComponent({
                 </button>
             )}
             <EventDrawingToolbar
-                visible={eventsDrawingEnabled && !isEventModalOpen}
+                visible={eventsDrawingEnabled && !isEventModalOpen && !isInundationDrawActive}
                 isEditMode={isEventEditModeActive}
                 activeTool={eventDrawing.selectedTool}
                 drawMode={eventDrawing.drawMode}
@@ -2021,6 +2048,20 @@ function MapComponent({
                 onConfirm={handleEventConfirm}
                 onCancel={handleEventCancel}
             />
+            {isInundationDrawActive && (
+                <InundationDrawBanner
+                    hint={inundationDrawing.getHint()}
+                    validationError={inundationDrawing.validationError}
+                    polygonClosed={inundationDrawing.polygonClosed}
+                    canFinishPolygon={inundationDrawing.drawMode === 'polygon' && inundationDrawing.drawPoints.length >= 3 && !inundationDrawing.polygonClosed}
+                    canUndoPoint={inundationDrawing.drawMode === 'polygon' && inundationDrawing.drawPoints.length >= 1 && !inundationDrawing.polygonClosed}
+                    isReady={inundationDrawing.isReady()}
+                    onFinishPolygon={inundationDrawing.finishPolygon}
+                    onUndoPoint={inundationDrawing.undoLastPoint}
+                    onConfirm={handleInundationDrawConfirm}
+                    onCancel={onInundationDrawCancel}
+                />
+            )}
             {selectedCountryIso && (
                 <CountryModal 
                     countryIso={selectedCountryIso}

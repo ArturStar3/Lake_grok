@@ -33,11 +33,11 @@ export function getZoneStrokeStyle(color, lineType) {
   };
 }
 
-export function getZonePolygonStrokeStyle(color, lineType) {
+export function getZonePolygonStrokeStyle(color, lineType, { inundation = false } = {}) {
   return {
     ...getZoneStrokeStyle(color, lineType),
-    opacity: 0.75,
-    fillOpacity: 0.12,
+    opacity: inundation ? 0.85 : 0.75,
+    fillOpacity: inundation ? 0.25 : 0.12,
   };
 }
 

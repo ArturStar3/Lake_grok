@@ -24,3 +24,4 @@ class ZoneGeometryModes(models.TextChoices):
 
     FLAT = 'flat', 'Круг на плоскости'
     LOS_RADAR = 'los_radar', 'Покрытие РЛС (рельеф)'
+    INUNDATION = 'inundation', 'Зона затопления (полигон)'

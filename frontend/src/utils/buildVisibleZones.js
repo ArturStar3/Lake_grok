@@ -1,7 +1,15 @@
 import { getActionTypeColor } from './actionZoneStyle';
 import { formatZoneEquipmentShortName } from './equipmentCatalogUtils';
+import {
+  formatInundationLevel,
+  getPolygonCentroid,
+  getPolygonBounds,
+  getZonePolygonPositions,
+  isInundationActionType,
+} from './inundationZone';
 
 export const ZONE_GEOMETRY_LOS_RADAR = 'los_radar';
+export const ZONE_GEOMETRY_INUNDATION = 'inundation';
 
 export function buildZoneKey(objId, action, actionIndex) {
   const deploymentId = action._deploymentId ?? 'm';
@@ -98,18 +106,37 @@ export function buildVisibleZones(objects, actionZoneFilters) {
     const centerLng = obj.lng;
     zoneActions.forEach((action, actionIndex) => {
       if (!isActionVisible(obj, action, actionZoneFilters)) return;
-      if (!action.radius || action.radius <= 0) return;
+
+      const zoneMode = action.action_type?.zone_mode || 'flat';
+      const isInundation = isInundationActionType(action.action_type);
+      const zoneGeometry = action.zone_geometry || null;
+      const polygonPositions = isInundation ? getZonePolygonPositions(zoneGeometry) : null;
+
+      if (isInundation) {
+        if (!polygonPositions?.length) return;
+      } else if (!action.radius || action.radius <= 0) {
+        return;
+      }
+
+      const centroid = polygonPositions
+        ? getPolygonCentroid(polygonPositions)
+        : { lat: centerLat, lng: centerLng };
+
       zones.push({
         obj,
         action,
         actionId: action.id,
         actionIndex,
         actionTitle: action.action_type?.title || 'Зона действия',
-        zoneMode: action.action_type?.zone_mode || 'flat',
-        zoneGeometry: action.zone_geometry || null,
-        centerLat,
-        centerLng,
-        radiusMeters: action.radius * 1000,
+        zoneMode,
+        zoneGeometry,
+        zoneMetadata: action.zone_metadata || null,
+        centerLat: centroid.lat,
+        centerLng: centroid.lng,
+        radiusMeters: isInundation ? 0 : action.radius * 1000,
+        polygonPositions,
+        polygonBounds: polygonPositions ? getPolygonBounds(polygonPositions) : null,
+        isInundationZone: isInundation,
         color: getActionTypeColor(action.action_type),
         lineType: action.action_type?.line_type || 'solid',
         actionTypeId: action.action_type?.id,
@@ -128,11 +155,15 @@ export function buildVisibleZones(objects, actionZoneFilters) {
 export function formatZoneListLine(zone) {
   const country = (zone.countryTitle || zone.obj?.country?.title || 'Неизвестно').trim();
   const actionTitle = zone.actionTitle || 'Зона действия';
+  const inundationLevel = zone.isInundationZone
+    ? formatInundationLevel(zone.zoneMetadata)
+    : '';
   let equipmentName = '';
   if (zone.isEquipmentZone && zone.equipmentLabel?.trim()) {
     equipmentName = zone.equipmentLabel.trim();
   } else {
     equipmentName = (zone.obj?.label || zone.obj?.title || '—').trim() || '—';
   }
-  return `${equipmentName} · ${actionTitle} · ${country}`;
+  const levelSuffix = inundationLevel ? ` (${inundationLevel})` : '';
+  return `${equipmentName} · ${actionTitle}${levelSuffix} · ${country}`;
 }
