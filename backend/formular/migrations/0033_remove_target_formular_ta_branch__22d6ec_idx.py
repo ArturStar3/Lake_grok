@@ -10,8 +10,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveIndex(
-            model_name='target',
-            name='formular_ta_branch__22d6ec_idx',
+        # Индекс мог быть удалён вместе с полем branch (0032); только обновляем state.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RemoveIndex(
+                    model_name='target',
+                    name='formular_ta_branch__22d6ec_idx',
+                ),
+            ],
+            database_operations=[],
         ),
     ]

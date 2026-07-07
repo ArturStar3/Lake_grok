@@ -10,8 +10,15 @@ class ModelAdmin(MarkdownAdminMixin, UnfoldModelAdmin):
     pass
 
 
+class InlineOnlyModelAdmin(ModelAdmin):
+    """Модель редактируется через инлайны родителя — скрыть из списка приложений."""
+
+    def has_module_permission(self, request):
+        return False
+
+
 class TabularInline(MarkdownTabularInline, UnfoldTabularInline):
     pass
 
 
-__all__ = ('ModelAdmin', 'TabularInline')
+__all__ = ('ModelAdmin', 'InlineOnlyModelAdmin', 'TabularInline')

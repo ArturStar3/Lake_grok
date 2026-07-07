@@ -2,14 +2,20 @@ import { getActionTypeColor } from './actionZoneStyle';
 import { formatZoneEquipmentShortName } from './equipmentCatalogUtils';
 import {
   formatInundationLevel,
+  getActionFilterKey,
   getPolygonCentroid,
   getPolygonBounds,
   getZonePolygonPositions,
-  isInundationActionType,
+  INUNDATION_FILTER_LABEL,
+  isInundationZoneType,
+  isPolygonZoneMode,
 } from './inundationZone';
 
 export const ZONE_GEOMETRY_LOS_RADAR = 'los_radar';
-export const ZONE_GEOMETRY_INUNDATION = 'inundation';
+export const ZONE_GEOMETRY_POLYGON = 'polygon';
+
+/** @deprecated */
+export const ZONE_GEOMETRY_INUNDATION = ZONE_GEOMETRY_POLYGON;
 
 export function buildZoneKey(objId, action, actionIndex) {
   const deploymentId = action._deploymentId ?? 'm';
@@ -19,10 +25,14 @@ export function buildZoneKey(objId, action, actionIndex) {
 
 export function isActionVisible(obj, action, actionZoneFilters) {
   const cTitle = obj.country?.title || 'Неизвестно';
-  const aTitle = action.action_type?.title || 'Зона действия';
+  const filterKey = getActionFilterKey(action);
   const enabledSet = actionZoneFilters[cTitle];
   if (!enabledSet) return false;
-  return enabledSet.has(aTitle);
+  if (enabledSet.has(filterKey)) return true;
+  if (action.action_type?.is_inundation_zone && enabledSet.has(INUNDATION_FILTER_LABEL)) {
+    return true;
+  }
+  return enabledSet.has(action.action_type?.title || 'Зона действия');
 }
 
 export function hasEnabledZoneFilters(actionZoneFilters) {
@@ -87,8 +97,7 @@ export function buildActionZoneCatalog(objects) {
     const c = obj.country?.title || 'Неизвестно';
     if (!byCountry[c]) byCountry[c] = new Set();
     zoneActions.forEach((action) => {
-      const t = action.action_type?.title || 'Зона действия';
-      byCountry[c].add(t);
+      byCountry[c].add(getActionFilterKey(action));
     });
   });
   return byCountry;
@@ -108,11 +117,12 @@ export function buildVisibleZones(objects, actionZoneFilters) {
       if (!isActionVisible(obj, action, actionZoneFilters)) return;
 
       const zoneMode = action.action_type?.zone_mode || 'flat';
-      const isInundation = isInundationActionType(action.action_type);
+      const isPolygon = isPolygonZoneMode(zoneMode);
+      const isInundation = isInundationZoneType(action.action_type);
       const zoneGeometry = action.zone_geometry || null;
-      const polygonPositions = isInundation ? getZonePolygonPositions(zoneGeometry) : null;
+      const polygonPositions = isPolygon ? getZonePolygonPositions(zoneGeometry) : null;
 
-      if (isInundation) {
+      if (isPolygon) {
         if (!polygonPositions?.length) return;
       } else if (!action.radius || action.radius <= 0) {
         return;
@@ -133,10 +143,11 @@ export function buildVisibleZones(objects, actionZoneFilters) {
         zoneMetadata: action.zone_metadata || null,
         centerLat: centroid.lat,
         centerLng: centroid.lng,
-        radiusMeters: isInundation ? 0 : action.radius * 1000,
+        radiusMeters: isPolygon ? 0 : action.radius * 1000,
         polygonPositions,
         polygonBounds: polygonPositions ? getPolygonBounds(polygonPositions) : null,
         isInundationZone: isInundation,
+        isPolygonZone: isPolygon,
         color: getActionTypeColor(action.action_type),
         lineType: action.action_type?.line_type || 'solid',
         actionTypeId: action.action_type?.id,
@@ -154,7 +165,9 @@ export function buildVisibleZones(objects, actionZoneFilters) {
 /** Строка для панели зон: «Су-34 · Поражение · Азербайджан». */
 export function formatZoneListLine(zone) {
   const country = (zone.countryTitle || zone.obj?.country?.title || 'Неизвестно').trim();
-  const actionTitle = zone.actionTitle || 'Зона действия';
+  const actionTitle = zone.isInundationZone
+    ? INUNDATION_FILTER_LABEL
+    : (zone.actionTitle || 'Зона действия');
   const inundationLevel = zone.isInundationZone
     ? formatInundationLevel(zone.zoneMetadata)
     : '';

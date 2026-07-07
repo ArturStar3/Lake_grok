@@ -186,4 +186,5 @@ urlpatterns = [
     path('formular/<uuid:target_id>/bulk/', FormularBulkUpdateView.as_view(), name='formular-bulk'),
     path('person/<uuid:person_id>/', PersonDetailView.as_view(), name='person-detail'),
     path('person/<uuid:person_id>/bulk/', PersonBulkUpdateView.as_view(), name='person-bulk'),
+    path('auth/', include('accounts.urls')),
 ]

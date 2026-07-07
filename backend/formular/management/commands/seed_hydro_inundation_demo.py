@@ -114,12 +114,19 @@ class Command(BaseCommand):
                 defaults={
                     'color': item['color'],
                     'line_type': item['line_type'],
-                    'zone_mode': ZoneGeometryModes.INUNDATION,
+                    'zone_mode': ZoneGeometryModes.POLYGON,
+                    'is_inundation_zone': True,
                 },
             )
-            if action_type.zone_mode != ZoneGeometryModes.INUNDATION:
-                action_type.zone_mode = ZoneGeometryModes.INUNDATION
-                action_type.save(update_fields=['zone_mode'])
+            updated_fields = []
+            if action_type.zone_mode != ZoneGeometryModes.POLYGON:
+                action_type.zone_mode = ZoneGeometryModes.POLYGON
+                updated_fields.append('zone_mode')
+            if not action_type.is_inundation_zone:
+                action_type.is_inundation_zone = True
+                updated_fields.append('is_inundation_zone')
+            if updated_fields:
+                action_type.save(update_fields=updated_fields)
             action_types[item['title']] = action_type
 
         hydro_type, _ = TargetType.objects.get_or_create(title=HYDRO_TYPE_TITLE)
@@ -163,7 +170,7 @@ class Command(BaseCommand):
                 target.max_pool_level_m = demo['max_pool_level_m']
                 target.save()
 
-            target.actions.filter(action_type__zone_mode=ZoneGeometryModes.INUNDATION).delete()
+            target.actions.filter(action_type__is_inundation_zone=True).delete()
 
             for scenario in demo['scenarios']:
                 action_type = action_types[scenario['action_title']]

@@ -11,6 +11,10 @@ export default function ActionZoneFilters({
   toggleAllForCountry,
   resetZoneFilters,
   showIntersectionsControl = true,
+  considerTerrain = true,
+  onConsiderTerrainChange,
+  losComputingCount = 0,
+  losZonesCount = 0,
   variant = "tab",
 }) {
   const [expanded, setExpanded] = React.useState(() => new Set());
@@ -47,6 +51,22 @@ export default function ActionZoneFilters({
 
   return (
     <div className={rootClass}>
+      <div className="formular__select-all-bar action-zone-filters__options">
+        <label className="select-all-label">
+          <input
+            type="checkbox"
+            checked={considerTerrain}
+            onChange={(e) => onConsiderTerrainChange?.(e.target.checked)}
+          />{' '}
+          Учитывать рельеф
+        </label>
+        {considerTerrain && losZonesCount > 0 && losComputingCount > 0 && (
+          <span className="action-zone-filters__status" role="status">
+            Расчёт… {losComputingCount} / {losZonesCount}
+          </span>
+        )}
+      </div>
+
       {showIntersectionsControl && (
         <div className="formular__select-all-bar">
           <label className="select-all-label">

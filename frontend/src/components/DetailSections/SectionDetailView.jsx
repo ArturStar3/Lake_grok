@@ -32,6 +32,7 @@ export default function SectionDetailView({
   onSubordinateFlyTo,
   onSubordinateOpenDetails,
   onEditEquipmentInCatalog,
+  onTargetEdit,
 }) {
   if (!card) return null;
 
@@ -99,6 +100,7 @@ export default function SectionDetailView({
         <FormularCompletionCard
           sections={card.payload.sections || []}
           targets={card.payload.targets || []}
+          onTargetEdit={onTargetEdit}
         />
       </div>
     );

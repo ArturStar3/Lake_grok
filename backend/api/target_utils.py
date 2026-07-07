@@ -3,11 +3,9 @@
 from formular.models import ActionType, TargetAction, TargetEquipment
 from formular.enums import ZoneGeometryModes
 from formular.zone_geometry_validation import (
-    is_hydro_target_type,
     validate_zone_geometry,
     validate_zone_metadata,
 )
-from equipment.models import Equipment
 
 
 def action_type_to_dict(action_type):
@@ -18,6 +16,8 @@ def action_type_to_dict(action_type):
         'title': action_type.title,
         'color': action_type.color,
         'line_type': action_type.line_type,
+        'zone_mode': action_type.zone_mode,
+        'is_inundation_zone': action_type.is_inundation_zone,
     }
 
 
@@ -120,9 +120,11 @@ def _build_target_action(target, action_data, types_by_id):
     zone_mode = action_type.zone_mode
     radius = action_data.get('radius')
     zone_geometry = action_data.get('zone_geometry')
-    zone_metadata = validate_zone_metadata(action_data.get('zone_metadata'))
+    zone_metadata = None
+    if action_type.is_inundation_zone:
+        zone_metadata = validate_zone_metadata(action_data.get('zone_metadata'))
 
-    if zone_mode == ZoneGeometryModes.INUNDATION:
+    if zone_mode == ZoneGeometryModes.POLYGON:
         zone_geometry = validate_zone_geometry(zone_geometry)
     elif zone_geometry:
         zone_geometry = validate_zone_geometry(zone_geometry)
@@ -152,13 +154,10 @@ def validate_target_actions_for_target(actions_data, *, target_type=None):
         radius = action_data.get('radius')
         has_radius = radius not in (None, '') and float(radius) > 0
 
-        if zone_mode == ZoneGeometryModes.INUNDATION:
-            if not is_hydro_target_type(target_type):
-                raise ValueError(
-                    'Зоны затопления допустимы только для типа «Гидротехнические сооружения»'
-                )
+        if zone_mode == ZoneGeometryModes.POLYGON:
             validate_zone_geometry(action_data.get('zone_geometry'))
-            validate_zone_metadata(action_data.get('zone_metadata'))
+            if action_type.is_inundation_zone:
+                validate_zone_metadata(action_data.get('zone_metadata'))
         elif not has_radius:
             raise ValueError(f'Для типа «{action_type.title}» требуется радиус > 0')
 

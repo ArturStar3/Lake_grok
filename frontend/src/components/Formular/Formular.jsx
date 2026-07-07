@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { canDelete, canManageReference, canWriteModule } from "../../utils/permissions";
+import UsersAdminPanel from "../Admin/UsersAdminPanel";
 import "./Formular.css";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import ObjectsTable from "../ObjectsTable/ObjectsTable";
@@ -20,7 +23,7 @@ import { useFormularReferenceLists } from "../../hooks/formular/useFormularRefer
 import { useReferenceData } from "../../hooks/useReferenceData";
 import { useEventsList } from "../../hooks/formular/useEventsList";
 import { useActionZoneState } from "../../hooks/formular/useActionZoneState";
-import { useTerrainZoneTypes } from "../../hooks/formular/useTerrainZoneTypes";
+import { useConsiderTerrain } from "../../hooks/formular/useConsiderTerrain";
 import { useAutoLosZoneGeometries } from "../../hooks/formular/useAutoLosZoneGeometries";
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
@@ -30,11 +33,15 @@ const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
 const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
 
 export default function Formular() {
+    const { user } = useAuth();
+    const canEditTargets = canWriteModule(user, 'targets');
+    const canRemoveTargets = canDelete(user);
+    const canOpenReference = canManageReference(user);
+    const [usersAdminOpen, setUsersAdminOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("objects");
     const [selectedObj, setSelectedObj] = useState([]);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [actionRadiusMode, setActionRadiusMode] = useState("animation");
-    const [actionZoneViewMode, setActionZoneViewMode] = useState("displaySettings");
     const [selectedTargetId, setSelectedTargetId] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [isAddTargetModalOpen, setIsAddTargetModalOpen] = useState(false);
@@ -42,7 +49,8 @@ export default function Formular() {
     const [formularEditorTarget, setFormularEditorTarget] = useState(null);
     const [editTargetId, setEditTargetId] = useState(null);
     const [editTargetFormPatch, setEditTargetFormPatch] = useState(null);
-    const [inundationDrawSession, setInundationDrawSession] = useState(null);
+    const [polygonDrawSession, setPolygonDrawSession] = useState(null);
+    const polygonDrawSessionRef = useRef(null);
     const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
     const [editingEvent, setEditingEvent] = useState(null);
     const [editEventDrawMode, setEditEventDrawMode] = useState(null);
@@ -56,12 +64,7 @@ export default function Formular() {
 
     const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
     const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();
-    const {
-        terrainTypeIds,
-        isTerrainEnabled,
-        toggleTerrainType,
-        setAllTerrainTypes,
-    } = useTerrainZoneTypes(actionTypesList);
+    const { considerTerrain, setConsiderTerrain } = useConsiderTerrain();
     const { targetTypes } = useReferenceData(true);
     const {
         filterCountry, setFilterCountry,
@@ -92,7 +95,7 @@ export default function Formular() {
     } = useAutoLosZoneGeometries({
         zoneObjects: objects,
         actionZoneFilters,
-        terrainTypeIds,
+        considerTerrain,
         enabled: hasEnabledZones,
     });
 
@@ -188,46 +191,56 @@ export default function Formular() {
         setAddTargetDraft(null);
     }, []);
 
-    const handleStartInundationDraw = useCallback((payload) => {
-        setInundationDrawSession({
+    const handleStartPolygonDraw = useCallback((payload) => {
+        const session = {
             actionIndex: payload.actionIndex,
             points: payload.initialPoints || [],
             formSnapshot: payload.formData,
             formularSnapshot: payload.formularData,
-        });
+            isInundation: Boolean(payload.isInundation),
+        };
+        polygonDrawSessionRef.current = session;
+        setPolygonDrawSession(session);
     }, []);
 
-    const handleInundationDrawPointsChange = useCallback((updater) => {
-        setInundationDrawSession((prev) => {
+    useEffect(() => {
+        polygonDrawSessionRef.current = polygonDrawSession;
+    }, [polygonDrawSession]);
+
+    const handlePolygonDrawPointsChange = useCallback((updater) => {
+        setPolygonDrawSession((prev) => {
             if (!prev) return prev;
             const nextPoints = typeof updater === 'function' ? updater(prev.points) : updater;
             return { ...prev, points: nextPoints };
         });
     }, []);
 
-    const handleInundationDrawComplete = useCallback((points) => {
-        setInundationDrawSession((prev) => {
-            if (!prev?.formSnapshot) return null;
-            const geometry = pointsToGeoJsonPolygon(points);
-            const nextFormData = { ...prev.formSnapshot };
-            const nextActions = [...(nextFormData.actions || [])];
-            nextActions[prev.actionIndex] = {
-                ...nextActions[prev.actionIndex],
-                zone_geometry: geometry,
-            };
-            nextFormData.actions = nextActions;
-            setEditTargetFormPatch(nextFormData);
-            return null;
-        });
+    const handlePolygonDrawComplete = useCallback((points) => {
+        const geometry = pointsToGeoJsonPolygon(points);
+        const prev = polygonDrawSessionRef.current;
+        if (!geometry || !prev?.formSnapshot) return;
+
+        const nextFormData = { ...prev.formSnapshot };
+        const nextActions = [...(nextFormData.actions || [])];
+        nextActions[prev.actionIndex] = {
+            ...nextActions[prev.actionIndex],
+            zone_geometry: geometry,
+            ...(prev.isInundation ? { inundation_scenario: true } : { polygon_scenario: true }),
+        };
+        nextFormData.actions = nextActions;
+
+        setEditTargetFormPatch(nextFormData);
+        polygonDrawSessionRef.current = null;
+        setPolygonDrawSession(null);
     }, []);
 
-    const handleInundationDrawCancel = useCallback(() => {
-        setInundationDrawSession((prev) => {
-            if (prev?.formSnapshot) {
-                setEditTargetFormPatch(prev.formSnapshot);
-            }
-            return null;
-        });
+    const handlePolygonDrawCancel = useCallback(() => {
+        const prev = polygonDrawSessionRef.current;
+        if (prev?.formSnapshot) {
+            setEditTargetFormPatch(prev.formSnapshot);
+        }
+        polygonDrawSessionRef.current = null;
+        setPolygonDrawSession(null);
     }, []);
 
     const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
@@ -294,6 +307,12 @@ export default function Formular() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isToolsOpen]);
 
+    useEffect(() => {
+        const openUsersAdmin = () => setUsersAdminOpen(true);
+        window.addEventListener('infolake:open-users-admin', openUsersAdmin);
+        return () => window.removeEventListener('infolake:open-users-admin', openUsersAdmin);
+    }, []);
+
     return (
         <section className="formular">
             <h1 className="visually-hidden">О</h1>
@@ -303,6 +322,7 @@ export default function Formular() {
                         <div className="formular__heading-wraper">
                             <h2 className="formular__title">ОР</h2>
                             <div className="formular__heading-actions">
+                                {canEditTargets && (
                                 <button
                                     className="btn"
                                     type="button"
@@ -313,6 +333,8 @@ export default function Formular() {
                                         <use href={"/sprite.svg#new-file"} />
                                     </svg>
                                 </button>
+                                )}
+                                {canOpenReference && (
                                 <button
                                     className="btn button__tools"
                                     type="button"
@@ -320,6 +342,7 @@ export default function Formular() {
                                 >
                                     Справочники
                                 </button>
+                                )}
                                 <div className="formular__tools" ref={toolsRef}>
                                     <button
                                         className={`btn button__tools${isToolsOpen ? " button__tools--active" : ""}`}
@@ -397,8 +420,10 @@ export default function Formular() {
                                         hoveredTargetId={hoveredTargetId}
                                         onTitleClick={setSelectedTargetId}
                                         onRowHover={setHoveredTargetId}
-                                        onEditClick={handleEditClick}
-                                        onDeleteClick={handleDeleteClick}
+                                        onEditClick={canEditTargets ? handleEditClick : undefined}
+                                        onDeleteClick={canRemoveTargets ? handleDeleteClick : undefined}
+                                        canEditTargets={canEditTargets}
+                                        canDeleteTargets={canRemoveTargets}
                                     />
                                 </>
                             )}
@@ -413,6 +438,10 @@ export default function Formular() {
                                         toggleActionType={toggleActionType}
                                         toggleAllForCountry={toggleAllForCountry}
                                         resetZoneFilters={resetZoneFilters}
+                                        considerTerrain={considerTerrain}
+                                        onConsiderTerrainChange={setConsiderTerrain}
+                                        losComputingCount={losComputingCount}
+                                        losZonesCount={losZonesCount}
                                         variant="tab"
                                     />
                                     {showZoneIntersections && (
@@ -505,23 +534,18 @@ export default function Formular() {
                                 editEventDrawPoints={editEventDrawPoints}
                                 onEditEventDrawPointsChange={setEditEventDrawPoints}
                                 isEditEventMode={isEditEventModalOpen}
-                                inundationDrawSession={inundationDrawSession}
-                                onInundationDrawPointsChange={handleInundationDrawPointsChange}
-                                onInundationDrawComplete={handleInundationDrawComplete}
-                                onInundationDrawCancel={handleInundationDrawCancel}
+                                polygonDrawSession={polygonDrawSession}
+                                onPolygonDrawPointsChange={handlePolygonDrawPointsChange}
+                                onPolygonDrawComplete={handlePolygonDrawComplete}
+                                onPolygonDrawCancel={handlePolygonDrawCancel}
                                 tableTab={activeTab}
                                 actionZoneAvailableByCountry={actionZoneAvailableByCountry}
                                 setShowZoneIntersections={setShowZoneIntersections}
                                 toggleActionType={toggleActionType}
                                 toggleAllForCountry={toggleAllForCountry}
                                 resetZoneFilters={resetZoneFilters}
-                                actionZoneViewMode={actionZoneViewMode}
-                                onActionZoneViewModeChange={setActionZoneViewMode}
-                                terrainTypeIds={terrainTypeIds}
-                                isTerrainEnabled={isTerrainEnabled}
-                                onTerrainTypeToggle={toggleTerrainType}
-                                onEnableAllTerrainTypes={() => setAllTerrainTypes(true)}
-                                onDisableAllTerrainTypes={() => setAllTerrainTypes(false)}
+                                considerTerrain={considerTerrain}
+                                onConsiderTerrainChange={setConsiderTerrain}
                                 losGeometryByActionId={losGeometryByActionId}
                                 losComputingCount={losComputingCount}
                                 losZonesCount={losZonesCount}
@@ -570,14 +594,14 @@ export default function Formular() {
 
             <EditTargetModal
                 targetId={editTargetId}
-                isOpen={!!editTargetId && !inundationDrawSession}
+                isOpen={!!editTargetId && !polygonDrawSession}
                 onClose={() => {
                     setEditTargetId(null);
                     setEditTargetFormPatch(null);
                 }}
                 onTargetUpdated={handleTargetUpdated}
                 cachedTargets={objects}
-                onStartInundationDraw={handleStartInundationDraw}
+                onStartPolygonDraw={handleStartPolygonDraw}
                 formPatch={editTargetFormPatch}
                 onFormPatchApplied={() => setEditTargetFormPatch(null)}
             />
@@ -594,6 +618,7 @@ export default function Formular() {
             )}
 
             <Suspense fallback={null}>
+                {canOpenReference && (
                 <ReferenceDataModal
                     isOpen={isReferenceDataOpen}
                     onClose={handleCloseReferenceData}
@@ -601,7 +626,13 @@ export default function Formular() {
                     onTargetTypesChanged={() => {}}
                     initialEquipmentId={referenceEquipmentId}
                 />
+                )}
             </Suspense>
+
+            <UsersAdminPanel
+                isOpen={usersAdminOpen}
+                onClose={() => setUsersAdminOpen(false)}
+            />
         </section>
     );
 }

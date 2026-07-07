@@ -1,15 +1,30 @@
 import React, { useState } from 'react';
 import './FormularCompletionCard.css';
 
-export default function FormularCompletionCard({ sections = [], targets = [] }) {
+export default function FormularCompletionCard({ sections = [], targets = [], onTargetEdit }) {
   const [viewMode, setViewMode] = useState('list');
+  const canEditTarget = typeof onTargetEdit === 'function';
+
+  const handleTargetClick = (target) => {
+    if (!target?.id || !canEditTarget) return;
+    onTargetEdit(target.id);
+  };
+
+  const renderTargetLabel = (target) => (
+    <>
+      <div className="formular-completion__title">{target.title}</div>
+      {target.label && (
+        <div className="formular-completion__label">{target.label}</div>
+      )}
+    </>
+  );
 
   if (!targets.length) {
     return <p className="formular-completion__empty">Нет объектов для отображения заполненности.</p>;
   }
 
   return (
-    <div className="formular-completion">
+    <div className={`formular-completion${viewMode === 'table' ? ' formular-completion--table' : ''}`}>
       <div className="formular-completion__tabs" role="tablist" aria-label="Режим отображения">
         <button
           type="button"
@@ -34,22 +49,41 @@ export default function FormularCompletionCard({ sections = [], targets = [] }) 
       {viewMode === 'list' ? (
         <ul className="formular-completion__list">
           {targets.map((target) => (
-            <li key={target.id} className="formular-completion__row">
-              <div className="formular-completion__row-header">
-                <div>
-                  <div className="formular-completion__title">{target.title}</div>
-                  {target.label && (
-                    <div className="formular-completion__label">{target.label}</div>
-                  )}
-                </div>
-                <span className="formular-completion__percent">{target.percent}%</span>
-              </div>
-              <div className="formular-completion__bar" aria-hidden>
-                <div
-                  className="formular-completion__bar-fill"
-                  style={{ width: `${Math.min(100, Math.max(0, target.percent))}%` }}
-                />
-              </div>
+            <li
+              key={target.id}
+              className={`formular-completion__row${canEditTarget ? ' formular-completion__row--clickable' : ''}`}
+            >
+              {canEditTarget ? (
+                <button
+                  type="button"
+                  className="formular-completion__row-button"
+                  onClick={() => handleTargetClick(target)}
+                >
+                  <div className="formular-completion__row-header">
+                    <div>{renderTargetLabel(target)}</div>
+                    <span className="formular-completion__percent">{target.percent}%</span>
+                  </div>
+                  <div className="formular-completion__bar" aria-hidden>
+                    <div
+                      className="formular-completion__bar-fill"
+                      style={{ width: `${Math.min(100, Math.max(0, target.percent))}%` }}
+                    />
+                  </div>
+                </button>
+              ) : (
+                <>
+                  <div className="formular-completion__row-header">
+                    <div>{renderTargetLabel(target)}</div>
+                    <span className="formular-completion__percent">{target.percent}%</span>
+                  </div>
+                  <div className="formular-completion__bar" aria-hidden>
+                    <div
+                      className="formular-completion__bar-fill"
+                      style={{ width: `${Math.min(100, Math.max(0, target.percent))}%` }}
+                    />
+                  </div>
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -69,10 +103,17 @@ export default function FormularCompletionCard({ sections = [], targets = [] }) 
             <tbody>
               {targets.map((target) => (
                 <tr key={target.id}>
-                  <td>
-                    <div className="formular-completion__title">{target.title}</div>
-                    {target.label && (
-                      <div className="formular-completion__label">{target.label}</div>
+                  <td className={canEditTarget ? 'formular-completion__object-cell--clickable' : undefined}>
+                    {canEditTarget ? (
+                      <button
+                        type="button"
+                        className="formular-completion__object-button"
+                        onClick={() => handleTargetClick(target)}
+                      >
+                        {renderTargetLabel(target)}
+                      </button>
+                    ) : (
+                      renderTargetLabel(target)
                     )}
                   </td>
                   {sections.map((section) => {

@@ -823,6 +823,30 @@
     align-items: center;
     gap: 8px;
     margin-top: 8px;
+    width: 100%;
+}
+
+.edit-target-modal__button-secondary {
+    background-color: #fff;
+    color: #c62828;
+    border: 1px solid #f5c6c6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.edit-target-modal__button-secondary:hover {
+    background-color: #fee;
+    border-color: #ef9a9a;
+}
+
+.edit-target-modal__action-item--inundation .edit-target-modal__button-add-action {
+    white-space: nowrap;
 }
 
 .edit-target-modal__polygon-status {

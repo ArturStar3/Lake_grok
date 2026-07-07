@@ -119,8 +119,10 @@ class ActionTypeSerializer(serializers.ModelSerializer):
             'color',
             'line_type',
             'zone_mode',
+            'is_inundation_zone',
             'min_elevation_deg',
         )
+
 
 class ActionTypeListSerializer(serializers.ModelSerializer):
     """Список типов действий для выбора"""
@@ -133,6 +135,7 @@ class ActionTypeListSerializer(serializers.ModelSerializer):
             'color',
             'line_type',
             'zone_mode',
+            'is_inundation_zone',
             'min_elevation_deg',
         )
 
@@ -144,6 +147,35 @@ class ActionTypeListSerializer(serializers.ModelSerializer):
         except ValueError as exc:
             raise serializers.ValidationError('Цвет должен быть в формате #RRGGBB') from exc
         return value
+
+    def validate(self, attrs):
+        zone_mode = attrs.get(
+            'zone_mode',
+            getattr(self.instance, 'zone_mode', None),
+        )
+        min_elevation = attrs.get(
+            'min_elevation_deg',
+            getattr(self.instance, 'min_elevation_deg', None),
+        )
+        is_inundation = attrs.get(
+            'is_inundation_zone',
+            getattr(self.instance, 'is_inundation_zone', False),
+        )
+
+        if zone_mode == 'los_radar':
+            if min_elevation is None:
+                raise serializers.ValidationError({
+                    'min_elevation_deg': 'Укажите минимальный угол места для режима с учётом рельефа',
+                })
+        else:
+            attrs['min_elevation_deg'] = None
+
+        if is_inundation and zone_mode != 'polygon':
+            raise serializers.ValidationError({
+                'is_inundation_zone': 'Зона затопления возможна только при режиме «Полигон»',
+            })
+
+        return attrs
 
 class TargetActionSerializer(serializers.ModelSerializer):
     """Действие над объектом разведки"""

@@ -16,6 +16,8 @@ const ObjectRow = memo(function ObjectRow({
     onRowHover,
     onEditClick,
     onDeleteClick,
+    canEditTargets = true,
+    canDeleteTargets = true,
 }) {
     return (
         <div
@@ -62,7 +64,9 @@ const ObjectRow = memo(function ObjectRow({
             </div>
 
             <div className="formular__table-data formular__table-data--action">
+                {(canEditTargets || canDeleteTargets) && (
                 <div className="formular__actions-group">
+                    {canEditTargets && (
                     <button
                         className="formular__action-btn formular__action-btn--edit"
                         onClick={() => onEditClick?.(item.id)}
@@ -76,6 +80,8 @@ const ObjectRow = memo(function ObjectRow({
                             />
                         </svg>
                     </button>
+                    )}
+                    {canDeleteTargets && (
                     <button
                         className="formular__action-btn formular__action-btn--delete"
                         onClick={() => onDeleteClick?.(item.id, item.title)}
@@ -89,7 +95,9 @@ const ObjectRow = memo(function ObjectRow({
                             />
                         </svg>
                     </button>
+                    )}
                 </div>
+                )}
             </div>
         </div>
     );
@@ -198,6 +206,8 @@ export default function ObjectsTable({
     onRowHover,
     onEditClick,
     onDeleteClick,
+    canEditTargets = true,
+    canDeleteTargets = true,
 }) {
     const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
 
@@ -250,7 +260,9 @@ export default function ObjectsTable({
         onRowHover,
         onEditClick,
         onDeleteClick,
-    }), [onCheckboxChange, onObjectClick, onTitleClick, onRowHover, onEditClick, onDeleteClick]);
+        canEditTargets,
+        canDeleteTargets,
+    }), [onCheckboxChange, onObjectClick, onTitleClick, onRowHover, onEditClick, onDeleteClick, canEditTargets, canDeleteTargets]);
 
     return (
         <div className="formular__data">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildVisibleZones } from '../../utils/buildVisibleZones';
-import { computeLosZone } from '../../utils/computeLosZone';
+import { computeLosZone, isLosRadarZoneMode } from '../../utils/computeLosZone';
 
 function buildComputeKey(zone) {
   const antenna = zone.obj?.antenna_height_m ?? 10;
@@ -48,7 +48,7 @@ async function mapWithConcurrency(items, limit, worker) {
 export function useAutoLosZoneGeometries({
   zoneObjects,
   actionZoneFilters,
-  terrainTypeIds,
+  considerTerrain,
   enabled,
 }) {
   const [geometryByActionId, setGeometryByActionId] = useState({});
@@ -58,11 +58,11 @@ export function useAutoLosZoneGeometries({
   const requestGenRef = useRef(0);
 
   const terrainZones = useMemo(() => {
-    if (!enabled || !terrainTypeIds?.size) return [];
+    if (!enabled || !considerTerrain) return [];
     return buildVisibleZones(zoneObjects, actionZoneFilters).filter(
-      (zone) => zone.actionTypeId != null && terrainTypeIds.has(Number(zone.actionTypeId)),
+      (zone) => isLosRadarZoneMode(zone.zoneMode),
     );
-  }, [zoneObjects, actionZoneFilters, terrainTypeIds, enabled]);
+  }, [zoneObjects, actionZoneFilters, considerTerrain, enabled]);
 
   const terrainZonesKey = useMemo(
     () => terrainZones.map((z) => buildComputeKey(z)).sort().join('|'),
@@ -70,7 +70,7 @@ export function useAutoLosZoneGeometries({
   );
 
   useEffect(() => {
-    if (!enabled || !terrainTypeIds?.size || terrainZones.length === 0) {
+    if (!enabled || !considerTerrain || terrainZones.length === 0) {
       setComputingCount(0);
       return undefined;
     }
@@ -146,7 +146,7 @@ export function useAutoLosZoneGeometries({
     return () => {
       cancelled = true;
     };
-  }, [enabled, terrainTypeIds, terrainZonesKey, terrainZones]);
+  }, [enabled, considerTerrain, terrainZonesKey, terrainZones]);
 
   return {
     geometryByActionId,

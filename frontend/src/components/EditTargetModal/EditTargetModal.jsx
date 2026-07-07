@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { addColorClassToSvg } from '../../utils/svgUtils';
 import { useActionsArray } from '../../hooks/useActionsArray';
@@ -18,10 +18,14 @@ import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
+import { API_URL } from '../../config/api';
 import {
     geoJsonPolygonToDrawPoints,
-    isHydroTargetType,
-    isInundationActionType,
+    isInundationAction,
+    isInundationZoneType,
+    isPolygonZoneMode,
+    mapTargetActionToForm,
+    resolveActionType,
 } from '../../utils/inundationZone';
 
 const API_ROOT = API_URL;
@@ -32,7 +36,7 @@ export default function EditTargetModal({
     onClose,
     onTargetUpdated,
     cachedTargets = null,
-    onStartInundationDraw,
+    onStartPolygonDraw,
     formPatch = null,
     onFormPatchApplied,
 }) {
@@ -46,9 +50,6 @@ export default function EditTargetModal({
         parent: '',
         lat: '',
         lng: '',
-        crest_elevation_m: '',
-        normal_pool_level_m: '',
-        max_pool_level_m: '',
         actions: [],
         deployed_equipment: [],
     });
@@ -75,23 +76,29 @@ export default function EditTargetModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    const selectedTargetType = useMemo(
-        () => targetTypes.find((type) => String(type.id) === String(formData.type)),
-        [targetTypes, formData.type],
-    );
-    const isHydroTarget = isHydroTargetType(selectedTargetType);
     const inundationActionTypes = useMemo(
-        () => actionTypes.filter((type) => isInundationActionType(type)),
+        () => actionTypes.filter((type) => isInundationZoneType(type)),
         [actionTypes],
     );
     const regularActionTypes = useMemo(
-        () => actionTypes.filter((type) => !isInundationActionType(type)),
+        () => actionTypes.filter((type) => !isInundationZoneType(type)),
         [actionTypes],
+    );
+    const isInundationRow = useCallback(
+        (action) => isInundationAction(action, actionTypes),
+        [actionTypes],
+    );
+    const showInundationSection = useMemo(
+        () => inundationActionTypes.length > 0,
+        [inundationActionTypes],
     );
 
     useEffect(() => {
         if (!formPatch) return;
+        skipNextApiLoadRef.current = true;
+        preserveLocalFormRef.current = true;
         setFormData(formPatch);
+        setLoading(false);
         onFormPatchApplied?.();
     }, [formPatch, onFormPatchApplied]);
 
@@ -104,8 +111,10 @@ export default function EditTargetModal({
                     action_type_id: '',
                     radius: '',
                     zone_geometry: null,
+                    inundation_scenario: true,
                     zone_metadata: {
                         water_level_m: '',
+                        seasonality: '',
                         scenario_label: '',
                         notes: '',
                     },
@@ -129,7 +138,7 @@ export default function EditTargetModal({
         });
     }, []);
 
-    const handleClearInundationPolygon = useCallback((index) => {
+    const handleClearPolygon = useCallback((index) => {
         setFormData((prev) => {
             const nextActions = [...prev.actions];
             nextActions[index] = {
@@ -141,20 +150,16 @@ export default function EditTargetModal({
     }, []);
 
     const handleStartPolygonDraw = useCallback((index) => {
-        if (!onStartInundationDraw) return;
+        if (!onStartPolygonDraw) return;
         const action = formData.actions[index];
-        onStartInundationDraw({
+        onStartPolygonDraw({
             actionIndex: index,
             initialPoints: geoJsonPolygonToDrawPoints(action?.zone_geometry),
             formData,
             formularData,
+            isInundation: isInundationRow(action),
         });
-    }, [onStartInundationDraw, formData, formularData]);
-
-    const isInundationRow = useCallback((action) => {
-        if (action?.zone_metadata) return true;
-        return isInundationActionRow(action);
-    }, [isInundationActionRow]);
+    }, [onStartPolygonDraw, formData, formularData, isInundationRow]);
 
     const typeSelectOptions = useMemo(() => {
         const applicable = filterTargetTypesForCountry(targetTypes, formData.country);
@@ -162,7 +167,38 @@ export default function EditTargetModal({
     }, [targetTypes, formData.country]);
     
     // Хуки для управления actions
-    const { handleAddAction, handleRemoveAction, handleActionChange } = useActionsArray(formData, setFormData);
+    const { handleAddAction, handleRemoveAction } = useActionsArray(formData, setFormData);
+    const handleActionChange = useCallback((index, field, value) => {
+        setFormData((prev) => {
+            const newActions = [...prev.actions];
+            const current = { ...newActions[index], [field]: value };
+            if (field === 'action_type_id') {
+                const matched = actionTypes.find((type) => String(type.id) === String(value));
+                current.action_type = matched || null;
+                if (matched && isInundationZoneType(matched)) {
+                    current.inundation_scenario = true;
+                    current.polygon_scenario = false;
+                    current.zone_metadata = current.zone_metadata || {
+                        water_level_m: '',
+                        seasonality: '',
+                        scenario_label: '',
+                        notes: '',
+                    };
+                } else if (matched && isPolygonZoneMode(matched.zone_mode)) {
+                    current.inundation_scenario = false;
+                    current.polygon_scenario = true;
+                    current.zone_metadata = null;
+                } else {
+                    current.inundation_scenario = false;
+                    current.polygon_scenario = false;
+                    current.zone_metadata = null;
+                    current.zone_geometry = null;
+                }
+            }
+            newActions[index] = current;
+            return { ...prev, actions: newActions };
+        });
+    }, [actionTypes]);
     const {
         handleAddEquipmentWithId,
         handleRemoveEquipment,
@@ -224,6 +260,8 @@ export default function EditTargetModal({
         : 'blue';
 
     const loadSeqRef = useRef(0);
+    const skipNextApiLoadRef = useRef(false);
+    const preserveLocalFormRef = useRef(false);
     const cachedTargetsRef = useRef(cachedTargets);
     const isOpenRef = useRef(isOpen);
     cachedTargetsRef.current = cachedTargets;
@@ -237,7 +275,20 @@ export default function EditTargetModal({
     }, []);
     
     useEffect(() => {
-        if (!isOpen || !targetId) return undefined;
+        if (!isOpen || !targetId) {
+            preserveLocalFormRef.current = false;
+            skipNextApiLoadRef.current = false;
+            return undefined;
+        }
+
+        if (skipNextApiLoadRef.current) {
+            skipNextApiLoadRef.current = false;
+            return undefined;
+        }
+
+        if (preserveLocalFormRef.current) {
+            return undefined;
+        }
 
         const controller = new AbortController();
         const seq = ++loadSeqRef.current;
@@ -294,19 +345,7 @@ export default function EditTargetModal({
                     parent: target.parent || '',
                     lat: target.lat || '',
                     lng: target.lng || '',
-                    crest_elevation_m: target.crest_elevation_m ?? '',
-                    normal_pool_level_m: target.normal_pool_level_m ?? '',
-                    max_pool_level_m: target.max_pool_level_m ?? '',
-                    actions: target.actions?.map(a => ({
-                        action_type_id: a.action_type?.id || '',
-                        radius: a.radius || 0,
-                        zone_geometry: a.zone_geometry || null,
-                        zone_metadata: a.zone_metadata || {
-                            water_level_m: '',
-                            scenario_label: '',
-                            notes: '',
-                        },
-                    })) || [],
+                    actions: target.actions?.map((action) => mapTargetActionToForm(action)) || [],
                     deployed_equipment: (target.deployed_equipment || []).map((row) => ({
                         equipment_id: row.equipment?.id || '',
                         quantity: row.quantity || 1,
@@ -533,8 +572,9 @@ export default function EditTargetModal({
         }
         
         formData.actions.forEach((action, index) => {
-            const actionType = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
-            const isInundation = isInundationActionType(actionType);
+            const actionType = resolveActionType(action, actionTypes);
+            const isInundation = isInundationRow(action);
+            const isPolygon = isPolygonZoneMode(actionType?.zone_mode);
 
             if (isInundation) {
                 if (!action.action_type_id) {
@@ -542,6 +582,16 @@ export default function EditTargetModal({
                 }
                 if (!action.zone_geometry) {
                     newErrors[`action_${index}_polygon`] = 'Нарисуйте полигон зоны затопления';
+                }
+                return;
+            }
+
+            if (isPolygon) {
+                if (!action.action_type_id) {
+                    newErrors[`action_${index}_type`] = 'Выберите тип действия';
+                }
+                if (!action.zone_geometry) {
+                    newErrors[`action_${index}_polygon`] = 'Нарисуйте полигон зоны';
                 }
                 return;
             }
@@ -612,32 +662,34 @@ export default function EditTargetModal({
                 parent: formData.parent || null,
                 lat: parseFloat(formData.lat),
                 lng: parseFloat(formData.lng),
-                crest_elevation_m: formData.crest_elevation_m === '' ? null : parseFloat(formData.crest_elevation_m),
-                normal_pool_level_m: formData.normal_pool_level_m === '' ? null : parseFloat(formData.normal_pool_level_m),
-                max_pool_level_m: formData.max_pool_level_m === '' ? null : parseFloat(formData.max_pool_level_m),
                 actions: formData.actions
                     .filter((action) => {
                         if (!action.action_type_id) return false;
-                        const actionType = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
-                        if (isInundationActionType(actionType)) {
+                        const actionType = resolveActionType(action, actionTypes);
+                        if (isInundationRow(action) || isPolygonZoneMode(actionType?.zone_mode)) {
                             return Boolean(action.zone_geometry);
                         }
                         return action.radius && parseFloat(action.radius) > 0;
                     })
                     .map((action) => {
-                        const actionType = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
+                        const actionType = resolveActionType(action, actionTypes);
                         const payload = {
                             action_type_id: parseInt(action.action_type_id, 10),
                         };
-                        if (isInundationActionType(actionType)) {
+                        if (isInundationRow(action)) {
                             payload.zone_geometry = action.zone_geometry;
                             payload.zone_metadata = {
                                 water_level_m: action.zone_metadata?.water_level_m === ''
                                     ? null
                                     : Number(action.zone_metadata?.water_level_m),
+                                seasonality: action.zone_metadata?.seasonality || '',
                                 scenario_label: action.zone_metadata?.scenario_label || '',
                                 notes: action.zone_metadata?.notes || '',
                             };
+                            return payload;
+                        }
+                        if (isPolygonZoneMode(actionType?.zone_mode)) {
+                            payload.zone_geometry = action.zone_geometry;
                             return payload;
                         }
                         payload.radius = parseFloat(action.radius);
@@ -660,6 +712,8 @@ export default function EditTargetModal({
             }));
             
             await axios.post(`${API_ROOT}/api/v1/formular/${targetId}/bulk/`, { items });
+
+            preserveLocalFormRef.current = false;
             
             if (onTargetUpdated) {
                 onTargetUpdated();
@@ -669,7 +723,12 @@ export default function EditTargetModal({
         } catch (error) {
             console.error('Ошибка при обновлении объекта:', error);
             if (error.response && error.response.data) {
-                setErrors(error.response.data);
+                const apiErrors = error.response.data;
+                if (typeof apiErrors.actions === 'string') {
+                    setErrors({ general: apiErrors.actions });
+                } else {
+                    setErrors(apiErrors);
+                }
             } else {
                 setErrors({ general: 'Произошла ошибка при сохранении' });
             }
@@ -1173,51 +1232,7 @@ export default function EditTargetModal({
                                         </div>
                                     </div>
 
-                                    {isHydroTarget && (
-                                        <div className="edit-target-modal__section">
-                                            <label className="edit-target-modal__label">Параметры ГТС</label>
-                                            <div className="edit-target-modal__row">
-                                                <div className="edit-target-modal__field">
-                                                    <label className="edit-target-modal__label--small">Отметка гребня, м</label>
-                                                    <input
-                                                        type="number"
-                                                        name="crest_elevation_m"
-                                                        value={formData.crest_elevation_m}
-                                                        onChange={handleChange}
-                                                        step="0.1"
-                                                        className="edit-target-modal__input"
-                                                    />
-                                                </div>
-                                                <div className="edit-target-modal__field">
-                                                    <label className="edit-target-modal__label--small">НПУ, м</label>
-                                                    <input
-                                                        type="number"
-                                                        name="normal_pool_level_m"
-                                                        value={formData.normal_pool_level_m}
-                                                        onChange={handleChange}
-                                                        step="0.1"
-                                                        className="edit-target-modal__input"
-                                                    />
-                                                </div>
-                                                <div className="edit-target-modal__field">
-                                                    <label className="edit-target-modal__label--small">ПМУ, м</label>
-                                                    <input
-                                                        type="number"
-                                                        name="max_pool_level_m"
-                                                        value={formData.max_pool_level_m}
-                                                        onChange={handleChange}
-                                                        step="0.1"
-                                                        className="edit-target-modal__input"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <p className="edit-target-modal__hint">
-                                                Для просмотра зон затопления включите слой «Гидрография» на карте.
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {isHydroTarget && (
+                                    {showInundationSection && (
                                         <div className="edit-target-modal__section">
                                             <div className="edit-target-modal__section-header">
                                                 <label className="edit-target-modal__label">
@@ -1262,6 +1277,16 @@ export default function EditTargetModal({
                                                                 />
                                                             </div>
                                                             <div className="edit-target-modal__field">
+                                                                <label className="edit-target-modal__label--small">Сезонность</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={metadata.seasonality ?? ''}
+                                                                    onChange={(e) => handleInundationMetadataChange(index, 'seasonality', e.target.value)}
+                                                                    className="edit-target-modal__input"
+                                                                    placeholder="Например: паводок"
+                                                                />
+                                                            </div>
+                                                            <div className="edit-target-modal__field">
                                                                 <label className="edit-target-modal__label--small">Подпись сценария</label>
                                                                 <input
                                                                     type="text"
@@ -1283,8 +1308,8 @@ export default function EditTargetModal({
                                                             {action.zone_geometry && (
                                                                 <button
                                                                     type="button"
-                                                                    className="edit-target-modal__button-remove-action"
-                                                                    onClick={() => handleClearInundationPolygon(index)}
+                                                                    className="edit-target-modal__button-secondary"
+                                                                    onClick={() => handleClearPolygon(index)}
                                                                 >
                                                                     Очистить полигон
                                                                 </button>
@@ -1328,8 +1353,10 @@ export default function EditTargetModal({
                                             <div className="edit-target-modal__actions-list">
                                                 {formData.actions.map((action, index) => {
                                                     if (isInundationRow(action)) return null;
+                                                    const actionType = resolveActionType(action, actionTypes);
+                                                    const isPolygon = isPolygonZoneMode(actionType?.zone_mode);
                                                     return (
-                                                    <div key={index} className="edit-target-modal__action-item">
+                                                    <div key={index} className={`edit-target-modal__action-item${isPolygon ? ' edit-target-modal__action-item--inundation' : ''}`}>
                                                         <div className="edit-target-modal__action-fields">
                                                             <div className="edit-target-modal__field">
                                                                 <label className="edit-target-modal__label--small">
@@ -1351,7 +1378,8 @@ export default function EditTargetModal({
                                                                     <span className="edit-target-modal__error">{errors[`action_${index}_type`]}</span>
                                                                 )}
                                                             </div>
-                                                            
+
+                                                            {!isPolygon && (
                                                             <div className="edit-target-modal__field">
                                                                 <label className="edit-target-modal__label--small">
                                                                     Радиус, км
@@ -1369,7 +1397,35 @@ export default function EditTargetModal({
                                                                     <span className="edit-target-modal__error">{errors[`action_${index}_radius`]}</span>
                                                                 )}
                                                             </div>
+                                                            )}
                                                         </div>
+
+                                                        {isPolygon && (
+                                                            <div className="edit-target-modal__inundation-actions">
+                                                                <button
+                                                                    type="button"
+                                                                    className="edit-target-modal__button-add-action"
+                                                                    onClick={() => handleStartPolygonDraw(index)}
+                                                                >
+                                                                    {action.zone_geometry ? 'Перерисовать на карте' : 'Нарисовать на карте'}
+                                                                </button>
+                                                                {action.zone_geometry && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="edit-target-modal__button-secondary"
+                                                                        onClick={() => handleClearPolygon(index)}
+                                                                    >
+                                                                        Очистить полигон
+                                                                    </button>
+                                                                )}
+                                                                <span className="edit-target-modal__polygon-status">
+                                                                    {action.zone_geometry ? 'Полигон задан' : 'Полигон не задан'}
+                                                                </span>
+                                                                {errors[`action_${index}_polygon`] && (
+                                                                    <span className="edit-target-modal__error">{errors[`action_${index}_polygon`]}</span>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                         
                                                         <button
                                                             type="button"

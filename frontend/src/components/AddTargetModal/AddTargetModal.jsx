@@ -14,6 +14,7 @@ import {
 import './AddTargetModal.css';
 
 import { API_URL } from '../../config/api';
+import { isPolygonZoneMode } from '../../utils/inundationZone';
 
 const API_ROOT = API_URL;
 
@@ -44,6 +45,11 @@ export default function AddTargetModal({
     
     // Используем хук для загрузки справочников
     const { countries, markers, actionTypes, targetTypes, targets, markerSvgs } = useTargetFormData(isOpen, cachedTargets);
+
+    const radiusActionTypes = useMemo(
+        () => actionTypes.filter((type) => !isPolygonZoneMode(type.zone_mode)),
+        [actionTypes],
+    );
 
     const typeSelectOptions = useMemo(() => {
         const applicable = filterTargetTypesForCountry(targetTypes, formData.country);
@@ -606,7 +612,7 @@ export default function AddTargetModal({
                                                     className={`add-target-modal__select ${errors[`action_${index}_type`] ? 'add-target-modal__input--error' : ''}`}
                                                 >
                                                     <option value="">Выберите тип</option>
-                                                    {actionTypes.map(type => (
+                                                    {radiusActionTypes.map(type => (
                                                         <option key={type.id} value={type.id}>
                                                             {type.title}
                                                         </option>

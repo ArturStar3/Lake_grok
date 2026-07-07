@@ -1,6 +1,17 @@
 from django.templatetags.static import static
 from django.urls import reverse_lazy
+from django.utils.functional import lazy
 from django.utils.translation import gettext_lazy as _
+
+
+def _admin_changelist_url(viewname, query=''):
+    from django.urls import reverse
+
+    return reverse(viewname) + query
+
+
+def admin_changelist_link(viewname, query=''):
+    return lazy(_admin_changelist_url, str)(viewname, query)
 
 
 def _environment_callback(request):
@@ -32,7 +43,7 @@ UNFOLD = {
     'BORDER_RADIUS': '6px',
     'SIDEBAR': {
         'show_search': True,
-        'show_all_applications': True,
+        'show_all_applications': False,
         'navigation': [
             {
                 'title': _('Карта и объекты'),
@@ -78,21 +89,6 @@ UNFOLD = {
                         'title': _('Характеры связей'),
                         'icon': 'link',
                         'link': reverse_lazy('admin:formular_relationtype_changelist'),
-                    },
-                    {
-                        'title': _('Фото лиц'),
-                        'icon': 'photo_camera',
-                        'link': reverse_lazy('admin:formular_personphoto_changelist'),
-                    },
-                    {
-                        'title': _('Изображения персоналий'),
-                        'icon': 'image',
-                        'link': reverse_lazy('admin:formular_personattachment_changelist'),
-                    },
-                    {
-                        'title': _('Связи между лицами'),
-                        'icon': 'group',
-                        'link': reverse_lazy('admin:formular_personrelation_changelist'),
                     },
                 ],
             },
@@ -173,6 +169,48 @@ UNFOLD = {
                         'title': _('Изображения стран'),
                         'icon': 'collections',
                         'link': reverse_lazy('admin:formular_countryattachment_changelist'),
+                    },
+                ],
+            },
+            {
+                'title': _('Пользователи и доступ'),
+                'separator': True,
+                'items': [
+                    {
+                        'title': _('Пользователи'),
+                        'icon': 'person',
+                        'link': reverse_lazy('admin:auth_user_changelist'),
+                    },
+                    {
+                        'title': _('Заявки на регистрацию'),
+                        'icon': 'person_add',
+                        'link': admin_changelist_link(
+                            'admin:accounts_userprofile_changelist',
+                            '?status__exact=pending',
+                        ),
+                    },
+                    {
+                        'title': _('Группы безопасности'),
+                        'icon': 'shield',
+                        'link': reverse_lazy('admin:accounts_securitygroup_changelist'),
+                    },
+                    {
+                        'title': _('Запросы сброса пароля'),
+                        'icon': 'lock_reset',
+                        'link': reverse_lazy('admin:accounts_passwordresetrequest_changelist'),
+                    },
+                    {
+                        'title': _('Ожидающие запросы пароля'),
+                        'icon': 'hourglass_top',
+                        'link': admin_changelist_link(
+                            'admin:accounts_passwordresetrequest_changelist',
+                            '?status__exact=pending',
+                        ),
+                    },
+                    {
+                        'title': _('Журнал аудита'),
+                        'icon': 'history',
+                        'link': reverse_lazy('admin:accounts_authauditlog_changelist'),
                     },
                 ],
             },

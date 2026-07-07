@@ -1,16 +1,86 @@
-export const ZONE_GEOMETRY_INUNDATION = 'inundation';
-export const HYDRO_TARGET_TYPE_TITLE = 'Гидротехнические сооружения';
+export const ZONE_GEOMETRY_POLYGON = 'polygon';
+export const ZONE_GEOMETRY_LOS_RADAR = 'los_radar';
+export const ZONE_GEOMETRY_FLAT = 'flat';
+export const INUNDATION_FILTER_LABEL = 'Зоны затопления';
+
+/** @deprecated use ZONE_GEOMETRY_POLYGON */
+export const ZONE_GEOMETRY_INUNDATION = ZONE_GEOMETRY_POLYGON;
+
+export function isPolygonZoneMode(zoneMode) {
+  return zoneMode === ZONE_GEOMETRY_POLYGON;
+}
 
 export function isInundationZoneMode(zoneMode) {
-  return zoneMode === ZONE_GEOMETRY_INUNDATION;
+  return isPolygonZoneMode(zoneMode);
 }
 
+export function isInundationZoneType(actionType) {
+  return Boolean(actionType?.is_inundation_zone);
+}
+
+/** @deprecated use isInundationZoneType */
 export function isInundationActionType(actionType) {
-  return isInundationZoneMode(actionType?.zone_mode);
+  return isInundationZoneType(actionType);
 }
 
-export function isHydroTargetType(targetType) {
-  return targetType?.title === HYDRO_TARGET_TYPE_TITLE;
+export function isHydroTargetType(targetType, allTypes = null) {
+  if (!targetType) return false;
+  if (targetType.title === 'Гидротехнические сооружения') return true;
+  if (!allTypes?.length || targetType.parent == null) return false;
+  const parent = allTypes.find((type) => String(type.id) === String(targetType.parent));
+  return isHydroTargetType(parent, allTypes);
+}
+
+export function resolveActionType(action, actionTypes = []) {
+  if (action?.action_type_id != null && action.action_type_id !== '') {
+    const fromList = actionTypes.find((type) => String(type.id) === String(action.action_type_id));
+    if (fromList) return fromList;
+  }
+  return action?.action_type || null;
+}
+
+export function isPolygonAction(action, actionTypes = []) {
+  if (action?.zone_geometry) return true;
+  const actionType = resolveActionType(action, actionTypes);
+  return isPolygonZoneMode(actionType?.zone_mode);
+}
+
+export function isInundationAction(action, actionTypes = []) {
+  if (action?.inundation_scenario) return true;
+  const actionType = resolveActionType(action, actionTypes);
+  if (isInundationZoneType(actionType)) return true;
+  if (action?.zone_metadata != null && isPolygonAction(action, actionTypes)) return true;
+  return false;
+}
+
+export function getActionFilterKey(action) {
+  const actionType = action?.action_type;
+  if (actionType?.is_inundation_zone) {
+    return INUNDATION_FILTER_LABEL;
+  }
+  return actionType?.title || 'Зона действия';
+}
+
+export function mapTargetActionToForm(action) {
+  const actionType = action?.action_type || null;
+  const inundation = isInundationZoneType(actionType);
+  const polygon = isPolygonZoneMode(actionType?.zone_mode) || Boolean(action?.zone_geometry);
+  return {
+    action_type_id: actionType?.id || '',
+    action_type: actionType,
+    radius: action?.radius ?? '',
+    zone_geometry: action?.zone_geometry || null,
+    inundation_scenario: inundation,
+    zone_metadata: inundation
+      ? (action?.zone_metadata || {
+        water_level_m: '',
+        seasonality: '',
+        scenario_label: '',
+        notes: '',
+      })
+      : (action?.zone_metadata ?? null),
+    polygon_scenario: polygon && !inundation,
+  };
 }
 
 export function getZonePolygonPositions(zoneGeometry) {
@@ -105,6 +175,7 @@ export function formatInundationLevel(zoneMetadata) {
   if (!zoneMetadata) return '';
   const parts = [];
   if (zoneMetadata.scenario_label) parts.push(zoneMetadata.scenario_label);
+  if (zoneMetadata.seasonality) parts.push(zoneMetadata.seasonality);
   if (zoneMetadata.water_level_m != null && zoneMetadata.water_level_m !== '') {
     parts.push(`${zoneMetadata.water_level_m} м`);
   }

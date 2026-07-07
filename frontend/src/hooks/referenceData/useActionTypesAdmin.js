@@ -6,10 +6,19 @@ import { normalizeHexColor } from '../../utils/actionZoneStyle';
 
 const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types/`;
 
+export const ZONE_MODE_OPTIONS = [
+  { value: 'flat', label: 'Круг на плоскости' },
+  { value: 'los_radar', label: 'Круг на плоскости с учетом рельефа' },
+  { value: 'polygon', label: 'Полигон' },
+];
+
 export const EMPTY_ACTION_TYPE_FORM = {
   title: '',
   color: '#3388ff',
   line_type: 'solid',
+  zone_mode: 'flat',
+  is_inundation_zone: false,
+  min_elevation_deg: '',
 };
 
 export function actionTypeToForm(item) {
@@ -18,6 +27,9 @@ export function actionTypeToForm(item) {
     title: item.title || '',
     color: item.color || '#3388ff',
     line_type: item.line_type || 'solid',
+    zone_mode: item.zone_mode || 'flat',
+    is_inundation_zone: Boolean(item.is_inundation_zone),
+    min_elevation_deg: item.min_elevation_deg ?? '',
   };
 }
 
@@ -60,17 +72,29 @@ export function useActionTypesAdmin(enabled) {
       title: payload.title.trim(),
       color: normalizeHexColor(payload.color),
       line_type: payload.line_type || 'solid',
+      zone_mode: payload.zone_mode || 'flat',
+      is_inundation_zone: Boolean(payload.is_inundation_zone),
     };
+    if (body.zone_mode === 'los_radar') {
+      body.min_elevation_deg = payload.min_elevation_deg === ''
+        ? null
+        : Number(payload.min_elevation_deg);
+    } else {
+      body.min_elevation_deg = null;
+    }
+    if (body.is_inundation_zone) {
+      body.zone_mode = 'polygon';
+    }
     if (id) {
-      const res = await axios.put(`${ACTION_TYPES_URL}/${id}/`, body);
+      const res = await axios.put(`${ACTION_TYPES_URL}${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(`${ACTION_TYPES_URL}/`, body);
+    const res = await axios.post(ACTION_TYPES_URL, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${ACTION_TYPES_URL}/${id}/`);
+    await axios.delete(`${ACTION_TYPES_URL}${id}/`);
   }, []);
 
   const notifyChanged = useCallback(() => {

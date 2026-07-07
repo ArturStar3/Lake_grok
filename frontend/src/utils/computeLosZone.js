@@ -1,5 +1,11 @@
 import axios from 'axios';
 import { API_URL } from '../config/api';
+import {
+  getZonePolygonPositions,
+  isInundationZoneType,
+  isPolygonZoneMode,
+  ZONE_GEOMETRY_LOS_RADAR,
+} from './inundationZone';
 
 /**
  * Рассчитать полигон зоны с учётом рельефа на бэкенде (viewshed по GLO-90 DEM).
@@ -16,17 +22,25 @@ export async function computeLosZone(targetId, actionId, antennaHeightM = null) 
   return data;
 }
 
-import { getZonePolygonPositions, isInundationZoneMode } from './inundationZone';
-
 export { getZonePolygonPositions };
 
-export function isTerrainZoneEnabled(zone, terrainTypeIds) {
-  if (isInundationZoneMode(zone?.zoneMode)) return false;
-  const typeId = zone?.actionTypeId ?? zone?.action?.action_type?.id;
-  if (typeId == null || !terrainTypeIds?.size) return false;
-  return terrainTypeIds.has(Number(typeId));
+export function isLosRadarZoneMode(zoneMode) {
+  return zoneMode === ZONE_GEOMETRY_LOS_RADAR;
+}
+
+export function isTerrainZoneEnabled(zone, considerTerrain) {
+  if (!considerTerrain) return false;
+  const zoneMode = zone?.zoneMode ?? zone?.action?.action_type?.zone_mode;
+  if (isPolygonZoneMode(zoneMode)) return false;
+  return isLosRadarZoneMode(zoneMode);
 }
 
 export function isInundationZone(zone) {
-  return isInundationZoneMode(zone?.zoneMode ?? zone?.action?.action_type?.zone_mode);
+  if (zone?.isInundationZone != null) return zone.isInundationZone;
+  return isInundationZoneType(zone?.action?.action_type);
+}
+
+export function isPolygonZone(zone) {
+  if (zone?.isPolygonZone != null) return zone.isPolygonZone;
+  return isPolygonZoneMode(zone?.zoneMode ?? zone?.action?.action_type?.zone_mode);
 }

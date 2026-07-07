@@ -17,7 +17,7 @@ const COUNTRY_COLOR_MAP = {
     marine: "#0077BE",
 };
 
-export default function CountryModal({ countryIso, onClose }) {
+export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -212,6 +212,7 @@ export default function CountryModal({ countryIso, onClose }) {
                                 attachmentsBySection={attachmentsBySection}
                                 resetKey={countryIso}
                                 autoExpandSingle
+                                onTargetEdit={onTargetEdit}
                                 emptyMessage="Информация о стране отсутствует."
                             />
                         )}

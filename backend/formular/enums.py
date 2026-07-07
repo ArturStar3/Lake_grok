@@ -23,5 +23,5 @@ class ZoneGeometryModes(models.TextChoices):
     """Как строить геометрию зоны на карте"""
 
     FLAT = 'flat', 'Круг на плоскости'
-    LOS_RADAR = 'los_radar', 'Покрытие РЛС (рельеф)'
-    INUNDATION = 'inundation', 'Зона затопления (полигон)'
+    LOS_RADAR = 'los_radar', 'Круг на плоскости с учетом рельефа'
+    POLYGON = 'polygon', 'Полигон'

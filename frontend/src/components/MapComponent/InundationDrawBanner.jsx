@@ -2,6 +2,7 @@ import React from 'react';
 import './InundationDrawBanner.css';
 
 export default function InundationDrawBanner({
+  title = 'Полигон зоны',
   hint,
   validationError,
   polygonClosed,
@@ -14,9 +15,9 @@ export default function InundationDrawBanner({
   onCancel,
 }) {
   return (
-    <div className="inundation-draw-banner" role="toolbar" aria-label="Рисование зоны затопления">
+    <div className="inundation-draw-banner" role="toolbar" aria-label={title}>
       <div className="inundation-draw-banner__content">
-        <span className="inundation-draw-banner__title">Зона затопления</span>
+        <span className="inundation-draw-banner__title">{title}</span>
         <span className="inundation-draw-banner__hint">{hint}</span>
         {validationError && (
           <span className="inundation-draw-banner__error">{validationError}</span>

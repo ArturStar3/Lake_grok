@@ -319,10 +319,16 @@ class ActionType(models.Model):
         default=ZoneGeometryModes.FLAT,
         verbose_name='Режим геометрии зоны',
     )
+    is_inundation_zone = models.BooleanField(
+        default=False,
+        verbose_name='Зона затопления',
+        help_text='Тип относится к сценариям затопления',
+    )
     min_elevation_deg = models.FloatField(
-        default=0.5,
+        null=True,
+        blank=True,
         verbose_name='Мин. угол места, °',
-        help_text='Для РЛС: луч ниже этого угла считается заблокированным рельефом',
+        help_text='Для зоны с учётом рельефа: луч ниже этого угла считается заблокированным',
     )
 
     class Meta:
@@ -331,7 +337,21 @@ class ActionType(models.Model):
         indexes = [
             models.Index(fields=('title',)),
         ]
-    
+
+    def clean(self):
+        super().clean()
+        if self.zone_mode == ZoneGeometryModes.LOS_RADAR:
+            if self.min_elevation_deg is None:
+                raise ValidationError({
+                    'min_elevation_deg': 'Укажите минимальный угол места для режима с учётом рельефа',
+                })
+        else:
+            self.min_elevation_deg = None
+        if self.is_inundation_zone and self.zone_mode != ZoneGeometryModes.POLYGON:
+            raise ValidationError({
+                'is_inundation_zone': 'Зона затопления возможна только при режиме «Полигон»',
+            })
+
     def __str__(self):
         return self.title
     

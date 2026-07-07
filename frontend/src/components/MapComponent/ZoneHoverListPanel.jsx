@@ -10,7 +10,7 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
   selectedEntryId = null,
   onSelectZone,
   onClose,
-  terrainTypeIds,
+  considerTerrain,
 }) {
   if (!zones.length) return null;
 
@@ -50,7 +50,7 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
               aria-hidden
             />
           );
-          const terrainLabel = isTerrainZoneEnabled(zone, terrainTypeIds) ? ' · рельеф' : '';
+          const terrainLabel = isTerrainZoneEnabled(zone, considerTerrain) ? ' · рельеф' : '';
           const text = (
             <span className="zone-hover-list__text">
               {formatZoneListLine(zone)}

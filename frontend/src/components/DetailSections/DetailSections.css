@@ -197,6 +197,26 @@
   max-height: 58vh;
 }
 
+.detail-sections__detail-main:has(.formular-completion--table) {
+  display: flex;
+  flex-direction: column;
+  height: 58vh;
+  max-height: 58vh;
+  overflow: hidden;
+}
+
+.detail-sections__detail-main:has(.formular-completion--table) .detail-sections__detail-pane,
+.detail-sections__detail-main:has(.formular-completion--table) .detail-sections__detail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-sections__detail-main:has(.formular-completion--table) .detail-sections__group-title {
+  flex-shrink: 0;
+}
+
 @media (max-width: 720px) {
   .detail-sections__detail-layout {
     flex-direction: column;
@@ -237,6 +257,11 @@
 
   .detail-sections__detail-main {
     max-height: none;
+  }
+
+  .detail-sections__detail-main:has(.formular-completion--table) {
+    height: min(70vh, 640px);
+    max-height: min(70vh, 640px);
   }
 }
 

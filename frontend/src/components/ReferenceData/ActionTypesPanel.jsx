@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   EMPTY_ACTION_TYPE_FORM,
+  ZONE_MODE_OPTIONS,
   actionTypeToForm,
   useActionTypesAdmin,
 } from '../../hooks/referenceData/useActionTypesAdmin';
@@ -238,6 +239,39 @@ export default function ActionTypesPanel({ isActive, onChanged }) {
                     ))}
                   </select>
                 </label>
+                <label className="equipment-catalog-panel__field">
+                  <span>Режим геометрии зоны</span>
+                  <select
+                    value={form.zone_mode}
+                    onChange={(e) => handleFormChange('zone_mode', e.target.value)}
+                  >
+                    {ZONE_MODE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="equipment-catalog-panel__field equipment-catalog-panel__field--full">
+                  <span className="action-types-panel__checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.is_inundation_zone)}
+                      onChange={(e) => handleFormChange('is_inundation_zone', e.target.checked)}
+                    />
+                    Зона затопления
+                  </span>
+                </label>
+                {form.zone_mode === 'los_radar' && (
+                  <label className="equipment-catalog-panel__field">
+                    <span>Мин. угол места, °</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={form.min_elevation_deg}
+                      onChange={(e) => handleFormChange('min_elevation_deg', e.target.value)}
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="action-types-panel__preview">

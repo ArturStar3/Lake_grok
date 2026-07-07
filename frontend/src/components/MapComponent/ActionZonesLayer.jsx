@@ -10,7 +10,7 @@ import {
   ZONE_CENTER_HIGHLIGHT_WEIGHT,
   ZONE_STROKE_WEIGHT,
 } from '../../utils/actionZoneStyle';
-import { getZonePolygonPositions, isInundationZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
+import { getZonePolygonPositions, isInundationZone, isPolygonZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
 import { isPointInPolygon } from '../../utils/inundationZone';
 
 const VIEWPORT_DEBOUNCE_MS = 80;
@@ -26,7 +26,7 @@ function getZonesAtLatLng(zones, latlng, toleranceMeters = 1) {
   if (!latlng || !zones?.length) return [];
   const point = L.latLng(latlng.lat, latlng.lng);
   return zones.filter((zone) => {
-    if (zone.isInundationZone && zone.polygonPositions?.length) {
+    if (zone.isPolygonZone && zone.polygonPositions?.length) {
       return isPointInPolygon(latlng.lat, latlng.lng, zone.polygonPositions);
     }
     const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(point);
@@ -206,7 +206,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   isZonePanelPinned = false,
   onZoneClickAt,
   onZoneHoverChange,
-  terrainTypeIds,
+  considerTerrain,
   losGeometryByActionId = {},
 }) {
   const visibleZones = useMemo(
@@ -278,31 +278,34 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         />
       ))}
       {zonesWithEntryIds.map((zone) => {
-        const useTerrainLos = isTerrainZoneEnabled(zone, terrainTypeIds);
-        const useInundation = isInundationZone(zone);
+        const useTerrainLos = isTerrainZoneEnabled(zone, considerTerrain);
+        const usePolygon = isPolygonZone(zone);
+        const useInundationStyle = isInundationZone(zone);
         const geometry = useTerrainLos
           ? (losGeometryByActionId[zone.actionId] || zone.zoneGeometry)
           : null;
         const terrainPolygonPositions = useTerrainLos
           ? getZonePolygonPositions(geometry)
           : null;
-        const inundationPolygonPositions = useInundation
+        const polygonPositions = usePolygon
           ? zone.polygonPositions
           : null;
 
-        if (useInundation && inundationPolygonPositions) {
+        if (usePolygon && polygonPositions) {
           return (
             <ZonePolygonLayer
               key={zone.entryId}
               zone={zone}
               entryId={zone.entryId}
-              positions={inundationPolygonPositions}
+              positions={polygonPositions}
               hoverController={hoverController}
               onZonePointer={applyZoneHover}
               onZonePointerEnd={clearZoneHover}
               onZoneClick={handleZoneClick}
-              polygonClassName="action-radius-polygon action-radius-polygon--inundation"
-              inundation
+              polygonClassName={useInundationStyle
+                ? 'action-radius-polygon action-radius-polygon--inundation'
+                : 'action-radius-polygon action-radius-polygon--polygon'}
+              inundation={useInundationStyle}
             />
           );
         }

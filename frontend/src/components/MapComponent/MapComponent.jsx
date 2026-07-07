@@ -21,7 +21,6 @@ import MapOverlayLayers from "./MapOverlayLayers";
 import MapLayerPanel from "./MapLayerPanel";
 import { useMapOverlayLayers } from "../../hooks/useMapOverlayLayers";
 import ZoneHoverListPanel from "./ZoneHoverListPanel";
-import MapSettingsDrawer from "./MapSettingsDrawer";
 import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopupManager";
 import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
@@ -777,13 +776,8 @@ function MapComponent({
     toggleActionType,
     toggleAllForCountry,
     resetZoneFilters,
-    actionZoneViewMode: _actionZoneViewMode = "displaySettings",
-    onActionZoneViewModeChange: _onActionZoneViewModeChange,
-    terrainTypeIds,
-    isTerrainEnabled,
-    onTerrainTypeToggle,
-    onEnableAllTerrainTypes,
-    onDisableAllTerrainTypes,
+    considerTerrain = true,
+    onConsiderTerrainChange,
     losGeometryByActionId = {},
     losComputingCount = 0,
     losZonesCount = 0,
@@ -817,10 +811,10 @@ function MapComponent({
     editEventDrawPoints = [],
     onEditEventDrawPointsChange = () => {},
     isEditEventMode = false,
-    inundationDrawSession = null,
-    onInundationDrawPointsChange = () => {},
-    onInundationDrawComplete = () => {},
-    onInundationDrawCancel = () => {},
+    polygonDrawSession = null,
+    onPolygonDrawPointsChange = () => {},
+    onPolygonDrawComplete = () => {},
+    onPolygonDrawCancel = () => {},
     tableTab,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
@@ -907,13 +901,13 @@ function MapComponent({
         onDrawPointsChange: onEditEventDrawPointsChange,
     });
 
-    const isInundationDrawActive = Boolean(inundationDrawSession);
-    const inundationDrawing = useEventDrawing({
-        enabled: isInundationDrawActive,
+    const isPolygonDrawActive = Boolean(polygonDrawSession);
+    const polygonDrawing = useEventDrawing({
+        enabled: isPolygonDrawActive,
         isEditMode: true,
         drawMode: 'polygon',
-        drawPoints: inundationDrawSession?.points || [],
-        onDrawPointsChange: onInundationDrawPointsChange,
+        drawPoints: polygonDrawSession?.points || [],
+        onDrawPointsChange: onPolygonDrawPointsChange,
     });
 
     // Пересоздаём маркеры только при изменении полного набора объектов, а не при filterCountry на карте
@@ -1011,8 +1005,8 @@ function MapComponent({
     }, [eventDrawing]);
 
     const isEventDrawingActive = eventsDrawingEnabled && Boolean(eventDrawing.drawMode);
-    const isMapDrawingActive = isEventDrawingActive || isInundationDrawActive;
-    const activeMapDrawing = isInundationDrawActive ? inundationDrawing : eventDrawing;
+    const isMapDrawingActive = isEventDrawingActive || isPolygonDrawActive;
+    const activeMapDrawing = isPolygonDrawActive ? polygonDrawing : eventDrawing;
 
     const handleEventMapClick = useCallback((latlng, map) => {
         if (!isMapDrawingActive) return;
@@ -1309,8 +1303,8 @@ function MapComponent({
         if (eventsDrawingEnabled && eventDrawing.drawMode) {
             eventDrawing.handleMapMove(e.latlng);
         }
-        if (isInundationDrawActive) {
-            inundationDrawing.handleMapMove(e.latlng);
+        if (isPolygonDrawActive) {
+            polygonDrawing.handleMapMove(e.latlng);
         }
         const el = cursorCoordsRef.current;
         if (!el) return;
@@ -1591,13 +1585,13 @@ function MapComponent({
         });
     }, [measurePoints]);
 
-    const handleInundationDrawConfirm = useCallback(() => {
-        if (!inundationDrawing.isReady()) {
-            inundationDrawing.validateBeforeSave();
+    const handlePolygonDrawConfirm = useCallback(() => {
+        if (!polygonDrawing.isReady()) {
+            polygonDrawing.validateBeforeSave();
             return;
         }
-        onInundationDrawComplete?.(inundationDrawing.drawPoints);
-    }, [inundationDrawing, onInundationDrawComplete]);
+        onPolygonDrawComplete?.(polygonDrawing.drawPoints);
+    }, [polygonDrawing, onPolygonDrawComplete]);
 
     const isMapDrawingEvent = isMapDrawingActive;
 
@@ -1771,6 +1765,10 @@ function MapComponent({
                                     toggleActionType={toggleActionType}
                                     toggleAllForCountry={toggleAllForCountry}
                                     resetZoneFilters={resetZoneFilters}
+                                    considerTerrain={considerTerrain}
+                                    onConsiderTerrainChange={onConsiderTerrainChange}
+                                    losComputingCount={losComputingCount}
+                                    losZonesCount={losZonesCount}
                                     variant="tab"
                                 />
                                 {showZoneIntersections && (
@@ -1864,18 +1862,18 @@ function MapComponent({
                 )}
                 {isMapDrawingEvent && (
                     <EventDraftLayer
-                        drawMode={isInundationDrawActive ? inundationDrawing.drawMode : eventDrawing.drawMode}
-                        drawPoints={isInundationDrawActive ? inundationDrawing.drawPoints : eventDrawing.drawPoints}
-                        previewPoint={isInundationDrawActive ? inundationDrawing.previewPoint : eventDrawing.previewPoint}
-                        previewRectangle={isInundationDrawActive ? inundationDrawing.previewRectangle : eventDrawing.previewRectangle}
-                        previewPolygonPositions={isInundationDrawActive ? inundationDrawing.previewPolygonPositions : eventDrawing.previewPolygonPositions}
-                        polygonClosed={isInundationDrawActive ? inundationDrawing.polygonClosed : eventDrawing.polygonClosed}
+                        drawMode={isPolygonDrawActive ? polygonDrawing.drawMode : eventDrawing.drawMode}
+                        drawPoints={isPolygonDrawActive ? polygonDrawing.drawPoints : eventDrawing.drawPoints}
+                        previewPoint={isPolygonDrawActive ? polygonDrawing.previewPoint : eventDrawing.previewPoint}
+                        previewRectangle={isPolygonDrawActive ? polygonDrawing.previewRectangle : eventDrawing.previewRectangle}
+                        previewPolygonPositions={isPolygonDrawActive ? polygonDrawing.previewPolygonPositions : eventDrawing.previewPolygonPositions}
+                        polygonClosed={isPolygonDrawActive ? polygonDrawing.polygonClosed : eventDrawing.polygonClosed}
                         mapRef={mapRef}
                         isEventPointDraggingRef={isEventPointDraggingRef}
                         isEventPointPointerDownRef={isEventPointPointerDownRef}
-                        onUpdatePoint={isInundationDrawActive ? inundationDrawing.updatePoint : eventDrawing.updatePoint}
-                        onRemoveVertex={isInundationDrawActive ? inundationDrawing.removeVertexAt : eventDrawing.removeVertexAt}
-                        onInsertVertexOnEdge={isInundationDrawActive ? inundationDrawing.insertVertexAtEdge : eventDrawing.insertVertexAtEdge}
+                        onUpdatePoint={isPolygonDrawActive ? polygonDrawing.updatePoint : eventDrawing.updatePoint}
+                        onRemoveVertex={isPolygonDrawActive ? polygonDrawing.removeVertexAt : eventDrawing.removeVertexAt}
+                        onInsertVertexOnEdge={isPolygonDrawActive ? polygonDrawing.insertVertexAtEdge : eventDrawing.insertVertexAtEdge}
                     />
                 )}
                 {events
@@ -1976,7 +1974,7 @@ function MapComponent({
                         isZonePanelPinned={Boolean(pinnedZonePanel)}
                         onZoneClickAt={handleZoneClickAt}
                         onZoneHoverChange={handleZoneHoverChange}
-                        terrainTypeIds={terrainTypeIds}
+                        considerTerrain={considerTerrain}
                         losGeometryByActionId={losGeometryByActionId}
                     />
                 )}
@@ -1988,23 +1986,8 @@ function MapComponent({
                         onClose={handleZonePopupClose}
                     />
                 )}
-                <MapSettingsDrawer
-                    actionTypes={actionTypes}
-                    isTerrainEnabled={isTerrainEnabled}
-                    onTerrainTypeToggle={onTerrainTypeToggle}
-                    onEnableAllTerrainTypes={onEnableAllTerrainTypes}
-                    onDisableAllTerrainTypes={onDisableAllTerrainTypes}
-                    losComputingCount={losComputingCount}
-                    losZonesCount={losZonesCount}
-                    sidebarOpen={isFullscreen && isSidebarOpen}
-                />
             </MapContainer>
             {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
-            {showActionRadius && terrainTypeIds?.size > 0 && losComputingCount > 0 && (
-                <div className="map__los-status" role="status">
-                    Расчёт зон с учётом рельефа… {losComputingCount} / {losZonesCount}
-                </div>
-            )}
             {isFullscreen && showActionRadius && (pinnedZonePanel || hoveredZoneList.length > 0) && (
                 <ZoneHoverListPanel
                     zones={pinnedZonePanel?.zones ?? hoveredZoneList}
@@ -2012,7 +1995,7 @@ function MapComponent({
                     selectedEntryId={selectedZoneEntryId}
                     onSelectZone={handleZonePanelSelect}
                     onClose={handleZonePanelClose}
-                    terrainTypeIds={terrainTypeIds}
+                    considerTerrain={considerTerrain}
                 />
             )}
 
@@ -2032,7 +2015,7 @@ function MapComponent({
                 </button>
             )}
             <EventDrawingToolbar
-                visible={eventsDrawingEnabled && !isEventModalOpen && !isInundationDrawActive}
+                visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive}
                 isEditMode={isEventEditModeActive}
                 activeTool={eventDrawing.selectedTool}
                 drawMode={eventDrawing.drawMode}
@@ -2048,24 +2031,29 @@ function MapComponent({
                 onConfirm={handleEventConfirm}
                 onCancel={handleEventCancel}
             />
-            {isInundationDrawActive && (
+            {isPolygonDrawActive && (
                 <InundationDrawBanner
-                    hint={inundationDrawing.getHint()}
-                    validationError={inundationDrawing.validationError}
-                    polygonClosed={inundationDrawing.polygonClosed}
-                    canFinishPolygon={inundationDrawing.drawMode === 'polygon' && inundationDrawing.drawPoints.length >= 3 && !inundationDrawing.polygonClosed}
-                    canUndoPoint={inundationDrawing.drawMode === 'polygon' && inundationDrawing.drawPoints.length >= 1 && !inundationDrawing.polygonClosed}
-                    isReady={inundationDrawing.isReady()}
-                    onFinishPolygon={inundationDrawing.finishPolygon}
-                    onUndoPoint={inundationDrawing.undoLastPoint}
-                    onConfirm={handleInundationDrawConfirm}
-                    onCancel={onInundationDrawCancel}
+                    hint={polygonDrawing.getHint()}
+                    validationError={polygonDrawing.validationError}
+                    polygonClosed={polygonDrawing.polygonClosed}
+                    canFinishPolygon={polygonDrawing.drawMode === 'polygon' && polygonDrawing.drawPoints.length >= 3 && !polygonDrawing.polygonClosed}
+                    canUndoPoint={polygonDrawing.drawMode === 'polygon' && polygonDrawing.drawPoints.length >= 1 && !polygonDrawing.polygonClosed}
+                    isReady={polygonDrawing.isReady()}
+                    onFinishPolygon={polygonDrawing.finishPolygon}
+                    onUndoPoint={polygonDrawing.undoLastPoint}
+                    onConfirm={handlePolygonDrawConfirm}
+                    onCancel={onPolygonDrawCancel}
+                    title={polygonDrawSession?.isInundation ? 'Зона затопления' : 'Полигон зоны'}
                 />
             )}
             {selectedCountryIso && (
                 <CountryModal 
                     countryIso={selectedCountryIso}
                     onClose={() => setSelectedCountryIso(null)}
+                    onTargetEdit={(targetId) => {
+                        setSelectedCountryIso(null);
+                        onEditClick?.(targetId);
+                    }}
                 />
             )}
             {isEventModalOpen && (

@@ -6,7 +6,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.db.models import Prefetch, Count
 
-from infolake.admin_base import ModelAdmin
+from infolake.admin_base import InlineOnlyModelAdmin, ModelAdmin
 
 from .forms import CountryForm, ActionTypeForm
 from .models import (
@@ -165,8 +165,8 @@ class TargetAdmin(ModelAdmin):
 @admin.register(ActionType)
 class ActionTypeAdmin(ModelAdmin):
     form = ActionTypeForm
-    list_display = ('title', 'color_display', 'line_type', 'zone_mode')
-    list_editable = ('line_type', 'zone_mode')
+    list_display = ('title', 'color_display', 'line_type', 'zone_mode', 'is_inundation_zone')
+    list_editable = ('line_type', 'zone_mode', 'is_inundation_zone')
     search_fields = ('title',)
     list_per_page = 50
 
@@ -335,7 +335,7 @@ class CountryAttachmentAdmin(ModelAdmin):
 
 
 @admin.register(CountryInfo)
-class CountryInfoAdmin(ModelAdmin):
+class CountryInfoAdmin(InlineOnlyModelAdmin):
     list_display = ('country', 'section')
     search_fields = ('country__title', 'section__title', 'content')
     autocomplete_fields = ('country', 'section')
@@ -344,7 +344,7 @@ class CountryInfoAdmin(ModelAdmin):
 
 
 @admin.register(Formular)
-class FormularAdmin(ModelAdmin):
+class FormularAdmin(InlineOnlyModelAdmin):
     list_display = ('target', 'section')
     search_fields = ('target__title', 'section__title', 'content')
     autocomplete_fields = ('target', 'section')
@@ -393,7 +393,7 @@ class PersonAdmin(ModelAdmin):
 
 
 @admin.register(PersonInfo)
-class PersonInfoAdmin(ModelAdmin):
+class PersonInfoAdmin(InlineOnlyModelAdmin):
     list_display = ('person', 'section')
     search_fields = ('person__full_name', 'section__title', 'content')
     autocomplete_fields = ('person', 'section')
@@ -402,7 +402,7 @@ class PersonInfoAdmin(ModelAdmin):
 
 
 @admin.register(PersonAttachment)
-class PersonAttachmentAdmin(ModelAdmin):
+class PersonAttachmentAdmin(InlineOnlyModelAdmin):
     list_display = ('title', 'person', 'section', 'created_at')
     search_fields = ('title', 'person__full_name', 'section__title')
     list_filter = ('section',)
@@ -412,7 +412,7 @@ class PersonAttachmentAdmin(ModelAdmin):
 
 
 @admin.register(PersonPhoto)
-class PersonPhotoAdmin(ModelAdmin):
+class PersonPhotoAdmin(InlineOnlyModelAdmin):
     list_display = ('person', 'title', 'order', 'created_at')
     search_fields = ('title', 'person__full_name')
     list_filter = ('order',)
@@ -422,7 +422,7 @@ class PersonPhotoAdmin(ModelAdmin):
 
 
 @admin.register(PersonRelation)
-class PersonRelationAdmin(ModelAdmin):
+class PersonRelationAdmin(InlineOnlyModelAdmin):
     list_display = ('person_from', 'relation_type', 'person_to', 'notes')
     search_fields = ('person_from__full_name', 'person_to__full_name', 'relation_type__title')
     autocomplete_fields = ('person_from', 'person_to', 'relation_type')

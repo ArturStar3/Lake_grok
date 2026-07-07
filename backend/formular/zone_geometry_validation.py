@@ -129,6 +129,11 @@ def validate_zone_metadata(metadata) -> dict | None:
         if notes:
             result['notes'] = notes[:2000]
 
+    if 'seasonality' in metadata and metadata['seasonality'] not in (None, ''):
+        seasonality = str(metadata['seasonality']).strip()
+        if seasonality:
+            result['seasonality'] = seasonality[:200]
+
     return result or None
 
 

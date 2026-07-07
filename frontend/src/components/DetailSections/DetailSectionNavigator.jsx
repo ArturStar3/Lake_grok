@@ -12,6 +12,7 @@ export default function DetailSectionNavigator({
   onSubordinateFlyTo,
   onSubordinateOpenDetails,
   onEditEquipmentInCatalog,
+  onTargetEdit,
   emptyMessage = 'Информация отсутствует.',
 }) {
   const [selectedCardId, setSelectedCardId] = useState(null);
@@ -61,6 +62,7 @@ export default function DetailSectionNavigator({
                   onSubordinateFlyTo={onSubordinateFlyTo}
                   onSubordinateOpenDetails={onSubordinateOpenDetails}
                   onEditEquipmentInCatalog={onEditEquipmentInCatalog}
+                  onTargetEdit={onTargetEdit}
                 />
               </div>
             </div>

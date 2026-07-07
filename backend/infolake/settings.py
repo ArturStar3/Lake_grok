@@ -11,15 +11,19 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 import environ
 
 from pathlib import Path
 
 from .unfold_settings import UNFOLD
 
+from datetime import timedelta
+
 env = environ.Env(
     DEBUG=(bool, False),
     FRONTEND_URL=(str, 'http://localhost:5173'),
+    CORS_ALLOWED_ORIGINS=(str, 'http://localhost:5173'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -31,7 +35,7 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-me44xie!ww&7r=1u#cgowir&+l+9@&gg^&l*2$^9p36v93kk#6'
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-me44xie!ww&7r=1u#cgowir&+l+9@&gg^&l*2$^9p36v93kk#6')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -58,6 +62,8 @@ INSTALLED_APPS = [
     'django.forms',
     'corsheaders',
     'rest_framework',
+    'rest_framework_simplejwt',
+    'accounts',
     'formular',
     'equipment',
     'api',
@@ -114,7 +120,6 @@ DATABASES = {
     }
 }
 
-
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -124,6 +129,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8},
+    },
+    {
+        'NAME': 'accounts.password_validators.PasswordComplexityValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -164,9 +173,50 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Кастомные виджеты (markdown) — через TEMPLATES DIRS; django.forms — встроенные шаблоны виджетов.
 FORM_RENDERER = 'django.forms.renderers.TemplatesSetting'
 
-# CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
+# CORS: для intranet укажите origins через CORS_ALLOWED_ORIGINS в .env (через запятую)
+_cors_origins = env('CORS_ALLOWED_ORIGINS', default='http://localhost:5173')
+CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
+CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
 
-CORS_ALLOW_ALL_ORIGINS = True
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'infolake-auth',
+    }
+}
+
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+    CACHES['default']['LOCATION'] = 'infolake-test'
+
+    class _DisableMigrations:
+        def __contains__(self, item):
+            return True
+
+        def __getitem__(self, item):
+            return None
+
+    MIGRATION_MODULES = _DisableMigrations()
 
 # Copernicus GLO-90 DEM (оффлайн). В Docker: /app/dem_data/glo-90
 DEM_DATA_DIR = BASE_DIR.parent / 'tileserver' / 'data' / 'dem' / 'glo-90'

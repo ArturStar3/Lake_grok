@@ -1,13 +1,33 @@
+from collections import defaultdict
+
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 from rest_framework import status
 from rest_framework.decorators import action
 from django.db import transaction
 from django.db.models import Q, Count, Prefetch
 from django.utils import timezone
 from formular.viewshed import compute_los_polygon
+
+from accounts.permissions import (
+    CountryScopedQuerysetMixin,
+    EquipmentPermission,
+    EventsPermission,
+    FormularPermission,
+    CountryDossierPermission,
+    IsActiveAppUser,
+    IsSuperUserOrReadOnlyReference,
+    PersonsPermission,
+    TargetsPermission,
+)
+from api.access import (
+    ensure_can_delete,
+    ensure_can_read,
+    ensure_can_write,
+    ensure_country_access,
+    filter_by_user_countries,
+)
 
 from .serializers import (
     TargetSerializer,
@@ -151,10 +171,11 @@ def _target_detail_queryset():
     )
 
 
-class TargetViewSet(viewsets.ModelViewSet):
+class TargetViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     """Объект разведки"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [TargetsPermission]
+    country_field = 'country_id'
     queryset = _target_list_queryset()
 
     def get_serializer_class(self):
@@ -172,7 +193,11 @@ class TargetViewSet(viewsets.ModelViewSet):
         parent = self.request.query_params.get('parent')
         if parent:
             qs = qs.filter(parent_id=parent)
-        return qs
+        return self.filter_by_allowed_countries(qs)
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user)
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], url_path='parent-options')
     def parent_options(self, request):
@@ -182,13 +207,19 @@ class TargetViewSet(viewsets.ModelViewSet):
             .only('id', 'title', 'label', 'country_id', 'type_id')
             .order_by('title')
         )
+        qs = filter_by_user_countries(qs, request.user, 'country_id')
         return Response(TargetParentPickerSerializer(qs, many=True).data)
 
     @action(detail=False, methods=['get'], url_path='formular-completion')
     def formular_completion(self, request):
         """Заполненность формуляра по объектам страны."""
         country_id = request.query_params.get('country')
-        targets = Target.objects.filter(country_id=country_id) if country_id else Target.objects.all()
+        if country_id:
+            ensure_country_access(request.user, country_id)
+            ensure_can_read(request.user, 'targets', country_id)
+            targets = Target.objects.filter(country_id=country_id)
+        else:
+            targets = filter_by_user_countries(Target.objects.all(), request.user, 'country_id')
         targets = targets.order_by('title')
 
         leaf_sections = (
@@ -212,21 +243,27 @@ class TargetViewSet(viewsets.ModelViewSet):
 
         filled_pairs = set(filled) | set(attached)
         total = leaf_sections.count()
+        leaf_list = list(leaf_sections)
 
+        filled_by_target = defaultdict(set)
+        for tgt_id, sec_id in filled_pairs:
+            filled_by_target[tgt_id].add(sec_id)
+
+        target_rows = targets.only('id', 'title', 'label')
         result_targets = []
-        for t in targets:
-            filled_ids = {sec_id for (tgt_id, sec_id) in filled_pairs if tgt_id == t.id}
+        for t in target_rows:
+            filled_ids = filled_by_target.get(t.id, set())
             percent = round(len(filled_ids) * 100 / total, 1) if total else 0
             result_targets.append({
                 'id': t.id,
                 'title': t.title,
                 'label': t.label,
                 'percent': percent,
-                'sections': {str(sec.id): sec.id in filled_ids for sec in leaf_sections},
+                'sections': {str(sec.id): sec.id in filled_ids for sec in leaf_list},
             })
 
         return Response({
-            'sections': [{'id': s.id, 'title': s.title} for s in leaf_sections],
+            'sections': [{'id': s.id, 'title': s.title} for s in leaf_list],
             'targets': result_targets,
         })
 
@@ -333,7 +370,7 @@ class UnitOfMeasureViewSet(viewsets.ModelViewSet):
     """Единицы измерения ТТХ"""
 
     serializer_class = UnitOfMeasureSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = UnitOfMeasure.objects.all().order_by('title')
 
     def destroy(self, request, *args, **kwargs):
@@ -349,7 +386,7 @@ class UnitOfMeasureViewSet(viewsets.ModelViewSet):
 class EquipmentCategoryViewSet(viewsets.ModelViewSet):
     """Категории техники"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = EquipmentCategory.objects.select_related('parent').order_by('order', 'title')
 
     def get_serializer_class(self):
@@ -396,7 +433,7 @@ class EquipmentCategoryViewSet(viewsets.ModelViewSet):
 class EquipmentParameterDefinitionViewSet(viewsets.ModelViewSet):
     """Определения параметров ТТХ"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = (
         EquipmentParameterDefinition.objects
         .select_related('unit', 'action_type')
@@ -456,7 +493,7 @@ class EquipmentParameterDefinitionViewSet(viewsets.ModelViewSet):
 class EquipmentViewSet(viewsets.ModelViewSet):
     """Каталог образцов техники"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [EquipmentPermission]
     queryset = (
         Equipment.objects
         .select_related('category', 'origin_country')
@@ -508,7 +545,7 @@ class EquipmentImageViewSet(viewsets.ModelViewSet):
     """Изображения образцов техники"""
 
     serializer_class = EquipmentImageSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [EquipmentPermission]
     queryset = EquipmentImage.objects.select_related('equipment').order_by('order', 'created_at')
 
     def get_queryset(self):
@@ -521,38 +558,39 @@ class EquipmentImageViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class CountryViewSet(viewsets.ModelViewSet):
+class CountryViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     """Список стран с полным CRUD"""
 
     serializer_class = CountryListSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [CountryDossierPermission]
+    country_field = 'id'
     queryset = Country.objects.all().order_by('title')
 
 class MarkerViewSet(viewsets.ReadOnlyModelViewSet):
     """Список маркеров"""
 
     serializer_class = MarkerListSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsActiveAppUser]
     queryset = Marker.objects.all().order_by('order', 'title')
 
 class EventMarkerViewSet(viewsets.ReadOnlyModelViewSet):
     """Список маркеров событий"""
 
     serializer_class = EventMarkerListSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsActiveAppUser]
     queryset = EventMarker.objects.all().order_by('title')
 
 class ActionTypeViewSet(viewsets.ModelViewSet):
     """CRUD типов зон действия"""
 
     serializer_class = ActionTypeListSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = ActionType.objects.all().order_by('title')
 
 class TargetTypeViewSet(viewsets.ModelViewSet):
     """CRUD типов объектов разведки"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = (
         TargetType.objects
         .select_related('parent')
@@ -605,17 +643,22 @@ class EventTypeViewSet(viewsets.ModelViewSet):
     """CRUD типов событий"""
 
     serializer_class = EventTypeSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = EventType.objects.all().order_by('title')
 
 class CountryInfoView(APIView):
     """Возвращает информацию по стране с её разделами"""
+
+    permission_classes = [CountryDossierPermission]
 
     def get(self, request, iso_code):
         try:
             country = Country.objects.get(iso_code=iso_code)
         except Country.DoesNotExist:
             return Response({'detail': 'Country not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        ensure_country_access(request.user, country.id)
+        ensure_can_read(request.user, 'country_dossier', country.id)
 
         # Получаем все CountryInfo для этой страны
         infos = CountryInfo.objects.filter(country=country).select_related(
@@ -628,13 +671,14 @@ class CountrySectionsViewSet(viewsets.ReadOnlyModelViewSet):
     """Список разделов для информации по странам"""
     
     serializer_class = CountrySectionsSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsActiveAppUser]
     queryset = CountrySections.objects.select_related('parent').order_by('order', 'title')
 
-class CountryInfoViewSet(viewsets.ModelViewSet):
+class CountryInfoViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     """CRUD для информации по странам"""
     
-    permission_classes = [AllowAny]
+    permission_classes = [CountryDossierPermission]
+    country_field = 'country_id'
     queryset = CountryInfo.objects.all().select_related('country', 'section', 'section__parent')
     
     def get_serializer_class(self):
@@ -643,11 +687,12 @@ class CountryInfoViewSet(viewsets.ModelViewSet):
         return CountryInfoSerializer
 
 
-class CountryAttachmentViewSet(viewsets.ModelViewSet):
+class CountryAttachmentViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     """Изображения информации по странам"""
 
     serializer_class = CountryAttachmentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [CountryDossierPermission]
+    country_field = 'country_id'
     queryset = CountryAttachment.objects.select_related('country', 'section').order_by('-created_at')
 
     def get_queryset(self):
@@ -669,13 +714,16 @@ class CountryAttachmentViewSet(viewsets.ModelViewSet):
 class FormularView(APIView):
     """Возвращает формуляр объекта разведки"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [FormularPermission]
 
     def get(self, request, target_id):
         try:
             target = Target.objects.get(id=target_id)
         except Target.DoesNotExist:
             return Response({'detail': 'Target not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        ensure_country_access(request.user, target.country_id)
+        ensure_can_read(request.user, 'formular', target.country_id)
 
         # Получаем все пункты формуляра для этого объекта
         formular_items = Formular.objects.filter(
@@ -703,19 +751,22 @@ class FormularSectionsViewSet(viewsets.ReadOnlyModelViewSet):
     """Список разделов формуляра"""
 
     serializer_class = FormularSectionsListSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsActiveAppUser]
     queryset = FormularSections.objects.all().order_by('order', 'title')
 
 class FormularBulkUpdateView(APIView):
     """Массовое обновление/создание пунктов формуляра"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [FormularPermission]
 
     def post(self, request, target_id):
         try:
             target = Target.objects.get(id=target_id)
         except Target.DoesNotExist:
             return Response({'detail': 'Target not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        ensure_country_access(request.user, target.country_id)
+        ensure_can_write(request.user, 'formular', target.country_id)
 
         items = request.data.get('items', [])
         
@@ -767,11 +818,12 @@ class FormularAttachmentViewSet(viewsets.ModelViewSet):
     """Изображения формуляра"""
 
     serializer_class = FormularAttachmentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [FormularPermission]
     queryset = FormularAttachment.objects.select_related('target', 'section').order_by('-created_at')
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_by_user_countries(qs, self.request.user, 'target__country_id')
         params = self.request.query_params
         target_id = params.get('target')
         section_id = params.get('section')
@@ -787,11 +839,16 @@ class FormularAttachmentViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class EventViewSet(viewsets.ModelViewSet):
+class EventViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     """События"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [EventsPermission]
+    country_field = 'country_id'
     queryset = Event.objects.select_related('country', 'marker', 'event_type').all().order_by('-created_at')
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user)
+        return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -800,6 +857,7 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = self.filter_by_allowed_countries(qs)
         params = self.request.query_params
 
         date_from = params.get('date_from')
@@ -862,7 +920,7 @@ class PersonSectionsViewSet(viewsets.ReadOnlyModelViewSet):
     """Список разделов персоналий"""
 
     serializer_class = PersonSectionsListSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsActiveAppUser]
     queryset = PersonSections.objects.all().order_by('order', 'title')
 
 
@@ -870,17 +928,21 @@ class RelationTypeViewSet(viewsets.ModelViewSet):
     """Характеры связи между лицами"""
 
     serializer_class = RelationTypeSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUserOrReadOnlyReference]
     queryset = RelationType.objects.all().order_by('title')
 
 
 class PersonViewSet(viewsets.ModelViewSet):
     """Лица, привязанные к объектам"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [PersonsPermission]
     queryset = Person.objects.select_related('target').prefetch_related(
         Prefetch('photos', queryset=PersonPhoto.objects.order_by('order', 'created_at')),
     ).order_by('full_name')
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user)
+        return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -896,6 +958,7 @@ class PersonViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_by_user_countries(qs, self.request.user, 'target__country_id')
         target_id = self.request.query_params.get('target')
         if target_id:
             qs = qs.filter(target_id=target_id)
@@ -905,15 +968,18 @@ class PersonViewSet(viewsets.ModelViewSet):
 class PersonDetailView(APIView):
     """Данные по лицу: разделы и связи"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [PersonsPermission]
 
     def get(self, request, person_id):
         try:
-            person = Person.objects.prefetch_related(
+            person = Person.objects.select_related('target').prefetch_related(
                 Prefetch('photos', queryset=PersonPhoto.objects.order_by('order', 'created_at')),
             ).get(pk=person_id)
         except Person.DoesNotExist:
             return Response({'detail': 'Person not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        ensure_country_access(request.user, person.target.country_id)
+        ensure_can_read(request.user, 'persons', person.target.country_id)
 
         info_items = PersonInfo.objects.filter(person=person).select_related('section', 'section__parent')
         info_serializer = PersonInfoSerializer(info_items, many=True)
@@ -945,13 +1011,16 @@ class PersonDetailView(APIView):
 class PersonBulkUpdateView(APIView):
     """Массовое обновление данных по разделам лица"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [PersonsPermission]
 
     def post(self, request, person_id):
         try:
-            person = Person.objects.get(pk=person_id)
+            person = Person.objects.select_related('target').get(pk=person_id)
         except Person.DoesNotExist:
             return Response({'detail': 'Person not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        ensure_country_access(request.user, person.target.country_id)
+        ensure_can_write(request.user, 'persons', person.target.country_id)
 
         items = request.data.get('items', [])
         if not isinstance(items, list):
@@ -1002,11 +1071,12 @@ class PersonAttachmentViewSet(viewsets.ModelViewSet):
     """Изображения персоналий"""
 
     serializer_class = PersonAttachmentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [PersonsPermission]
     queryset = PersonAttachment.objects.select_related('person', 'section').order_by('-created_at')
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_by_user_countries(qs, self.request.user, 'person__target__country_id')
         params = self.request.query_params
         person_id = params.get('person')
         section_id = params.get('section')
@@ -1025,11 +1095,12 @@ class PersonPhotoViewSet(viewsets.ModelViewSet):
     """Фотографии лица"""
 
     serializer_class = PersonPhotoSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [PersonsPermission]
     queryset = PersonPhoto.objects.select_related('person').order_by('order', 'created_at')
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_by_user_countries(qs, self.request.user, 'person__target__country_id')
         person_id = self.request.query_params.get('person')
         if self.action == 'list' and not person_id:
             return qs.none()
@@ -1041,7 +1112,7 @@ class PersonPhotoViewSet(viewsets.ModelViewSet):
 class PersonRelationViewSet(viewsets.ModelViewSet):
     """Связи между лицами"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [PersonsPermission]
     queryset = PersonRelation.objects.select_related(
         'person_from', 'person_to', 'relation_type'
     ).order_by('id')
@@ -1060,6 +1131,7 @@ class PersonRelationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = filter_by_user_countries(qs, self.request.user, 'person_from__target__country_id')
         person_id = self.request.query_params.get('person')
         if person_id:
             qs = qs.filter(Q(person_from_id=person_id) | Q(person_to_id=person_id))
