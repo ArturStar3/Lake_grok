@@ -1148,3 +1148,122 @@ class PersonRelation(models.Model):
     def __str__(self):
         return f"{self.person_from} → {self.relation_type} → {self.person_to}"
 
+
+class OperationalSituationRevisionChangeKind(models.TextChoices):
+    INITIAL = 'initial', 'Создание'
+    CORRECTION = 'correction', 'Исправление'
+    NEW_STATE = 'new_state', 'Новое состояние'
+    FORK = 'fork', 'На основе другой обстановки'
+
+
+class OperationalSituation(models.Model):
+    """Серия оперативной обстановки (логическая сущность с версиями)."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    current_revision = models.OneToOneField(
+        'OperationalSituationRevision',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        verbose_name='Текущая ревизия',
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата создания серии',
+    )
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='operational_situations_created',
+        verbose_name='Автор',
+    )
+
+    class Meta:
+        verbose_name = 'Оперативная обстановка'
+        verbose_name_plural = 'Оперативные обстановки'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        rev = self.current_revision
+        return rev.title if rev else str(self.id)
+
+
+class OperationalSituationRevision(models.Model):
+    """Снимок состояния оперативной обстановки."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    situation = models.ForeignKey(
+        OperationalSituation,
+        on_delete=models.CASCADE,
+        related_name='revisions',
+        verbose_name='Обстановка',
+    )
+    version = models.PositiveIntegerField(verbose_name='Версия')
+    title = models.CharField(max_length=255, verbose_name='Название')
+    description = models.TextField(verbose_name='Описание', blank=True)
+    situation_date = models.DateField(verbose_name='Дата обстановки', null=True, blank=True)
+    situation_time = models.TimeField(verbose_name='Время обстановки', null=True, blank=True)
+    color = models.CharField(max_length=7, verbose_name='Цвет', default='#2f80ed')
+    geometry = models.JSONField(verbose_name='Геометрия (GeoJSON)', default=dict, blank=True)
+    countries = models.ManyToManyField(
+        Country,
+        blank=True,
+        related_name='operational_situation_revisions',
+        verbose_name='Затронутые страны',
+    )
+    change_kind = models.CharField(
+        max_length=20,
+        choices=OperationalSituationRevisionChangeKind.choices,
+        default=OperationalSituationRevisionChangeKind.INITIAL,
+        verbose_name='Тип изменения',
+    )
+    change_note = models.TextField(verbose_name='Комментарий к изменению', blank=True)
+    parent_revision = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='child_revisions',
+        verbose_name='Предыдущая ревизия',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата фиксации')
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='operational_situation_revisions_created',
+        verbose_name='Автор',
+    )
+
+    class Meta:
+        verbose_name = 'Ревизия оперативной обстановки'
+        verbose_name_plural = 'Ревизии оперативной обстановки'
+        ordering = ['situation_id', 'version']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('situation', 'version'),
+                name='uniq_operational_situation_version',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('situation_date',)),
+            models.Index(fields=('created_at',)),
+        ]
+
+    def __str__(self):
+        return f'{self.title} (v{self.version})'
+

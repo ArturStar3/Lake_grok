@@ -61,6 +61,10 @@ class EventsPermission(ModulePermission):
     module = 'events'
 
 
+class OperationalSituationsPermission(ModulePermission):
+    module = 'operational_situations'
+
+
 class FormularPermission(ModulePermission):
     module = 'formular'
 

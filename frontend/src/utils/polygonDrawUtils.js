@@ -1,6 +1,7 @@
 import { calcDistanceMeters } from './geoUtils';
 
 export const SNAP_CLOSE_PIXELS = 12;
+export const EMPTY_DRAW_POINTS = Object.freeze([]);
 
 function orientation(p, q, r) {
   const val = (q.lng - p.lng) * (r.lat - q.lat) - (q.lat - p.lat) * (r.lng - q.lng);
@@ -102,6 +103,66 @@ export function validatePolygonPoints(points) {
     return 'Контур не должен пересекать сам себя';
   }
   return null;
+}
+
+export function formatCoordValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const n = Number(value);
+  return Number.isNaN(n) ? String(value) : n.toFixed(6);
+}
+
+export function drawPointsToEditable(points) {
+  if (!points?.length) return [];
+  return points.map((p) => ({
+    lat: formatCoordValue(p.lat),
+    lng: formatCoordValue(p.lng),
+  }));
+}
+
+export function editablePointsKey(points) {
+  if (!points?.length) return '';
+  return points.map((p) => `${p.lat}|${p.lng}`).join(';');
+}
+
+export function drawPointsKey(points) {
+  if (!points?.length) return '';
+  return points
+    .map((p) => `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`)
+    .join('|');
+}
+
+export function parseLatLngPoint(point) {
+  if (!point) return null;
+  const lat = Number(point.lat);
+  const lng = Number(point.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  return { lat, lng };
+}
+
+export function parseLatLngPoints(points, { minCount = 0 } = {}) {
+  const parsed = (points || []).map(parseLatLngPoint).filter(Boolean);
+  if (parsed.length < minCount) return null;
+  return parsed;
+}
+
+export function validateCoordRanges(point) {
+  const parsed = parseLatLngPoint(point);
+  if (!parsed) return 'Введите корректные координаты';
+  if (parsed.lat < -90 || parsed.lat > 90) return 'Широта должна быть от -90 до 90';
+  if (parsed.lng < -180 || parsed.lng > 180) return 'Долгота должна быть от -180 до 180';
+  return null;
+}
+
+export function validateEditablePolygonPoints(points) {
+  if (!points?.length) return 'Нужно минимум 3 вершины';
+  if (points.length < 3) return 'Нужно минимум 3 вершины';
+  for (let i = 0; i < points.length; i += 1) {
+    const rangeErr = validateCoordRanges(points[i]);
+    if (rangeErr) return `Точка ${i + 1}: ${rangeErr}`;
+  }
+  const parsed = parseLatLngPoints(points, { minCount: 3 });
+  if (!parsed) return 'Нужно минимум 3 вершины с корректными координатами';
+  return validatePolygonPoints(parsed);
 }
 
 function distancePointToSegmentPx(p, a, b) {

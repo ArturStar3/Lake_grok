@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildVisibleZones } from '../../utils/buildVisibleZones';
-import { computeLosZone, isLosRadarZoneMode } from '../../utils/computeLosZone';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { computeLosZone } from '../../utils/computeLosZone';
+
+const LOS_DEBOUNCE_MS = 350;
+const LOS_BATCH_FLUSH_MS = 80;
+const LOS_CONCURRENCY = 2;
+const MAX_LOS_ZONES_PER_BATCH = 40;
 
 function buildComputeKey(zone) {
   const antenna = zone.obj?.antenna_height_m ?? 10;
@@ -43,11 +47,10 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 /**
- * Автоматически запрашивает полигоны зон с учётом рельефа для выбранных типов действия.
+ * Запрашивает полигоны зон с учётом рельефа (батчами, с debounce).
  */
 export function useAutoLosZoneGeometries({
-  zoneObjects,
-  actionZoneFilters,
+  terrainZones = [],
   considerTerrain,
   enabled,
 }) {
@@ -56,22 +59,52 @@ export function useAutoLosZoneGeometries({
   const [errorsByActionId, setErrorsByActionId] = useState({});
   const cacheRef = useRef(new Map());
   const requestGenRef = useRef(0);
-
-  const terrainZones = useMemo(() => {
-    if (!enabled || !considerTerrain) return [];
-    return buildVisibleZones(zoneObjects, actionZoneFilters).filter(
-      (zone) => isLosRadarZoneMode(zone.zoneMode),
-    );
-  }, [zoneObjects, actionZoneFilters, considerTerrain, enabled]);
+  const pendingGeometriesRef = useRef({});
+  const flushTimerRef = useRef(null);
 
   const terrainZonesKey = useMemo(
     () => terrainZones.map((z) => buildComputeKey(z)).sort().join('|'),
     [terrainZones],
   );
 
+  const [debouncedZonesKey, setDebouncedZonesKey] = useState(terrainZonesKey);
+
+  useEffect(() => {
+    if (!enabled || !considerTerrain) {
+      setDebouncedZonesKey(terrainZonesKey);
+      return undefined;
+    }
+    const timer = setTimeout(() => setDebouncedZonesKey(terrainZonesKey), LOS_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [enabled, considerTerrain, terrainZonesKey]);
+
+  const flushPendingGeometries = useCallback(() => {
+    const batch = pendingGeometriesRef.current;
+    if (!Object.keys(batch).length) return;
+    pendingGeometriesRef.current = {};
+    setGeometryByActionId((prev) => ({ ...prev, ...batch }));
+  }, []);
+
+  const queueGeometry = useCallback((actionId, geometry) => {
+    pendingGeometriesRef.current[actionId] = geometry;
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushPendingGeometries();
+    }, LOS_BATCH_FLUSH_MS);
+  }, [flushPendingGeometries]);
+
+  useEffect(() => () => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+  }, []);
+
   useEffect(() => {
     if (!enabled || !considerTerrain || terrainZones.length === 0) {
       setComputingCount(0);
+      return undefined;
+    }
+
+    if (debouncedZonesKey !== terrainZonesKey) {
       return undefined;
     }
 
@@ -91,62 +124,79 @@ export function useAutoLosZoneGeometries({
       setGeometryByActionId((prev) => ({ ...prev, ...seedFromApi }));
     }
 
-    const pending = terrainZones.filter((zone) => {
+    const allPending = terrainZones.filter((zone) => {
       const key = buildComputeKey(zone);
       return !cacheRef.current.has(key);
     });
 
-    if (pending.length === 0) {
+    if (allPending.length === 0) {
       setComputingCount(0);
       return undefined;
     }
 
-    setComputingCount(pending.length);
+    setComputingCount(allPending.length);
 
     (async () => {
       const newErrors = {};
-      await mapWithConcurrency(pending, 3, async (zone) => {
-        if (cancelled || requestGenRef.current !== generation) return;
-        const key = buildComputeKey(zone);
-        try {
-          const data = await computeLosZone(
-            zone.obj.id,
-            zone.actionId,
-            zone.obj.antenna_height_m,
-          );
-          if (cancelled || requestGenRef.current !== generation) return;
-          const geometry = data.zone_geometry;
-          cacheRef.current.set(key, geometry);
-          setGeometryByActionId((prev) => ({
-            ...prev,
-            [zone.actionId]: geometry,
-          }));
-          setErrorsByActionId((prev) => {
-            if (!prev[zone.actionId]) return prev;
-            const next = { ...prev };
-            delete next[zone.actionId];
-            return next;
-          });
-        } catch (err) {
-          if (cancelled || requestGenRef.current !== generation) return;
-          const message = err?.response?.data?.detail || err?.message || 'Ошибка расчёта';
-          newErrors[zone.actionId] = message;
-        } finally {
-          if (!cancelled && requestGenRef.current === generation) {
-            setComputingCount((prev) => Math.max(0, prev - 1));
-          }
-        }
-      });
+      let processed = 0;
 
-      if (!cancelled && requestGenRef.current === generation && Object.keys(newErrors).length > 0) {
-        setErrorsByActionId((prev) => ({ ...prev, ...newErrors }));
+      for (let offset = 0; offset < allPending.length; offset += MAX_LOS_ZONES_PER_BATCH) {
+        if (cancelled || requestGenRef.current !== generation) break;
+        const batch = allPending.slice(offset, offset + MAX_LOS_ZONES_PER_BATCH);
+
+        await mapWithConcurrency(batch, LOS_CONCURRENCY, async (zone) => {
+          if (cancelled || requestGenRef.current !== generation) return;
+          const key = buildComputeKey(zone);
+          try {
+            const data = await computeLosZone(
+              zone.obj.id,
+              zone.actionId,
+              zone.obj.antenna_height_m,
+            );
+            if (cancelled || requestGenRef.current !== generation) return;
+            const geometry = data.zone_geometry;
+            cacheRef.current.set(key, geometry);
+            queueGeometry(zone.actionId, geometry);
+            setErrorsByActionId((prev) => {
+              if (!prev[zone.actionId]) return prev;
+              const next = { ...prev };
+              delete next[zone.actionId];
+              return next;
+            });
+          } catch (err) {
+            if (cancelled || requestGenRef.current !== generation) return;
+            const message = err?.response?.data?.detail || err?.message || 'Ошибка расчёта';
+            newErrors[zone.actionId] = message;
+          } finally {
+            processed += 1;
+            if (!cancelled && requestGenRef.current === generation) {
+              setComputingCount(Math.max(0, allPending.length - processed));
+            }
+          }
+        });
+      }
+
+      if (!cancelled && requestGenRef.current === generation) {
+        flushPendingGeometries();
+        setComputingCount(0);
+        if (Object.keys(newErrors).length > 0) {
+          setErrorsByActionId((prev) => ({ ...prev, ...newErrors }));
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, considerTerrain, terrainZonesKey, terrainZones]);
+  }, [
+    enabled,
+    considerTerrain,
+    debouncedZonesKey,
+    terrainZonesKey,
+    terrainZones,
+    queueGeometry,
+    flushPendingGeometries,
+  ]);
 
   return {
     geometryByActionId,

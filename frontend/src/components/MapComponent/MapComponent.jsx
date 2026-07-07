@@ -27,9 +27,16 @@ import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
 import MarkdownContent from "../common/MarkdownEditor/MarkdownContent";
 import EventDrawingToolbar from "./EventDrawingToolbar";
+import SituationDrawingToolbar from "./SituationDrawingToolbar";
+import OperationalSituationLayer from "./OperationalSituationLayer";
+import SituationDetailPanel from "../OperationalSituation/SituationDetailPanel";
+import SituationsFilterPanel from "../OperationalSituation/SituationsFilterPanel";
+import SituationsTable from "../OperationalSituation/SituationsTable";
+import SituationsTimeline from "../OperationalSituation/SituationsTimeline";
 import InundationDrawBanner from "./InundationDrawBanner";
 import EventDraftLayer from "./EventDraftLayer";
 import { useEventDrawing } from "../../hooks/map/useEventDrawing";
+import { drawPointsToEditable, editablePointsKey, drawPointsKey, EMPTY_DRAW_POINTS, parseLatLngPoints, validateEditablePolygonPoints } from "../../utils/polygonDrawUtils";
 import { calcDistanceMeters } from "../../utils/geoUtils";
 import { isFlagMarker } from "../../utils/markerFilters";
 import { getGroupCirclePositions } from "./markerClusteringUtils";
@@ -781,6 +788,7 @@ function MapComponent({
     losGeometryByActionId = {},
     losComputingCount = 0,
     losZonesCount = 0,
+    visibleZones = null,
     // ...existing code...
     onMeasureModeChange,
     onMeasurePointsChange,
@@ -816,6 +824,36 @@ function MapComponent({
     onPolygonDrawComplete = () => {},
     onPolygonDrawCancel = () => {},
     tableTab,
+    situations = [],
+    selectedSituationIds = [],
+    previewRevision = null,
+    onSituationClick = () => {},
+    isSituationDrawActive = false,
+    situationDrawPoints = [],
+    onSituationDrawPointsChange = () => {},
+    onSituationDrawConfirm = () => {},
+    onSituationDrawCancel = () => {},
+    detailSituation = null,
+    situationRevisions = [],
+    selectedRevisionId = null,
+    onSituationDetailClose = () => {},
+    onSituationEdit = () => {},
+    onSituationNewState = () => {},
+    onSituationFork = () => {},
+    onSituationRevisionSelect = () => {},
+    situationsFilters = { title: '', dateFrom: '', dateTo: '', countries: [] },
+    onSituationsFiltersChange = () => {},
+    onSituationCheckboxChange,
+    onSituationDelete,
+    onSituationFlyTo,
+    onSituationCreate,
+    highlightedSituationId = null,
+    onSituationRowClick,
+    situationsTimeline = [],
+    onGlobalTimelineSelect = () => {},
+    isSituationModalOpen = false,
+    editingSituationId = null,
+    canReadSituations = true,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
 
@@ -854,13 +892,13 @@ function MapComponent({
     }, []);
 
     // Stable Set for O(1) lookups in heavy filters / renders (avoids .includes on every item during flyTo re-renders etc)
+    const [fullscreenTab, setFullscreenTab] = useState("objects");
     const handleFullscreenTabChange = useCallback((tab) => {
         setFullscreenTab(tab);
         onTableTabChange?.(tab);
     }, [onTableTabChange]);
 
     const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
-    const [fullscreenTab, setFullscreenTab] = useState("objects");
     const [eventMarkerSvgs, setEventMarkerSvgs] = useState(new Map());
     const eventMarkerFetchRef = useRef(new Set());
     const isEventPointDraggingRef = useRef(false);
@@ -902,13 +940,124 @@ function MapComponent({
     });
 
     const isPolygonDrawActive = Boolean(polygonDrawSession);
+    const isSituationPolygonEditEnabled = isSituationDrawActive || isSituationModalOpen;
+    const isSituationDrawingActive = isSituationPolygonEditEnabled
+        && (tableTab === 'situations' || isSituationModalOpen);
+    const polygonSessionPoints = polygonDrawSession?.points ?? EMPTY_DRAW_POINTS;
+    const situationSessionPoints = situationDrawPoints ?? EMPTY_DRAW_POINTS;
     const polygonDrawing = useEventDrawing({
         enabled: isPolygonDrawActive,
         isEditMode: true,
         drawMode: 'polygon',
-        drawPoints: polygonDrawSession?.points || [],
+        drawPoints: polygonSessionPoints,
         onDrawPointsChange: onPolygonDrawPointsChange,
     });
+    const situationDrawing = useEventDrawing({
+        enabled: isSituationDrawingActive,
+        isEditMode: true,
+        drawMode: 'polygon',
+        drawPoints: situationSessionPoints,
+        onDrawPointsChange: onSituationDrawPointsChange,
+    });
+
+    const [eventPolygonEditable, setEventPolygonEditable] = useState([]);
+    const [zonePolygonEditable, setZonePolygonEditable] = useState([]);
+    const [situationPolygonEditable, setSituationPolygonEditable] = useState([]);
+    const skipEventPolygonSyncRef = useRef(false);
+    const skipZonePolygonSyncRef = useRef(false);
+    const skipSituationPolygonSyncRef = useRef(false);
+
+    const eventDrawPointsKey = drawPointsKey(eventDrawing.drawPoints);
+    const zoneDrawPointsKey = drawPointsKey(polygonDrawing.drawPoints);
+    const situationDrawPointsKey = drawPointsKey(situationDrawing.drawPoints);
+
+    useEffect(() => {
+        if (eventDrawing.drawMode !== 'polygon') {
+            setEventPolygonEditable((prev) => (prev.length === 0 ? prev : []));
+            return;
+        }
+        if (skipEventPolygonSyncRef.current) {
+            skipEventPolygonSyncRef.current = false;
+            return;
+        }
+        const next = drawPointsToEditable(eventDrawing.drawPoints);
+        const nextKey = editablePointsKey(next);
+        setEventPolygonEditable((prev) => (
+            editablePointsKey(prev) === nextKey ? prev : next
+        ));
+    }, [eventDrawing.drawMode, eventDrawPointsKey, eventDrawing.drawPoints]);
+
+    useEffect(() => {
+        if (!isPolygonDrawActive) {
+            setZonePolygonEditable((prev) => (prev.length === 0 ? prev : []));
+            return;
+        }
+        if (skipZonePolygonSyncRef.current) {
+            skipZonePolygonSyncRef.current = false;
+            return;
+        }
+        const next = drawPointsToEditable(polygonDrawing.drawPoints);
+        const nextKey = editablePointsKey(next);
+        setZonePolygonEditable((prev) => (
+            editablePointsKey(prev) === nextKey ? prev : next
+        ));
+    }, [isPolygonDrawActive, zoneDrawPointsKey, polygonDrawing.drawPoints]);
+
+    useEffect(() => {
+        if (!isSituationDrawingActive) {
+            setSituationPolygonEditable((prev) => (prev.length === 0 ? prev : []));
+            return;
+        }
+        if (skipSituationPolygonSyncRef.current) {
+            skipSituationPolygonSyncRef.current = false;
+            return;
+        }
+        const next = drawPointsToEditable(situationDrawing.drawPoints);
+        const nextKey = editablePointsKey(next);
+        setSituationPolygonEditable((prev) => (
+            editablePointsKey(prev) === nextKey ? prev : next
+        ));
+    }, [isSituationDrawingActive, situationDrawPointsKey, situationDrawing.drawPoints]);
+
+    const replaceEventDrawPointsRef = useRef(eventDrawing.replaceDrawPoints);
+    replaceEventDrawPointsRef.current = eventDrawing.replaceDrawPoints;
+    const replaceZoneDrawPointsRef = useRef(polygonDrawing.replaceDrawPoints);
+    replaceZoneDrawPointsRef.current = polygonDrawing.replaceDrawPoints;
+    const replaceSituationDrawPointsRef = useRef(situationDrawing.replaceDrawPoints);
+    replaceSituationDrawPointsRef.current = situationDrawing.replaceDrawPoints;
+
+    const handleEventPolygonCoordChange = useCallback((editable) => {
+        setEventPolygonEditable(editable);
+        skipEventPolygonSyncRef.current = true;
+        replaceEventDrawPointsRef.current(parseLatLngPoints(editable) || []);
+    }, []);
+
+    const handleZonePolygonCoordChange = useCallback((editable) => {
+        setZonePolygonEditable(editable);
+        skipZonePolygonSyncRef.current = true;
+        replaceZoneDrawPointsRef.current(parseLatLngPoints(editable) || []);
+    }, []);
+
+    const handleSituationPolygonCoordChange = useCallback((editable) => {
+        setSituationPolygonEditable(editable);
+        skipSituationPolygonSyncRef.current = true;
+        replaceSituationDrawPointsRef.current(parseLatLngPoints(editable) || []);
+    }, []);
+
+    const eventPolygonCoordError = useMemo(() => {
+        if (eventDrawing.drawMode !== 'polygon' || !eventPolygonEditable.length) return null;
+        return validateEditablePolygonPoints(eventPolygonEditable);
+    }, [eventDrawing.drawMode, eventPolygonEditable]);
+
+    const zonePolygonCoordError = useMemo(() => {
+        if (!isPolygonDrawActive || !zonePolygonEditable.length) return null;
+        return validateEditablePolygonPoints(zonePolygonEditable);
+    }, [isPolygonDrawActive, zonePolygonEditable]);
+
+    const situationPolygonCoordError = useMemo(() => {
+        if (!isSituationDrawingActive || !situationPolygonEditable.length) return null;
+        return validateEditablePolygonPoints(situationPolygonEditable);
+    }, [isSituationDrawingActive, situationPolygonEditable]);
 
     // Пересоздаём маркеры только при изменении полного набора объектов, а не при filterCountry на карте
     const objectsDataKey = useMemo(() => {
@@ -1005,8 +1154,12 @@ function MapComponent({
     }, [eventDrawing]);
 
     const isEventDrawingActive = eventsDrawingEnabled && Boolean(eventDrawing.drawMode);
-    const isMapDrawingActive = isEventDrawingActive || isPolygonDrawActive;
-    const activeMapDrawing = isPolygonDrawActive ? polygonDrawing : eventDrawing;
+    const isMapDrawingActive = isEventDrawingActive || isPolygonDrawActive || isSituationDrawingActive;
+    const activeMapDrawing = isPolygonDrawActive
+        ? polygonDrawing
+        : isSituationDrawingActive
+            ? situationDrawing
+            : eventDrawing;
 
     const handleEventMapClick = useCallback((latlng, map) => {
         if (!isMapDrawingActive) return;
@@ -1593,6 +1746,14 @@ function MapComponent({
         onPolygonDrawComplete?.(polygonDrawing.drawPoints);
     }, [polygonDrawing, onPolygonDrawComplete]);
 
+    const handleSituationDrawConfirm = useCallback(() => {
+        if (!situationDrawing.isReady()) {
+            situationDrawing.validateBeforeSave();
+            return;
+        }
+        onSituationDrawConfirm?.(situationDrawing.drawPoints);
+    }, [situationDrawing, onSituationDrawConfirm]);
+
     const isMapDrawingEvent = isMapDrawingActive;
 
     return (
@@ -1695,6 +1856,15 @@ function MapComponent({
                             >
                                 Зоны действия
                             </button>
+                            {canReadSituations && (
+                            <button
+                                type="button"
+                                className={`formular__tab${fullscreenTab === "situations" ? " formular__tab--active" : ""}`}
+                                onClick={() => handleFullscreenTabChange("situations")}
+                            >
+                                Обстановка
+                            </button>
+                            )}
                         </div>
 
                         {fullscreenTab === "objects" && (
@@ -1782,6 +1952,33 @@ function MapComponent({
                             </>
                         )}
 
+                        {fullscreenTab === "situations" && (
+                            <>
+                                <SituationsFilterPanel
+                                    countries={countriesList}
+                                    filters={situationsFilters}
+                                    onChange={onSituationsFiltersChange}
+                                />
+                                <SituationsTable
+                                    data={situations}
+                                    selectedSituations={selectedSituationIds}
+                                    onCheckboxChange={onSituationCheckboxChange}
+                                    onRowClick={onSituationRowClick}
+                                    onFlyTo={onSituationFlyTo}
+                                    onEdit={onSituationEdit}
+                                    onDelete={onSituationDelete}
+                                    onCreate={onSituationCreate}
+                                    highlightedSituationId={highlightedSituationId}
+                                />
+                                <SituationsTimeline
+                                    revisions={situationsTimeline}
+                                    selectedRevisionId={previewRevision?.id}
+                                    onSelectRevision={onGlobalTimelineSelect}
+                                    groupBySituation
+                                />
+                            </>
+                        )}
+
                     </div>
 
                     <div className="map__sidebar-section map__features-section">
@@ -1862,23 +2059,84 @@ function MapComponent({
                 )}
                 {isMapDrawingEvent && (
                     <EventDraftLayer
-                        drawMode={isPolygonDrawActive ? polygonDrawing.drawMode : eventDrawing.drawMode}
-                        drawPoints={isPolygonDrawActive ? polygonDrawing.drawPoints : eventDrawing.drawPoints}
-                        previewPoint={isPolygonDrawActive ? polygonDrawing.previewPoint : eventDrawing.previewPoint}
-                        previewRectangle={isPolygonDrawActive ? polygonDrawing.previewRectangle : eventDrawing.previewRectangle}
-                        previewPolygonPositions={isPolygonDrawActive ? polygonDrawing.previewPolygonPositions : eventDrawing.previewPolygonPositions}
-                        polygonClosed={isPolygonDrawActive ? polygonDrawing.polygonClosed : eventDrawing.polygonClosed}
+                        drawMode={
+                            isPolygonDrawActive
+                                ? polygonDrawing.drawMode
+                                : isSituationDrawingActive
+                                    ? situationDrawing.drawMode
+                                    : eventDrawing.drawMode
+                        }
+                        drawPoints={
+                            isPolygonDrawActive
+                                ? polygonDrawing.drawPoints
+                                : isSituationDrawingActive
+                                    ? situationDrawing.drawPoints
+                                    : eventDrawing.drawPoints
+                        }
+                        previewPoint={
+                            isPolygonDrawActive
+                                ? polygonDrawing.previewPoint
+                                : isSituationDrawingActive
+                                    ? situationDrawing.previewPoint
+                                    : eventDrawing.previewPoint
+                        }
+                        previewRectangle={
+                            isPolygonDrawActive
+                                ? polygonDrawing.previewRectangle
+                                : isSituationDrawingActive
+                                    ? situationDrawing.previewRectangle
+                                    : eventDrawing.previewRectangle
+                        }
+                        previewPolygonPositions={
+                            isPolygonDrawActive
+                                ? polygonDrawing.previewPolygonPositions
+                                : isSituationDrawingActive
+                                    ? situationDrawing.previewPolygonPositions
+                                    : eventDrawing.previewPolygonPositions
+                        }
+                        polygonClosed={
+                            isPolygonDrawActive
+                                ? polygonDrawing.polygonClosed
+                                : isSituationDrawingActive
+                                    ? situationDrawing.polygonClosed
+                                    : eventDrawing.polygonClosed
+                        }
                         mapRef={mapRef}
                         isEventPointDraggingRef={isEventPointDraggingRef}
                         isEventPointPointerDownRef={isEventPointPointerDownRef}
-                        onUpdatePoint={isPolygonDrawActive ? polygonDrawing.updatePoint : eventDrawing.updatePoint}
-                        onRemoveVertex={isPolygonDrawActive ? polygonDrawing.removeVertexAt : eventDrawing.removeVertexAt}
-                        onInsertVertexOnEdge={isPolygonDrawActive ? polygonDrawing.insertVertexAtEdge : eventDrawing.insertVertexAtEdge}
+                        onUpdatePoint={
+                            isPolygonDrawActive
+                                ? polygonDrawing.updatePoint
+                                : isSituationDrawingActive
+                                    ? situationDrawing.updatePoint
+                                    : eventDrawing.updatePoint
+                        }
+                        onRemoveVertex={
+                            isPolygonDrawActive
+                                ? polygonDrawing.removeVertexAt
+                                : isSituationDrawingActive
+                                    ? situationDrawing.removeVertexAt
+                                    : eventDrawing.removeVertexAt
+                        }
+                        onInsertVertexOnEdge={
+                            isPolygonDrawActive
+                                ? polygonDrawing.insertVertexAtEdge
+                                : isSituationDrawingActive
+                                    ? situationDrawing.insertVertexAtEdge
+                                    : eventDrawing.insertVertexAtEdge
+                        }
                     />
                 )}
                 {events
                     .filter((item) => selectedEventIds.includes(item.id))
                     .map((item) => renderEventShape(item))}
+                <OperationalSituationLayer
+                    situations={situations}
+                    selectedSituationIds={selectedSituationIds}
+                    previewRevision={previewRevision}
+                    editingSituationId={editingSituationId}
+                    onSituationClick={onSituationClick}
+                />
                 <FlagMarkersLayer
                     markers={displayedObjectsForMarkers}
                     iconsById={markerData.iconsById}
@@ -1969,6 +2227,7 @@ function MapComponent({
                     <ActionZonesLayer
                         zoneObjects={zoneObjectsSource}
                         actionZoneFilters={actionZoneFilters}
+                        visibleZones={visibleZones}
                         hoverController={zoneHoverControllerRef.current}
                         skipHoverRef={skipZoneHoverUpdatesRef}
                         isZonePanelPinned={Boolean(pinnedZonePanel)}
@@ -2015,7 +2274,7 @@ function MapComponent({
                 </button>
             )}
             <EventDrawingToolbar
-                visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive}
+                visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive}
                 isEditMode={isEventEditModeActive}
                 activeTool={eventDrawing.selectedTool}
                 drawMode={eventDrawing.drawMode}
@@ -2030,6 +2289,9 @@ function MapComponent({
                 onUndoPoint={eventDrawing.undoLastPoint}
                 onConfirm={handleEventConfirm}
                 onCancel={handleEventCancel}
+                polygonCoordPoints={eventPolygonEditable}
+                onPolygonCoordChange={handleEventPolygonCoordChange}
+                polygonCoordError={eventPolygonCoordError}
             />
             {isPolygonDrawActive && (
                 <InundationDrawBanner
@@ -2044,6 +2306,44 @@ function MapComponent({
                     onConfirm={handlePolygonDrawConfirm}
                     onCancel={onPolygonDrawCancel}
                     title={polygonDrawSession?.isInundation ? 'Зона затопления' : 'Полигон зоны'}
+                    polygonCoordPoints={zonePolygonEditable}
+                    onPolygonCoordChange={handleZonePolygonCoordChange}
+                    polygonCoordError={zonePolygonCoordError}
+                />
+            )}
+            {isSituationDrawingActive && isSituationModalOpen && (
+                <div className="situation-map-edit-hint" role="status">
+                    Редактируйте контур на карте: перетаскивайте вершины, кликайте по ребру для новой точки
+                </div>
+            )}
+            {isSituationDrawingActive && !isSituationModalOpen && (
+                <SituationDrawingToolbar
+                    visible
+                    hint={situationDrawing.getHint()}
+                    validationError={situationDrawing.validationError}
+                    polygonClosed={situationDrawing.polygonClosed}
+                    canFinishPolygon={situationDrawing.drawMode === 'polygon' && situationDrawing.drawPoints.length >= 3 && !situationDrawing.polygonClosed}
+                    canUndoPoint={situationDrawing.drawMode === 'polygon' && situationDrawing.drawPoints.length >= 1 && !situationDrawing.polygonClosed}
+                    isReady={situationDrawing.isReady()}
+                    onFinishPolygon={situationDrawing.finishPolygon}
+                    onUndoPoint={situationDrawing.undoLastPoint}
+                    onConfirm={handleSituationDrawConfirm}
+                    onCancel={onSituationDrawCancel}
+                    polygonCoordPoints={situationPolygonEditable}
+                    onPolygonCoordChange={handleSituationPolygonCoordChange}
+                    polygonCoordError={situationPolygonCoordError}
+                />
+            )}
+            {isFullscreen && detailSituation && (
+                <SituationDetailPanel
+                    situation={detailSituation}
+                    revisions={situationRevisions}
+                    selectedRevisionId={selectedRevisionId}
+                    onSelectRevision={onSituationRevisionSelect}
+                    onClose={onSituationDetailClose}
+                    onEdit={onSituationEdit}
+                    onNewState={onSituationNewState}
+                    onFork={onSituationFork}
                 />
             )}
             {selectedCountryIso && (
@@ -2065,6 +2365,7 @@ function MapComponent({
                     }}
                     drawMode={eventDrawing.drawMode}
                     drawPoints={eventDrawing.drawPoints}
+                    onDrawPointsChange={eventDrawing.replaceDrawPoints}
                     onSave={onEventSave}
                 />
             )}

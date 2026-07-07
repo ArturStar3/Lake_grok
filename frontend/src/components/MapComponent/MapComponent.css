@@ -147,6 +147,29 @@
     z-index: 510;
 }
 
+.situation-map-edit-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 1000;
+    max-width: min(520px, calc(100% - 32px));
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #dbe3ea;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    font-size: 13px;
+    color: #374151;
+    text-align: center;
+    pointer-events: none;
+}
+
+.map--fullscreen .situation-map-edit-hint {
+    bottom: 20px;
+    max-width: min(520px, calc(100vw - min(28%, 400px) - 48px));
+}
+
 .event-point-icon {
     background: transparent;
     border: none;

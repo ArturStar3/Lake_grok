@@ -29,6 +29,7 @@ def create_admin_group(**kwargs):
         'name': 'Тест-админы',
         'targets': ModuleLevel.WRITE,
         'events': ModuleLevel.WRITE,
+        'operational_situations': ModuleLevel.WRITE,
         'formular': ModuleLevel.WRITE,
         'country_dossier': ModuleLevel.WRITE,
         'persons': ModuleLevel.WRITE,

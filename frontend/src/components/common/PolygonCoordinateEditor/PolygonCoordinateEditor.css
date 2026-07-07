@@ -1,0 +1,119 @@
+.polygon-coord-editor {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.polygon-coord-editor__title {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: #334155;
+}
+
+.polygon-coord-editor__hint {
+	font-size: 0.8rem;
+	color: #64748b;
+}
+
+.polygon-coord-editor__error {
+	font-size: 0.8rem;
+	color: #dc2626;
+}
+
+.polygon-coord-editor__points {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-height: 240px;
+	overflow-y: auto;
+}
+
+.polygon-coord-editor__point {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.polygon-coord-editor__point-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.polygon-coord-editor__point-label {
+	font-size: 0.85rem;
+	color: #334155;
+}
+
+.polygon-coord-editor__point-inputs {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+.polygon-coord-editor__input {
+	width: 100%;
+	padding: 6px 8px;
+	border: 1px solid #cbd5e1;
+	border-radius: 4px;
+	font-size: 0.85rem;
+}
+
+.polygon-coord-editor__input:disabled {
+	background: #f1f5f9;
+	cursor: not-allowed;
+}
+
+.polygon-coord-editor__input--error {
+	border-color: #dc2626;
+}
+
+.polygon-coord-editor__remove-btn {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: #94a3b8;
+	font-size: 1.1rem;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.polygon-coord-editor__remove-btn:hover:not(:disabled) {
+	color: #dc2626;
+	background: #fef2f2;
+}
+
+.polygon-coord-editor__remove-btn:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.polygon-coord-editor__add-btn {
+	align-self: flex-start;
+	padding: 6px 12px;
+	border: 1px dashed #94a3b8;
+	border-radius: 4px;
+	background: #f8fafc;
+	color: #475569;
+	font-size: 0.85rem;
+	cursor: pointer;
+}
+
+.polygon-coord-editor__add-btn:hover:not(:disabled) {
+	border-color: #64748b;
+	background: #f1f5f9;
+}
+
+.polygon-coord-editor__add-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.polygon-coord-editor--compact .polygon-coord-editor__points {
+	max-height: 180px;
+}

@@ -6,7 +6,7 @@ export default function ActionZoneFilters({
   actionZoneFilters = {},
   showZoneIntersections = false,
   setShowZoneIntersections,
-  hasEnabledZones = true,
+  hasEnabledZones: _hasEnabledZones = true,
   toggleActionType,
   toggleAllForCountry,
   resetZoneFilters,

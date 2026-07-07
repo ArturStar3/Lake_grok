@@ -16,6 +16,7 @@ class ModuleLevel(models.TextChoices):
 MODULE_FIELDS = (
     'targets',
     'events',
+    'operational_situations',
     'formular',
     'country_dossier',
     'persons',

@@ -10,6 +10,7 @@ from .views import (
     TargetTypeViewSet,
     EventTypeViewSet,
     EventViewSet,
+    OperationalSituationViewSet,
     CountryInfoView,
     CountrySectionsViewSet,
     CountryInfoViewSet,
@@ -81,6 +82,12 @@ router.register(
     r'events',
     EventViewSet,
     basename='events'
+)
+
+router.register(
+    r'operational-situations',
+    OperationalSituationViewSet,
+    basename='operational-situations',
 )
 
 router.register(

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { validateEventGeometry } from '../../utils/eventGeometry';
 import {
   buildRectangleFromCorners,
+  drawPointsKey,
   getVertexOnNearestEdge,
   insertVertexOnEdge,
   isNearFirstVertex,
   isSelfIntersecting,
+  validatePolygonPoints,
 } from '../../utils/polygonDrawUtils';
 
 export const EVENT_DRAW_TOOLS = ['point', 'circle', 'rectangle', 'polygon'];
@@ -29,6 +31,7 @@ export function useEventDrawing({
 
   const drawMode = isEditMode ? controlledDrawMode : selectedTool;
   const drawPoints = isEditMode ? controlledDrawPoints : internalPoints;
+  const controlledPointsKey = drawPointsKey(controlledDrawPoints);
 
   const setDrawPoints = useCallback((updater) => {
     if (isEditMode) {
@@ -40,10 +43,21 @@ export function useEventDrawing({
 
   useEffect(() => {
     if (!isEditMode) return;
-    if (controlledDrawMode === 'polygon' && controlledDrawPoints.length >= 3) {
+    if (controlledDrawMode !== 'polygon') return;
+
+    if (controlledDrawPoints.length >= 3 && validatePolygonPoints(controlledDrawPoints) === null) {
       setPolygonClosed(true);
+      setValidationError(null);
+      return;
     }
-  }, [isEditMode, controlledDrawMode, controlledDrawPoints.length]);
+
+    setPolygonClosed(false);
+    if (controlledDrawPoints.length >= 3) {
+      setValidationError(validatePolygonPoints(controlledDrawPoints));
+    } else {
+      setValidationError(null);
+    }
+  }, [isEditMode, controlledDrawMode, controlledPointsKey, controlledDrawPoints]);
 
   const clearDraft = useCallback(() => {
     if (!isEditMode) {
@@ -139,6 +153,36 @@ export function useEventDrawing({
       }
     }
   }, [drawMode, drawPoints, polygonClosed, setDrawPoints]);
+
+  const replaceDrawPoints = useCallback((points) => {
+    const next = (points || [])
+      .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng) }))
+      .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
+
+    const nextKey = drawPointsKey(next);
+    const currentKey = drawPointsKey(drawPoints);
+    if (nextKey === currentKey) {
+      return;
+    }
+
+    setDrawPoints(next);
+    setPreviewPoint(null);
+
+    if (drawMode !== 'polygon') return;
+
+    if (next.length >= 3 && validatePolygonPoints(next) === null) {
+      setPolygonClosed(true);
+      setValidationError(null);
+      return;
+    }
+
+    setPolygonClosed(false);
+    if (next.length >= 3) {
+      setValidationError(validatePolygonPoints(next));
+    } else {
+      setValidationError(null);
+    }
+  }, [drawMode, drawPoints, setDrawPoints]);
 
   const isReady = useCallback(() => {
     if (!drawMode) return false;
@@ -335,6 +379,7 @@ export function useEventDrawing({
     undoLastPoint,
     removeVertexAt,
     updatePoint,
+    replaceDrawPoints,
     insertVertexAtEdge,
     handleMapClick,
     handleMapDblClick,

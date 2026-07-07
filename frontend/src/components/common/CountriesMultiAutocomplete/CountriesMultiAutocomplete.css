@@ -1,0 +1,32 @@
+.countries-multi-autocomplete__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.countries-multi-autocomplete__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef6fc;
+  border: 1px solid #b8daf0;
+  font-size: 12px;
+  color: #1a4d6e;
+}
+
+.countries-multi-autocomplete__chip-remove {
+  border: none;
+  background: transparent;
+  color: #5a7a8f;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.countries-multi-autocomplete__chip-remove:hover {
+  color: #c0392b;
+}

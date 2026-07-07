@@ -28,6 +28,7 @@ class SecurityGroupSerializer(serializers.ModelSerializer):
             'country_ids',
             'targets',
             'events',
+            'operational_situations',
             'formular',
             'country_dossier',
             'persons',
@@ -175,10 +176,12 @@ class MeSerializer(serializers.Serializer):
         profile = getattr(user, 'profile', None)
         groups = []
         if profile:
-            groups = [
-                {'id': g.id, 'name': g.name}
-                for g in profile.security_groups.all()
-            ]
+            prefetched = getattr(profile, '_prefetched_objects_cache', {}).get('security_groups')
+            if prefetched is not None:
+                group_iter = prefetched
+            else:
+                group_iter = profile.security_groups.all()
+            groups = [{'id': g.id, 'name': g.name} for g in group_iter]
         perms = build_permissions_payload(user)
         return {
             'id': user.id,

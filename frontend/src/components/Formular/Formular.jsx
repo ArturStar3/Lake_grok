@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, startTransition, useDeferredValue } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { canDelete, canManageReference, canWriteModule } from "../../utils/permissions";
+import { canDelete, canManageReference, canReadModule, canWriteModule } from "../../utils/permissions";
 import UsersAdminPanel from "../Admin/UsersAdminPanel";
 import "./Formular.css";
 import FilterPanel from "../FilterPanel/FilterPanel";
 import ObjectsTable from "../ObjectsTable/ObjectsTable";
 import EventsTable from "../Events/EventsTable";
 import EventsFilterPanel from "../Events/EventsFilterPanel";
+import SituationsFilterPanel from "../OperationalSituation/SituationsFilterPanel";
+import SituationsTable from "../OperationalSituation/SituationsTable";
+import SituationsTimeline from "../OperationalSituation/SituationsTimeline";
+import SituationModal from "../OperationalSituation/SituationModal";
 import MapComponent from "../MapComponent/MapComponent";
 import Features from "../Features/Features";
 import ActionZoneFilters from "../Features/ActionZoneFilters";
@@ -16,18 +20,22 @@ import AddTargetModal from "../AddTargetModal/AddTargetModal";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
-import { pointsToGeoJsonPolygon } from "../../utils/inundationZone";
+import { geoJsonPolygonToDrawPoints, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
+import { buildSituationRequestBody, getSituationDisplayRevision, getSituationId } from "../../utils/situationUtils";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
 import { useReferenceData } from "../../hooks/useReferenceData";
 import { useEventsList } from "../../hooks/formular/useEventsList";
+import { useOperationalSituationsList } from "../../hooks/formular/useOperationalSituationsList";
 import { useActionZoneState } from "../../hooks/formular/useActionZoneState";
 import { useConsiderTerrain } from "../../hooks/formular/useConsiderTerrain";
 import { useAutoLosZoneGeometries } from "../../hooks/formular/useAutoLosZoneGeometries";
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
 import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
+import { buildVisibleZones } from "../../utils/buildVisibleZones";
+import { isLosRadarZoneMode } from "../../utils/computeLosZone";
 
 const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
 const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
@@ -35,6 +43,8 @@ const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModa
 export default function Formular() {
     const { user } = useAuth();
     const canEditTargets = canWriteModule(user, 'targets');
+    const canReadSituations = canReadModule(user, 'operational_situations');
+    const canEditSituations = canWriteModule(user, 'operational_situations');
     const canRemoveTargets = canDelete(user);
     const canOpenReference = canManageReference(user);
     const [usersAdminOpen, setUsersAdminOpen] = useState(false);
@@ -58,6 +68,16 @@ export default function Formular() {
     const [isFullscreen, setFullscreen] = useState(false);
     const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
     const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
+    const [isSituationDrawActive, setIsSituationDrawActive] = useState(false);
+    const [situationDrawPoints, setSituationDrawPoints] = useState([]);
+    const [situationModalOpen, setSituationModalOpen] = useState(false);
+    const [situationModalMode, setSituationModalMode] = useState('create');
+    const [situationModalTarget, setSituationModalTarget] = useState(null);
+    const [detailSituation, setDetailSituation] = useState(null);
+    const [situationRevisions, setSituationRevisions] = useState([]);
+    const [selectedRevisionId, setSelectedRevisionId] = useState(null);
+    const [previewRevision, setPreviewRevision] = useState(null);
+    const [highlightedSituationId, setHighlightedSituationId] = useState(null);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
@@ -79,6 +99,23 @@ export default function Formular() {
         saveEvent, updateEvent, deleteEvent,
     } = useEventsList(activeTab);
     const {
+        situations,
+        timeline,
+        loading: situationsLoading,
+        error: situationsError,
+        filters: situationsFilters,
+        setFilters: setSituationsFilters,
+        selectedSituations,
+        setSelectedSituations,
+        fetchRevisions,
+        createSituation,
+        correctSituation,
+        createSituationRevision,
+        forkSituation,
+        deleteSituation,
+    } = useOperationalSituationsList(activeTab, canReadSituations);
+
+    const {
         actionZoneFilters,
         showZoneIntersections, setShowZoneIntersections,
         hasEnabledZones,
@@ -86,41 +123,54 @@ export default function Formular() {
         intersections, selectedIntersections,
         toggleActionType, toggleAllForCountry, resetZoneFilters,
         handleIntersectionToggle, handleSelectAllIntersections,
-    } = useActionZoneState(objects);
+    } = useActionZoneState(objects, { zonesActive: activeTab === "zones" });
+
+    const zonesLayerActive = activeTab === "zones" && hasEnabledZones;
+    const deferredZoneFilters = useDeferredValue(actionZoneFilters);
+
+    const visibleZones = useMemo(() => {
+        if (!zonesLayerActive) return [];
+        return buildVisibleZones(objects, deferredZoneFilters);
+    }, [zonesLayerActive, objects, deferredZoneFilters]);
+
+    const terrainZones = useMemo(() => {
+        if (!zonesLayerActive || !considerTerrain) return [];
+        return visibleZones.filter((zone) => isLosRadarZoneMode(zone.zoneMode));
+    }, [visibleZones, zonesLayerActive, considerTerrain]);
 
     const {
         geometryByActionId: losGeometryByActionId,
         computingCount: losComputingCount,
         losZonesCount,
     } = useAutoLosZoneGeometries({
-        zoneObjects: objects,
-        actionZoneFilters,
+        terrainZones,
         considerTerrain,
-        enabled: hasEnabledZones,
+        enabled: zonesLayerActive,
     });
 
     const {
         isMeasureMode, setIsMeasureMode,
-        measurePoints, setMeasurePoints,
+        setMeasurePoints,
         measurements, toggleMeasureMode,
         addMeasurePoint, removeMeasurePoint,
     } = useMeasurePoints();
 
-    const flyTo = useMapFlyTo(mapRef);
+    const { flyTo, flyToSituation } = useMapFlyTo(mapRef);
 
     const handleMarkerHoverFromMap = useCallback((targetId) => {
         setHoveredTargetId((prev) => (prev === targetId ? prev : targetId));
     }, []);
 
     const handleTabChange = useCallback((tab) => {
-        setActiveTab(tab);
-        if (tab === "zones") {
-            setIsMeasureMode(false);
-            if (isFullscreen) {
-                setActionRadiusMode("zones");
-                setActionZoneViewMode("displaySettings");
+        startTransition(() => {
+            setActiveTab(tab);
+            if (tab === "zones") {
+                setIsMeasureMode(false);
+                if (isFullscreen) {
+                    setActionRadiusMode("zones");
+                }
             }
-        }
+        });
     }, [isFullscreen, setIsMeasureMode]);
 
     const handleShowActionRadiusChange = useCallback((enabled) => {
@@ -164,6 +214,187 @@ export default function Formular() {
     const handleEventCheckboxChange = useCallback((id, checked) => {
         setSelectedEvents((prev) => toggleIdInList(prev, id, checked));
     }, [setSelectedEvents]);
+
+    const handleSituationCheckboxChange = useCallback((id, checked) => {
+        setSelectedSituations((prev) => toggleIdInList(prev, id, checked));
+    }, [setSelectedSituations]);
+
+    const handleSituationFlyTo = useCallback((situation) => {
+        const displayRevision = getSituationDisplayRevision(situation);
+        flyToSituation(displayRevision || situation);
+    }, [flyToSituation]);
+
+    const openSituationModal = useCallback((mode, situation = null) => {
+        setSituationModalMode(mode);
+        setSituationModalTarget(situation);
+        setSituationModalOpen(true);
+        if (mode === 'create' && situation?.drawPoints) {
+            setSituationDrawPoints(situation.drawPoints);
+        } else if (situation?.current_revision || situation?.drawPoints) {
+            const rev = situation.current_revision;
+            setSituationDrawPoints(
+                situation.drawPoints || geoJsonPolygonToDrawPoints(rev?.geometry),
+            );
+        }
+        if (situation?.id) {
+            setSelectedSituations((prev) => (
+                prev.includes(situation.id) ? prev : [...prev, situation.id]
+            ));
+            flyToSituation(situation);
+        }
+    }, [flyToSituation, setSelectedSituations]);
+
+    const handleSituationCreateStart = useCallback(() => {
+        setSituationDrawPoints([]);
+        setIsSituationDrawActive(true);
+        setDetailSituation(null);
+        setPreviewRevision(null);
+    }, []);
+
+    const handleSituationDrawConfirm = useCallback((points) => {
+        const nextPoints = points || situationDrawPoints;
+        setIsSituationDrawActive(false);
+        setSituationDrawPoints(nextPoints);
+        openSituationModal('create', { drawPoints: nextPoints });
+    }, [openSituationModal, situationDrawPoints]);
+
+    const handleSituationDrawCancel = useCallback(() => {
+        setIsSituationDrawActive(false);
+        setSituationDrawPoints([]);
+    }, []);
+
+    const handleSituationEdit = useCallback((situation) => {
+        openSituationModal('edit', situation);
+    }, [openSituationModal]);
+
+    const handleSituationNewState = useCallback((situation) => {
+        openSituationModal('new_state', situation);
+    }, [openSituationModal]);
+
+    const handleSituationFork = useCallback((situation) => {
+        openSituationModal('fork', situation);
+    }, [openSituationModal]);
+
+    const handleCloseSituationModal = useCallback(() => {
+        setSituationModalOpen(false);
+        setSituationModalTarget(null);
+        setSituationDrawPoints([]);
+    }, []);
+
+    const handleSituationSave = useCallback(async ({ mode, form, drawPoints, situationId }) => {
+        const payload = buildSituationRequestBody(form, drawPoints);
+        if (mode === 'create') {
+            await createSituation(payload);
+        } else if (mode === 'correction') {
+            await correctSituation(situationId, payload);
+        } else if (mode === 'new_state') {
+            await createSituationRevision(situationId, payload);
+        } else if (mode === 'fork') {
+            await forkSituation(situationId, payload);
+        }
+        if (situationId && detailSituation?.id === situationId) {
+            const revisions = await fetchRevisions(situationId);
+            setSituationRevisions(revisions.map((revision) => ({
+                ...revision,
+                situation_id: situationId,
+            })));
+            setSelectedRevisionId(null);
+            setPreviewRevision(null);
+        }
+    }, [createSituation, correctSituation, createSituationRevision, forkSituation, detailSituation, fetchRevisions]);
+
+    const handleSituationDelete = useCallback(async (situation) => {
+        const deleted = await deleteSituation(situation);
+        if (deleted) {
+            setSelectedSituations((prev) => prev.filter((id) => id !== situation.id));
+            if (detailSituation?.id === situation.id) {
+                setDetailSituation(null);
+                setSituationRevisions([]);
+                setPreviewRevision(null);
+            }
+        }
+    }, [deleteSituation, detailSituation, setSelectedSituations]);
+
+    const handleSituationRowClick = useCallback((situation) => {
+        setHighlightedSituationId(situation.id);
+        setPreviewRevision(null);
+        setSelectedRevisionId(null);
+        if (!isFullscreen) {
+            const displayRevision = getSituationDisplayRevision(situation);
+            flyToSituation(displayRevision || situation);
+        }
+    }, [isFullscreen, flyToSituation]);
+
+    const handleSituationMapClick = useCallback(async (situationId) => {
+        if (!situationId) return;
+        const situation = situations.find((item) => item.id === situationId);
+        if (!situation) return;
+        setHighlightedSituationId(situationId);
+        setSelectedRevisionId(null);
+        setPreviewRevision(null);
+        if (isFullscreen) {
+            setDetailSituation(situation);
+            setSelectedRevisionId(situation.current_revision?.id || null);
+            const revisions = await fetchRevisions(situationId);
+            setSituationRevisions(revisions.map((revision) => ({
+                ...revision,
+                situation_id: situationId,
+            })));
+        } else {
+            setDetailSituation(null);
+            setSituationRevisions([]);
+        }
+        if (!selectedSituations.includes(situationId)) {
+            setSelectedSituations((prev) => [...prev, situationId]);
+        }
+        const displayRevision = getSituationDisplayRevision(situation);
+        flyToSituation(displayRevision || situation);
+    }, [
+        situations,
+        fetchRevisions,
+        selectedSituations,
+        setSelectedSituations,
+        flyToSituation,
+        isFullscreen,
+    ]);
+
+    const handleCloseSituationDetail = useCallback(() => {
+        setDetailSituation(null);
+        setSituationRevisions([]);
+        setSelectedRevisionId(null);
+        setPreviewRevision(null);
+    }, []);
+
+    const handleDetailRevisionSelect = useCallback((revision) => {
+        const situationId = getSituationId(revision) || getSituationId(detailSituation);
+        const enriched = situationId ? { ...revision, situation_id: situationId } : revision;
+        setSelectedRevisionId(enriched.id);
+        setPreviewRevision(enriched);
+        if (situationId) {
+            setHighlightedSituationId(situationId);
+            setSelectedSituations((prev) => (
+                prev.includes(situationId) ? prev : [...prev, situationId]
+            ));
+        }
+        flyToSituation(enriched);
+    }, [flyToSituation, setSelectedSituations, detailSituation]);
+
+    const handleGlobalTimelineSelect = useCallback((revision) => {
+        const situationId = getSituationId(revision);
+        if (!situationId) return;
+        handleDetailRevisionSelect({ ...revision, situation_id: situationId });
+        if (!isFullscreen) return;
+        const situation = situations.find((item) => item.id === situationId);
+        if (situation) {
+            setDetailSituation(situation);
+            fetchRevisions(situationId).then((revisions) => {
+                setSituationRevisions(revisions.map((item) => ({
+                    ...item,
+                    situation_id: situationId,
+                })));
+            });
+        }
+    }, [handleDetailRevisionSelect, situations, fetchRevisions, isFullscreen]);
 
     const handleToggleMeasure = useCallback(() => {
         toggleMeasureMode();
@@ -313,6 +544,13 @@ export default function Formular() {
         return () => window.removeEventListener('infolake:open-users-admin', openUsersAdmin);
     }, []);
 
+    useEffect(() => {
+        if (isFullscreen) return;
+        setDetailSituation(null);
+        setSituationRevisions([]);
+        setSelectedRevisionId(null);
+    }, [isFullscreen]);
+
     return (
         <section className="formular">
             <h1 className="visually-hidden">О</h1>
@@ -392,6 +630,15 @@ export default function Formular() {
                                 >
                                     Зоны действия
                                 </button>
+                                {canReadSituations && (
+                                <button
+                                    type="button"
+                                    className={`formular__tab${activeTab === "situations" ? " formular__tab--active" : ""}`}
+                                    onClick={() => handleTabChange("situations")}
+                                >
+                                    Оперативная обстановка
+                                </button>
+                                )}
                             </div>
                             {activeTab === "objects" && (
                                 <>
@@ -478,6 +725,38 @@ export default function Formular() {
                                     />
                                 </>
                             )}
+                            {activeTab === "situations" && (
+                                <>
+                                    {situationsLoading && (
+                                        <p className="formular__status formular__status--loading">Загрузка обстановки…</p>
+                                    )}
+                                    {situationsError && (
+                                        <p className="formular__status formular__status--error">{situationsError}</p>
+                                    )}
+                                    <SituationsFilterPanel
+                                        countries={countriesList}
+                                        filters={situationsFilters}
+                                        onChange={setSituationsFilters}
+                                    />
+                                    <SituationsTable
+                                        data={situations}
+                                        selectedSituations={selectedSituations}
+                                        onCheckboxChange={handleSituationCheckboxChange}
+                                        onRowClick={handleSituationRowClick}
+                                        onFlyTo={handleSituationFlyTo}
+                                        onEdit={canEditSituations ? handleSituationEdit : undefined}
+                                        onDelete={canEditSituations ? handleSituationDelete : undefined}
+                                        onCreate={canEditSituations ? handleSituationCreateStart : undefined}
+                                        highlightedSituationId={highlightedSituationId}
+                                    />
+                                    <SituationsTimeline
+                                        revisions={timeline}
+                                        selectedRevisionId={previewRevision?.id}
+                                        onSelectRevision={handleGlobalTimelineSelect}
+                                        groupBySituation
+                                    />
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="formular__features-wraper">
@@ -493,7 +772,7 @@ export default function Formular() {
                                 measurements={measurements}
                                 onAddMeasurePoint={addMeasurePoint}
                                 onCheckboxChange={handleCheckboxChange}
-                                showActionRadius={hasEnabledZones}
+                                showActionRadius={zonesLayerActive}
                                 actionTypes={actionTypesList}
                                 actionRadiusMode={actionRadiusMode}
                                 onActionRadiusModeChange={setActionRadiusMode}
@@ -549,6 +828,37 @@ export default function Formular() {
                                 losGeometryByActionId={losGeometryByActionId}
                                 losComputingCount={losComputingCount}
                                 losZonesCount={losZonesCount}
+                                visibleZones={visibleZones}
+                                situations={situations}
+                                selectedSituationIds={selectedSituations}
+                                previewRevision={previewRevision}
+                                onSituationClick={handleSituationMapClick}
+                                isSituationDrawActive={isSituationDrawActive}
+                                situationDrawPoints={situationDrawPoints}
+                                onSituationDrawPointsChange={setSituationDrawPoints}
+                                onSituationDrawConfirm={handleSituationDrawConfirm}
+                                onSituationDrawCancel={handleSituationDrawCancel}
+                                detailSituation={detailSituation}
+                                situationRevisions={situationRevisions}
+                                selectedRevisionId={selectedRevisionId}
+                                onSituationDetailClose={handleCloseSituationDetail}
+                                onSituationEdit={canEditSituations ? handleSituationEdit : undefined}
+                                onSituationNewState={canEditSituations ? handleSituationNewState : undefined}
+                                onSituationFork={canEditSituations ? handleSituationFork : undefined}
+                                onSituationRevisionSelect={handleDetailRevisionSelect}
+                                situationsFilters={situationsFilters}
+                                onSituationsFiltersChange={setSituationsFilters}
+                                onSituationCheckboxChange={handleSituationCheckboxChange}
+                                onSituationDelete={canEditSituations ? handleSituationDelete : undefined}
+                                onSituationFlyTo={handleSituationFlyTo}
+                                onSituationCreate={canEditSituations ? handleSituationCreateStart : undefined}
+                                highlightedSituationId={highlightedSituationId}
+                                onSituationRowClick={handleSituationRowClick}
+                                situationsTimeline={timeline}
+                                onGlobalTimelineSelect={handleGlobalTimelineSelect}
+                                canReadSituations={canReadSituations}
+                                isSituationModalOpen={situationModalOpen}
+                                editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
                             />
                         </div>
                         <div className="formular__features">
@@ -612,6 +922,7 @@ export default function Formular() {
                     onClose={handleCloseEditEventModal}
                     drawMode={editEventDrawMode}
                     drawPoints={editEventDrawPoints}
+                    onDrawPointsChange={setEditEventDrawPoints}
                     initialEvent={editingEvent}
                     onSave={handleEventUpdate}
                 />
@@ -632,6 +943,17 @@ export default function Formular() {
             <UsersAdminPanel
                 isOpen={usersAdminOpen}
                 onClose={() => setUsersAdminOpen(false)}
+            />
+
+            <SituationModal
+                isOpen={situationModalOpen}
+                onClose={handleCloseSituationModal}
+                mode={situationModalMode}
+                situation={situationModalTarget}
+                drawPoints={situationDrawPoints}
+                onDrawPointsChange={setSituationDrawPoints}
+                countries={countriesList}
+                onSave={handleSituationSave}
             />
         </section>
     );

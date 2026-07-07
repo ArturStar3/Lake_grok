@@ -128,7 +128,7 @@ function buildStandaloneExcerpt(item, attachmentsBySection) {
   return '';
 }
 
-function buildGroupExcerpt(group, attachmentsBySection) {
+function buildGroupExcerpt(group, _attachmentsBySection) {
   const firstWithContent = group.children.find((child) => child.content?.trim());
   if (firstWithContent) {
     return truncateExcerpt(firstWithContent.content);

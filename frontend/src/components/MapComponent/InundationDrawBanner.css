@@ -1,13 +1,19 @@
-.inundation-draw-banner {
+.inundation-draw-banner-wrap {
   position: absolute;
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1200;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, calc(100% - 24px));
+}
+
+.inundation-draw-banner {
+  display: flex;
   align-items: center;
   gap: 16px;
-  max-width: min(920px, calc(100% - 24px));
   padding: 10px 14px;
   border-radius: 10px;
   background: rgba(18, 28, 42, 0.94);
@@ -71,4 +77,30 @@
 
 .inundation-draw-banner__btn--primary:hover:not(:disabled) {
   background: #2569c7;
+}
+
+.inundation-draw-banner__coords-panel {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d1d5db;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.inundation-draw-banner__coords-toggle {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inundation-draw-banner__coords-toggle:hover {
+  color: #2563eb;
+}
+
+.inundation-draw-banner__coords-editor {
+  margin-top: 8px;
 }

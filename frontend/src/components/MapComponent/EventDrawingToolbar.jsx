@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
 import './EventDrawingToolbar.css';
 
 const TOOLS = [
@@ -31,11 +33,17 @@ export default function EventDrawingToolbar({
   onUndoPoint,
   onConfirm,
   onCancel,
+  polygonCoordPoints = [],
+  onPolygonCoordChange,
+  polygonCoordError = null,
 }) {
+  const [coordsExpanded, setCoordsExpanded] = useState(true);
+
   if (!visible) return null;
 
   const currentTool = activeTool || drawMode;
   const showPolygonActions = drawMode === 'polygon' && !polygonClosed;
+  const showPolygonCoords = drawMode === 'polygon';
 
   return (
     <div className="map__event-toolbar" role="toolbar" aria-label="Инструменты событий">
@@ -111,6 +119,28 @@ export default function EventDrawingToolbar({
 
       {validationError && (
         <p className="map__event-toolbar-error" role="alert">{validationError}</p>
+      )}
+
+      {showPolygonCoords && (
+        <div className="map__event-toolbar-coords">
+          <button
+            type="button"
+            className="map__event-toolbar-coords-toggle"
+            onClick={() => setCoordsExpanded((prev) => !prev)}
+            aria-expanded={coordsExpanded}
+          >
+            Координаты {coordsExpanded ? '▾' : '▸'}
+          </button>
+          {coordsExpanded && (
+            <PolygonCoordinateEditor
+              points={polygonCoordPoints}
+              onChange={onPolygonCoordChange}
+              error={polygonCoordError}
+              hint="Можно задать контур вручную или на карте"
+              compact
+            />
+          )}
+        </div>
       )}
     </div>
   );

@@ -13,7 +13,7 @@ import {
 import { getZonePolygonPositions, isInundationZone, isPolygonZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
 import { isPointInPolygon } from '../../utils/inundationZone';
 
-const VIEWPORT_DEBOUNCE_MS = 80;
+const VIEWPORT_DEBOUNCE_MS = 150;
 
 function buildZoneEntryId(zone) {
   // Стабильный идентификатор на основе zoneKey (не зависит от позиции в
@@ -76,7 +76,7 @@ function useZonesInViewport(zones) {
       timeoutId = setTimeout(() => setInViewport(filterZones()), VIEWPORT_DEBOUNCE_MS);
     };
 
-    setInViewport(filterZones());
+    schedule();
     map.on('moveend', schedule);
     map.on('zoomend', schedule);
     return () => {
@@ -87,7 +87,8 @@ function useZonesInViewport(zones) {
   }, [map, filterZones]);
 
   useEffect(() => {
-    setInViewport(filterZones());
+    const timer = setTimeout(() => setInViewport(filterZones()), VIEWPORT_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [zones, filterZones]);
 
   return inViewport;
@@ -201,6 +202,7 @@ function ZonePolygonLayer({
 const ActionZonesLayer = React.memo(function ActionZonesLayer({
   zoneObjects = [],
   actionZoneFilters,
+  visibleZones: visibleZonesProp,
   hoverController,
   skipHoverRef,
   isZonePanelPinned = false,
@@ -210,8 +212,8 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   losGeometryByActionId = {},
 }) {
   const visibleZones = useMemo(
-    () => buildVisibleZones(zoneObjects, actionZoneFilters),
-    [zoneObjects, actionZoneFilters],
+    () => visibleZonesProp ?? buildVisibleZones(zoneObjects, actionZoneFilters),
+    [visibleZonesProp, zoneObjects, actionZoneFilters],
   );
 
   const zonesInViewport = useZonesInViewport(visibleZones);

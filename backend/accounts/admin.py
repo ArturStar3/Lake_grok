@@ -41,6 +41,7 @@ class SecurityGroupAdmin(ModelAdmin):
         'name',
         'targets',
         'events',
+        'operational_situations',
         'formular',
         'country_dossier',
         'can_manage_users',

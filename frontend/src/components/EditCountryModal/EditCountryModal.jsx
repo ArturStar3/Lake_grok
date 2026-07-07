@@ -342,7 +342,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
     
     return (
         <>
-            <div className="edit-country-modal-overlay">
+            <div className="edit-country-modal-overlay" onClick={handleOverlayClick}>
                 <div className="edit-country-modal">
                 <div className="edit-country-modal__header">
                     <h2 className="edit-country-modal__title">

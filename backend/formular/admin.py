@@ -18,6 +18,8 @@ from .models import (
     Event,
     EventType,
     EventMarker,
+    OperationalSituation,
+    OperationalSituationRevision,
     ActionType,
     TargetAction,
     CountrySections,
@@ -294,6 +296,37 @@ class EventAdmin(ModelAdmin):
     list_select_related = ('event_type', 'country', 'marker')
     date_hierarchy = 'date_start'
     list_per_page = 50
+
+
+class OperationalSituationRevisionInline(admin.TabularInline):
+    model = OperationalSituationRevision
+    extra = 0
+    fields = ('version', 'title', 'situation_date', 'situation_time', 'change_kind', 'created_at')
+    readonly_fields = ('version', 'title', 'situation_date', 'situation_time', 'change_kind', 'created_at')
+    can_delete = False
+    show_change_link = True
+
+
+@admin.register(OperationalSituationRevision)
+class OperationalSituationRevisionAdmin(ModelAdmin):
+    list_display = ('title', 'situation', 'version', 'situation_date', 'situation_time', 'change_kind', 'created_at')
+    search_fields = ('title', 'situation__id')
+    list_select_related = ('situation', 'created_by')
+    autocomplete_fields = ('situation', 'parent_revision', 'countries', 'created_by')
+    list_per_page = 50
+
+
+@admin.register(OperationalSituation)
+class OperationalSituationAdmin(ModelAdmin):
+    list_display = ('id', 'revision_title', 'created_at', 'created_by')
+    search_fields = ('id', 'revisions__title')
+    list_select_related = ('current_revision', 'created_by')
+    inlines = [OperationalSituationRevisionInline]
+    list_per_page = 50
+
+    @admin.display(description='Название')
+    def revision_title(self, obj):
+        return obj.current_revision.title if obj.current_revision else '—'
 
 
 @admin.register(CountrySections)

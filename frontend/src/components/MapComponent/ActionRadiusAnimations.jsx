@@ -16,7 +16,7 @@ function startGlobalAnimation() {
         const elapsed = currentTime - startTime;
         const bounds = mapInstance ? mapInstance.getBounds() : null;
         
-        animatedZones.forEach(({ type, update, center }) => {
+        animatedZones.forEach(({ update, center }) => {
             if (bounds && !bounds.contains(center)) return;
             update(elapsed);
         });
@@ -105,13 +105,7 @@ export function RadarZone({ center, radius, color }) {
         linesRef.current = rays;
         
         const update = (elapsed) => {
-            const rotation = (elapsed / 8000) * 360; // 8 секунд на оборот
-            
             rays.forEach((ray, index) => {
-                const currentAngle = ((ray.angle + rotation) % 360) * (Math.PI / 180);
-                const endLat = center[0] + (radius / 111320) * Math.cos(currentAngle);
-                const endLng = center[1] + (radius / (111320 * Math.cos(center[0] * Math.PI / 180))) * Math.sin(currentAngle);
-                
                 // Обновляем через DOM если элемент существует
                 if (ray.element?._path) {
                     const opacity = 0.3 + 0.2 * Math.sin((elapsed / 1000 + index) * Math.PI);
@@ -364,7 +358,6 @@ export function RingsZone({ center, radius, color }) {
         if (!mapInstance) mapInstance = mapRef;
         
         const update = (elapsed) => {
-            const rotation = (elapsed / 10000) * 360; // 10 секунд на оборот
             const offset = (elapsed / 100) % 30; // Движение пунктира
             
             [ring1Ref, ring2Ref, ring3Ref].forEach((ref) => {

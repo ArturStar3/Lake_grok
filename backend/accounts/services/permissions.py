@@ -33,6 +33,12 @@ def _security_groups_qs(user):
 
 def _security_groups_list(user):
     """Один запрос к группам — переиспользуется в расчёте прав."""
+    profile = get_profile(user)
+    if not profile:
+        return []
+    prefetched = getattr(profile, '_prefetched_objects_cache', {}).get('security_groups')
+    if prefetched is not None:
+        return list(prefetched)
     return list(_security_groups_qs(user))
 
 

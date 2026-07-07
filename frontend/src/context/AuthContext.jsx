@@ -1,32 +1,70 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+
 import {
+
   apiClient,
+
   clearAuth,
+
   getAccessToken,
+
   getStoredUser,
+
   initAxiosAuth,
+
   storeAuth,
+
 } from '../config/axios';
+
+
 
 const AuthContext = createContext(null);
 
+
+
 export function AuthProvider({ children }) {
+
   const [user, setUser] = useState(getStoredUser);
-  const [loading, setLoading] = useState(true);
+
+  // Блокируем UI только если есть токен — его нужно проверить через /me.
+
+  const [loading, setLoading] = useState(() => Boolean(getAccessToken()));
+
+  const refreshSeqRef = useRef(0);
+
+
 
   const logout = useCallback(async () => {
+
+    refreshSeqRef.current += 1;
+
     try {
+
       const refresh = sessionStorage.getItem('infolake_refresh_token');
+
       if (refresh) {
+
         await apiClient.post('/auth/logout/', { refresh });
+
       }
+
     } catch {
+
       // ignore offline/logout errors
+
     } finally {
+
       clearAuth();
+
       setUser(null);
+
+      setLoading(false);
+
     }
+
   }, []);
+
+
 
   const refreshMe = useCallback(async () => {
     const token = getAccessToken();
@@ -35,71 +73,155 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return null;
     }
-    try {
-      const { data } = await apiClient.get('/auth/me/');
-      storeAuth({ user: data });
-      setUser(data);
-      return data;
-    } catch {
-      clearAuth();
-      setUser(null);
-      return null;
-    } finally {
-      setLoading(false);
+
+    const seq = refreshSeqRef.current + 1;
+    refreshSeqRef.current = seq;
+
+    const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const { data } = await apiClient.get('/auth/me/');
+        if (seq !== refreshSeqRef.current) return null;
+        storeAuth({ user: data });
+        setUser(data);
+        if (seq === refreshSeqRef.current) setLoading(false);
+        return data;
+      } catch (err) {
+        const isNetworkError = !err?.response;
+        if (isNetworkError && attempt < 2) {
+          await sleep(1000);
+          continue;
+        }
+        if (seq !== refreshSeqRef.current) return null;
+        clearAuth();
+        setUser(null);
+        if (seq === refreshSeqRef.current) setLoading(false);
+        return null;
+      }
     }
+
+    return null;
   }, []);
+
+
 
   useEffect(() => {
+
     initAxiosAuth(() => {
+
+      refreshSeqRef.current += 1;
+
       clearAuth();
+
       setUser(null);
+
       setLoading(false);
+
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+
         window.location.href = '/login';
+
       }
+
     });
+
     refreshMe();
+
   }, [refreshMe]);
 
+
+
   const login = useCallback(async (username, password) => {
+
+    // Отменяем зависший refreshMe (просроченный токен), чтобы не блокировать ProtectedRoute.
+
+    refreshSeqRef.current += 1;
+
     const { data } = await apiClient.post('/auth/login/', { username, password });
+
     storeAuth({ access: data.access, refresh: data.refresh, user: data.user });
+
     setUser(data.user);
+
+    setLoading(false);
+
     return data.user;
+
   }, []);
+
+
 
   const register = useCallback(async (payload) => {
+
     const { data } = await apiClient.post('/auth/register/', payload);
+
     return data;
+
   }, []);
 
+
+
   const changePassword = useCallback(async (currentPassword, newPassword) => {
+
     await apiClient.post('/auth/change-password/', {
+
       current_password: currentPassword,
+
       new_password: newPassword,
+
     });
+
     const nextUser = { ...user, must_change_password: false };
+
     storeAuth({ user: nextUser });
+
     setUser(nextUser);
+
   }, [user]);
 
+
+
   const value = useMemo(() => ({
+
     user,
+
     loading,
+
     isAuthenticated: Boolean(user && getAccessToken()),
+
     login,
+
     logout,
+
     register,
+
     changePassword,
+
     refreshMe,
+
     setUser,
+
   }), [user, loading, login, logout, register, changePassword, refreshMe]);
 
+
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+
 }
 
+
+
+// eslint-disable-next-line react-refresh/only-export-components -- hook colocated with provider
+
 export function useAuth() {
+
   const ctx = useContext(AuthContext);
+
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+
   return ctx;
+
 }
+
+

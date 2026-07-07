@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, startTransition } from 'react';
 import { findAllIntersections } from '../../utils/circleIntersection';
 import {
   buildActionZoneCatalog,
@@ -6,7 +6,7 @@ import {
   hasEnabledZoneFilters,
 } from '../../utils/buildVisibleZones';
 
-export function useActionZoneState(objects) {
+export function useActionZoneState(objects, { zonesActive = false } = {}) {
   const [actionZoneFilters, setActionZoneFilters] = useState({});
   const [showZoneIntersections, setShowZoneIntersections] = useState(false);
   const [selectedIntersections, setSelectedIntersections] = useState([]);
@@ -22,11 +22,14 @@ export function useActionZoneState(objects) {
     [objects],
   );
 
+  const deferredFilters = useDeferredValue(actionZoneFilters);
+  const intersectionsEnabled = zonesActive && showZoneIntersections && hasEnabledZones;
+
   const intersections = useMemo(() => {
-    if (!showZoneIntersections || !hasEnabledZones) return [];
-    const visibleForIntersections = filterObjectsForZones(objects, actionZoneFilters);
+    if (!intersectionsEnabled) return [];
+    const visibleForIntersections = filterObjectsForZones(objects, deferredFilters);
     return findAllIntersections(visibleForIntersections);
-  }, [showZoneIntersections, hasEnabledZones, objects, actionZoneFilters]);
+  }, [intersectionsEnabled, objects, deferredFilters]);
 
   const intersectionsKey = useMemo(
     () => intersections.map((i) => i.id).sort().join('|'),
@@ -34,22 +37,26 @@ export function useActionZoneState(objects) {
   );
 
   useEffect(() => {
-    if (!showZoneIntersections || !hasEnabledZones) {
+    if (!intersectionsEnabled) {
       intersectionsInitialized.current = false;
       setSelectedIntersections([]);
       return;
     }
 
     if (intersections.length > 0 && !intersectionsInitialized.current) {
-      setSelectedIntersections(intersections.map((i) => i.id));
+      startTransition(() => {
+        setSelectedIntersections(intersections.map((i) => i.id));
+      });
       intersectionsInitialized.current = true;
     } else if (intersections.length > 0 && intersectionsInitialized.current) {
-      setSelectedIntersections((prev) => {
-        const currentIds = intersections.map((i) => i.id);
-        return prev.filter((id) => currentIds.includes(id));
+      startTransition(() => {
+        setSelectedIntersections((prev) => {
+          const currentIds = intersections.map((i) => i.id);
+          return prev.filter((id) => currentIds.includes(id));
+        });
       });
     }
-  }, [showZoneIntersections, hasEnabledZones, intersectionsKey, intersections]);
+  }, [intersectionsEnabled, intersectionsKey, intersections]);
 
   useEffect(() => {
     if (Object.keys(actionZoneAvailableByCountry).length === 0) return;
@@ -77,30 +84,36 @@ export function useActionZoneState(objects) {
   }, [actionZoneAvailableByCountry]);
 
   const toggleActionType = useCallback((country, actionTitle) => {
-    setActionZoneFilters((prev) => {
-      const next = { ...prev };
-      const currentSet = next[country] ? new Set(next[country]) : new Set();
-      if (currentSet.has(actionTitle)) currentSet.delete(actionTitle);
-      else currentSet.add(actionTitle);
-      next[country] = currentSet;
-      return next;
+    startTransition(() => {
+      setActionZoneFilters((prev) => {
+        const next = { ...prev };
+        const currentSet = next[country] ? new Set(next[country]) : new Set();
+        if (currentSet.has(actionTitle)) currentSet.delete(actionTitle);
+        else currentSet.add(actionTitle);
+        next[country] = currentSet;
+        return next;
+      });
     });
   }, []);
 
   const toggleAllForCountry = useCallback((country, allTypes, shouldEnable) => {
-    setActionZoneFilters((prev) => {
-      const next = { ...prev };
-      next[country] = shouldEnable ? new Set(allTypes) : new Set();
-      return next;
+    startTransition(() => {
+      setActionZoneFilters((prev) => {
+        const next = { ...prev };
+        next[country] = shouldEnable ? new Set(allTypes) : new Set();
+        return next;
+      });
     });
   }, []);
 
   const resetZoneFilters = useCallback((enableAll) => {
-    const next = {};
-    Object.keys(actionZoneAvailableByCountry).forEach((c) => {
-      next[c] = enableAll ? new Set(actionZoneAvailableByCountry[c]) : new Set();
+    startTransition(() => {
+      const next = {};
+      Object.keys(actionZoneAvailableByCountry).forEach((c) => {
+        next[c] = enableAll ? new Set(actionZoneAvailableByCountry[c]) : new Set();
+      });
+      setActionZoneFilters(next);
     });
-    setActionZoneFilters(next);
   }, [actionZoneAvailableByCountry]);
 
   const handleIntersectionToggle = useCallback((id) => {

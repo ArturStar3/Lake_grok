@@ -80,7 +80,11 @@ class LoginView(APIView):
             )
 
         try:
-            candidate = User.objects.select_related('profile').get(username__iexact=username)
+            candidate = (
+                User.objects.select_related('profile')
+                .prefetch_related('profile__security_groups')
+                .get(username__iexact=username)
+            )
         except User.DoesNotExist:
             candidate = None
 

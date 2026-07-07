@@ -34,6 +34,10 @@ class SecurityGroup(models.Model):
     equipment = models.CharField(
         max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Техника',
     )
+    operational_situations = models.CharField(
+        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE,
+        verbose_name='Оперативная обстановка',
+    )
     can_delete = models.BooleanField(default=False, verbose_name='Удаление записей')
     can_manage_reference = models.BooleanField(default=False, verbose_name='Справочники')
     can_manage_users = models.BooleanField(default=False, verbose_name='Управление пользователями')

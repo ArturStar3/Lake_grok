@@ -10,6 +10,7 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared popup builder
 export function buildZonePopupPayload(zone) {
   if (!zone) return null;
   return {

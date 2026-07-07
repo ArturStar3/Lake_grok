@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useDropdownWithSearch } from "../../hooks/useDropdownWithSearch";
 import MarkdownEditor from "../common/MarkdownEditor/MarkdownEditor";
+import PolygonCoordinateEditor from "../common/PolygonCoordinateEditor/PolygonCoordinateEditor";
+import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoints } from "../../utils/polygonDrawUtils";
 import "./AddEventModal.css";
 
 import { API_URL as API_ROOT } from '../../config/api';
@@ -23,7 +25,15 @@ const EVENT_COLORS = [
 	"#00cec9"
 ];
 
-export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, onSave, initialEvent = null }) {
+export default function AddEventModal({
+	isOpen,
+	onClose,
+	drawMode,
+	drawPoints,
+	onDrawPointsChange,
+	onSave,
+	initialEvent = null,
+}) {
 	const [formData, setFormData] = useState({
 		title: "",
 		dateStart: "",
@@ -48,6 +58,8 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 	const [markers, setMarkers] = useState([]);
 	const [eventTypes, setEventTypes] = useState([]);
 	const [markerSvgs, setMarkerSvgs] = useState(new Map());
+	const [polygonEditable, setPolygonEditable] = useState([]);
+	const skipPolygonSyncRef = useRef(false);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -191,7 +203,7 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 			});
 			return;
 		}
-		if ((drawMode === "rectangle" || drawMode === "polygon") && drawPoints.length > 0) {
+		if ((drawMode === "rectangle") && drawPoints.length > 0) {
 			setGeoForm({
 				mode: drawMode,
 				points: drawPoints.map((point) => ({
@@ -204,6 +216,31 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 			});
 		}
 	}, [isOpen, drawMode, drawPoints]);
+
+	const drawPointsKeyValue = drawPointsKey(drawPoints);
+
+	useEffect(() => {
+		if (!isOpen || drawMode !== "polygon") {
+			setPolygonEditable((prev) => (prev.length === 0 ? prev : []));
+			return;
+		}
+		if (skipPolygonSyncRef.current) {
+			skipPolygonSyncRef.current = false;
+			return;
+		}
+		const next = drawPointsToEditable(drawPoints);
+		const nextKey = editablePointsKey(next);
+		setPolygonEditable((prev) => (
+			editablePointsKey(prev) === nextKey ? prev : next
+		));
+	}, [isOpen, drawMode, drawPointsKeyValue, drawPoints]);
+
+	const handlePolygonEditableChange = (editable) => {
+		setPolygonEditable(editable);
+		if (!onDrawPointsChange) return;
+		skipPolygonSyncRef.current = true;
+		onDrawPointsChange(parseLatLngPoints(editable) || []);
+	};
 
 	const handleGeoPointChange = (index, field, value) => {
 		setGeoForm((prev) => {
@@ -283,7 +320,7 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 				</div>
 			);
 		}
-		if ((drawMode === "rectangle" || drawMode === "polygon") && geoForm.points.length > 0) {
+		if (drawMode === "rectangle" && geoForm.points.length > 0) {
 			return (
 				<div className="event-modal__geo-details event-modal__geo-edit">
 					<div className="event-modal__geo-title">Геопозиция</div>
@@ -312,6 +349,17 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 							</div>
 						))}
 					</div>
+				</div>
+			);
+		}
+		if (drawMode === "polygon") {
+			return (
+				<div className="event-modal__geo-details event-modal__geo-edit">
+					<PolygonCoordinateEditor
+						points={polygonEditable.length > 0 ? polygonEditable : drawPointsToEditable(drawPoints)}
+						onChange={handlePolygonEditableChange}
+						hint="Можно редактировать контур вручную или на карте"
+					/>
 				</div>
 			);
 		}
@@ -345,11 +393,17 @@ export default function AddEventModal({ isOpen, onClose, drawMode, drawPoints, o
 				];
 			}
 		}
-		if ((drawMode === "rectangle" || drawMode === "polygon") && geoForm.points.length > 0) {
+		if (drawMode === "rectangle" && geoForm.points.length > 0) {
 			const parsedPoints = geoForm.points
 				.map((point) => ({ lat: Number(point.lat), lng: Number(point.lng) }))
 				.filter((point) => !Number.isNaN(point.lat) && !Number.isNaN(point.lng));
 			if (parsedPoints.length > 0) {
+				geometryPoints = parsedPoints;
+			}
+		}
+		if (drawMode === "polygon") {
+			const parsedPoints = parseLatLngPoints(drawPoints, { minCount: 3 });
+			if (parsedPoints) {
 				geometryPoints = parsedPoints;
 			}
 		}

@@ -16,6 +16,7 @@ import {
 import PersonEditor from '../PersonEditor/PersonEditor';
 import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
+import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
@@ -25,8 +26,53 @@ import {
     isInundationZoneType,
     isPolygonZoneMode,
     mapTargetActionToForm,
+    pointsToGeoJsonPolygon,
     resolveActionType,
 } from '../../utils/inundationZone';
+import {
+    drawPointsToEditable,
+    editablePointsKey,
+    drawPointsKey,
+    parseLatLngPoints,
+    validateEditablePolygonPoints,
+} from '../../utils/polygonDrawUtils';
+
+function ActionPolygonCoordinateField({ zoneGeometry, onGeometryChange, error }) {
+    const [editable, setEditable] = useState([]);
+    const skipSyncRef = useRef(false);
+    const zonePointsKey = drawPointsKey(geoJsonPolygonToDrawPoints(zoneGeometry));
+
+    useEffect(() => {
+        if (skipSyncRef.current) {
+            skipSyncRef.current = false;
+            return;
+        }
+        const next = drawPointsToEditable(geoJsonPolygonToDrawPoints(zoneGeometry));
+        const nextKey = editablePointsKey(next);
+        setEditable((prev) => (
+            editablePointsKey(prev) === nextKey ? prev : next
+        ));
+    }, [zonePointsKey, zoneGeometry]);
+
+    const handleChange = (nextEditable) => {
+        setEditable(nextEditable);
+        skipSyncRef.current = true;
+        const parsed = parseLatLngPoints(nextEditable, { minCount: 3 });
+        onGeometryChange(parsed ? pointsToGeoJsonPolygon(parsed) : null, nextEditable);
+    };
+
+    return (
+        <div className="edit-target-modal__polygon-coords">
+            <PolygonCoordinateEditor
+                points={editable}
+                onChange={handleChange}
+                error={error}
+                hint="Введите координаты вручную или нарисуйте на карте"
+                compact
+            />
+        </div>
+    );
+}
 
 const API_ROOT = API_URL;
 
@@ -146,6 +192,43 @@ export default function EditTargetModal({
                 zone_geometry: null,
             };
             return { ...prev, actions: nextActions };
+        });
+        setErrors((prev) => {
+            const key = `action_${index}_polygon`;
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    }, []);
+
+    const handlePolygonPointsChange = useCallback((index, geometry, editable) => {
+        setFormData((prev) => {
+            const nextActions = [...prev.actions];
+            nextActions[index] = {
+                ...nextActions[index],
+                zone_geometry: geometry,
+            };
+            return { ...prev, actions: nextActions };
+        });
+        setErrors((prev) => {
+            const key = `action_${index}_polygon`;
+            if (geometry) {
+                const next = { ...prev };
+                delete next[key];
+                return next;
+            }
+            if (!editable?.length) {
+                const next = { ...prev };
+                delete next[key];
+                return next;
+            }
+            const validationError = validateEditablePolygonPoints(editable);
+            if (!validationError) {
+                const next = { ...prev };
+                delete next[key];
+                return next;
+            }
+            return { ...prev, [key]: validationError };
         });
     }, []);
 
@@ -1321,6 +1404,11 @@ export default function EditTargetModal({
                                                                 <span className="edit-target-modal__error">{errors[`action_${index}_polygon`]}</span>
                                                             )}
                                                         </div>
+                                                        <ActionPolygonCoordinateField
+                                                            zoneGeometry={action.zone_geometry}
+                                                            onGeometryChange={(geometry, editable) => handlePolygonPointsChange(index, geometry, editable)}
+                                                            error={errors[`action_${index}_polygon`]}
+                                                        />
                                                         <button
                                                             type="button"
                                                             className="edit-target-modal__button-remove-action"
@@ -1425,6 +1513,13 @@ export default function EditTargetModal({
                                                                     <span className="edit-target-modal__error">{errors[`action_${index}_polygon`]}</span>
                                                                 )}
                                                             </div>
+                                                        )}
+                                                        {isPolygon && (
+                                                            <ActionPolygonCoordinateField
+                                                                zoneGeometry={action.zone_geometry}
+                                                                onGeometryChange={(geometry, editable) => handlePolygonPointsChange(index, geometry, editable)}
+                                                                error={errors[`action_${index}_polygon`]}
+                                                            />
                                                         )}
                                                         
                                                         <button
