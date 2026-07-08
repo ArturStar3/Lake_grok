@@ -31,6 +31,8 @@ export function useEventDrawing({
   const [validationError, setValidationError] = useState(null);
   const lastClickTimeRef = useRef(0);
   const suppressNextDblClickRef = useRef(false);
+  const previewRafRef = useRef(null);
+  const pendingPreviewRef = useRef(undefined);
 
   const drawMode = isEditMode ? controlledDrawMode : selectedTool;
   const drawPoints = isEditMode ? controlledDrawPoints : internalPoints;
@@ -322,25 +324,47 @@ export function useEventDrawing({
     finishPolygon,
   ]);
 
+  const flushPreviewPoint = useCallback(() => {
+    previewRafRef.current = null;
+    const pending = pendingPreviewRef.current;
+    pendingPreviewRef.current = undefined;
+    setPreviewPoint(pending === undefined ? null : pending);
+  }, []);
+
+  const schedulePreviewPoint = useCallback((point) => {
+    pendingPreviewRef.current = point;
+    if (!previewRafRef.current) {
+      previewRafRef.current = requestAnimationFrame(flushPreviewPoint);
+    }
+  }, [flushPreviewPoint]);
+
   const handleMapMove = useCallback((latlng) => {
     if (!enabled || !drawMode) {
-      setPreviewPoint(null);
+      schedulePreviewPoint(null);
       return;
     }
     if (drawMode === 'circle' && drawPoints.length === 1) {
-      setPreviewPoint({ lat: latlng.lat, lng: latlng.lng });
+      schedulePreviewPoint({ lat: latlng.lat, lng: latlng.lng });
       return;
     }
     if (drawMode === 'rectangle' && drawPoints.length === 1) {
-      setPreviewPoint({ lat: latlng.lat, lng: latlng.lng });
+      schedulePreviewPoint({ lat: latlng.lat, lng: latlng.lng });
       return;
     }
     if (drawMode === 'polygon' && !polygonClosed) {
-      setPreviewPoint({ lat: latlng.lat, lng: latlng.lng });
+      schedulePreviewPoint({ lat: latlng.lat, lng: latlng.lng });
       return;
     }
-    setPreviewPoint(null);
-  }, [enabled, drawMode, drawPoints.length, polygonClosed]);
+    schedulePreviewPoint(null);
+  }, [enabled, drawMode, drawPoints.length, polygonClosed, schedulePreviewPoint]);
+
+  useEffect(() => () => {
+    if (previewRafRef.current) {
+      cancelAnimationFrame(previewRafRef.current);
+      previewRafRef.current = null;
+    }
+    pendingPreviewRef.current = undefined;
+  }, []);
 
   useEffect(() => {
     if (!enabled) return undefined;

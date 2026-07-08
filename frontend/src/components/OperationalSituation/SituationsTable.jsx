@@ -67,7 +67,7 @@ export default function SituationsTable({
                 <td className="situations__cell" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedSituations.includes(item.id)}
+                    checked={selectedSet.has(item.id)}
                     onChange={(e) => onCheckboxChange(item.id, e.target.checked)}
                     aria-label={`Показать ${rev?.title || 'обстановку'} на карте`}
                   />

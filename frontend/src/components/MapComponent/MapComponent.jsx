@@ -901,6 +901,11 @@ function MapComponent({
     }, [onTableTabChange]);
 
     const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
+    const selectedEventIdSet = useMemo(() => new Set(selectedEventIds), [selectedEventIds]);
+    const visibleMapEvents = useMemo(
+        () => events.filter((item) => selectedEventIdSet.has(item.id)),
+        [events, selectedEventIdSet],
+    );
     const [eventMarkerSvgs, setEventMarkerSvgs] = useState(new Map());
     const eventMarkerFetchRef = useRef(new Set());
     const isEventPointDraggingRef = useRef(false);
@@ -1463,6 +1468,9 @@ function MapComponent({
         }
         if (isPolygonDrawActive) {
             polygonDrawing.handleMapMove(e.latlng);
+        }
+        if (isSituationDrawingActive) {
+            situationDrawing.handleMapMove(e.latlng);
         }
         const el = cursorCoordsRef.current;
         if (!el) return;
@@ -2132,9 +2140,7 @@ function MapComponent({
                         }
                     />
                 )}
-                {events
-                    .filter((item) => selectedEventIds.includes(item.id))
-                    .map((item) => renderEventShape(item))}
+                {visibleMapEvents.map((item) => renderEventShape(item))}
                 <OperationalSituationLayer
                     situations={situations}
                     selectedSituationIds={selectedSituationIds}

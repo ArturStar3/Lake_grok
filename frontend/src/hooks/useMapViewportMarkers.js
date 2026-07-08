@@ -4,6 +4,20 @@ import { useMap } from 'react-leaflet';
 const DEFAULT_PAD = 0.15;
 const DEBOUNCE_MS = 80;
 
+function isSameVisibleList(prev, next) {
+  if (prev === next) return true;
+  if (!prev || !next || prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i += 1) {
+    if (prev[i] !== next[i]) return false;
+  }
+  return true;
+}
+
+function buildItemsKey(list) {
+  if (!list?.length) return '';
+  return list.map((item) => item.id ?? `${item.lat},${item.lng}`).join('|');
+}
+
 /**
  * Фильтрует маркеры по видимой области карты (с буфером).
  * Пересчёт на moveend/zoomend, не во время drag.
@@ -16,6 +30,7 @@ export function useMapViewportMarkers(items, options = {}) {
   const { pad = DEFAULT_PAD, enabled = true } = options;
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const itemsKey = buildItemsKey(items);
 
   const filterByBounds = useCallback(() => {
     const list = itemsRef.current;
@@ -30,9 +45,13 @@ export function useMapViewportMarkers(items, options = {}) {
 
   const [visible, setVisible] = useState(() => filterByBounds());
 
+  const setVisibleIfChanged = useCallback((next) => {
+    setVisible((prev) => (isSameVisibleList(prev, next) ? prev : next));
+  }, []);
+
   useEffect(() => {
     if (!enabled) {
-      setVisible(itemsRef.current ?? []);
+      setVisibleIfChanged(itemsRef.current ?? []);
       return undefined;
     }
 
@@ -41,11 +60,11 @@ export function useMapViewportMarkers(items, options = {}) {
     const scheduleUpdate = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        setVisible(filterByBounds());
+        setVisibleIfChanged(filterByBounds());
       }, DEBOUNCE_MS);
     };
 
-    setVisible(filterByBounds());
+    setVisibleIfChanged(filterByBounds());
     map.on('moveend', scheduleUpdate);
     map.on('zoomend', scheduleUpdate);
 
@@ -54,15 +73,15 @@ export function useMapViewportMarkers(items, options = {}) {
       map.off('zoomend', scheduleUpdate);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [map, enabled, filterByBounds]);
+  }, [map, enabled, filterByBounds, setVisibleIfChanged]);
 
   useEffect(() => {
     if (enabled) {
-      setVisible(filterByBounds());
+      setVisibleIfChanged(filterByBounds());
     } else {
-      setVisible(items ?? []);
+      setVisibleIfChanged(items ?? []);
     }
-  }, [items, enabled, filterByBounds]);
+  }, [itemsKey, enabled, filterByBounds, setVisibleIfChanged, items]);
 
   return visible;
 }
