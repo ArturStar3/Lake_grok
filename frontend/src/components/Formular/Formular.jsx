@@ -245,10 +245,25 @@ export default function Formular() {
     }, [flyToSituation, setSelectedSituations]);
 
     const handleSituationCreateStart = useCallback(() => {
+        // Принудительный сброс возможных "залипаний" UI-состояния после удаления/сохранения:
+        // если оставалась открытой модалка или активный режим рисования,
+        // то кнопка "Добавить обстановку" могла визуально нажиматься, но режим не включался.
+        setIsSituationDrawActive(false);
+        setSituationModalOpen(false);
+        setSituationModalTarget(null);
+        setSituationModalMode('create');
+
         setSituationDrawPoints([]);
-        setIsSituationDrawActive(true);
         setDetailSituation(null);
+        setSituationRevisions([]);
+        setSelectedRevisionId(null);
         setPreviewRevision(null);
+        setHighlightedSituationId(null);
+
+        // Обновляем состояние в 2 шага, чтобы React гарантированно перерисовал MapComponent и включил draw.
+        requestAnimationFrame(() => {
+            setIsSituationDrawActive(true);
+        });
     }, []);
 
     const handleSituationDrawConfirm = useCallback((points) => {
@@ -312,6 +327,15 @@ export default function Formular() {
                 setSituationRevisions([]);
                 setPreviewRevision(null);
             }
+
+            // Сбросим связанные UI-режимы, чтобы после удаления можно было снова создать обстановку.
+            setIsSituationDrawActive(false);
+            setSituationModalOpen(false);
+            setSituationModalTarget(null);
+            setSituationDrawPoints([]);
+            setSelectedRevisionId(null);
+            setPreviewRevision(null);
+            setHighlightedSituationId(null);
         }
     }, [deleteSituation, detailSituation, setSelectedSituations]);
 
