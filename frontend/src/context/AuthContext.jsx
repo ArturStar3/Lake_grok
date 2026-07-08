@@ -94,6 +94,13 @@ export function AuthProvider({ children }) {
           continue;
         }
         if (seq !== refreshSeqRef.current) return null;
+        // Если это сетевой сбой (например, ERR_EMPTY_RESPONSE), не очищаем auth,
+        // чтобы не устроить каскад 401 после временной проблемы на сервере.
+        if (isNetworkError) {
+          if (seq === refreshSeqRef.current) setLoading(false);
+          return null;
+        }
+
         clearAuth();
         setUser(null);
         if (seq === refreshSeqRef.current) setLoading(false);
@@ -146,7 +153,12 @@ export function AuthProvider({ children }) {
 
     setLoading(true);
     const me = await refreshMe();
-    if (!me) throw new Error('Invalid token');
+    // Если /auth/me не ответил из-за сетевого сбоя — считаем логин успешным,
+    // потому что пользователь уже получен из /auth/login/.
+    if (!me) {
+      setLoading(false);
+      return data.user;
+    }
 
     return data.user;
 
