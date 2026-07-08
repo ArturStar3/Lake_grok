@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import './FormularModal.css';
-import { API_URL } from '../../config/api';
+import { apiClient } from '../../config/axios';
 import DetailSectionNavigator from '../DetailSections/DetailSectionNavigator';
 import { buildSectionCards, organizeSectionData } from '../../utils/organizeSectionData';
 
@@ -30,13 +30,7 @@ const FormularModal = ({
       setError(null);
       
       try {
-        const response = await fetch(`${API_URL}/api/v1/formular/${targetId}/`);
-        
-        if (!response.ok) {
-          throw new Error(`Ошибка загрузки: ${response.status}`);
-        }
-        
-        const result = await response.json();
+        const { data: result } = await apiClient.get(`/formular/${targetId}/`);
         const formularData = Array.isArray(result) ? result : (result.formular || result);
         setData(formularData);
         if (!Array.isArray(result) && result.subordinates) {
@@ -53,9 +47,7 @@ const FormularModal = ({
 
     const fetchAttachments = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/v1/formular-attachments/?target=${targetId}`);
-        if (!response.ok) return;
-        const result = await response.json();
+        const { data: result } = await apiClient.get(`/formular-attachments/?target=${targetId}`);
         const grouped = {};
         result.forEach((item) => {
           if (!grouped[item.section]) {
@@ -71,17 +63,14 @@ const FormularModal = ({
 
     const fetchTargetDetails = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/v1/targets/${targetId}/`);
-        if (response.ok) {
-          const target = await response.json();
-          setTargetTitle(target.title);
-          setDeployedEquipment(target.deployed_equipment || []);
-          setTargetMeta({
-            label: target.label,
-            country: target.country?.title,
-            type: target.type?.title,
-          });
-        }
+        const { data: target } = await apiClient.get(`/targets/${targetId}/`);
+        setTargetTitle(target.title);
+        setDeployedEquipment(target.deployed_equipment || []);
+        setTargetMeta({
+          label: target.label,
+          country: target.country?.title,
+          type: target.type?.title,
+        });
       } catch (err) {
         console.error('Ошибка загрузки данных объекта:', err);
       }
@@ -89,9 +78,7 @@ const FormularModal = ({
 
     const fetchPersons = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/v1/persons/?target=${targetId}`);
-        if (!response.ok) return;
-        const result = await response.json();
+        const { data: result } = await apiClient.get(`/persons/?target=${targetId}`);
         setPersons(Array.isArray(result) ? result : []);
       } catch (err) {
         console.warn('Ошибка загрузки персоналий:', err);

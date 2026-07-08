@@ -144,11 +144,13 @@ export function AuthProvider({ children }) {
 
     setUser(data.user);
 
-    setLoading(false);
+    setLoading(true);
+    const me = await refreshMe();
+    if (!me) throw new Error('Invalid token');
 
     return data.user;
 
-  }, []);
+  }, [refreshMe]);
 
 
 

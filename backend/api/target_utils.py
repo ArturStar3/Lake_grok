@@ -1,6 +1,7 @@
 """Утилиты для Target API: зоны техники, actions, сериализация."""
 
 from formular.models import ActionType, TargetAction, TargetEquipment
+from equipment.models import Equipment
 from formular.enums import ZoneGeometryModes
 from formular.zone_geometry_validation import (
     validate_zone_geometry,
