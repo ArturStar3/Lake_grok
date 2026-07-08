@@ -55,7 +55,7 @@
 
 /* Когда открыта боковая панель — не перекрывать кнопку закрытия ✕ */
 .map__fullscreen-btn--sidebar-open {
-    right: calc(min(28%, 400px) + 15px);
+    right: calc(min(34%, 520px) + 15px);
 }
 
 /* Unified sidebar for fullscreen mode */
@@ -63,8 +63,8 @@
     position: fixed;
     right: 0;
     top: 0;
-    width: 28%;
-    max-width: 400px;
+    width: 34%;
+    max-width: 520px;
     height: 100vh;
     background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(8px);
@@ -119,6 +119,23 @@
     flex-shrink: 0;
 }
 
+/* In fullscreen "objects" tab can contain long lists (e.g. operational situation),
+   so make this part scrollable instead of clipping content. */
+.map__objects-section {
+    flex: 1 1 auto;
+    flex-shrink: 1;
+    min-height: 0; /* Needed for flex scroll containers */
+    overflow-y: auto;
+}
+
+.map__objects-section .formular__tabs {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.97);
+    margin-top: 0; /* Keep border/tabs aligned with sidebar padding */
+}
+
 .map__sidebar-subtitle {
     margin: 0 0 12px 0;
     font-size: 14px;
@@ -167,7 +184,7 @@
 
 .map--fullscreen .situation-map-edit-hint {
     bottom: 20px;
-    max-width: min(520px, calc(100vw - min(28%, 400px) - 48px));
+    max-width: min(520px, calc(100vw - min(34%, 520px) - 48px));
 }
 
 .event-point-icon {

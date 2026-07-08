@@ -156,7 +156,7 @@ export default function EquipmentDetailModal({
             type="button"
             className="equipment-detail-modal__edit-btn"
             onClick={handleEditClick}
-            disabled={!equipmentId}
+            disabled={!equipmentId || !onEditInCatalog}
           >
             Редактировать в справочнике
           </button>

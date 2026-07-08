@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import './FormularCompletionCard.css';
 
-export default function FormularCompletionCard({ sections = [], targets = [], onTargetEdit }) {
+export default function FormularCompletionCard({
+  sections = [],
+  targets = [],
+  onTargetOpenDetails,
+}) {
   const [viewMode, setViewMode] = useState('list');
-  const canEditTarget = typeof onTargetEdit === 'function';
+  const canOpenTargetDetails = typeof onTargetOpenDetails === 'function';
 
   const handleTargetClick = (target) => {
-    if (!target?.id || !canEditTarget) return;
-    onTargetEdit(target.id);
+    if (!target?.id || !canOpenTargetDetails) return;
+    onTargetOpenDetails(target);
   };
 
   const renderTargetLabel = (target) => (
@@ -51,9 +55,9 @@ export default function FormularCompletionCard({ sections = [], targets = [], on
           {targets.map((target) => (
             <li
               key={target.id}
-              className={`formular-completion__row${canEditTarget ? ' formular-completion__row--clickable' : ''}`}
+              className={`formular-completion__row${canOpenTargetDetails ? ' formular-completion__row--clickable' : ''}`}
             >
-              {canEditTarget ? (
+              {canOpenTargetDetails ? (
                 <button
                   type="button"
                   className="formular-completion__row-button"
@@ -103,8 +107,8 @@ export default function FormularCompletionCard({ sections = [], targets = [], on
             <tbody>
               {targets.map((target) => (
                 <tr key={target.id}>
-                  <td className={canEditTarget ? 'formular-completion__object-cell--clickable' : undefined}>
-                    {canEditTarget ? (
+                  <td className={canOpenTargetDetails ? 'formular-completion__object-cell--clickable' : undefined}>
+                  {canOpenTargetDetails ? (
                       <button
                         type="button"
                         className="formular-completion__object-button"

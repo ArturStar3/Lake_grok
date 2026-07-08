@@ -1,5 +1,7 @@
 .situations__data {
   margin-top: 8px;
+  /* Prevent horizontal overflow in narrow containers (fullscreen sidebar). */
+  overflow-x: auto;
 }
 
 .situations__toolbar {

@@ -46,6 +46,7 @@ export default function Formular() {
     const canReadSituations = canReadModule(user, 'operational_situations');
     const canEditSituations = canWriteModule(user, 'operational_situations');
     const canRemoveTargets = canDelete(user);
+    const canDeleteSituations = canDelete(user);
     const canOpenReference = canManageReference(user);
     const [usersAdminOpen, setUsersAdminOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("objects");
@@ -217,7 +218,14 @@ export default function Formular() {
 
     const handleSituationCheckboxChange = useCallback((id, checked) => {
         setSelectedSituations((prev) => toggleIdInList(prev, id, checked));
-    }, [setSelectedSituations]);
+        if (!checked) {
+            const previewSituationId = previewRevision?.situation_id || previewRevision?.situation?.id;
+            if (previewSituationId != null && String(previewSituationId) === String(id)) {
+                setPreviewRevision(null);
+                setSelectedRevisionId(null);
+            }
+        }
+    }, [setSelectedSituations, previewRevision]);
 
     const handleSituationFlyTo = useCallback((situation) => {
         const displayRevision = getSituationDisplayRevision(situation);
@@ -368,16 +376,11 @@ export default function Formular() {
             setDetailSituation(null);
             setSituationRevisions([]);
         }
-        if (!selectedSituations.includes(situationId)) {
-            setSelectedSituations((prev) => [...prev, situationId]);
-        }
         const displayRevision = getSituationDisplayRevision(situation);
         flyToSituation(displayRevision || situation);
     }, [
         situations,
         fetchRevisions,
-        selectedSituations,
-        setSelectedSituations,
         flyToSituation,
         isFullscreen,
     ]);
@@ -396,12 +399,9 @@ export default function Formular() {
         setPreviewRevision(enriched);
         if (situationId) {
             setHighlightedSituationId(situationId);
-            setSelectedSituations((prev) => (
-                prev.includes(situationId) ? prev : [...prev, situationId]
-            ));
         }
         flyToSituation(enriched);
-    }, [flyToSituation, setSelectedSituations, detailSituation]);
+    }, [flyToSituation, detailSituation]);
 
     const handleGlobalTimelineSelect = useCallback((revision) => {
         const situationId = getSituationId(revision);
@@ -769,7 +769,7 @@ export default function Formular() {
                                         onRowClick={handleSituationRowClick}
                                         onFlyTo={handleSituationFlyTo}
                                         onEdit={canEditSituations ? handleSituationEdit : undefined}
-                                        onDelete={canEditSituations ? handleSituationDelete : undefined}
+                                        onDelete={canEditSituations && canDeleteSituations ? handleSituationDelete : undefined}
                                         onCreate={canEditSituations ? handleSituationCreateStart : undefined}
                                         highlightedSituationId={highlightedSituationId}
                                     />
@@ -816,6 +816,8 @@ export default function Formular() {
                                 onMarkerClick={setSelectedTargetId}
                                 onAltClickAddTarget={handleMapAltClickAddTarget}
                                 onEditClick={handleEditClick}
+                                onTargetOpenDetails={handleSubordinateOpenDetails}
+                                canEditCountry={canOpenReference}
                                 onDeleteClick={handleDeleteClick}
                                 onEventSave={handleEventSave}
                                 filterCountry={filterCountry}
@@ -873,7 +875,7 @@ export default function Formular() {
                                 situationsFilters={situationsFilters}
                                 onSituationsFiltersChange={setSituationsFilters}
                                 onSituationCheckboxChange={handleSituationCheckboxChange}
-                                onSituationDelete={canEditSituations ? handleSituationDelete : undefined}
+                                onSituationDelete={canEditSituations && canDeleteSituations ? handleSituationDelete : undefined}
                                 onSituationFlyTo={handleSituationFlyTo}
                                 onSituationCreate={canEditSituations ? handleSituationCreateStart : undefined}
                                 highlightedSituationId={highlightedSituationId}
@@ -900,10 +902,10 @@ export default function Formular() {
                 <FormularModal
                     targetId={selectedTargetId}
                     onClose={() => setSelectedTargetId(null)}
-                    onEdit={handleEditClick}
+                    onEdit={canEditTargets ? handleEditClick : undefined}
                     onSubordinateFlyTo={handleSubordinateFlyTo}
                     onSubordinateOpenDetails={handleSubordinateOpenDetails}
-                    onEditEquipmentInCatalog={handleOpenEquipmentInCatalog}
+                    onEditEquipmentInCatalog={canOpenReference ? handleOpenEquipmentInCatalog : undefined}
                 />
             )}
 

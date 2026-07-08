@@ -17,7 +17,13 @@ const COUNTRY_COLOR_MAP = {
     marine: "#0077BE",
 };
 
-export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
+export default function CountryModal({
+    countryIso,
+    onClose,
+    onTargetEdit,
+    onTargetOpenDetails,
+    canEditCountry = false,
+}) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -27,6 +33,12 @@ export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [attachmentsBySection, setAttachmentsBySection] = useState({});
     const { sections: completionSections, targets: completionTargets } = useFormularCompletion(countryId);
+
+    useEffect(() => {
+        if (!canEditCountry) {
+            setIsEditModalOpen(false);
+        }
+    }, [canEditCountry]);
 
     useEffect(() => {
         if (!countryIso) return;
@@ -141,6 +153,15 @@ export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
 
     const countryName = country?.title || "Информация о стране";
     const markerColor = COUNTRY_COLOR_MAP[country?.color] || COUNTRY_COLOR_MAP.blue;
+    
+    // Приоритет: открываем подробности, если передан коллбек.
+    // Иначе (для старых сценариев) используем onTargetEdit как fallback.
+    const effectiveOnTargetOpenDetails = onTargetOpenDetails ?? (typeof onTargetEdit === 'function'
+        ? (target) => {
+            const id = typeof target === 'object' ? target?.id : target;
+            return onTargetEdit?.(id);
+          }
+        : undefined);
 
     return (
         <>
@@ -171,7 +192,7 @@ export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
                             )}
                         </div>
                         <div className="country-modal__header-actions">
-                            {!loading && !error && (
+                            {!loading && !error && canEditCountry && (
                                 <button
                                     className="country-modal__edit-btn"
                                     onClick={() => setIsEditModalOpen(true)}
@@ -212,7 +233,7 @@ export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
                                 attachmentsBySection={attachmentsBySection}
                                 resetKey={countryIso}
                                 autoExpandSingle
-                                onTargetEdit={onTargetEdit}
+                                onTargetOpenDetails={effectiveOnTargetOpenDetails}
                                 emptyMessage="Информация о стране отсутствует."
                             />
                         )}
@@ -220,7 +241,7 @@ export default function CountryModal({ countryIso, onClose, onTargetEdit }) {
                 </div>
             </div>
             
-            {isEditModalOpen && (
+            {isEditModalOpen && canEditCountry && (
                 <EditCountryModal
                     countryId={countryId}
                     countryIso={countryIso}

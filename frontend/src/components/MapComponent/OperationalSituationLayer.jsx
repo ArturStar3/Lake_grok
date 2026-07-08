@@ -48,17 +48,8 @@ export default memo(function OperationalSituationLayer({
     [selectedSituationIds],
   );
   const previewSituationId = previewRevision?.situation_id || previewRevision?.situation?.id || null;
-
-  if (previewRevision?.geometry && previewSituationId) {
-    return (
-      <SituationPolygon
-        key={`preview-${previewRevision.id}`}
-        situationId={previewSituationId}
-        revision={previewRevision}
-        onClick={onSituationClick}
-      />
-    );
-  }
+  const previewIsSelected = previewSituationId != null
+    && selectedSet.has(String(previewSituationId));
 
   return (
     <>
@@ -67,12 +58,13 @@ export default memo(function OperationalSituationLayer({
         .map((item) => {
           if (editingSituationId && String(item.id) === String(editingSituationId)) return null;
 
-          const rev = getSituationDisplayRevision(item);
+          const usePreview = previewIsSelected && String(item.id) === String(previewSituationId);
+          const rev = usePreview ? previewRevision : getSituationDisplayRevision(item);
           if (!rev) return null;
 
           return (
             <SituationPolygon
-              key={item.id}
+              key={usePreview ? `preview-${previewRevision.id}` : item.id}
               situationId={item.id}
               revision={rev}
               onClick={onSituationClick}

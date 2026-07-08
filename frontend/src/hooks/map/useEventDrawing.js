@@ -20,6 +20,9 @@ export function useEventDrawing({
   drawMode: controlledDrawMode = null,
   drawPoints: controlledDrawPoints = [],
   onDrawPointsChange,
+  // In controlled edit mode, auto-close polygon when it already has 3+ valid points
+  // (e.g. loading existing geometry). Disable while drawing a new contour from scratch.
+  autoClosePolygon = true,
 }) {
   const [selectedTool, setSelectedTool] = useState(null);
   const [internalPoints, setInternalPoints] = useState([]);
@@ -45,6 +48,14 @@ export function useEventDrawing({
     if (!isEditMode) return;
     if (controlledDrawMode !== 'polygon') return;
 
+    if (!autoClosePolygon) {
+      if (controlledDrawPoints.length < 3) {
+        setPolygonClosed(false);
+        setValidationError(null);
+      }
+      return;
+    }
+
     if (controlledDrawPoints.length >= 3 && validatePolygonPoints(controlledDrawPoints) === null) {
       setPolygonClosed(true);
       setValidationError(null);
@@ -57,7 +68,7 @@ export function useEventDrawing({
     } else {
       setValidationError(null);
     }
-  }, [isEditMode, controlledDrawMode, controlledPointsKey, controlledDrawPoints]);
+  }, [isEditMode, controlledDrawMode, controlledPointsKey, controlledDrawPoints, autoClosePolygon]);
 
   const clearDraft = useCallback(() => {
     if (!isEditMode) {
@@ -170,6 +181,16 @@ export function useEventDrawing({
 
     if (drawMode !== 'polygon') return;
 
+    if (!autoClosePolygon) {
+      if (next.length < 3) {
+        setPolygonClosed(false);
+        setValidationError(null);
+      } else {
+        setValidationError(validatePolygonPoints(next));
+      }
+      return;
+    }
+
     if (next.length >= 3 && validatePolygonPoints(next) === null) {
       setPolygonClosed(true);
       setValidationError(null);
@@ -182,7 +203,7 @@ export function useEventDrawing({
     } else {
       setValidationError(null);
     }
-  }, [drawMode, drawPoints, setDrawPoints]);
+  }, [drawMode, drawPoints, setDrawPoints, autoClosePolygon]);
 
   const isReady = useCallback(() => {
     if (!drawMode) return false;

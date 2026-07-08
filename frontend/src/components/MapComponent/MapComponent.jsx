@@ -798,6 +798,8 @@ function MapComponent({
     onMarkerHover,
     onAltClickAddTarget,
     onEditClick,
+    onTargetOpenDetails,
+    canEditCountry = false,
     onDeleteClick,
     onEventSave,
     filterCountry = [],
@@ -837,9 +839,9 @@ function MapComponent({
     situationRevisions = [],
     selectedRevisionId = null,
     onSituationDetailClose = () => {},
-    onSituationEdit = () => {},
-    onSituationNewState = () => {},
-    onSituationFork = () => {},
+    onSituationEdit,
+    onSituationNewState,
+    onSituationFork,
     onSituationRevisionSelect = () => {},
     situationsFilters = { title: '', dateFrom: '', dateTo: '', countries: [] },
     onSituationsFiltersChange = () => {},
@@ -958,6 +960,9 @@ function MapComponent({
         drawMode: 'polygon',
         drawPoints: situationSessionPoints,
         onDrawPointsChange: onSituationDrawPointsChange,
+        // While creating a new contour (before modal opens), keep drawing open-ended
+        // like Events "Произвольная форма" until user finishes explicitly.
+        autoClosePolygon: isSituationModalOpen,
     });
 
     const [eventPolygonEditable, setEventPolygonEditable] = useState([]);
@@ -2354,6 +2359,8 @@ function MapComponent({
                         setSelectedCountryIso(null);
                         onEditClick?.(targetId);
                     }}
+                    onTargetOpenDetails={onTargetOpenDetails}
+                    canEditCountry={canEditCountry}
                 />
             )}
             {isEventModalOpen && (

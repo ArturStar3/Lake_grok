@@ -59,13 +59,31 @@ export default function SituationDetailPanel({
         />
       </div>
       <div className="situation-detail__actions">
-        <button type="button" className="situation-detail__btn" onClick={() => onEdit?.(situation)}>
+        <button
+          type="button"
+          className="situation-detail__btn"
+          onClick={() => onEdit?.(situation)}
+          disabled={!onEdit}
+          aria-disabled={!onEdit}
+        >
           Редактировать
         </button>
-        <button type="button" className="situation-detail__btn" onClick={() => onNewState?.(situation)}>
+        <button
+          type="button"
+          className="situation-detail__btn"
+          onClick={() => onNewState?.(situation)}
+          disabled={!onNewState}
+          aria-disabled={!onNewState}
+        >
           Новое состояние
         </button>
-        <button type="button" className="situation-detail__btn situation-detail__btn--secondary" onClick={() => onFork?.(situation)}>
+        <button
+          type="button"
+          className="situation-detail__btn situation-detail__btn--secondary"
+          onClick={() => onFork?.(situation)}
+          disabled={!onFork}
+          aria-disabled={!onFork}
+        >
           Создать на основе
         </button>
       </div>

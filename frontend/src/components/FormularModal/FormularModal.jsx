@@ -215,7 +215,7 @@ const FormularModal = ({
               onSubordinateFlyTo={onSubordinateFlyTo}
               onSubordinateOpenDetails={onSubordinateOpenDetails}
               onEditEquipmentInCatalog={onEditEquipmentInCatalog}
-              onTargetEdit={onEdit}
+              onTargetOpenDetails={onSubordinateOpenDetails}
               emptyMessage="Нет данных для отображения"
             />
           )}

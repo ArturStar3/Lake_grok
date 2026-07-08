@@ -24,7 +24,13 @@ export default function SituationsTable({
   return (
     <div className="situations__data">
       <div className="situations__toolbar">
-        <button type="button" className="situations__create-btn" onClick={onCreate}>
+        <button
+          type="button"
+          className="situations__create-btn"
+          onClick={onCreate}
+          disabled={!onCreate}
+          aria-disabled={!onCreate}
+        >
           + Добавить обстановку
         </button>
       </div>
@@ -86,7 +92,14 @@ export default function SituationsTable({
                   />
                 </td>
                 <td className="situations__cell situations__cell--action" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" className="situations__icon-btn" onClick={() => onEdit?.(item)} title="Редактировать">
+                  <button
+                    type="button"
+                    className="situations__icon-btn"
+                    onClick={() => onEdit?.(item)}
+                    disabled={!onEdit}
+                    aria-disabled={!onEdit}
+                    title="Редактировать"
+                  >
                     ✎
                   </button>
                 </td>
@@ -95,6 +108,8 @@ export default function SituationsTable({
                     type="button"
                     className="situations__icon-btn situations__icon-btn--delete"
                     onClick={() => onDelete?.(item)}
+                    disabled={!onDelete}
+                    aria-disabled={!onDelete}
                     title="Удалить"
                   >
                     ✕
