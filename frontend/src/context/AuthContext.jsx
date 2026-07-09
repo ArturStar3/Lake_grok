@@ -8,9 +8,13 @@ import {
 
   getAccessToken,
 
+  getRefreshToken,
+
   getStoredUser,
 
   initAxiosAuth,
+
+  refreshAccessToken,
 
   storeAuth,
 
@@ -88,6 +92,12 @@ export function AuthProvider({ children }) {
         if (seq === refreshSeqRef.current) setLoading(false);
         return data;
       } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401 && attempt < 2) {
+          const newToken = await refreshAccessToken();
+          if (newToken) continue;
+        }
+
         const isNetworkError = !err?.response;
         if (isNetworkError && attempt < 2) {
           await sleep(1000);
@@ -137,7 +147,18 @@ export function AuthProvider({ children }) {
 
   }, [refreshMe]);
 
+  // Проактивное обновление access-токена (срок жизни 30 мин), если долго нет API-запросов.
+  useEffect(() => {
+    if (!getAccessToken() || !getRefreshToken()) return undefined;
 
+    const REFRESH_INTERVAL_MS = 25 * 60 * 1000;
+    const timer = setInterval(() => {
+      if (!getRefreshToken()) return;
+      refreshAccessToken().catch(() => {});
+    }, REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [user]);
 
   const login = useCallback(async (username, password) => {
 

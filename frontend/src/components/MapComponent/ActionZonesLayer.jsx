@@ -208,7 +208,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   onZoneClickAt,
   onZoneHoverChange,
   considerTerrain,
-  losGeometryByActionId = {},
+  losGeometryByZoneKey = {},
 }) {
   const visibleZones = useMemo(
     () => visibleZonesProp ?? buildVisibleZones(zoneObjects, actionZoneFilters),
@@ -261,7 +261,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         const usePolygon = isPolygonZone(zone);
         const useInundationStyle = isInundationZone(zone);
         const geometry = useTerrainLos
-          ? (losGeometryByActionId[zone.actionId] || zone.zoneGeometry)
+          ? (losGeometryByZoneKey[zone.zoneKey] || zone.zoneGeometry)
           : null;
         const terrainPolygonPositions = useTerrainLos
           ? getZonePolygonPositions(geometry)

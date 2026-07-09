@@ -1,8 +1,10 @@
 from django.contrib import admin
+from django.utils.html import format_html
 
 from infolake.admin_base import ModelAdmin
 
 from .admin_inlines import EquipmentParameterValueInlineAdmin, EquipmentImageInlineAdmin
+from .forms import EquipmentParameterDefinitionForm
 from .models import (
     Equipment,
     EquipmentCategory,
@@ -29,12 +31,64 @@ class UnitOfMeasureAdmin(ModelAdmin):
 
 @admin.register(EquipmentParameterDefinition)
 class EquipmentParameterDefinitionAdmin(ModelAdmin):
-    list_display = ('title', 'code', 'unit', 'action_type')
-    list_filter = ('categories',)
+    form = EquipmentParameterDefinitionForm
+    list_display = (
+        'title',
+        'code',
+        'unit',
+        'action_type',
+        'zone_color_display',
+        'zone_line_type_display',
+    )
+    list_filter = ('categories', 'action_type')
     autocomplete_fields = ('unit', 'action_type', 'categories')
     search_fields = ('title', 'code')
     list_select_related = ('unit', 'action_type')
     list_per_page = 50
+    fieldsets = (
+        (None, {
+            'fields': ('title', 'code', 'unit', 'action_type', 'help_text', 'categories'),
+        }),
+        ('Оформление зоны', {
+            'classes': ('equipment-parameter-zone-style',),
+            'fields': (
+                'inherit_zone_color',
+                'zone_color',
+                'inherit_zone_line_type',
+                'zone_line_type',
+            ),
+            'description': (
+                'Снимите галочку «Наследовать…», чтобы задать своё оформление. '
+                'При включённой галочке в базе сохраняется пустое значение.'
+            ),
+        }),
+    )
+
+    @admin.display(description='Тип линии')
+    def zone_line_type_display(self, obj):
+        if obj.zone_line_type:
+            return obj.zone_line_type
+        if obj.action_type_id:
+            return f'{obj.get_effective_zone_line_type()} (из типа)'
+        return '—'
+
+    @admin.display(description='Цвет зоны')
+    def zone_color_display(self, obj):
+        color = obj.get_effective_zone_color()
+        override = obj.zone_color or ''
+        label = override if override else f'{color} (из типа)'
+        return format_html(
+            '<span style="display:inline-flex;align-items:center;gap:8px;">'
+            '<span style="display:inline-block;width:22px;height:22px;'
+            'background:{};border:1px solid #333;border-radius:4px;'
+            'box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25);" '
+            'title="{}"></span>'
+            '<span style="color:#666;font-size:12px;">{}</span>'
+            '</span>',
+            color,
+            color,
+            label,
+        )
 
 
 @admin.register(Equipment)

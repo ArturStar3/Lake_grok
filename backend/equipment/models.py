@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from formular.enums import ActionLineTypes
 from formular.models import ActionType, Country
 
 
@@ -100,6 +101,21 @@ class EquipmentParameterDefinition(models.Model):
         blank=True,
         verbose_name='Подсказка',
     )
+    zone_color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        verbose_name='Цвет зоны',
+        help_text='Пусто — наследуется из типа действия',
+    )
+    zone_line_type = models.CharField(
+        max_length=20,
+        choices=ActionLineTypes.choices,
+        null=True,
+        blank=True,
+        verbose_name='Тип линии (переопределение)',
+        help_text='Пусто — наследуется из типа действия',
+    )
 
     class Meta:
         db_table = 'formular_equipmentparameterdefinition'
@@ -122,6 +138,25 @@ class EquipmentParameterDefinition(models.Model):
                 raise ValidationError(
                     {'unit': 'Тип зоны допустим только для единицы «км»'}
                 )
+        else:
+            if self.zone_color or self.zone_line_type:
+                raise ValidationError(
+                    'Переопределение оформления зоны допустимо только для параметра с типом зоны'
+                )
+
+    def get_effective_zone_color(self):
+        if self.zone_color:
+            return self.zone_color
+        if self.action_type_id:
+            return self.action_type.color
+        return '#3388ff'
+
+    def get_effective_zone_line_type(self):
+        if self.zone_line_type:
+            return self.zone_line_type
+        if self.action_type_id:
+            return self.action_type.line_type
+        return ActionLineTypes.SOLID
 
     def __str__(self):
         return self.title

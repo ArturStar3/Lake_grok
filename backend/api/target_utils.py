@@ -1,7 +1,7 @@
 """Утилиты для Target API: зоны техники, actions, сериализация."""
 
 from formular.models import ActionType, TargetAction, TargetEquipment
-from equipment.models import Equipment
+from equipment.models import Equipment, EquipmentParameterValue
 from formular.enums import ZoneGeometryModes
 from formular.zone_geometry_validation import (
     validate_zone_geometry,
@@ -57,10 +57,15 @@ def serialize_deployed_equipment(target, include_specs=False, request=None):
                     'unit': unit.symbol if unit else None,
                 })
             if param.action_type_id and pv.value and pv.value > 0:
+                action_type = param.action_type
                 zones.append({
+                    'parameter_id': param.id,
+                    'parameter_code': param.code,
                     'parameter_title': param.title,
-                    'action_type': action_type_to_dict(param.action_type),
+                    'action_type': action_type_to_dict(action_type),
                     'radius_km': pv.value,
+                    'zone_color': param.get_effective_zone_color(),
+                    'zone_line_type': param.get_effective_zone_line_type(),
                 })
         item = {
             'equipment': {
@@ -78,6 +83,44 @@ def serialize_deployed_equipment(target, include_specs=False, request=None):
                 item['equipment']['images'] = images
         items.append(item)
     return items
+
+
+def resolve_deployed_equipment_los_zone(target, equipment_id, parameter_id):
+    """
+    Параметры зоны LOS для размещённой техники (радиус из ТТХ).
+    Raises ValueError с текстом для ответа API.
+    """
+    try:
+        equipment_id = int(equipment_id)
+        parameter_id = int(parameter_id)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Некорректный идентификатор техники или параметра') from exc
+
+    if not target.equipment_links.filter(equipment_id=equipment_id).exists():
+        raise ValueError('Техника не размещена на объекте')
+
+    try:
+        pv = (
+            EquipmentParameterValue.objects.filter(
+                equipment_id=equipment_id,
+                parameter_id=parameter_id,
+                parameter__action_type__isnull=False,
+                value__gt=0,
+            )
+            .select_related('parameter__action_type')
+            .get()
+        )
+    except EquipmentParameterValue.DoesNotExist as exc:
+        raise ValueError('Параметр ТТХ не найден или радиус не задан') from exc
+
+    action_type = pv.parameter.action_type
+    if action_type.zone_mode != ZoneGeometryModes.LOS_RADAR:
+        raise ValueError('Зона не использует режим рельефа')
+
+    return {
+        'radius_km': float(pv.value),
+        'min_elevation_deg': float(action_type.min_elevation_deg or 0.5),
+    }
 
 
 def replace_target_equipment(target, deployed_data):

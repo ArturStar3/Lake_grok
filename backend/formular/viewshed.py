@@ -68,6 +68,38 @@ def _max_visible_range_m(
     return max_range_m
 
 
+def compute_flat_range_polygon(
+    lat: float,
+    lon: float,
+    *,
+    antenna_height_m: float,
+    max_range_km: float,
+    min_elevation_deg: float = 0.5,
+    azimuth_step_deg: int = 10,
+) -> dict:
+    """Плоский круг заданного радиуса (fallback при отсутствии DEM)."""
+    max_range_m = max_range_km * 1000.0
+    ring: list[list[float]] = [[lon, lat]]
+    for bearing in range(0, 360, azimuth_step_deg):
+        end_lat, end_lon = destination_point(lat, lon, float(bearing), max_range_m)
+        ring.append([end_lon, end_lat])
+    ring.append([lon, lat])
+
+    return {
+        'type': 'Polygon',
+        'coordinates': [ring],
+        'properties': {
+            'max_range_km': max_range_km,
+            'antenna_height_m': antenna_height_m,
+            'min_elevation_deg': min_elevation_deg,
+            'azimuth_step_deg': azimuth_step_deg,
+            'dem_available': False,
+            'fallback': 'flat_circle',
+            'computed_at': datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
 def compute_los_polygon(
     lat: float,
     lon: float,
@@ -83,13 +115,14 @@ def compute_los_polygon(
   Центр объекта включается в кольцо для корректного отображения «звезды» покрытия.
     """
     dem = dem or get_dem_index()
-    if dem.tile_count == 0:
-        raise ValueError('Каталог DEM пуст. Загрузите GLO-90: tileserver/scripts/download-dem.py')
-
-    if not dem.has_coverage(lat, lon):
-        raise ValueError(
-            f'Нет DEM-тайла для координат {lat:.4f}, {lon:.4f}. '
-            'Расширьте регион загрузки (--preset central-asia или --bbox).'
+    if dem.tile_count == 0 or not dem.has_coverage(lat, lon):
+        return compute_flat_range_polygon(
+            lat,
+            lon,
+            antenna_height_m=antenna_height_m,
+            max_range_km=max_range_km,
+            min_elevation_deg=min_elevation_deg,
+            azimuth_step_deg=azimuth_step_deg,
         )
 
     ground = dem.sample(lat, lon)
@@ -125,6 +158,7 @@ def compute_los_polygon(
             'min_elevation_deg': min_elevation_deg,
             'azimuth_step_deg': azimuth_step_deg,
             'dem_resolution': 'glo-90',
+            'dem_available': True,
             'computed_at': datetime.now(timezone.utc).isoformat(),
         },
     }

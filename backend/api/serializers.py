@@ -290,6 +290,8 @@ class EquipmentParameterDefinitionSerializer(serializers.ModelSerializer):
             'categories',
             'category_ids',
             'help_text',
+            'zone_color',
+            'zone_line_type',
         )
 
     def get_category_ids(self, obj):
@@ -327,6 +329,8 @@ class EquipmentParameterDefinitionWriteSerializer(serializers.ModelSerializer):
             'unit_id',
             'action_type_id',
             'category_ids',
+            'zone_color',
+            'zone_line_type',
         )
 
     def validate_code(self, value):
@@ -356,6 +360,16 @@ class EquipmentParameterDefinitionWriteSerializer(serializers.ModelSerializer):
             if unit.symbol.lower() not in ('км', 'km'):
                 raise serializers.ValidationError(
                     {'unit_id': 'Тип зоны допустим только для единицы «км»'}
+                )
+        else:
+            zone_color = attrs.get('zone_color', getattr(instance, 'zone_color', None) if instance else None)
+            zone_line_type = attrs.get(
+                'zone_line_type',
+                getattr(instance, 'zone_line_type', None) if instance else None,
+            )
+            if zone_color or zone_line_type:
+                raise serializers.ValidationError(
+                    'Переопределение оформления зоны допустимо только для параметра с типом зоны'
                 )
         return attrs
 

@@ -14,6 +14,9 @@ export const EMPTY_PARAMETER_FORM = {
   unit_id: '',
   action_type_id: '',
   category_ids: [],
+  use_custom_zone_style: false,
+  zone_color: '',
+  zone_line_type: 'solid',
 };
 
 export function parameterToForm(item) {
@@ -27,6 +30,9 @@ export function parameterToForm(item) {
     unit_id: item.unit?.id ? String(item.unit.id) : '',
     action_type_id: item.action_type?.id ? String(item.action_type.id) : '',
     category_ids: categoryIds.map(String),
+    use_custom_zone_style: Boolean(item.zone_color || item.zone_line_type),
+    zone_color: item.zone_color || '',
+    zone_line_type: item.zone_line_type || 'solid',
   };
 }
 
@@ -76,6 +82,7 @@ export function useEquipmentParametersAdmin(enabled, schemaVersion = 0) {
   }, [enabled, reload, schemaVersion]);
 
   const saveItem = useCallback(async (id, payload) => {
+    const useCustomStyle = Boolean(payload.use_custom_zone_style && payload.action_type_id);
     const body = {
       title: payload.title.trim(),
       code: payload.code.trim(),
@@ -83,6 +90,12 @@ export function useEquipmentParametersAdmin(enabled, schemaVersion = 0) {
       unit_id: payload.unit_id ? parseInt(payload.unit_id, 10) : null,
       action_type_id: payload.action_type_id ? parseInt(payload.action_type_id, 10) : null,
       category_ids: (payload.category_ids || []).map((cid) => parseInt(cid, 10)),
+      zone_color: useCustomStyle && payload.zone_color?.trim()
+        ? payload.zone_color.trim()
+        : null,
+      zone_line_type: useCustomStyle && payload.zone_line_type
+        ? payload.zone_line_type
+        : null,
     };
     if (id) {
       const res = await axios.put(`${PARAMETERS_URL}/${id}/`, body);

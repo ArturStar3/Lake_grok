@@ -781,7 +781,8 @@ function MapComponent({
     // (раньше не передавались в fs-ветку — слабое место, из-за которого панель не появлялась).
     actionZoneAvailableByCountry = {},
     setShowZoneIntersections,
-    toggleActionType,
+    toggleZoneLeaf,
+    toggleAllForActionType,
     toggleAllForCountry,
     resetZoneFilters,
     allActionTypes = [],
@@ -794,7 +795,7 @@ function MapComponent({
     setAllQuickSelectCountries,
     considerTerrain = true,
     onConsiderTerrainChange,
-    losGeometryByActionId = {},
+    losGeometryByZoneKey = {},
     losComputingCount = 0,
     losZonesCount = 0,
     visibleZones = null,
@@ -1957,7 +1958,8 @@ function MapComponent({
                                     showZoneIntersections={showZoneIntersections}
                                     setShowZoneIntersections={setShowZoneIntersections}
                                     hasEnabledZones={showActionRadius}
-                                    toggleActionType={toggleActionType}
+                                    toggleZoneLeaf={toggleZoneLeaf}
+                                    toggleAllForActionType={toggleAllForActionType}
                                     toggleAllForCountry={toggleAllForCountry}
                                     resetZoneFilters={resetZoneFilters}
                                     allActionTypes={allActionTypes}
@@ -2282,7 +2284,7 @@ function MapComponent({
                         onZoneClickAt={handleZoneClickAt}
                         onZoneHoverChange={handleZoneHoverChange}
                         considerTerrain={considerTerrain}
-                        losGeometryByActionId={losGeometryByActionId}
+                        losGeometryByZoneKey={losGeometryByZoneKey}
                     />
                 )}
 

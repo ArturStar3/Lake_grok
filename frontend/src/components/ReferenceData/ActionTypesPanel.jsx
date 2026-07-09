@@ -6,6 +6,7 @@ import {
   useActionTypesAdmin,
 } from '../../hooks/referenceData/useActionTypesAdmin';
 import { LINE_TYPE_LABELS, getZoneDashArray, normalizeHexColor } from '../../utils/actionZoneStyle';
+import ZoneColorPicker from './ZoneColorPicker';
 import './EquipmentCatalogPanel.css';
 
 const LINE_TYPE_OPTIONS = Object.entries(LINE_TYPE_LABELS).map(([value, label]) => ({
@@ -210,23 +211,12 @@ export default function ActionTypesPanel({ isActive, onChanged }) {
                     onChange={(e) => handleFormChange('title', e.target.value)}
                   />
                 </label>
-                <label className="equipment-catalog-panel__field">
+                <label className="equipment-catalog-panel__field equipment-catalog-panel__field--full">
                   <span>Цвет контура и заливки</span>
-                  <div className="action-types-panel__color-row">
-                    <input
-                      type="color"
-                      value={colorInputValue}
-                      onChange={(e) => handleFormChange('color', e.target.value)}
-                      aria-label="Выбор цвета"
-                    />
-                    <input
-                      type="text"
-                      value={form.color}
-                      onChange={(e) => handleFormChange('color', e.target.value)}
-                      pattern="^#[0-9A-Fa-f]{6}$"
-                      placeholder="#3388ff"
-                    />
-                  </div>
+                  <ZoneColorPicker
+                    value={form.color}
+                    onChange={(color) => handleFormChange('color', color)}
+                  />
                 </label>
                 <label className="equipment-catalog-panel__field">
                   <span>Тип линии</span>

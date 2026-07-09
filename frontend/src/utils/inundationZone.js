@@ -53,12 +53,48 @@ export function isInundationAction(action, actionTypes = []) {
   return false;
 }
 
-export function getActionFilterKey(action) {
+export const ZONE_LEAF_MANUAL = 'manual';
+
+export function makeParamLeaf(parameterId) {
+  return `param:${parameterId}`;
+}
+
+export function isParamLeaf(leaf) {
+  return typeof leaf === 'string' && leaf.startsWith('param:');
+}
+
+export function getActionFilterDimensions(action) {
   const actionType = action?.action_type;
-  if (actionType?.is_inundation_zone) {
-    return INUNDATION_FILTER_LABEL;
+  const actionTypeId = actionType?.id;
+  if (!actionTypeId) return null;
+
+  if (action?._equipmentZone) {
+    const parameterId = action._parameterId;
+    if (!parameterId) return null;
+    return {
+      actionTypeId: String(actionTypeId),
+      leaf: makeParamLeaf(parameterId),
+    };
   }
-  return actionType?.title || 'Зона действия';
+
+  return {
+    actionTypeId: String(actionTypeId),
+    leaf: ZONE_LEAF_MANUAL,
+  };
+}
+
+/** @deprecated Используйте getActionFilterDimensions для фильтров зон */
+export function getActionFilterKey(action) {
+  const dims = getActionFilterDimensions(action);
+  if (!dims) {
+    const actionType = action?.action_type;
+    if (actionType?.is_inundation_zone) return INUNDATION_FILTER_LABEL;
+    return actionType?.title || 'Зона действия';
+  }
+  if (dims.leaf === ZONE_LEAF_MANUAL) {
+    return action?.action_type?.title || 'Зона действия';
+  }
+  return dims.leaf;
 }
 
 export function mapTargetActionToForm(action) {

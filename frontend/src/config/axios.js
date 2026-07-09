@@ -61,6 +61,11 @@ apiClient.interceptors.request.use(attachAuthHeader);
 axios.interceptors.request.use(attachAuthHeader);
 
 let refreshPromise = null;
+let onUnauthorizedCallback = null;
+const responseInterceptorIds = {
+  apiClient: null,
+  axios: null,
+};
 
 const AUTH_NO_RETRY_PATHS = ['/auth/refresh/', '/auth/login/', '/auth/register/'];
 
@@ -69,7 +74,8 @@ function shouldSkipAuthRetry(config) {
   return AUTH_NO_RETRY_PATHS.some((path) => url.includes(path));
 }
 
-async function refreshAccessToken() {
+/** Обновить access-токен по refresh. Возвращает новый access или null. */
+export async function refreshAccessToken() {
   const refresh = getRefreshToken();
   if (!refresh) return null;
   try {
@@ -85,38 +91,61 @@ async function refreshAccessToken() {
   return null;
 }
 
-function setupResponseInterceptor(onUnauthorized) {
-  const handler = async (error) => {
+function createUnauthorizedHandler(retryRequest) {
+  return async (error) => {
     const original = error.config;
     if (
       error.response?.status !== 401
-      || original?._retry
+      || !original
+      || original._retry
       || shouldSkipAuthRetry(original)
     ) {
       return Promise.reject(error);
     }
+
     original._retry = true;
+
     if (!refreshPromise) {
       refreshPromise = refreshAccessToken().finally(() => {
         refreshPromise = null;
       });
     }
+
     const newToken = await refreshPromise;
     if (!newToken) {
       clearAuth();
-      onUnauthorized?.();
+      onUnauthorizedCallback?.();
       return Promise.reject(error);
     }
+
     original.headers = original.headers || {};
     original.headers.Authorization = `Bearer ${newToken}`;
-    return apiClient(original);
+    return retryRequest(original);
   };
+}
 
-  apiClient.interceptors.response.use((r) => r, handler);
+function registerResponseInterceptors() {
+  if (responseInterceptorIds.apiClient != null) {
+    apiClient.interceptors.response.eject(responseInterceptorIds.apiClient);
+  }
+  if (responseInterceptorIds.axios != null) {
+    axios.interceptors.response.eject(responseInterceptorIds.axios);
+  }
+
+  responseInterceptorIds.apiClient = apiClient.interceptors.response.use(
+    (response) => response,
+    createUnauthorizedHandler((config) => apiClient.request(config)),
+  );
+
+  responseInterceptorIds.axios = axios.interceptors.response.use(
+    (response) => response,
+    createUnauthorizedHandler((config) => axios.request(config)),
+  );
 }
 
 export function initAxiosAuth(onUnauthorized) {
-  setupResponseInterceptor(onUnauthorized);
+  onUnauthorizedCallback = onUnauthorized;
+  registerResponseInterceptors();
 }
 
 export { API_URL };

@@ -13,6 +13,24 @@ export const LINE_TYPE_LABELS = {
 const DEFAULT_ZONE_COLOR = '#3388ff';
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
+/** Палитра цветов зон действия (типы зон и параметры ТТХ). */
+export const ZONE_COLOR_PALETTE = [
+  '#3388ff',
+  '#2ecc71',
+  '#3498db',
+  '#e74c3c',
+  '#9b59b6',
+  '#f39c12',
+  '#c0392b',
+  '#00bcd4',
+  '#1abc9c',
+  '#e67e22',
+  '#2f80ed',
+  '#27ae60',
+  '#eb5757',
+  '#6b7280',
+];
+
 /** Толщина обводки окружности/полигона зоны действия (Leaflet weight). */
 export const ZONE_STROKE_WEIGHT = 1.5;
 export const ZONE_STROKE_HOVER_WEIGHT = 2.5;

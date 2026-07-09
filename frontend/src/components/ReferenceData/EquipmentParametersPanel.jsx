@@ -5,8 +5,33 @@ import {
   useEquipmentParametersAdmin,
 } from '../../hooks/referenceData/useEquipmentParametersAdmin';
 import { formatApiError } from '../../hooks/referenceData/formatApiError';
-import { LINE_TYPE_LABELS } from '../../utils/actionZoneStyle';
+import {
+  LINE_TYPE_LABELS,
+  getZoneDashArray,
+  normalizeHexColor,
+} from '../../utils/actionZoneStyle';
+import ZoneColorPicker from './ZoneColorPicker';
 import './EquipmentCatalogPanel.css';
+
+const LINE_TYPE_OPTIONS = Object.entries(LINE_TYPE_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+function LineTypePreview({ color, lineType }) {
+  const dashArray = getZoneDashArray(lineType);
+  const style = {
+    stroke: color || '#3388ff',
+    strokeWidth: 3,
+    fill: 'none',
+    strokeDasharray: dashArray || undefined,
+  };
+  return (
+    <svg width="48" height="16" aria-hidden="true" className="action-types-panel__line-preview">
+      <line x1="2" y1="8" x2="46" y2="8" style={style} />
+    </svg>
+  );
+}
 
 function filterParameters(search, items) {
   const q = search.trim().toLowerCase();
@@ -46,6 +71,15 @@ export default function EquipmentParametersPanel({ isActive, onSchemaChanged, sc
   const selectedItem = selectedId ? items.find((item) => item.id === selectedId) : null;
   const showForm = isCreating || selectedId != null;
   const isZoneParameter = Boolean(form.action_type_id);
+  const linkedActionType = actionTypes.find(
+    (at) => String(at.id) === String(form.action_type_id),
+  );
+  const previewColor = form.use_custom_zone_style
+    ? normalizeHexColor(form.zone_color, linkedActionType?.color || '#3388ff')
+    : (linkedActionType?.color || '#3388ff');
+  const previewLineType = form.use_custom_zone_style
+    ? (form.zone_line_type || 'solid')
+    : (linkedActionType?.line_type || 'solid');
 
   const startCreate = () => {
     setIsCreating(true);
@@ -62,7 +96,19 @@ export default function EquipmentParametersPanel({ isActive, onSchemaChanged, sc
   };
 
   const handleFormChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'action_type_id' && !value) {
+        next.use_custom_zone_style = false;
+        next.zone_color = '';
+        next.zone_line_type = 'solid';
+      }
+      if (field === 'use_custom_zone_style' && value && !prev.zone_color && prev.action_type_id) {
+        const at = actionTypes.find((item) => String(item.id) === String(prev.action_type_id));
+        next.zone_color = at?.color || '#3388ff';
+      }
+      return next;
+    });
   };
 
   const toggleCategory = (categoryId) => {
@@ -235,6 +281,53 @@ export default function EquipmentParametersPanel({ isActive, onSchemaChanged, sc
                     ))}
                   </select>
                 </label>
+
+                {isZoneParameter && (
+                  <fieldset className="equipment-catalog-panel__checkbox-group equipment-catalog-panel__field--full">
+                    <legend>Оформление зоны</legend>
+                    <label className="equipment-catalog-panel__checkbox-label equipment-catalog-panel__field--full">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(form.use_custom_zone_style)}
+                        onChange={(e) => handleFormChange('use_custom_zone_style', e.target.checked)}
+                      />
+                      Свой стиль (иначе — из типа действия)
+                    </label>
+                    {form.use_custom_zone_style ? (
+                      <div className="equipment-catalog-panel__form-grid">
+                        <label className="equipment-catalog-panel__field equipment-catalog-panel__field--full">
+                          <span>Цвет контура и заливки</span>
+                          <ZoneColorPicker
+                            value={form.zone_color}
+                            fallback={linkedActionType?.color || '#3388ff'}
+                            onChange={(color) => handleFormChange('zone_color', color)}
+                          />
+                        </label>
+                        <label className="equipment-catalog-panel__field">
+                          <span>Тип линии</span>
+                          <select
+                            value={form.zone_line_type}
+                            onChange={(e) => handleFormChange('zone_line_type', e.target.value)}
+                          >
+                            {LINE_TYPE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    ) : (
+                      <p className="equipment-catalog-panel__hint">
+                        Используется стиль типа действия
+                        {linkedActionType ? `: ${linkedActionType.title}` : ''}.
+                      </p>
+                    )}
+                    <div className="action-types-panel__preview">
+                      <span>Предпросмотр:</span>
+                      <LineTypePreview color={previewColor} lineType={previewLineType} />
+                    </div>
+                  </fieldset>
+                )}
+
                 <label className="equipment-catalog-panel__field equipment-catalog-panel__field--full">
                   <span>Подсказка</span>
                   <input

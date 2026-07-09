@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { computeLosZone } from '../../utils/computeLosZone';
+import { computeZoneLos } from '../../utils/computeLosZone';
 
 const LOS_DEBOUNCE_MS = 350;
 const LOS_BATCH_FLUSH_MS = 80;
@@ -9,13 +9,19 @@ const MAX_LOS_ZONES_PER_BATCH = 40;
 function buildComputeKey(zone) {
   const antenna = zone.obj?.antenna_height_m ?? 10;
   return [
-    zone.obj?.id,
-    zone.actionId,
+    zone.zoneKey,
     zone.centerLat?.toFixed(6),
     zone.centerLng?.toFixed(6),
     zone.radiusMeters,
     antenna,
   ].join('|');
+}
+
+function canComputeLosZone(zone) {
+  if (zone.isEquipmentZone) {
+    return Boolean(zone.equipmentDeploymentId && zone.parameterId);
+  }
+  return Boolean(zone.actionId);
 }
 
 function geometryMatchesZone(zone, geometry) {
@@ -54,9 +60,9 @@ export function useAutoLosZoneGeometries({
   considerTerrain,
   enabled,
 }) {
-  const [geometryByActionId, setGeometryByActionId] = useState({});
+  const [geometryByZoneKey, setGeometryByZoneKey] = useState({});
   const [computingCount, setComputingCount] = useState(0);
-  const [errorsByActionId, setErrorsByActionId] = useState({});
+  const [errorsByZoneKey, setErrorsByZoneKey] = useState({});
   const cacheRef = useRef(new Map());
   const requestGenRef = useRef(0);
   const pendingGeometriesRef = useRef({});
@@ -82,11 +88,11 @@ export function useAutoLosZoneGeometries({
     const batch = pendingGeometriesRef.current;
     if (!Object.keys(batch).length) return;
     pendingGeometriesRef.current = {};
-    setGeometryByActionId((prev) => ({ ...prev, ...batch }));
+    setGeometryByZoneKey((prev) => ({ ...prev, ...batch }));
   }, []);
 
-  const queueGeometry = useCallback((actionId, geometry) => {
-    pendingGeometriesRef.current[actionId] = geometry;
+  const queueGeometry = useCallback((zoneKey, geometry) => {
+    pendingGeometriesRef.current[zoneKey] = geometry;
     if (flushTimerRef.current) return;
     flushTimerRef.current = setTimeout(() => {
       flushTimerRef.current = null;
@@ -117,14 +123,15 @@ export function useAutoLosZoneGeometries({
       const key = buildComputeKey(zone);
       if (geometryMatchesZone(zone, zone.zoneGeometry)) {
         cacheRef.current.set(key, zone.zoneGeometry);
-        seedFromApi[zone.actionId] = zone.zoneGeometry;
+        seedFromApi[zone.zoneKey] = zone.zoneGeometry;
       }
     });
     if (Object.keys(seedFromApi).length > 0) {
-      setGeometryByActionId((prev) => ({ ...prev, ...seedFromApi }));
+      setGeometryByZoneKey((prev) => ({ ...prev, ...seedFromApi }));
     }
 
     const allPending = terrainZones.filter((zone) => {
+      if (!canComputeLosZone(zone)) return false;
       const key = buildComputeKey(zone);
       return !cacheRef.current.has(key);
     });
@@ -148,25 +155,24 @@ export function useAutoLosZoneGeometries({
           if (cancelled || requestGenRef.current !== generation) return;
           const key = buildComputeKey(zone);
           try {
-            const data = await computeLosZone(
-              zone.obj.id,
-              zone.actionId,
+            const data = await computeZoneLos(
+              zone,
               zone.obj.antenna_height_m,
             );
             if (cancelled || requestGenRef.current !== generation) return;
             const geometry = data.zone_geometry;
             cacheRef.current.set(key, geometry);
-            queueGeometry(zone.actionId, geometry);
-            setErrorsByActionId((prev) => {
-              if (!prev[zone.actionId]) return prev;
+            queueGeometry(zone.zoneKey, geometry);
+            setErrorsByZoneKey((prev) => {
+              if (!prev[zone.zoneKey]) return prev;
               const next = { ...prev };
-              delete next[zone.actionId];
+              delete next[zone.zoneKey];
               return next;
             });
           } catch (err) {
             if (cancelled || requestGenRef.current !== generation) return;
             const message = err?.response?.data?.detail || err?.message || 'Ошибка расчёта';
-            newErrors[zone.actionId] = message;
+            newErrors[zone.zoneKey] = message;
           } finally {
             processed += 1;
             if (!cancelled && requestGenRef.current === generation) {
@@ -180,7 +186,7 @@ export function useAutoLosZoneGeometries({
         flushPendingGeometries();
         setComputingCount(0);
         if (Object.keys(newErrors).length > 0) {
-          setErrorsByActionId((prev) => ({ ...prev, ...newErrors }));
+          setErrorsByZoneKey((prev) => ({ ...prev, ...newErrors }));
         }
       }
     })();
@@ -199,9 +205,9 @@ export function useAutoLosZoneGeometries({
   ]);
 
   return {
-    geometryByActionId,
+    geometryByZoneKey,
     computingCount,
-    errorsByActionId,
+    errorsByZoneKey,
     losZonesCount: terrainZones.length,
   };
 }

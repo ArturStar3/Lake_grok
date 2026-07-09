@@ -192,7 +192,7 @@ export default function Formular() {
         quickSelectCountries,
         quickSelectCombo,
         intersections, selectedIntersections,
-        toggleActionType, toggleAllForCountry, resetZoneFilters,
+        toggleZoneLeaf, toggleAllForActionType, toggleAllForCountry, resetZoneFilters,
         toggleQuickSelectType,
         toggleQuickSelectCountry,
         setAllQuickSelectTypes,
@@ -214,7 +214,7 @@ export default function Formular() {
     }, [visibleZones, zonesLayerActive, considerTerrain]);
 
     const {
-        geometryByActionId: losGeometryByActionId,
+        geometryByZoneKey: losGeometryByZoneKey,
         computingCount: losComputingCount,
         losZonesCount,
     } = useAutoLosZoneGeometries({
@@ -957,7 +957,8 @@ export default function Formular() {
                                         showZoneIntersections={showZoneIntersections}
                                         setShowZoneIntersections={setShowZoneIntersections}
                                         hasEnabledZones={hasEnabledZones}
-                                        toggleActionType={toggleActionType}
+                                        toggleZoneLeaf={toggleZoneLeaf}
+                                        toggleAllForActionType={toggleAllForActionType}
                                         toggleAllForCountry={toggleAllForCountry}
                                         resetZoneFilters={resetZoneFilters}
                                         allActionTypes={allActionTypes}
@@ -1131,7 +1132,8 @@ export default function Formular() {
                                 tableTab={activeTab}
                                 actionZoneAvailableByCountry={actionZoneAvailableByCountry}
                                 setShowZoneIntersections={setShowZoneIntersections}
-                                toggleActionType={toggleActionType}
+                                toggleZoneLeaf={toggleZoneLeaf}
+                                toggleAllForActionType={toggleAllForActionType}
                                 toggleAllForCountry={toggleAllForCountry}
                                 resetZoneFilters={resetZoneFilters}
                                 allActionTypes={allActionTypes}
@@ -1144,7 +1146,7 @@ export default function Formular() {
                                 setAllQuickSelectCountries={setAllQuickSelectCountries}
                                 considerTerrain={considerTerrain}
                                 onConsiderTerrainChange={setConsiderTerrain}
-                                losGeometryByActionId={losGeometryByActionId}
+                                losGeometryByZoneKey={losGeometryByZoneKey}
                                 losComputingCount={losComputingCount}
                                 losZonesCount={losZonesCount}
                                 visibleZones={visibleZones}

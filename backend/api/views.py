@@ -113,7 +113,11 @@ from equipment.models import (
     EquipmentImage,
     UnitOfMeasure,
 )
-from .target_utils import replace_target_actions, replace_target_equipment
+from .target_utils import (
+    replace_target_actions,
+    replace_target_equipment,
+    resolve_deployed_equipment_los_zone,
+)
 from .operational_situation_utils import (
     correct_current_revision,
     correct_revision,
@@ -315,6 +319,49 @@ class TargetViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
             headers=headers,
         )
 
+    def _compute_los_zone_response(self, target, *, max_range_km, min_elevation_deg, antenna_height, persist_action=None):
+        try:
+            antenna_height = float(antenna_height)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'Некорректная высота антенны'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            geometry = compute_los_polygon(
+                target.lat,
+                target.lng,
+                antenna_height_m=antenna_height,
+                max_range_km=float(max_range_km),
+                min_elevation_deg=float(min_elevation_deg or 0.5),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response(
+                {'detail': f'Ошибка расчёта зоны: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        computed_at = timezone.now()
+        if persist_action is not None:
+            persist_action.zone_geometry = geometry
+            persist_action.zone_geometry_computed_at = computed_at
+            persist_action.save(update_fields=['zone_geometry', 'zone_geometry_computed_at'])
+
+        if antenna_height != target.antenna_height_m:
+            target.antenna_height_m = antenna_height
+            target.save(update_fields=['antenna_height_m'])
+
+        payload = {
+            'zone_geometry': geometry,
+            'zone_geometry_computed_at': computed_at,
+        }
+        if persist_action is not None:
+            payload['action_id'] = persist_action.id
+        return Response(payload)
+
     @action(
         detail=True,
         methods=['post'],
@@ -344,43 +391,37 @@ class TargetViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
             )
 
         antenna_height = request.data.get('antenna_height_m', target.antenna_height_m)
-        try:
-            antenna_height = float(antenna_height)
-        except (TypeError, ValueError):
-            return Response(
-                {'detail': 'Некорректная высота антенны'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        return self._compute_los_zone_response(
+            target,
+            max_range_km=action.radius,
+            min_elevation_deg=action_type.min_elevation_deg,
+            antenna_height=antenna_height,
+            persist_action=action,
+        )
 
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=(
+            r'deployed-equipment/(?P<equipment_id>[^/.]+)/parameters/'
+            r'(?P<parameter_id>[^/.]+)/compute-los-zone'
+        ),
+    )
+    def compute_equipment_los_zone(self, request, pk=None, equipment_id=None, parameter_id=None):
+        """Рассчитать полигон зоны техники (ТТХ) с учётом рельефа."""
+        target = self.get_object()
         try:
-            geometry = compute_los_polygon(
-                target.lat,
-                target.lng,
-                antenna_height_m=antenna_height,
-                max_range_km=float(action.radius),
-                min_elevation_deg=float(action_type.min_elevation_deg or 0.5),
-            )
+            zone_params = resolve_deployed_equipment_los_zone(target, equipment_id, parameter_id)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as exc:
-            return Response(
-                {'detail': f'Ошибка расчёта зоны: {exc}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
-        action.zone_geometry = geometry
-        action.zone_geometry_computed_at = timezone.now()
-        action.save(update_fields=['zone_geometry', 'zone_geometry_computed_at'])
-
-        if antenna_height != target.antenna_height_m:
-            target.antenna_height_m = antenna_height
-            target.save(update_fields=['antenna_height_m'])
-
-        return Response({
-            'action_id': action.id,
-            'zone_geometry': geometry,
-            'zone_geometry_computed_at': action.zone_geometry_computed_at,
-        })
+        antenna_height = request.data.get('antenna_height_m', target.antenna_height_m)
+        return self._compute_los_zone_response(
+            target,
+            max_range_km=zone_params['radius_km'],
+            min_elevation_deg=zone_params['min_elevation_deg'],
+            antenna_height=antenna_height,
+        )
 
 
 class UnitOfMeasureViewSet(viewsets.ModelViewSet):

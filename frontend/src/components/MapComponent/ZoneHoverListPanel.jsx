@@ -43,6 +43,7 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
           const key = zone.entryId || zone.zoneKey;
           const isSelected = isPinned && selectedEntryId === zone.entryId;
           const itemClass = `zone-hover-list__item${isSelected ? ' zone-hover-list__item--selected' : ''}`;
+          const terrainLabel = isTerrainZoneEnabled(zone, considerTerrain) ? ' · рельеф' : '';
           const sample = (
             <span
               className={`zone-hover-list__sample zone-hover-list__sample--${zone.lineType || 'solid'}`}
@@ -50,7 +51,6 @@ const ZoneHoverListPanel = React.memo(function ZoneHoverListPanel({
               aria-hidden
             />
           );
-          const terrainLabel = isTerrainZoneEnabled(zone, considerTerrain) ? ' · рельеф' : '';
           const text = (
             <span className="zone-hover-list__text">
               {formatZoneListLine(zone)}

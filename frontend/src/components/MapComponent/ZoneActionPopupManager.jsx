@@ -16,7 +16,7 @@ export function buildZonePopupPayload(zone) {
   return {
     label: zone.obj?.label || zone.obj?.title || '',
     actionTitle: zone.actionTitle || 'Зона действия',
-    equipmentLabel: zone.isEquipmentZone ? (zone.equipmentLabel || '') : '',
+    equipmentLabel: zone.isEquipmentZone ? (zone.parameterTitle || '') : '',
     centerLat: zone.centerLat,
     centerLng: zone.centerLng,
     radiusMeters: zone.radiusMeters,
@@ -27,7 +27,7 @@ export function buildZonePopupPayload(zone) {
 function buildPopupContent(popup) {
   const radiusKm = Math.round((popup.radiusMeters || 0) / 1000);
   const equipmentLine = popup.equipmentLabel
-    ? `Техника: ${escapeHtml(popup.equipmentLabel)}<br />`
+    ? `Параметр ТТХ: ${escapeHtml(popup.equipmentLabel)}<br />`
     : '';
   return `
     <div class="zone-action-popup__content">
