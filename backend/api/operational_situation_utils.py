@@ -54,10 +54,10 @@ def create_operational_situation(data, user):
 
 
 @transaction.atomic
-def correct_current_revision(situation, data, user):
-    revision = situation.current_revision
+def correct_revision(revision, data, user):
+    """Исправление конкретной ревизии на месте (без новой версии)."""
     if not revision:
-        raise ValueError('У обстановки нет текущей ревизии')
+        raise ValueError('Ревизия не указана')
     _apply_revision_fields(
         revision,
         data,
@@ -65,7 +65,15 @@ def correct_current_revision(situation, data, user):
         user=user,
         parent_revision=revision.parent_revision,
     )
-    return situation
+    return revision.situation
+
+
+@transaction.atomic
+def correct_current_revision(situation, data, user):
+    revision = situation.current_revision
+    if not revision:
+        raise ValueError('У обстановки нет текущей ревизии')
+    return correct_revision(revision, data, user)
 
 
 @transaction.atomic
@@ -126,4 +134,26 @@ def fork_operational_situation(source_situation, data, user):
     )
     situation.current_revision = revision
     situation.save(update_fields=['current_revision'])
+    return situation
+
+
+@transaction.atomic
+def delete_operational_situation_revision(revision):
+    """Удаление ревизии. Если это последняя — удаляется вся серия обстановки."""
+    if not revision:
+        raise ValueError('Ревизия не указана')
+
+    situation = revision.situation
+    if situation.revisions.count() <= 1:
+        situation.delete()
+        return None
+
+    is_current = situation.current_revision_id == revision.id
+    revision.delete()
+
+    if is_current:
+        new_current = situation.revisions.order_by('-version').first()
+        situation.current_revision = new_current
+        situation.save(update_fields=['current_revision'])
+
     return situation

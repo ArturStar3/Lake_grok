@@ -4,7 +4,7 @@ import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCo
 import CountriesMultiAutocomplete from '../common/CountriesMultiAutocomplete/CountriesMultiAutocomplete';
 import { geoJsonPolygonToDrawPoints } from '../../utils/inundationZone';
 import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoints } from '../../utils/polygonDrawUtils';
-import { getSituationDisplayRevision, getSituationRevision } from '../../utils/situationUtils';
+import { formatSituationDateTime, getSituationDisplayRevision, getSituationRevision, isSituationCurrentRevision } from '../../utils/situationUtils';
 import './OperationalSituation.css';
 
 const SAVE_MODES = {
@@ -67,7 +67,7 @@ export default function SituationModal({
       countryIds: rev?.countries?.map((c) => c.id) || [],
       changeNote: '',
     });
-    setSaveMode(mode === 'fork' ? 'fork' : mode === 'new_state' ? 'new_state' : 'edit');
+    setSaveMode(mode === 'fork' ? 'fork' : mode === 'new_state' ? 'new_state' : 'correction');
   }, [isOpen, mode, situation, rev]);
 
   const drawPointsKeyValue = drawPointsKey(drawPoints);
@@ -113,6 +113,7 @@ export default function SituationModal({
         form,
         drawPoints: points,
         situationId: situation?.id,
+        revisionId: rev?.id ?? null,
       });
       onClose();
     } catch (err) {
@@ -126,6 +127,11 @@ export default function SituationModal({
   if (!isOpen) return null;
 
   const modeConfig = SAVE_MODES[mode] || SAVE_MODES.edit;
+  const isHistoricalRevision = Boolean(
+    situation
+    && rev
+    && !isSituationCurrentRevision(situation, rev),
+  );
   const titleMap = {
     create: 'Новая оперативная обстановка',
     edit: 'Редактирование обстановки',
@@ -142,6 +148,13 @@ export default function SituationModal({
           <button type="button" className="situation-modal__close" onClick={onClose}>×</button>
         </div>
         <form className="situation-modal__form" onSubmit={handleSubmit}>
+          {isHistoricalRevision && mode === 'edit' && saveMode === 'correction' && (
+            <p className="situation-modal__hint">
+              Исправление записи v{rev.version} в таймлайне
+              {rev.situation_date ? ` (${formatSituationDateTime(rev)})` : ''}.
+              Текущая версия серии — v{situation.current_revision?.version || '—'}.
+            </p>
+          )}
           <label className="situation-modal__field">
             <span>Название</span>
             <input

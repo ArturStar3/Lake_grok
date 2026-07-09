@@ -21,19 +21,23 @@ export default function SituationsTable({
     dataIds.forEach((id) => onCheckboxChange(id, isChecked));
   };
 
+  const showCreate = Boolean(onCreate);
+  const showEdit = Boolean(onEdit);
+  const showDelete = Boolean(onDelete);
+
   return (
     <div className="situations__data">
-      <div className="situations__toolbar">
-        <button
-          type="button"
-          className="situations__create-btn"
-          onClick={onCreate}
-          disabled={!onCreate}
-          aria-disabled={!onCreate}
-        >
-          + Добавить обстановку
-        </button>
-      </div>
+      {showCreate && (
+        <div className="situations__toolbar">
+          <button
+            type="button"
+            className="situations__create-btn"
+            onClick={onCreate}
+          >
+            + Добавить обстановку
+          </button>
+        </div>
+      )}
       <table className="situations__table">
         <thead>
           <tr>
@@ -50,8 +54,8 @@ export default function SituationsTable({
             <th>Дата и время</th>
             <th>Страны</th>
             <th>Цвет</th>
-            <th className="situations__head-cell" />
-            <th className="situations__head-cell" />
+            {showEdit && <th className="situations__head-cell" />}
+            {showDelete && <th className="situations__head-cell" />}
           </tr>
         </thead>
         <tbody>
@@ -91,30 +95,30 @@ export default function SituationsTable({
                     style={{ backgroundColor: rev?.color || '#2f80ed' }}
                   />
                 </td>
-                <td className="situations__cell situations__cell--action" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="situations__icon-btn"
-                    onClick={() => onEdit?.(item)}
-                    disabled={!onEdit}
-                    aria-disabled={!onEdit}
-                    title="Редактировать"
-                  >
-                    ✎
-                  </button>
-                </td>
-                <td className="situations__cell situations__cell--action" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="situations__icon-btn situations__icon-btn--delete"
-                    onClick={() => onDelete?.(item)}
-                    disabled={!onDelete}
-                    aria-disabled={!onDelete}
-                    title="Удалить"
-                  >
-                    ✕
-                  </button>
-                </td>
+                {showEdit && (
+                  <td className="situations__cell situations__cell--action" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="situations__icon-btn"
+                      onClick={() => onEdit(item)}
+                      title="Редактировать"
+                    >
+                      ✎
+                    </button>
+                  </td>
+                )}
+                {showDelete && (
+                  <td className="situations__cell situations__cell--action" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="situations__icon-btn situations__icon-btn--delete"
+                      onClick={() => onDelete(item)}
+                      title="Удалить"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}

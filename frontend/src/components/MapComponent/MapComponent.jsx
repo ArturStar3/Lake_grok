@@ -861,6 +861,10 @@ function MapComponent({
     onSituationRowClick,
     activeSituationTimeline = [],
     onTimelineRevisionSelect = () => {},
+    onTimelineRevisionEdit,
+    onTimelineRevisionDelete,
+    canEditSituations = false,
+    canDeleteSituations = false,
     isSituationModalOpen = false,
     editingSituationId = null,
     canReadSituations = true,
@@ -2004,6 +2008,14 @@ function MapComponent({
                                         revisions={activeSituationTimeline}
                                         selectedRevisionId={timelineRevisionId}
                                         onSelectRevision={onTimelineRevisionSelect}
+                                        onEditRevision={canEditSituations ? onTimelineRevisionEdit : undefined}
+                                        onDeleteRevision={
+                                            canEditSituations && canDeleteSituations
+                                                ? onTimelineRevisionDelete
+                                                : undefined
+                                        }
+                                        canEdit={canEditSituations}
+                                        canDelete={canEditSituations && canDeleteSituations}
                                         sortDirection="asc"
                                         groupBySituation={selectedSituationIds.length > 1}
                                     />
@@ -2378,6 +2390,12 @@ function MapComponent({
                     onSelectRevision={onSituationRevisionSelect}
                     onClose={onSituationDetailClose}
                     onEdit={onSituationEdit}
+                    onEditRevision={canEditSituations ? onTimelineRevisionEdit : undefined}
+                    onDeleteRevision={
+                        canEditSituations && canDeleteSituations
+                            ? onTimelineRevisionDelete
+                            : undefined
+                    }
                     onNewState={onSituationNewState}
                 />
             )}

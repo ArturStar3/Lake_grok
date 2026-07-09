@@ -1,4 +1,7 @@
 import { getZonePolygonPositions, pointsToGeoJsonPolygon } from './inundationZone';
+import { stripMarkdown } from './markdown';
+
+const TIMELINE_DESCRIPTION_EXCERPT_LEN = 100;
 
 export function getSituationRevision(situation) {
   return situation?.current_revision || null;
@@ -63,6 +66,18 @@ export function sortRevisionsBySituationDateTime(revisions, direction = 'desc') 
 /** Крайнее состояние по дате/времени события (не по номеру версии). */
 export function getSituationDisplayRevision(situation) {
   return situation?.display_revision || situation?.current_revision || null;
+}
+
+export function isSituationCurrentRevision(situation, revision) {
+  if (!situation || !revision) return false;
+  const currentId = situation.current_revision?.id;
+  return currentId != null && String(currentId) === String(revision.id);
+}
+
+export function findSituationById(situations, situationId) {
+  if (!situationId) return null;
+  const key = String(situationId);
+  return (situations || []).find((item) => String(item.id) === key) || null;
 }
 
 export function findSituationRevision(revisions, revisionId) {
@@ -191,6 +206,25 @@ export function formatSituationDateTime(revision) {
     return `${revision.situation_date} ${shortTime}`;
   }
   return revision.situation_date;
+}
+
+export function formatSituationDate(revision) {
+  return revision?.situation_date || '—';
+}
+
+export function formatSituationTime(revision) {
+  if (!revision?.situation_time) return '—';
+  return String(revision.situation_time).slice(0, 5);
+}
+
+export function getSituationDescriptionExcerpt(
+  revision,
+  maxLen = TIMELINE_DESCRIPTION_EXCERPT_LEN,
+) {
+  const plain = stripMarkdown(revision?.description || '');
+  if (!plain) return '';
+  if (plain.length <= maxLen) return plain;
+  return `${plain.slice(0, maxLen).trim()}…`;
 }
 
 export function buildSituationRequestBody(form, drawPoints) {

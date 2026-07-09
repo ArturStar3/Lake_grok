@@ -116,8 +116,10 @@ from equipment.models import (
 from .target_utils import replace_target_actions, replace_target_equipment
 from .operational_situation_utils import (
     correct_current_revision,
+    correct_revision,
     create_new_revision,
     create_operational_situation,
+    delete_operational_situation_revision,
     fork_operational_situation,
 )
 from accounts.services.permissions import get_allowed_country_ids
@@ -1051,6 +1053,22 @@ class OperationalSituationViewSet(viewsets.ModelViewSet):
         for country_id in country_ids:
             ensure_country_access(self.request.user, country_id)
 
+    def _merge_revision_write_payload(self, revision, payload):
+        merged = {
+            'title': payload.get('title', revision.title),
+            'description': payload.get('description', revision.description),
+            'situation_date': payload.get('situation_date', revision.situation_date),
+            'situation_time': payload.get('situation_time', revision.situation_time),
+            'color': payload.get('color', revision.color),
+            'geometry': payload.get('geometry', revision.geometry),
+            'change_note': payload.get('change_note', ''),
+        }
+        if 'country_ids' in payload:
+            merged['country_ids'] = payload['country_ids']
+        else:
+            merged['country_ids'] = list(revision.countries.values_list('id', flat=True))
+        return merged
+
     def create(self, request, *args, **kwargs):
         serializer = OperationalSituationRevisionWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1101,20 +1119,39 @@ class OperationalSituationViewSet(viewsets.ModelViewSet):
         if payload.get('country_ids'):
             self._ensure_country_access(payload['country_ids'])
         current = situation.current_revision
-        merged = {
-            'title': payload.get('title', current.title),
-            'description': payload.get('description', current.description),
-            'situation_date': payload.get('situation_date', current.situation_date),
-            'situation_time': payload.get('situation_time', current.situation_time),
-            'color': payload.get('color', current.color),
-            'geometry': payload.get('geometry', current.geometry),
-            'change_note': payload.get('change_note', ''),
-        }
-        if 'country_ids' in payload:
-            merged['country_ids'] = payload['country_ids']
-        else:
-            merged['country_ids'] = list(current.countries.values_list('id', flat=True))
+        if not current:
+            return Response({'detail': 'У обстановки нет текущей ревизии'}, status=status.HTTP_400_BAD_REQUEST)
+        merged = self._merge_revision_write_payload(current, payload)
         correct_current_revision(situation, merged, request.user)
+        situation = self.get_queryset().get(pk=situation.pk)
+        return Response(OperationalSituationSerializer(situation).data)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'revisions/(?P<revision_id>[^/.]+)')
+    def revision_detail(self, request, pk=None, revision_id=None):
+        situation = self.get_object()
+        try:
+            revision = situation.revisions.prefetch_related('countries').get(pk=revision_id)
+        except OperationalSituationRevision.DoesNotExist:
+            return Response({'detail': 'Ревизия не найдена'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'DELETE':
+            ensure_can_delete(request.user)
+            result = delete_operational_situation_revision(revision)
+            if result is None:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            situation = self.get_queryset().get(pk=result.pk)
+            return Response(OperationalSituationSerializer(situation).data)
+
+        serializer = OperationalSituationRevisionWriteSerializer(
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        payload = self._payload_from_serializer(serializer)
+        if payload.get('country_ids'):
+            self._ensure_country_access(payload['country_ids'])
+        merged = self._merge_revision_write_payload(revision, payload)
+        correct_revision(revision, merged, request.user)
         situation = self.get_queryset().get(pk=situation.pk)
         return Response(OperationalSituationSerializer(situation).data)
 

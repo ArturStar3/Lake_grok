@@ -1,27 +1,94 @@
 import { useMemo } from 'react';
-import { CHANGE_KIND_LABELS, compareSituationDateTime, formatSituationDateTime, sortRevisionsBySituationDateTime } from '../../utils/situationUtils';
+import {
+  compareSituationDateTime,
+  formatSituationDate,
+  formatSituationTime,
+  getSituationDescriptionExcerpt,
+  sortRevisionsBySituationDateTime,
+} from '../../utils/situationUtils';
 import './OperationalSituation.css';
 
-function TimelineItem({ revision, selectedRevisionId, onSelectRevision }) {
+function TimelineItem({
+  revision,
+  selectedRevisionId,
+  onSelectRevision,
+  onEditRevision,
+  onDeleteRevision,
+  canEdit = false,
+  canDelete = false,
+  compact = false,
+}) {
   const isActive = selectedRevisionId != null
     && String(selectedRevisionId) === String(revision.id);
+  const descriptionExcerpt = getSituationDescriptionExcerpt(
+    revision,
+    compact ? 80 : 100,
+  );
+  const showActions = (canEdit && onEditRevision) || (canDelete && onDeleteRevision);
+
   return (
-    <button
-      key={revision.id}
-      type="button"
-      className={`situations-timeline__item${isActive ? ' situations-timeline__item--active' : ''}`}
-      onClick={() => onSelectRevision?.(revision)}
-    >
-      <span className="situations-timeline__dot" style={{ borderColor: revision.color || '#2f80ed' }} />
-      <span className="situations-timeline__content">
-        <strong>{revision.title}</strong>
-        <span className="situations-timeline__meta">
-          v{revision.version}
-          {revision.situation_date ? ` · ${formatSituationDateTime(revision)}` : ''}
-          {revision.change_kind ? ` · ${CHANGE_KIND_LABELS[revision.change_kind] || revision.change_kind}` : ''}
+    <div className={`situations-timeline__row${isActive ? ' situations-timeline__row--active' : ''}`}>
+      <button
+        key={revision.id}
+        type="button"
+        className={`situations-timeline__item${isActive ? ' situations-timeline__item--active' : ''}`}
+        onClick={() => onSelectRevision?.(revision)}
+      >
+        <span className="situations-timeline__dot" style={{ borderColor: revision.color || '#2f80ed' }} />
+        <span className="situations-timeline__content">
+          <strong className="situations-timeline__item-title">{revision.title || '—'}</strong>
+          {revision.situation_date && (
+            <span className="situations-timeline__field">
+              <span className="situations-timeline__label">Дата обстановки:</span>
+              <span>{formatSituationDate(revision)}</span>
+            </span>
+          )}
+          {revision.situation_time && (
+            <span className="situations-timeline__field">
+              <span className="situations-timeline__label">Время обстановки:</span>
+              <span>{formatSituationTime(revision)}</span>
+            </span>
+          )}
+          {descriptionExcerpt && (
+            <span className="situations-timeline__excerpt" title={descriptionExcerpt}>
+              {descriptionExcerpt}
+            </span>
+          )}
         </span>
-      </span>
-    </button>
+      </button>
+      {showActions && (
+        <div className="situations-timeline__actions">
+          {canEdit && onEditRevision && (
+            <button
+              type="button"
+              className="situations-timeline__action-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEditRevision(revision);
+              }}
+              title="Редактировать состояние"
+              aria-label={`Редактировать ${revision.title || 'состояние'}`}
+            >
+              ✎
+            </button>
+          )}
+          {canDelete && onDeleteRevision && (
+            <button
+              type="button"
+              className="situations-timeline__action-btn situations-timeline__action-btn--delete"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDeleteRevision(revision);
+              }}
+              title="Удалить состояние"
+              aria-label={`Удалить ${revision.title || 'состояние'}`}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -56,6 +123,10 @@ export default function SituationsTimeline({
   revisions,
   selectedRevisionId,
   onSelectRevision,
+  onEditRevision,
+  onDeleteRevision,
+  canEdit = false,
+  canDelete = false,
   compact = false,
   groupBySituation = false,
   sortDirection = 'desc',
@@ -89,6 +160,11 @@ export default function SituationsTimeline({
                   revision={revision}
                   selectedRevisionId={selectedRevisionId}
                   onSelectRevision={onSelectRevision}
+                  onEditRevision={onEditRevision}
+                  onDeleteRevision={onDeleteRevision}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  compact={compact}
                 />
               ))}
             </div>
@@ -108,6 +184,11 @@ export default function SituationsTimeline({
             revision={revision}
             selectedRevisionId={selectedRevisionId}
             onSelectRevision={onSelectRevision}
+            onEditRevision={onEditRevision}
+            onDeleteRevision={onDeleteRevision}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            compact={compact}
           />
         ))}
       </div>

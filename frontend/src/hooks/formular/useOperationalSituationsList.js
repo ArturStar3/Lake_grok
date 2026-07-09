@@ -91,6 +91,12 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
     return resp.data;
   }, [fetchSituations]);
 
+  const correctSituationRevision = useCallback(async (situationId, revisionId, payload) => {
+    const resp = await axios.patch(`${API_URL}${situationId}/revisions/${revisionId}/`, payload);
+    await fetchSituations();
+    return resp.data;
+  }, [fetchSituations]);
+
   const createSituationRevision = useCallback(async (situationId, payload) => {
     const resp = await axios.post(`${API_URL}${situationId}/revisions/`, payload);
     await fetchSituations();
@@ -119,6 +125,32 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
     }
   }, [fetchSituations]);
 
+  const deleteSituationRevision = useCallback(async (revision) => {
+    const situationId = revision?.situation_id ?? revision?.situation?.id;
+    if (!situationId || !revision?.id) return { deleted: false };
+
+    const title = revision.title || 'состояние';
+    const confirmed = window.confirm(`Удалить состояние «${title}» из таймлайна?`);
+    if (!confirmed) return { deleted: false };
+
+    try {
+      const resp = await axios.delete(`${API_URL}${situationId}/revisions/${revision.id}/`);
+      await fetchSituations();
+      if (resp.status === 204) {
+        return { deleted: true, situationDeleted: true, situationId };
+      }
+      return {
+        deleted: true,
+        situationDeleted: false,
+        situationId,
+        situation: resp.data,
+      };
+    } catch (err) {
+      console.error('Не удалось удалить состояние обстановки', err);
+      return { deleted: false };
+    }
+  }, [fetchSituations]);
+
   return {
     situations,
     timeline,
@@ -132,8 +164,10 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
     fetchRevisions,
     createSituation,
     correctSituation,
+    correctSituationRevision,
     createSituationRevision,
     forkSituation,
     deleteSituation,
+    deleteSituationRevision,
   };
 }

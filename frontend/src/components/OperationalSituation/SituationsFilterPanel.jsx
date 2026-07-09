@@ -115,45 +115,57 @@ export default function SituationsFilterPanel({ countries, filters, onChange }) 
               />
             </div>
           </div>
-          <div className="events-filter__section">
-            <label className="events-filter__label">Страны</label>
-            <div className="events-filter__dropdown" ref={countryDropdownRef}>
+          <div className="events-filter__section" ref={countryDropdownRef}>
+            <label className="events-filter__label">Страна</label>
+            <div className="events-filter__multi-select">
               <button
                 type="button"
-                className="events-filter__dropdown-trigger"
+                className="events-filter__multi-select-trigger"
                 onClick={() => setIsCountryDropdownOpen((prev) => !prev)}
               >
-                {filters.countries.length > 0
-                  ? `Выбрано: ${filters.countries.length}`
-                  : 'Все страны'}
+                <span>
+                  {filters.countries.length === 0
+                    ? 'Все страны'
+                    : filters.countries.length === countryOptions.length
+                      ? 'Все страны'
+                      : `Выбрано: ${filters.countries.length}`}
+                </span>
+                <span className={`events-filter__multi-select-arrow${isCountryDropdownOpen ? ' events-filter__multi-select-arrow--open' : ''}`}>
+                  ▼
+                </span>
               </button>
               {isCountryDropdownOpen && (
-                <div className="events-filter__dropdown-menu">
-                  <input
-                    type="text"
-                    className="events-filter__search"
-                    value={countrySearch}
-                    onChange={(e) => setCountrySearch(e.target.value)}
-                    placeholder="Поиск..."
-                  />
-                  <label className="events-filter__option">
+                <div className="events-filter__dropdown">
+                  <div className="events-filter__dropdown-header">
+                    <button type="button" className="events-filter__select-all" onClick={handleSelectAll}>
+                      {filters.countries.length === countryOptions.length ? 'Снять все' : 'Выбрать все'}
+                    </button>
+                  </div>
+                  <div className="events-filter__dropdown-search">
                     <input
-                      type="checkbox"
-                      checked={filters.countries.length === countryOptions.length && countryOptions.length > 0}
-                      onChange={handleSelectAll}
+                      type="text"
+                      className="events-filter__search-input"
+                      value={countrySearch}
+                      onChange={(e) => setCountrySearch(e.target.value)}
+                      placeholder="Поиск страны..."
                     />
-                    Все
-                  </label>
-                  {filteredCountries.map((country) => (
-                    <label key={country.id} className="events-filter__option">
-                      <input
-                        type="checkbox"
-                        checked={filters.countries.includes(country.id)}
-                        onChange={() => handleCountryToggle(country.id)}
-                      />
-                      {country.title}
-                    </label>
-                  ))}
+                  </div>
+                  <div className="events-filter__dropdown-list">
+                    {filteredCountries.length === 0 && (
+                      <div className="events-filter__no-results">Ничего не найдено</div>
+                    )}
+                    {filteredCountries.map((country) => (
+                      <label key={country.id} className="events-filter__checkbox-label">
+                        <input
+                          type="checkbox"
+                          className="events-filter__checkbox"
+                          checked={filters.countries.includes(country.id)}
+                          onChange={() => handleCountryToggle(country.id)}
+                        />
+                        <span className="events-filter__checkbox-text">{country.title}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

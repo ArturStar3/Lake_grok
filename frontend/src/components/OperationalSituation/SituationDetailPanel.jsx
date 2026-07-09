@@ -11,6 +11,8 @@ export default function SituationDetailPanel({
   onSelectRevision,
   onClose,
   onEdit,
+  onEditRevision,
+  onDeleteRevision,
   onNewState,
 }) {
   const rev = useMemo(() => {
@@ -27,6 +29,9 @@ export default function SituationDetailPanel({
   if (!situation) return null;
 
   const countriesLabel = rev?.countries?.map((c) => c.title).join(', ') || '—';
+  const canEditSituation = Boolean(onEdit || onEditRevision);
+  const canCreateNewState = Boolean(onNewState);
+  const showActions = canEditSituation || canCreateNewState;
 
   return (
     <div className="situation-detail">
@@ -65,30 +70,42 @@ export default function SituationDetailPanel({
           revisions={revisions}
           selectedRevisionId={timelineRevisionId}
           onSelectRevision={onSelectRevision}
+          onEditRevision={onEditRevision}
+          onDeleteRevision={onDeleteRevision}
+          canEdit={Boolean(onEditRevision)}
+          canDelete={Boolean(onDeleteRevision)}
           sortDirection="asc"
           compact
         />
       </div>
-      <div className="situation-detail__actions">
-        <button
-          type="button"
-          className="situation-detail__btn"
-          onClick={() => onEdit?.(situation)}
-          disabled={!onEdit}
-          aria-disabled={!onEdit}
-        >
-          Редактировать
-        </button>
-        <button
-          type="button"
-          className="situation-detail__btn"
-          onClick={() => onNewState?.(situation)}
-          disabled={!onNewState}
-          aria-disabled={!onNewState}
-        >
-          Новое состояние
-        </button>
-      </div>
+      {showActions && (
+        <div className="situation-detail__actions">
+          {canEditSituation && (
+            <button
+              type="button"
+              className="situation-detail__btn"
+              onClick={() => {
+                if (rev && onEditRevision) {
+                  onEditRevision(rev);
+                  return;
+                }
+                onEdit?.(situation);
+              }}
+            >
+              Редактировать
+            </button>
+          )}
+          {canCreateNewState && (
+            <button
+              type="button"
+              className="situation-detail__btn"
+              onClick={() => onNewState(situation)}
+            >
+              Новое состояние
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

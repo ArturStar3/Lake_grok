@@ -111,6 +111,100 @@ class OperationalSituationApiTests(APITestCase):
         )
         self.assertEqual(len(rev_resp.data), 2)
 
+    def test_correct_specific_revision(self):
+        create_resp = self.client.post(
+            '/api/v1/operational-situations/',
+            situation_payload(self.country.id, title='Поздняя', situation_date='2026-03-10'),
+            format='json',
+            **self.headers,
+        )
+        situation_id = create_resp.data['id']
+        first_revision_id = create_resp.data['current_revision']['id']
+
+        self.client.post(
+            f'/api/v1/operational-situations/{situation_id}/revisions/',
+            situation_payload(
+                self.country.id,
+                title='Новая версия',
+                situation_date='2026-03-05',
+            ),
+            format='json',
+            **self.headers,
+        )
+
+        rev_resp = self.client.get(
+            f'/api/v1/operational-situations/{situation_id}/revisions/',
+            **self.headers,
+        )
+        first_revision = next(item for item in rev_resp.data if item['version'] == 1)
+
+        patch_resp = self.client.patch(
+            f'/api/v1/operational-situations/{situation_id}/revisions/{first_revision_id}/',
+            {'title': 'Исправленная ранняя'},
+            format='json',
+            **self.headers,
+        )
+        self.assertEqual(patch_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(patch_resp.data['current_revision']['version'], 2)
+        self.assertEqual(patch_resp.data['display_revision']['title'], 'Поздняя')
+
+        rev_resp = self.client.get(
+            f'/api/v1/operational-situations/{situation_id}/revisions/',
+            **self.headers,
+        )
+        updated_first = next(item for item in rev_resp.data if item['id'] == first_revision_id)
+        self.assertEqual(updated_first['title'], 'Исправленная ранняя')
+        self.assertEqual(updated_first['version'], 1)
+        self.assertEqual(updated_first['change_kind'], 'correction')
+
+    def test_delete_revision(self):
+        create_resp = self.client.post(
+            '/api/v1/operational-situations/',
+            situation_payload(self.country.id, title='Состояние 1'),
+            format='json',
+            **self.headers,
+        )
+        situation_id = create_resp.data['id']
+
+        revision_resp = self.client.post(
+            f'/api/v1/operational-situations/{situation_id}/revisions/',
+            situation_payload(self.country.id, title='Состояние 2'),
+            format='json',
+            **self.headers,
+        )
+        second_revision_id = revision_resp.data['current_revision']['id']
+        first_revision_id = create_resp.data['current_revision']['id']
+
+        delete_resp = self.client.delete(
+            f'/api/v1/operational-situations/{situation_id}/revisions/{first_revision_id}/',
+            **self.headers,
+        )
+        self.assertEqual(delete_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(delete_resp.data['current_revision']['id'], second_revision_id)
+
+        rev_resp = self.client.get(
+            f'/api/v1/operational-situations/{situation_id}/revisions/',
+            **self.headers,
+        )
+        self.assertEqual(len(rev_resp.data), 1)
+
+    def test_delete_last_revision_removes_situation(self):
+        create_resp = self.client.post(
+            '/api/v1/operational-situations/',
+            situation_payload(self.country.id, title='Единственное'),
+            format='json',
+            **self.headers,
+        )
+        situation_id = create_resp.data['id']
+        revision_id = create_resp.data['current_revision']['id']
+
+        delete_resp = self.client.delete(
+            f'/api/v1/operational-situations/{situation_id}/revisions/{revision_id}/',
+            **self.headers,
+        )
+        self.assertEqual(delete_resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(OperationalSituation.objects.filter(pk=situation_id).count(), 0)
+
     def test_fork_creates_new_series(self):
         create_resp = self.client.post(
             '/api/v1/operational-situations/',

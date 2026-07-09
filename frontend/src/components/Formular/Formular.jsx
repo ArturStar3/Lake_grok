@@ -21,7 +21,7 @@ import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
 import { geoJsonPolygonToDrawPoints, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
-import { buildSituationRequestBody, findSituationRevision, filterRevisionsForSituation, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
+import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituation, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
@@ -74,6 +74,7 @@ export default function Formular() {
     const [situationModalOpen, setSituationModalOpen] = useState(false);
     const [situationModalMode, setSituationModalMode] = useState('create');
     const [situationModalTarget, setSituationModalTarget] = useState(null);
+    const [situationModalRevisionId, setSituationModalRevisionId] = useState(null);
     const [detailSituation, setDetailSituation] = useState(null);
     const [situationRevisions, setSituationRevisions] = useState([]);
     const [focusedSituationId, setFocusedSituationId] = useState(null);
@@ -111,9 +112,11 @@ export default function Formular() {
         fetchRevisions,
         createSituation,
         correctSituation,
+        correctSituationRevision,
         createSituationRevision,
         forkSituation,
         deleteSituation,
+        deleteSituationRevision,
     } = useOperationalSituationsList(activeTab, canReadSituations);
 
     const activeSituationId = useMemo(
@@ -360,12 +363,12 @@ export default function Formular() {
         ));
     }, [setSelectedSituations]);
 
-    const openSituationModal = useCallback((mode, situation = null) => {
+    const openSituationModal = useCallback((mode, situation = null, revision = null) => {
         setSituationModalMode(mode);
         setSituationModalTarget(situation);
-        setSituationModalOpen(true);
 
         const baseRevision = (() => {
+            if (revision) return revision;
             if (!situation?.id) return null;
             if (
                 timelineRevisionId != null
@@ -376,6 +379,9 @@ export default function Formular() {
             }
             return getSituationDisplayRevision(situation) || situation.current_revision;
         })();
+
+        setSituationModalRevisionId(baseRevision?.id ?? null);
+        setSituationModalOpen(true);
 
         if (mode === 'create' && situation?.drawPoints) {
             setSituationDrawPoints(situation.drawPoints);
@@ -438,20 +444,88 @@ export default function Formular() {
     }, []);
 
     const handleSituationEdit = useCallback((situation) => {
-        openSituationModal('edit', situation);
-    }, [openSituationModal]);
+        const revision = (
+            timelineRevisionId != null && String(activeSituationId) === String(situation.id)
+                ? findSituationRevision(situationRevisions, timelineRevisionId)
+                : null
+        );
+        openSituationModal('edit', situation, revision);
+    }, [openSituationModal, timelineRevisionId, activeSituationId, situationRevisions]);
+
+    const handleTimelineRevisionEdit = useCallback((revision) => {
+        const situationId = getSituationId(revision);
+        const situation = findSituationById(situations, situationId);
+        if (!situation) return;
+        setFocusedSituationId(situationId);
+        setTimelineRevisionId(revision.id);
+        setHighlightedSituationId(situationId);
+        openSituationModal('edit', situation, revision);
+    }, [situations, openSituationModal]);
+
+    const handleTimelineRevisionDelete = useCallback(async (revision) => {
+        const situationId = getSituationId(revision);
+        const result = await deleteSituationRevision(revision);
+        if (!result?.deleted || !situationId) return;
+
+        if (result.situationDeleted) {
+            setSelectedSituations((prev) => prev.filter((id) => String(id) !== String(situationId)));
+            setSituationRevisions((prev) => prev.filter(
+                (item) => String(getSituationId(item)) !== String(situationId),
+            ));
+            if (detailSituation?.id === situationId) {
+                setDetailSituation(null);
+            }
+            if (String(focusedSituationId) === String(situationId)) {
+                setFocusedSituationId(null);
+            }
+            if (String(highlightedSituationId) === String(situationId)) {
+                setHighlightedSituationId(null);
+            }
+            if (timelineRevisionId != null && String(timelineRevisionId) === String(revision.id)) {
+                setTimelineRevisionId(null);
+            }
+            return;
+        }
+
+        if (String(timelineRevisionId) === String(revision.id)) {
+            setTimelineRevisionId(null);
+        }
+
+        const nextSelected = selectedSituations.some((id) => String(id) === String(situationId))
+            ? selectedSituations
+            : [...selectedSituations, situationId];
+        await loadSituationRevisions(nextSelected);
+
+        if (detailSituation?.id === situationId && result.situation) {
+            setDetailSituation(result.situation);
+        }
+    }, [
+        deleteSituationRevision,
+        detailSituation,
+        focusedSituationId,
+        highlightedSituationId,
+        loadSituationRevisions,
+        selectedSituations,
+        timelineRevisionId,
+    ]);
 
     const handleSituationNewState = useCallback((situation) => {
-        openSituationModal('new_state', situation);
-    }, [openSituationModal]);
+        const revision = (
+            timelineRevisionId != null && String(activeSituationId) === String(situation.id)
+                ? findSituationRevision(situationRevisions, timelineRevisionId)
+                : null
+        );
+        openSituationModal('new_state', situation, revision);
+    }, [openSituationModal, timelineRevisionId, activeSituationId, situationRevisions]);
 
     const handleCloseSituationModal = useCallback(() => {
         setSituationModalOpen(false);
         setSituationModalTarget(null);
+        setSituationModalRevisionId(null);
         setSituationDrawPoints([]);
     }, []);
 
-    const applySavedSituationPreview = useCallback(async (savedSituation) => {
+    const applySavedSituationPreview = useCallback(async (savedSituation, { mode, revisionId } = {}) => {
         if (!savedSituation?.id) return;
         const situationId = savedSituation.id;
 
@@ -462,7 +536,14 @@ export default function Formular() {
         setSelectedSituations(nextSelected);
         setFocusedSituationId(situationId);
         setHighlightedSituationId(situationId);
-        setTimelineRevisionId(null);
+
+        if (mode === 'new_state' && savedSituation.current_revision?.id) {
+            setTimelineRevisionId(savedSituation.current_revision.id);
+        } else if (revisionId) {
+            setTimelineRevisionId(revisionId);
+        } else {
+            setTimelineRevisionId(null);
+        }
 
         if (detailSituation?.id === situationId || isFullscreen) {
             setDetailSituation((prev) => (
@@ -482,24 +563,29 @@ export default function Formular() {
         setSelectedSituations,
     ]);
 
-    const handleSituationSave = useCallback(async ({ mode, form, drawPoints, situationId }) => {
+    const handleSituationSave = useCallback(async ({ mode, form, drawPoints, situationId, revisionId }) => {
         const payload = buildSituationRequestBody(form, drawPoints);
         let saved = null;
         if (mode === 'create') {
             saved = await createSituation(payload);
         } else if (mode === 'correction') {
-            saved = await correctSituation(situationId, payload);
+            if (revisionId) {
+                saved = await correctSituationRevision(situationId, revisionId, payload);
+            } else {
+                saved = await correctSituation(situationId, payload);
+            }
         } else if (mode === 'new_state') {
             saved = await createSituationRevision(situationId, payload);
         } else if (mode === 'fork') {
             saved = await forkSituation(situationId, payload);
         }
         if (saved) {
-            await applySavedSituationPreview(saved);
+            await applySavedSituationPreview(saved, { mode, revisionId });
         }
     }, [
         createSituation,
         correctSituation,
+        correctSituationRevision,
         createSituationRevision,
         forkSituation,
         applySavedSituationPreview,
@@ -952,6 +1038,14 @@ export default function Formular() {
                                                 revisions={activeSituationTimeline}
                                                 selectedRevisionId={timelineRevisionId}
                                                 onSelectRevision={handleTimelineRevisionSelect}
+                                                onEditRevision={canEditSituations ? handleTimelineRevisionEdit : undefined}
+                                                onDeleteRevision={
+                                                    canEditSituations && canDeleteSituations
+                                                        ? handleTimelineRevisionDelete
+                                                        : undefined
+                                                }
+                                                canEdit={canEditSituations}
+                                                canDelete={canEditSituations && canDeleteSituations}
                                                 sortDirection="asc"
                                                 groupBySituation={selectedSituations.length > 1}
                                                 title={(() => {
@@ -1080,6 +1174,14 @@ export default function Formular() {
                                 onSituationRowClick={handleSituationRowClick}
                                 activeSituationTimeline={activeSituationTimeline}
                                 onTimelineRevisionSelect={handleTimelineRevisionSelect}
+                                onTimelineRevisionEdit={canEditSituations ? handleTimelineRevisionEdit : undefined}
+                                onTimelineRevisionDelete={
+                                    canEditSituations && canDeleteSituations
+                                        ? handleTimelineRevisionDelete
+                                        : undefined
+                                }
+                                canEditSituations={canEditSituations}
+                                canDeleteSituations={canDeleteSituations}
                                 canReadSituations={canReadSituations}
                                 isSituationModalOpen={situationModalOpen}
                                 editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
@@ -1175,10 +1277,8 @@ export default function Formular() {
                 mode={situationModalMode}
                 situation={situationModalTarget}
                 baseRevision={
-                    timelineRevisionId
-                    && situationModalTarget?.id
-                    && String(activeSituationId) === String(situationModalTarget.id)
-                        ? findSituationRevision(situationRevisions, timelineRevisionId)
+                    situationModalRevisionId
+                        ? findSituationRevision(situationRevisions, situationModalRevisionId)
                         : null
                 }
                 drawPoints={situationDrawPoints}
