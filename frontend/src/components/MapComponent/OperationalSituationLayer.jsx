@@ -2,12 +2,21 @@ import React, { useMemo, memo } from 'react';
 import { Polygon } from 'react-leaflet';
 import { getZonePolygonStrokeStyle } from '../../utils/actionZoneStyle';
 import { getZonePolygonPositions } from '../../utils/inundationZone';
-import { getSituationDisplayRevision } from '../../utils/situationUtils';
+import { resolveSituationMapRevision } from '../../utils/situationUtils';
+
+function geometryKey(geometry) {
+  if (!geometry) return 'empty';
+  try {
+    return JSON.stringify(geometry);
+  } catch {
+    return 'invalid';
+  }
+}
 
 const SituationPolygon = memo(function SituationPolygon({ revision, situationId, onClick }) {
   const positions = useMemo(
     () => getZonePolygonPositions(revision?.geometry),
-    [revision?.geometry],
+    [revision?.id, geometryKey(revision?.geometry)],
   );
 
   const pathOptions = useMemo(() => {
@@ -21,7 +30,7 @@ const SituationPolygon = memo(function SituationPolygon({ revision, situationId,
       fillOpacity: style.fillOpacity,
       className: 'situation-polygon',
     };
-  }, [revision?.color]);
+  }, [revision?.id, revision?.color]);
 
   const eventHandlers = useMemo(() => ({
     click: (e) => {
@@ -30,10 +39,13 @@ const SituationPolygon = memo(function SituationPolygon({ revision, situationId,
     },
   }), [situationId, revision, onClick]);
 
-  if (!positions?.length) return null;
+  if (!positions?.length || revision?.id == null) return null;
+
+  const layerKey = `${revision.id}-${geometryKey(revision.geometry)}`;
 
   return (
     <Polygon
+      key={layerKey}
       positions={positions}
       pathOptions={pathOptions}
       eventHandlers={eventHandlers}
@@ -44,7 +56,9 @@ const SituationPolygon = memo(function SituationPolygon({ revision, situationId,
 export default memo(function OperationalSituationLayer({
   situations = [],
   selectedSituationIds = [],
-  previewRevision = null,
+  activeSituationId = null,
+  timelineRevisionId = null,
+  situationRevisions = [],
   editingSituationId = null,
   onSituationClick,
 }) {
@@ -52,10 +66,6 @@ export default memo(function OperationalSituationLayer({
     () => new Set(selectedSituationIds.map(String)),
     [selectedSituationIds],
   );
-
-  const previewSituationId = previewRevision?.situation_id || previewRevision?.situation?.id || null;
-  const previewIsSelected = previewSituationId != null
-    && selectedSet.has(String(previewSituationId));
 
   const visibleSituations = useMemo(
     () => situations.filter((item) => selectedSet.has(String(item.id))),
@@ -67,13 +77,16 @@ export default memo(function OperationalSituationLayer({
       {visibleSituations.map((item) => {
         if (editingSituationId && String(item.id) === String(editingSituationId)) return null;
 
-        const usePreview = previewIsSelected && String(item.id) === String(previewSituationId);
-        const rev = usePreview ? previewRevision : getSituationDisplayRevision(item);
+        const rev = resolveSituationMapRevision(item, {
+          activeSituationId,
+          timelineRevisionId,
+          revisions: situationRevisions,
+        });
         if (!rev) return null;
 
         return (
           <SituationPolygon
-            key={usePreview ? `preview-${previewRevision.id}` : item.id}
+            key={`${item.id}-${rev.id}-${geometryKey(rev.geometry)}`}
             situationId={item.id}
             revision={rev}
             onClick={onSituationClick}

@@ -176,6 +176,44 @@
     gap: 20px;
 } */
 
+.formular__situations-area {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(77vh - 110px);
+}
+
+.formular__situations-area__timeline {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.formular__situations-area__timeline .situations-timeline {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.formular__situations-area__timeline .situations-timeline--global {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.formular__situations-area__timeline .situations-timeline__track {
+    flex: 1;
+    min-height: calc(77vh - 360px);
+    max-height: none;
+    overflow-y: auto;
+}
+
+.formular__situations-area__timeline .situations-timeline--global .situations-timeline__track {
+    max-height: none;
+}
+
 .formular__filter-area {
     padding: 15px;
 }

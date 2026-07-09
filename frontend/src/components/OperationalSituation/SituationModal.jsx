@@ -4,7 +4,7 @@ import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCo
 import CountriesMultiAutocomplete from '../common/CountriesMultiAutocomplete/CountriesMultiAutocomplete';
 import { geoJsonPolygonToDrawPoints } from '../../utils/inundationZone';
 import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoints } from '../../utils/polygonDrawUtils';
-import { getSituationRevision } from '../../utils/situationUtils';
+import { getSituationDisplayRevision, getSituationRevision } from '../../utils/situationUtils';
 import './OperationalSituation.css';
 
 const SAVE_MODES = {
@@ -20,12 +20,14 @@ export default function SituationModal({
   onClose,
   mode = 'create',
   situation = null,
+  baseRevision = null,
   drawPoints = [],
   onDrawPointsChange,
   countries = [],
   onSave,
 }) {
-  const rev = getSituationRevision(situation);
+  // Приоритет: явно переданная ревизия таймлайна → current → display.
+  const rev = baseRevision || getSituationRevision(situation) || getSituationDisplayRevision(situation);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -223,7 +225,7 @@ export default function SituationModal({
               </label>
             </div>
           )}
-          {(mode === 'new_state' || mode === 'fork') && (
+          {(mode === 'new_state' || mode === 'fork' || (mode === 'edit' && saveMode === 'new_state')) && (
             <label className="situation-modal__field">
               <span>Комментарий к изменению</span>
               <input

@@ -33,6 +33,7 @@ import SituationDetailPanel from "../OperationalSituation/SituationDetailPanel";
 import SituationsFilterPanel from "../OperationalSituation/SituationsFilterPanel";
 import SituationsTable from "../OperationalSituation/SituationsTable";
 import SituationsTimeline from "../OperationalSituation/SituationsTimeline";
+import { filterRevisionsForSituation } from "../../utils/situationUtils";
 import InundationDrawBanner from "./InundationDrawBanner";
 import EventDraftLayer from "./EventDraftLayer";
 import { useEventDrawing } from "../../hooks/map/useEventDrawing";
@@ -828,7 +829,9 @@ function MapComponent({
     tableTab,
     situations = [],
     selectedSituationIds = [],
-    previewRevision = null,
+    activeSituationId = null,
+    timelineRevisionId = null,
+    situationRevisions = [],
     onSituationClick = () => {},
     isSituationDrawActive = false,
     situationDrawPoints = [],
@@ -836,12 +839,9 @@ function MapComponent({
     onSituationDrawConfirm = () => {},
     onSituationDrawCancel = () => {},
     detailSituation = null,
-    situationRevisions = [],
-    selectedRevisionId = null,
     onSituationDetailClose = () => {},
     onSituationEdit,
     onSituationNewState,
-    onSituationFork,
     onSituationRevisionSelect = () => {},
     situationsFilters = { title: '', dateFrom: '', dateTo: '', countries: [] },
     onSituationsFiltersChange = () => {},
@@ -851,8 +851,8 @@ function MapComponent({
     onSituationCreate,
     highlightedSituationId = null,
     onSituationRowClick,
-    situationsTimeline = [],
-    onGlobalTimelineSelect = () => {},
+    activeSituationTimeline = [],
+    onTimelineRevisionSelect = () => {},
     isSituationModalOpen = false,
     editingSituationId = null,
     canReadSituations = true,
@@ -1983,12 +1983,19 @@ function MapComponent({
                                     onCreate={onSituationCreate}
                                     highlightedSituationId={highlightedSituationId}
                                 />
-                                <SituationsTimeline
-                                    revisions={situationsTimeline}
-                                    selectedRevisionId={previewRevision?.id}
-                                    onSelectRevision={onGlobalTimelineSelect}
-                                    groupBySituation
-                                />
+                                {selectedSituationIds.length > 0 ? (
+                                    <SituationsTimeline
+                                        revisions={activeSituationTimeline}
+                                        selectedRevisionId={timelineRevisionId}
+                                        onSelectRevision={onTimelineRevisionSelect}
+                                        sortDirection="asc"
+                                        groupBySituation={selectedSituationIds.length > 1}
+                                    />
+                                ) : (
+                                    <p className="situations-timeline__empty">
+                                        Выберите обстановку checkbox в таблице
+                                    </p>
+                                )}
                             </>
                         )}
 
@@ -2144,7 +2151,9 @@ function MapComponent({
                 <OperationalSituationLayer
                     situations={situations}
                     selectedSituationIds={selectedSituationIds}
-                    previewRevision={previewRevision}
+                    activeSituationId={activeSituationId}
+                    timelineRevisionId={timelineRevisionId}
+                    situationRevisions={situationRevisions}
                     editingSituationId={editingSituationId}
                     onSituationClick={onSituationClick}
                 />
@@ -2345,16 +2354,15 @@ function MapComponent({
                     polygonCoordError={situationPolygonCoordError}
                 />
             )}
-            {isFullscreen && detailSituation && (
+            {detailSituation && (
                 <SituationDetailPanel
                     situation={detailSituation}
-                    revisions={situationRevisions}
-                    selectedRevisionId={selectedRevisionId}
+                    revisions={filterRevisionsForSituation(situationRevisions, detailSituation.id)}
+                    timelineRevisionId={timelineRevisionId}
                     onSelectRevision={onSituationRevisionSelect}
                     onClose={onSituationDetailClose}
                     onEdit={onSituationEdit}
                     onNewState={onSituationNewState}
-                    onFork={onSituationFork}
                 />
             )}
             {selectedCountryIso && (

@@ -3,11 +3,13 @@ import { CHANGE_KIND_LABELS, compareSituationDateTime, formatSituationDateTime, 
 import './OperationalSituation.css';
 
 function TimelineItem({ revision, selectedRevisionId, onSelectRevision }) {
+  const isActive = selectedRevisionId != null
+    && String(selectedRevisionId) === String(revision.id);
   return (
     <button
       key={revision.id}
       type="button"
-      className={`situations-timeline__item${selectedRevisionId === revision.id ? ' situations-timeline__item--active' : ''}`}
+      className={`situations-timeline__item${isActive ? ' situations-timeline__item--active' : ''}`}
       onClick={() => onSelectRevision?.(revision)}
     >
       <span className="situations-timeline__dot" style={{ borderColor: revision.color || '#2f80ed' }} />
@@ -57,6 +59,7 @@ export default function SituationsTimeline({
   compact = false,
   groupBySituation = false,
   sortDirection = 'desc',
+  title = 'Таймлайн изменений',
 }) {
   const sortedRevisions = useMemo(
     () => sortRevisionsBySituationDateTime(revisions, sortDirection),
@@ -97,7 +100,7 @@ export default function SituationsTimeline({
 
   return (
     <div className={`situations-timeline${compact ? ' situations-timeline--compact' : ''}`}>
-      <div className="situations-timeline__title">Таймлайн изменений</div>
+      <div className="situations-timeline__title">{title}</div>
       <div className="situations-timeline__track">
         {sortedRevisions.map((revision) => (
           <TimelineItem

@@ -80,18 +80,21 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
   }, [activeTab, canRead, fetchSituations]);
 
   const createSituation = useCallback(async (payload) => {
-    await axios.post(API_URL, payload);
+    const resp = await axios.post(API_URL, payload);
     await fetchSituations();
+    return resp.data;
   }, [fetchSituations]);
 
   const correctSituation = useCallback(async (situationId, payload) => {
-    await axios.patch(`${API_URL}${situationId}/current/`, payload);
+    const resp = await axios.patch(`${API_URL}${situationId}/current/`, payload);
     await fetchSituations();
+    return resp.data;
   }, [fetchSituations]);
 
   const createSituationRevision = useCallback(async (situationId, payload) => {
-    await axios.post(`${API_URL}${situationId}/revisions/`, payload);
+    const resp = await axios.post(`${API_URL}${situationId}/revisions/`, payload);
     await fetchSituations();
+    return resp.data;
   }, [fetchSituations]);
 
   const forkSituation = useCallback(async (situationId, payload) => {

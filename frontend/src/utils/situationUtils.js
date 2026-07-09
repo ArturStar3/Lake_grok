@@ -5,10 +5,15 @@ export function getSituationRevision(situation) {
 }
 
 export function getSituationId(situationOrRevision) {
-  return situationOrRevision?.id
-    || situationOrRevision?.situation_id
-    || situationOrRevision?.situation?.id
-    || null;
+  if (!situationOrRevision) return null;
+  // У ревизии id — это id версии; id обстановки — в situation_id / situation.id.
+  if (situationOrRevision.situation_id != null) {
+    return situationOrRevision.situation_id;
+  }
+  if (situationOrRevision.situation?.id != null) {
+    return situationOrRevision.situation.id;
+  }
+  return situationOrRevision.id ?? null;
 }
 
 export function sameSituationId(left, right) {
@@ -55,8 +60,87 @@ export function sortRevisionsBySituationDateTime(revisions, direction = 'desc') 
   return direction === 'desc' ? sorted.reverse() : sorted;
 }
 
+/** Крайнее состояние по дате/времени события (не по номеру версии). */
 export function getSituationDisplayRevision(situation) {
   return situation?.display_revision || situation?.current_revision || null;
+}
+
+export function findSituationRevision(revisions, revisionId) {
+  if (revisionId == null) return null;
+  const key = String(revisionId);
+  return (revisions || []).find((revision) => String(revision.id) === key) || null;
+}
+
+export function filterRevisionsForSituation(revisions, situationId) {
+  if (!situationId) return [];
+  const key = String(situationId);
+  return (revisions || []).filter(
+    (revision) => String(getSituationId(revision)) === key,
+  );
+}
+
+export function filterRevisionsForSituations(revisions, situationIds = []) {
+  if (!situationIds?.length) return [];
+  const keys = new Set(situationIds.map(String));
+  return (revisions || []).filter(
+    (revision) => keys.has(String(getSituationId(revision))),
+  );
+}
+
+export function resolveActiveSituationId(
+  selectedSituationIds = [],
+  focusedSituationId = null,
+  highlightedSituationId = null,
+) {
+  const isSelected = (id) => (
+    id != null
+    && selectedSituationIds.some((itemId) => String(itemId) === String(id))
+  );
+
+  if (isSelected(focusedSituationId)) return focusedSituationId;
+  if (isSelected(highlightedSituationId)) return highlightedSituationId;
+  if (selectedSituationIds.length > 0) {
+    return selectedSituationIds[selectedSituationIds.length - 1];
+  }
+  return null;
+}
+
+/**
+ * Какую ревизию рисовать на карте.
+ * 1) Для активной обстановки с выбранным таймлайном — ревизия таймлайна.
+ * 2) Иначе — display_revision (крайнее по дате/времени события).
+ */
+export function resolveSituationMapRevision(
+  situation,
+  {
+    activeSituationId = null,
+    timelineRevisionId = null,
+    revisions = [],
+  } = {},
+) {
+  if (!situation) return null;
+
+  const situationId = String(situation.id);
+  const isActive = activeSituationId != null
+    && String(activeSituationId) === situationId;
+
+  if (isActive && timelineRevisionId != null) {
+    const selected = findSituationRevision(revisions, timelineRevisionId);
+    if (selected && String(getSituationId(selected)) === situationId) {
+      return selected;
+    }
+  }
+
+  return getSituationDisplayRevision(situation);
+}
+
+export function buildSituationRevisionIndex(revisions = []) {
+  const index = {};
+  for (const revision of revisions) {
+    if (revision?.id == null) continue;
+    index[String(revision.id)] = revision;
+  }
+  return index;
 }
 
 export function getSituationTitle(situation) {

@@ -13,8 +13,8 @@ export default function SituationsTable({
   highlightedSituationId,
 }) {
   const dataIds = data.map((item) => item.id);
-  const selectedSet = new Set(selectedSituations);
-  const isAllSelected = data.length > 0 && dataIds.every((id) => selectedSet.has(id));
+  const selectedSet = new Set(selectedSituations.map(String));
+  const isAllSelected = data.length > 0 && dataIds.every((id) => selectedSet.has(String(id)));
 
   const handleSelectAllChange = (e) => {
     const isChecked = e.target.checked;
@@ -67,7 +67,7 @@ export default function SituationsTable({
                 <td className="situations__cell" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedSet.has(item.id)}
+                    checked={selectedSet.has(String(item.id))}
                     onChange={(e) => onCheckboxChange(item.id, e.target.checked)}
                     aria-label={`Показать ${rev?.title || 'обстановку'} на карте`}
                   />

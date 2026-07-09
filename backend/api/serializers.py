@@ -1254,11 +1254,13 @@ def _validate_hex_color(value):
 
 class OperationalSituationRevisionSerializer(serializers.ModelSerializer):
     countries = CountryListSerializer(many=True, read_only=True)
+    situation_id = serializers.UUIDField(source='situation.id', read_only=True)
 
     class Meta:
         model = OperationalSituationRevision
         fields = (
             'id',
+            'situation_id',
             'version',
             'title',
             'description',
@@ -1354,11 +1356,9 @@ class OperationalSituationSerializer(OperationalSituationListSerializer):
 
 
 class OperationalSituationTimelineRevisionSerializer(OperationalSituationRevisionSerializer):
-    situation_id = serializers.UUIDField(source='situation.id', read_only=True)
     situation_created_at = serializers.DateTimeField(source='situation.created_at', read_only=True)
 
     class Meta(OperationalSituationRevisionSerializer.Meta):
         fields = OperationalSituationRevisionSerializer.Meta.fields + (
-            'situation_id',
             'situation_created_at',
         )

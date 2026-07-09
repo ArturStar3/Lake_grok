@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import SituationsTimeline from './SituationsTimeline';
 import { formatSituationDateTime, getSituationDisplayRevision } from '../../utils/situationUtils';
@@ -6,15 +7,25 @@ import './OperationalSituation.css';
 export default function SituationDetailPanel({
   situation,
   revisions,
-  selectedRevisionId,
+  timelineRevisionId,
   onSelectRevision,
   onClose,
   onEdit,
   onNewState,
-  onFork,
 }) {
+  const rev = useMemo(() => {
+    if (!situation) return null;
+    if (timelineRevisionId != null) {
+      const selected = (revisions || []).find(
+        (item) => String(item.id) === String(timelineRevisionId),
+      );
+      if (selected) return selected;
+    }
+    return getSituationDisplayRevision(situation);
+  }, [timelineRevisionId, revisions, situation]);
+
   if (!situation) return null;
-  const rev = getSituationDisplayRevision(situation);
+
   const countriesLabel = rev?.countries?.map((c) => c.title).join(', ') || '—';
 
   return (
@@ -52,7 +63,7 @@ export default function SituationDetailPanel({
         </div>
         <SituationsTimeline
           revisions={revisions}
-          selectedRevisionId={selectedRevisionId}
+          selectedRevisionId={timelineRevisionId}
           onSelectRevision={onSelectRevision}
           sortDirection="asc"
           compact
@@ -76,15 +87,6 @@ export default function SituationDetailPanel({
           aria-disabled={!onNewState}
         >
           Новое состояние
-        </button>
-        <button
-          type="button"
-          className="situation-detail__btn situation-detail__btn--secondary"
-          onClick={() => onFork?.(situation)}
-          disabled={!onFork}
-          aria-disabled={!onFork}
-        >
-          Создать на основе
         </button>
       </div>
     </div>
