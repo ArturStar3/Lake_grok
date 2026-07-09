@@ -184,8 +184,16 @@ export default function Formular() {
         showZoneIntersections, setShowZoneIntersections,
         hasEnabledZones,
         actionZoneAvailableByCountry,
+        allActionTypes,
+        quickSelectTypes,
+        quickSelectCountries,
+        quickSelectCombo,
         intersections, selectedIntersections,
         toggleActionType, toggleAllForCountry, resetZoneFilters,
+        toggleQuickSelectType,
+        toggleQuickSelectCountry,
+        setAllQuickSelectTypes,
+        setAllQuickSelectCountries,
         handleIntersectionToggle, handleSelectAllIntersections,
     } = useActionZoneState(objects, { zonesActive: activeTab === "zones" });
 
@@ -866,6 +874,14 @@ export default function Formular() {
                                         toggleActionType={toggleActionType}
                                         toggleAllForCountry={toggleAllForCountry}
                                         resetZoneFilters={resetZoneFilters}
+                                        allActionTypes={allActionTypes}
+                                        quickSelectTypes={quickSelectTypes}
+                                        quickSelectCountries={quickSelectCountries}
+                                        quickSelectCombo={quickSelectCombo}
+                                        toggleQuickSelectType={toggleQuickSelectType}
+                                        toggleQuickSelectCountry={toggleQuickSelectCountry}
+                                        setAllQuickSelectTypes={setAllQuickSelectTypes}
+                                        setAllQuickSelectCountries={setAllQuickSelectCountries}
                                         considerTerrain={considerTerrain}
                                         onConsiderTerrainChange={setConsiderTerrain}
                                         losComputingCount={losComputingCount}
@@ -1024,6 +1040,14 @@ export default function Formular() {
                                 toggleActionType={toggleActionType}
                                 toggleAllForCountry={toggleAllForCountry}
                                 resetZoneFilters={resetZoneFilters}
+                                allActionTypes={allActionTypes}
+                                quickSelectTypes={quickSelectTypes}
+                                quickSelectCountries={quickSelectCountries}
+                                quickSelectCombo={quickSelectCombo}
+                                toggleQuickSelectType={toggleQuickSelectType}
+                                toggleQuickSelectCountry={toggleQuickSelectCountry}
+                                setAllQuickSelectTypes={setAllQuickSelectTypes}
+                                setAllQuickSelectCountries={setAllQuickSelectCountries}
                                 considerTerrain={considerTerrain}
                                 onConsiderTerrainChange={setConsiderTerrain}
                                 losGeometryByActionId={losGeometryByActionId}

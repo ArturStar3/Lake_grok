@@ -830,11 +830,6 @@
     animation-delay: 1.5s;
 }
 
-/* Подсветка маркера при включённом режиме зоны действия */
-.action-radius-marker-highlight {
-    pointer-events: none;
-}
-
 /* === Линейка масштаба (топографическая, двухцветная) — только fullscreen, низ по центру === */
 .map-scale-bar {
     position: absolute;

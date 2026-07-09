@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, CircleMarker, Polygon, useMap } from 'react-leaflet';
+import { Circle, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import DashCrossZoneLayer from './DashCrossZoneLayer';
 import { buildVisibleZones } from '../../utils/buildVisibleZones';
@@ -7,7 +7,6 @@ import {
   getZonePolygonStrokeStyle,
   getZoneStrokeStyle,
   usesDashCrossMarkers,
-  ZONE_CENTER_HIGHLIGHT_WEIGHT,
   ZONE_STROKE_WEIGHT,
 } from '../../utils/actionZoneStyle';
 import { getZonePolygonPositions, isInundationZone, isPolygonZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
@@ -229,17 +228,6 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   const zonesRef = useRef(zonesWithEntryIds);
   zonesRef.current = zonesWithEntryIds;
 
-  const highlightByCenter = useMemo(() => {
-    const map = new Map();
-    zonesWithEntryIds.forEach((zone) => {
-      const key = `${zone.centerLat.toFixed(6)},${zone.centerLng.toFixed(6)}`;
-      if (!map.has(key)) {
-        map.set(key, { lat: zone.centerLat, lng: zone.centerLng, color: zone.color, objId: zone.obj.id });
-      }
-    });
-    return map;
-  }, [zonesWithEntryIds]);
-
   const lastHoverKeyRef = useRef('');
 
   const applyZoneHover = useCallback((e) => {
@@ -268,17 +256,6 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
 
   return (
     <>
-      {Array.from(highlightByCenter.entries()).map(([key, info]) => (
-        <ZoneCenterHighlight
-          key={`zone-highlight-${key}`}
-          centerKey={key}
-          lat={info.lat}
-          lng={info.lng}
-          color={info.color}
-          objId={info.objId}
-          hoverController={hoverController}
-        />
-      ))}
       {zonesWithEntryIds.map((zone) => {
         const useTerrainLos = isTerrainZoneEnabled(zone, considerTerrain);
         const usePolygon = isPolygonZone(zone);
@@ -359,39 +336,5 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
     </>
   );
 });
-
-function ZoneCenterHighlight({ centerKey, lat, lng, color, objId, hoverController }) {
-  const markerRef = useRef(null);
-  const entryId = `zone-highlight-${centerKey}`;
-
-  useEffect(() => {
-    const layer = markerRef.current;
-    if (!layer || !hoverController) return undefined;
-    hoverController.register(entryId, {
-      objId,
-      layers: [],
-      highlightLayer: layer,
-      baseStyle: { color },
-    });
-    return () => hoverController.unregister(entryId);
-  }, [entryId, objId, color, hoverController]);
-
-  return (
-    <CircleMarker
-      ref={markerRef}
-      center={[lat, lng]}
-      radius={11}
-      pathOptions={{
-        color,
-        fillColor: color,
-        fillOpacity: 0.18,
-        weight: ZONE_CENTER_HIGHLIGHT_WEIGHT,
-        opacity: 0.9,
-        className: 'action-radius-marker-highlight',
-        interactive: false,
-      }}
-    />
-  );
-}
 
 export default ActionZonesLayer;

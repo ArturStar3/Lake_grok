@@ -784,6 +784,14 @@ function MapComponent({
     toggleActionType,
     toggleAllForCountry,
     resetZoneFilters,
+    allActionTypes = [],
+    quickSelectTypes = new Set(),
+    quickSelectCountries = new Set(),
+    quickSelectCombo = new Set(),
+    toggleQuickSelectType,
+    toggleQuickSelectCountry,
+    setAllQuickSelectTypes,
+    setAllQuickSelectCountries,
     considerTerrain = true,
     onConsiderTerrainChange,
     losGeometryByActionId = {},
@@ -1948,6 +1956,14 @@ function MapComponent({
                                     toggleActionType={toggleActionType}
                                     toggleAllForCountry={toggleAllForCountry}
                                     resetZoneFilters={resetZoneFilters}
+                                    allActionTypes={allActionTypes}
+                                    quickSelectTypes={quickSelectTypes}
+                                    quickSelectCountries={quickSelectCountries}
+                                    quickSelectCombo={quickSelectCombo}
+                                    toggleQuickSelectType={toggleQuickSelectType}
+                                    toggleQuickSelectCountry={toggleQuickSelectCountry}
+                                    setAllQuickSelectTypes={setAllQuickSelectTypes}
+                                    setAllQuickSelectCountries={setAllQuickSelectCountries}
                                     considerTerrain={considerTerrain}
                                     onConsiderTerrainChange={onConsiderTerrainChange}
                                     losComputingCount={losComputingCount}
