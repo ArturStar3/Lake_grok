@@ -141,6 +141,7 @@ export default function ActionZoneFilters({
   onConsiderTerrainChange,
   losComputingCount = 0,
   losZonesCount = 0,
+  equipmentZoneDiagnostics = [],
   variant = "tab",
 }) {
   const [subTab, setSubTab] = React.useState("by-country");
@@ -289,6 +290,40 @@ export default function ActionZoneFilters({
 
           {currentCountries.length === 0 && (
             <div className="action-zone-filters__empty">Нет зон действия в данных</div>
+          )}
+
+          {equipmentZoneDiagnostics.length > 0 && (
+            <div className="action-zone-filters__diagnostics" role="status">
+              <p className="action-zone-filters__diagnostics-title">
+                Не все зоны из ТТХ техники попали в каталог:
+              </p>
+              {equipmentZoneDiagnostics.map((entry) => (
+                <details key={entry.country} className="action-zone-filters__diagnostics-country">
+                  <summary>
+                    {entry.country}
+                    {entry.missingCatalog ? ' — страна отсутствует в списке' : ''}
+                    {' '}({entry.items.length})
+                  </summary>
+                  <ul className="action-zone-filters__diagnostics-list">
+                    {entry.items.slice(0, 8).map((item, idx) => (
+                      <li key={`${item.targetLabel}-${item.parameterTitle}-${idx}`}>
+                        {item.targetLabel} · {item.equipmentTitle} · {item.parameterTitle}
+                        {item.value != null ? ` (${item.value} км)` : ''}
+                        {' — '}{item.message}
+                      </li>
+                    ))}
+                    {entry.items.length > 8 && (
+                      <li>…и ещё {entry.items.length - 8}</li>
+                    )}
+                  </ul>
+                </details>
+              ))}
+              <p className="action-zone-filters__diagnostics-hint">
+                Исправление: в Django admin у параметра ТТХ укажите «Тип зоны действия» (км)
+                и значение радиуса на образце техники. На сервере:{' '}
+                <code>python manage.py audit_equipment_zones</code>
+              </p>
+            </div>
           )}
 
           <div className="formular__country-groups">

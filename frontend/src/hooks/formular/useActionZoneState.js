@@ -3,6 +3,7 @@ import { findAllIntersections } from '../../utils/circleIntersection';
 import {
   buildActionZoneCatalog,
   buildGlobalActionTypeCatalog,
+  buildEquipmentZoneDiagnostics,
   filterObjectsForZones,
   getAllLeavesForActionType,
   getAllLeavesForCountry,
@@ -129,6 +130,11 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
   const globalActionTypeCatalog = useMemo(
     () => buildGlobalActionTypeCatalog(actionZoneAvailableByCountry),
     [actionZoneAvailableByCountry],
+  );
+
+  const equipmentZoneDiagnostics = useMemo(
+    () => buildEquipmentZoneDiagnostics(objects),
+    [objects],
   );
 
   const quickSelectCombo = useMemo(() => {
@@ -392,6 +398,7 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     hasEnabledZones,
     actionZoneAvailableByCountry,
     globalActionTypeCatalog,
+    equipmentZoneDiagnostics,
     quickSelectLeaves,
     quickSelectCountries,
     quickSelectCombo,

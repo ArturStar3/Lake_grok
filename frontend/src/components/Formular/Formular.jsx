@@ -188,6 +188,7 @@ export default function Formular() {
         hasEnabledZones,
         actionZoneAvailableByCountry,
         globalActionTypeCatalog,
+        equipmentZoneDiagnostics,
         quickSelectLeaves,
         quickSelectCountries,
         quickSelectCombo,
@@ -975,6 +976,7 @@ export default function Formular() {
                                         onConsiderTerrainChange={setConsiderTerrain}
                                         losComputingCount={losComputingCount}
                                         losZonesCount={losZonesCount}
+                                        equipmentZoneDiagnostics={equipmentZoneDiagnostics}
                                         variant="tab"
                                     />
                                     {showZoneIntersections && (
@@ -1139,6 +1141,7 @@ export default function Formular() {
                                 toggleAllForCountry={toggleAllForCountry}
                                 resetZoneFilters={resetZoneFilters}
                                 globalActionTypeCatalog={globalActionTypeCatalog}
+                                equipmentZoneDiagnostics={equipmentZoneDiagnostics}
                                 quickSelectLeaves={quickSelectLeaves}
                                 quickSelectCountries={quickSelectCountries}
                                 quickSelectCombo={quickSelectCombo}

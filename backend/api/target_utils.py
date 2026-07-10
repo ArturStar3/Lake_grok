@@ -2,6 +2,7 @@
 
 from formular.models import ActionType, TargetAction, TargetEquipment
 from equipment.models import Equipment, EquipmentParameterValue
+from equipment.services.zone_audit import explain_zone_skip
 from formular.enums import ZoneGeometryModes
 from formular.zone_geometry_validation import (
     validate_zone_geometry,
@@ -46,9 +47,21 @@ def serialize_deployed_equipment(target, include_specs=False, request=None):
     for link in target.equipment_links.all():
         equipment = link.equipment
         zones = []
+        zone_issues = []
         specs = []
         for pv in equipment.parameter_values.all():
             param = pv.parameter
+            skip_reason = explain_zone_skip(param, pv.value)
+            if skip_reason:
+                zone_issues.append({
+                    'code': skip_reason,
+                    'parameter_id': param.id,
+                    'parameter_code': param.code,
+                    'parameter_title': param.title,
+                    'value': pv.value,
+                    'action_type_id': param.action_type_id,
+                    'action_type_title': param.action_type.title if param.action_type_id else None,
+                })
             if include_specs:
                 unit = param.unit
                 specs.append({
@@ -56,7 +69,7 @@ def serialize_deployed_equipment(target, include_specs=False, request=None):
                     'value': pv.value,
                     'unit': unit.symbol if unit else None,
                 })
-            if param.action_type_id and pv.value and pv.value > 0:
+            if skip_reason is None:
                 action_type = param.action_type
                 zones.append({
                     'parameter_id': param.id,
@@ -75,6 +88,7 @@ def serialize_deployed_equipment(target, include_specs=False, request=None):
             },
             'quantity': link.quantity,
             'zones': zones,
+            'zone_issues': zone_issues,
         }
         if include_specs:
             item['specs'] = specs

@@ -786,6 +786,7 @@ function MapComponent({
     toggleAllForCountry,
     resetZoneFilters,
     globalActionTypeCatalog = [],
+    equipmentZoneDiagnostics = [],
     quickSelectLeaves = new Set(),
     quickSelectCountries = new Set(),
     quickSelectCombo = new Set(),
@@ -1976,6 +1977,7 @@ function MapComponent({
                                     onConsiderTerrainChange={onConsiderTerrainChange}
                                     losComputingCount={losComputingCount}
                                     losZonesCount={losZonesCount}
+                                    equipmentZoneDiagnostics={equipmentZoneDiagnostics}
                                     variant="tab"
                                 />
                                 {showZoneIntersections && (

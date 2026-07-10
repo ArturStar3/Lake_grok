@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Q
 from django.utils.html import format_html
 
 from infolake.admin_base import ModelAdmin
@@ -11,6 +12,25 @@ from .models import (
     EquipmentParameterDefinition,
     UnitOfMeasure,
 )
+
+
+class MissingZoneActionTypeFilter(admin.SimpleListFilter):
+    title = 'тип зоны'
+    parameter_name = 'zone_action_type'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('missing_km', 'км без типа зоны'),
+            ('has_type', 'С типом зоны'),
+        )
+
+    def queryset(self, request, queryset):
+        km_q = Q(unit__symbol__iexact='км') | Q(unit__symbol__iexact='km')
+        if self.value() == 'missing_km':
+            return queryset.filter(km_q, action_type__isnull=True)
+        if self.value() == 'has_type':
+            return queryset.filter(action_type__isnull=False)
+        return queryset
 
 
 @admin.register(EquipmentCategory)
@@ -40,7 +60,7 @@ class EquipmentParameterDefinitionAdmin(ModelAdmin):
         'zone_color_display',
         'zone_line_type_display',
     )
-    list_filter = ('categories', 'action_type')
+    list_filter = ('categories', 'action_type', MissingZoneActionTypeFilter)
     autocomplete_fields = ('unit', 'action_type', 'categories')
     search_fields = ('title', 'code')
     list_select_related = ('unit', 'action_type')

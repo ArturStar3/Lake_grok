@@ -220,6 +220,62 @@ export function getAllLeavesForCountry(countryGroups) {
   return leaves;
 }
 
+const ZONE_ISSUE_MESSAGES = {
+  missing_action_type: 'Не указан тип зоны действия у параметра ТТХ',
+  zero_value: 'Радиус (км) не задан или равен 0',
+  polygon_zone_mode: 'Тип действия в режиме «Полигон» — зоны техники не строятся',
+  non_km_unit: 'Единица измерения не «км»',
+};
+
+/**
+ * Диагностика: страны/объекты, где техника размещена, но зоны из ТТХ не попали в каталог.
+ * Использует zone_issues из API (deployed_equipment).
+ */
+export function buildEquipmentZoneDiagnostics(objects) {
+  const byCountry = {};
+
+  objects.forEach((obj) => {
+    if (!obj.deployed_equipment?.length) return;
+    const country = obj.country?.title || 'Неизвестно';
+    const label = (obj.label || obj.title || obj.id || '—').trim();
+
+    obj.deployed_equipment.forEach((deployment) => {
+      const hasZones = deployment.zones?.length > 0;
+      const issues = deployment.zone_issues || [];
+      const actionable = issues.filter((i) => i.code === 'missing_action_type' || i.code === 'zero_value' || i.code === 'polygon_zone_mode');
+      if (hasZones && actionable.length === 0) return;
+      if (!hasZones && actionable.length === 0 && issues.length === 0) return;
+
+      if (!byCountry[country]) {
+        byCountry[country] = {
+          country,
+          missingCatalog: false,
+          items: [],
+        };
+      }
+
+      if (!hasZones && actionable.length > 0) {
+        byCountry[country].missingCatalog = true;
+      }
+
+      actionable.forEach((issue) => {
+        byCountry[country].items.push({
+          targetLabel: label,
+          equipmentTitle: deployment.equipment?.designation || deployment.equipment?.title || 'Техника',
+          parameterTitle: issue.parameter_title || issue.parameter_code || 'Параметр',
+          value: issue.value,
+          code: issue.code,
+          message: ZONE_ISSUE_MESSAGES[issue.code] || issue.code,
+        });
+      });
+    });
+  });
+
+  return Object.values(byCountry)
+    .filter((entry) => entry.items.length > 0)
+    .sort((a, b) => a.country.localeCompare(b.country, 'ru'));
+}
+
 /**
  * Объекты с действиями, прошедшие фильтр зон (страна + тип действия + лист).
  */

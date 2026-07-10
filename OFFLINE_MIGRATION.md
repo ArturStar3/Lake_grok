@@ -243,6 +243,8 @@ docker compose exec backend python manage.py migrate
 | `style.json 404` | Перезапуск tileserver; проверьте `infolake-unified` в `config.json` |
 | Backend не подключается к БД | `DB_HOST`, firewall, PostgreSQL `listen_addresses` |
 | Ошибка векторной карты | TileServer :8080 доступен; `VITE_TILESERVER_URL` в compose |
+| Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
+| Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается `939a13e` или новее на `develop-cards`) |
 
 ---
 
@@ -272,3 +274,4 @@ docker compose exec backend python manage.py migrate
 |--------|---------------|------------|
 | [export-offline.ps1](export-offline.ps1) | Online | Сборка + `docker save` |
 | [import-and-start.ps1](import-and-start.ps1) | Offline | `docker load` + `up --no-build --pull never` |
+| `python manage.py audit_equipment_zones` | Backend | Диагностика зон из ТТХ техники (`--country`, `--username`) |
