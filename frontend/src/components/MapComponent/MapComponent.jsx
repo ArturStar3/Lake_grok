@@ -785,13 +785,14 @@ function MapComponent({
     toggleAllForActionType,
     toggleAllForCountry,
     resetZoneFilters,
-    allActionTypes = [],
-    quickSelectTypes = new Set(),
+    globalActionTypeCatalog = [],
+    quickSelectLeaves = new Set(),
     quickSelectCountries = new Set(),
     quickSelectCombo = new Set(),
-    toggleQuickSelectType,
+    toggleQuickSelectLeaf,
+    toggleAllQuickSelectLeavesForType,
+    setAllQuickSelectLeaves,
     toggleQuickSelectCountry,
-    setAllQuickSelectTypes,
     setAllQuickSelectCountries,
     considerTerrain = true,
     onConsiderTerrainChange,
@@ -1962,13 +1963,14 @@ function MapComponent({
                                     toggleAllForActionType={toggleAllForActionType}
                                     toggleAllForCountry={toggleAllForCountry}
                                     resetZoneFilters={resetZoneFilters}
-                                    allActionTypes={allActionTypes}
-                                    quickSelectTypes={quickSelectTypes}
+                                    globalActionTypeCatalog={globalActionTypeCatalog}
+                                    quickSelectLeaves={quickSelectLeaves}
                                     quickSelectCountries={quickSelectCountries}
                                     quickSelectCombo={quickSelectCombo}
-                                    toggleQuickSelectType={toggleQuickSelectType}
+                                    toggleQuickSelectLeaf={toggleQuickSelectLeaf}
+                                    toggleAllQuickSelectLeavesForType={toggleAllQuickSelectLeavesForType}
+                                    setAllQuickSelectLeaves={setAllQuickSelectLeaves}
                                     toggleQuickSelectCountry={toggleQuickSelectCountry}
-                                    setAllQuickSelectTypes={setAllQuickSelectTypes}
                                     setAllQuickSelectCountries={setAllQuickSelectCountries}
                                     considerTerrain={considerTerrain}
                                     onConsiderTerrainChange={onConsiderTerrainChange}

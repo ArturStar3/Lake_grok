@@ -2,24 +2,30 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, st
 import { findAllIntersections } from '../../utils/circleIntersection';
 import {
   buildActionZoneCatalog,
+  buildGlobalActionTypeCatalog,
   filterObjectsForZones,
   getAllLeavesForActionType,
   getAllLeavesForCountry,
   hasEnabledZoneFilters,
 } from '../../utils/buildVisibleZones';
 
-const QUICK_SELECT_PAIR_SEP = '\u0001';
+const QUICK_SELECT_SEP = '\u0001';
 
-function encodeQuickSelectPair(country, actionTypeId) {
-  return `${country}${QUICK_SELECT_PAIR_SEP}${actionTypeId}`;
+function encodeQuickSelectLeaf(actionTypeId, leaf) {
+  return `${String(actionTypeId)}${QUICK_SELECT_SEP}${leaf}`;
 }
 
-function decodeQuickSelectPair(key) {
-  const idx = key.indexOf(QUICK_SELECT_PAIR_SEP);
-  if (idx === -1) return null;
+function encodeQuickSelectTriple(country, actionTypeId, leaf) {
+  return `${country}${QUICK_SELECT_SEP}${actionTypeId}${QUICK_SELECT_SEP}${leaf}`;
+}
+
+function decodeQuickSelectTriple(key) {
+  const parts = key.split(QUICK_SELECT_SEP);
+  if (parts.length !== 3) return null;
   return {
-    country: key.slice(0, idx),
-    actionTypeId: key.slice(idx + QUICK_SELECT_PAIR_SEP.length),
+    country: parts[0],
+    actionTypeId: parts[1],
+    leaf: parts[2],
   };
 }
 
@@ -48,10 +54,6 @@ function findActionTypeGroup(catalog, country, actionTypeId) {
   const groups = catalog[country];
   if (!groups) return null;
   return groups.find((g) => String(g.actionTypeId) === String(actionTypeId)) || null;
-}
-
-function countryHasActionType(catalog, country, actionTypeId) {
-  return Boolean(findActionTypeGroup(catalog, country, actionTypeId));
 }
 
 function syncFiltersWithCatalog(prev, catalog) {
@@ -109,7 +111,7 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
   const [actionZoneFilters, setActionZoneFilters] = useState({});
   const [showZoneIntersections, setShowZoneIntersections] = useState(false);
   const [selectedIntersections, setSelectedIntersections] = useState([]);
-  const [quickSelectTypes, setQuickSelectTypes] = useState(() => new Set());
+  const [quickSelectLeaves, setQuickSelectLeaves] = useState(() => new Set());
   const [quickSelectCountries, setQuickSelectCountries] = useState(() => new Set());
   const intersectionsInitialized = useRef(false);
   const appliedQuickSelectComboRef = useRef(new Set());
@@ -124,34 +126,26 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     [objects],
   );
 
-  const allActionTypes = useMemo(() => {
-    const byId = new Map();
-    Object.values(actionZoneAvailableByCountry).forEach((groups) => {
-      groups.forEach((group) => {
-        const id = String(group.actionTypeId);
-        if (!byId.has(id)) {
-          byId.set(id, {
-            actionTypeId: id,
-            actionTypeTitle: group.actionTypeTitle,
-          });
-        }
-      });
-    });
-    return Array.from(byId.values())
-      .sort((a, b) => a.actionTypeTitle.localeCompare(b.actionTypeTitle, 'ru'));
-  }, [actionZoneAvailableByCountry]);
+  const globalActionTypeCatalog = useMemo(
+    () => buildGlobalActionTypeCatalog(actionZoneAvailableByCountry),
+    [actionZoneAvailableByCountry],
+  );
 
   const quickSelectCombo = useMemo(() => {
     const combo = new Set();
     quickSelectCountries.forEach((country) => {
-      quickSelectTypes.forEach((actionTypeId) => {
-        if (countryHasActionType(actionZoneAvailableByCountry, country, actionTypeId)) {
-          combo.add(encodeQuickSelectPair(country, actionTypeId));
-        }
+      const groups = actionZoneAvailableByCountry[country] || [];
+      groups.forEach((group) => {
+        const actionTypeId = String(group.actionTypeId);
+        getAllLeavesForActionType(group).forEach((leaf) => {
+          if (quickSelectLeaves.has(encodeQuickSelectLeaf(actionTypeId, leaf))) {
+            combo.add(encodeQuickSelectTriple(country, actionTypeId, leaf));
+          }
+        });
       });
     });
     return combo;
-  }, [quickSelectTypes, quickSelectCountries, actionZoneAvailableByCountry]);
+  }, [quickSelectLeaves, quickSelectCountries, actionZoneAvailableByCountry]);
 
   const deferredFilters = useDeferredValue(actionZoneFilters);
   const intersectionsEnabled = zonesActive && showZoneIntersections && hasEnabledZones;
@@ -196,18 +190,24 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
 
   useEffect(() => {
     const validCountries = new Set(Object.keys(actionZoneAvailableByCountry));
-    const validTypeIds = new Set(allActionTypes.map((t) => t.actionTypeId));
+    const validLeaves = new Set();
+    globalActionTypeCatalog.forEach((group) => {
+      const actionTypeId = String(group.actionTypeId);
+      getAllLeavesForActionType(group).forEach((leaf) => {
+        validLeaves.add(encodeQuickSelectLeaf(actionTypeId, leaf));
+      });
+    });
 
     setQuickSelectCountries((prev) => {
       const next = new Set([...prev].filter((c) => validCountries.has(c)));
       return next.size === prev.size ? prev : next;
     });
 
-    setQuickSelectTypes((prev) => {
-      const next = new Set([...prev].filter((id) => validTypeIds.has(id)));
+    setQuickSelectLeaves((prev) => {
+      const next = new Set([...prev].filter((key) => validLeaves.has(key)));
       return next.size === prev.size ? prev : next;
     });
-  }, [actionZoneAvailableByCountry, allActionTypes]);
+  }, [actionZoneAvailableByCountry, globalActionTypeCatalog]);
 
   useEffect(() => {
     const prevCombo = appliedQuickSelectComboRef.current;
@@ -223,33 +223,42 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
         const next = { ...prev };
         let changed = false;
 
-        const enableLeaves = (country, actionTypeId) => {
+        const enableLeaf = (country, actionTypeId, leaf) => {
           const group = findActionTypeGroup(actionZoneAvailableByCountry, country, actionTypeId);
           if (!group) return;
+          const validLeaves = new Set(getAllLeavesForActionType(group));
+          if (!validLeaves.has(leaf)) return;
           const countryFilters = cloneCountryFilters(next[country]);
-          countryFilters[actionTypeId] = new Set(getAllLeavesForActionType(group));
+          const leafSet = countryFilters[actionTypeId]
+            ? new Set(countryFilters[actionTypeId])
+            : new Set();
+          if (leafSet.has(leaf)) return;
+          leafSet.add(leaf);
+          countryFilters[actionTypeId] = leafSet;
           next[country] = countryFilters;
           changed = true;
         };
 
-        const disableLeaves = (country, actionTypeId) => {
-          if (!next[country]?.[actionTypeId]) return;
+        const disableLeaf = (country, actionTypeId, leaf) => {
+          if (!next[country]?.[actionTypeId]?.has(leaf)) return;
           const countryFilters = cloneCountryFilters(next[country]);
-          countryFilters[actionTypeId] = new Set();
+          const leafSet = new Set(countryFilters[actionTypeId]);
+          leafSet.delete(leaf);
+          countryFilters[actionTypeId] = leafSet;
           next[country] = countryFilters;
           changed = true;
         };
 
         added.forEach((key) => {
-          const pair = decodeQuickSelectPair(key);
-          if (!pair) return;
-          enableLeaves(pair.country, pair.actionTypeId);
+          const triple = decodeQuickSelectTriple(key);
+          if (!triple) return;
+          enableLeaf(triple.country, triple.actionTypeId, triple.leaf);
         });
 
         removed.forEach((key) => {
-          const pair = decodeQuickSelectPair(key);
-          if (!pair) return;
-          disableLeaves(pair.country, pair.actionTypeId);
+          const triple = decodeQuickSelectTriple(key);
+          if (!triple) return;
+          disableLeaf(triple.country, triple.actionTypeId, triple.leaf);
         });
 
         return changed ? next : prev;
@@ -313,15 +322,44 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     });
   }, [actionZoneAvailableByCountry]);
 
-  const toggleQuickSelectType = useCallback((actionTypeId) => {
-    const id = String(actionTypeId);
-    setQuickSelectTypes((prev) => {
+  const toggleQuickSelectLeaf = useCallback((actionTypeId, leaf) => {
+    const key = encodeQuickSelectLeaf(actionTypeId, leaf);
+    setQuickSelectLeaves((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
+
+  const toggleAllQuickSelectLeavesForType = useCallback((group, shouldEnable) => {
+    const actionTypeId = String(group.actionTypeId);
+    const leaves = getAllLeavesForActionType(group);
+    setQuickSelectLeaves((prev) => {
+      const next = new Set(prev);
+      leaves.forEach((leaf) => {
+        const key = encodeQuickSelectLeaf(actionTypeId, leaf);
+        if (shouldEnable) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
+  const setAllQuickSelectLeaves = useCallback((checked) => {
+    if (!checked) {
+      setQuickSelectLeaves(new Set());
+      return;
+    }
+    const all = new Set();
+    globalActionTypeCatalog.forEach((group) => {
+      const actionTypeId = String(group.actionTypeId);
+      getAllLeavesForActionType(group).forEach((leaf) => {
+        all.add(encodeQuickSelectLeaf(actionTypeId, leaf));
+      });
+    });
+    setQuickSelectLeaves(all);
+  }, [globalActionTypeCatalog]);
 
   const toggleQuickSelectCountry = useCallback((country) => {
     setQuickSelectCountries((prev) => {
@@ -331,12 +369,6 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
       return next;
     });
   }, []);
-
-  const setAllQuickSelectTypes = useCallback((checked) => {
-    setQuickSelectTypes(
-      checked ? new Set(allActionTypes.map((t) => t.actionTypeId)) : new Set(),
-    );
-  }, [allActionTypes]);
 
   const setAllQuickSelectCountries = useCallback((checked) => {
     const countries = Object.keys(actionZoneAvailableByCountry);
@@ -359,8 +391,8 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     setShowZoneIntersections,
     hasEnabledZones,
     actionZoneAvailableByCountry,
-    allActionTypes,
-    quickSelectTypes,
+    globalActionTypeCatalog,
+    quickSelectLeaves,
     quickSelectCountries,
     quickSelectCombo,
     intersections,
@@ -369,9 +401,10 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     toggleAllForActionType,
     toggleAllForCountry,
     resetZoneFilters,
-    toggleQuickSelectType,
+    toggleQuickSelectLeaf,
+    toggleAllQuickSelectLeavesForType,
+    setAllQuickSelectLeaves,
     toggleQuickSelectCountry,
-    setAllQuickSelectTypes,
     setAllQuickSelectCountries,
     handleIntersectionToggle,
     handleSelectAllIntersections,

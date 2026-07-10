@@ -187,20 +187,21 @@ export default function Formular() {
         showZoneIntersections, setShowZoneIntersections,
         hasEnabledZones,
         actionZoneAvailableByCountry,
-        allActionTypes,
-        quickSelectTypes,
+        globalActionTypeCatalog,
+        quickSelectLeaves,
         quickSelectCountries,
         quickSelectCombo,
         intersections, selectedIntersections,
         toggleZoneLeaf, toggleAllForActionType, toggleAllForCountry, resetZoneFilters,
-        toggleQuickSelectType,
+        toggleQuickSelectLeaf,
+        toggleAllQuickSelectLeavesForType,
+        setAllQuickSelectLeaves,
         toggleQuickSelectCountry,
-        setAllQuickSelectTypes,
         setAllQuickSelectCountries,
         handleIntersectionToggle, handleSelectAllIntersections,
     } = useActionZoneState(objects, { zonesActive: activeTab === "zones" });
 
-    const zonesLayerActive = activeTab === "zones" && hasEnabledZones;
+    const zonesLayerActive = hasEnabledZones;
     const deferredZoneFilters = useDeferredValue(actionZoneFilters);
 
     const visibleZones = useMemo(() => {
@@ -961,13 +962,14 @@ export default function Formular() {
                                         toggleAllForActionType={toggleAllForActionType}
                                         toggleAllForCountry={toggleAllForCountry}
                                         resetZoneFilters={resetZoneFilters}
-                                        allActionTypes={allActionTypes}
-                                        quickSelectTypes={quickSelectTypes}
+                                        globalActionTypeCatalog={globalActionTypeCatalog}
+                                        quickSelectLeaves={quickSelectLeaves}
                                         quickSelectCountries={quickSelectCountries}
                                         quickSelectCombo={quickSelectCombo}
-                                        toggleQuickSelectType={toggleQuickSelectType}
+                                        toggleQuickSelectLeaf={toggleQuickSelectLeaf}
+                                        toggleAllQuickSelectLeavesForType={toggleAllQuickSelectLeavesForType}
+                                        setAllQuickSelectLeaves={setAllQuickSelectLeaves}
                                         toggleQuickSelectCountry={toggleQuickSelectCountry}
-                                        setAllQuickSelectTypes={setAllQuickSelectTypes}
                                         setAllQuickSelectCountries={setAllQuickSelectCountries}
                                         considerTerrain={considerTerrain}
                                         onConsiderTerrainChange={setConsiderTerrain}
@@ -1136,13 +1138,14 @@ export default function Formular() {
                                 toggleAllForActionType={toggleAllForActionType}
                                 toggleAllForCountry={toggleAllForCountry}
                                 resetZoneFilters={resetZoneFilters}
-                                allActionTypes={allActionTypes}
-                                quickSelectTypes={quickSelectTypes}
+                                globalActionTypeCatalog={globalActionTypeCatalog}
+                                quickSelectLeaves={quickSelectLeaves}
                                 quickSelectCountries={quickSelectCountries}
                                 quickSelectCombo={quickSelectCombo}
-                                toggleQuickSelectType={toggleQuickSelectType}
+                                toggleQuickSelectLeaf={toggleQuickSelectLeaf}
+                                toggleAllQuickSelectLeavesForType={toggleAllQuickSelectLeavesForType}
+                                setAllQuickSelectLeaves={setAllQuickSelectLeaves}
                                 toggleQuickSelectCountry={toggleQuickSelectCountry}
-                                setAllQuickSelectTypes={setAllQuickSelectTypes}
                                 setAllQuickSelectCountries={setAllQuickSelectCountries}
                                 considerTerrain={considerTerrain}
                                 onConsiderTerrainChange={setConsiderTerrain}

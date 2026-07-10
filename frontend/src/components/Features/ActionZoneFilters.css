@@ -185,6 +185,19 @@
     overflow-y: auto;
 }
 
+.action-zone-filters__quick-types {
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.action-zone-filters__quick-expand {
+    padding: 8px 12px 0;
+}
+
+.action-zone-filters__quick-expand .expand-btn {
+    font-size: 12px;
+}
+
 .action-zone-filters__quick-hint {
     margin: 0;
     font-size: 12px;

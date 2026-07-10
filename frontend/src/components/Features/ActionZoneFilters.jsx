@@ -33,6 +33,41 @@ function getActionTypeCheckState(countryFilters, group) {
   };
 }
 
+const QUICK_SELECT_LEAF_SEP = "\u0001";
+
+function quickSelectLeafKey(actionTypeId, leaf) {
+  return `${String(actionTypeId)}${QUICK_SELECT_LEAF_SEP}${leaf}`;
+}
+
+function getQuickSelectActionTypeState(quickSelectLeaves, group) {
+  const leaves = getAllLeavesForActionType(group);
+  const actionTypeId = String(group.actionTypeId);
+  const enabledCount = leaves.filter((leaf) =>
+    quickSelectLeaves.has(quickSelectLeafKey(actionTypeId, leaf)),
+  ).length;
+  return {
+    allOn: leaves.length > 0 && enabledCount === leaves.length,
+    someOn: enabledCount > 0 && enabledCount < leaves.length,
+    enabledCount,
+    total: leaves.length,
+  };
+}
+
+function countQuickSelectLeaves(groups) {
+  return groups.reduce((sum, group) => sum + getAllLeavesForActionType(group).length, 0);
+}
+
+function countEnabledQuickSelectLeaves(quickSelectLeaves, groups) {
+  let enabled = 0;
+  groups.forEach((group) => {
+    const actionTypeId = String(group.actionTypeId);
+    getAllLeavesForActionType(group).forEach((leaf) => {
+      if (quickSelectLeaves.has(quickSelectLeafKey(actionTypeId, leaf))) enabled += 1;
+    });
+  });
+  return enabled;
+}
+
 function QuickSelectTable({
   title,
   items,
@@ -92,13 +127,14 @@ export default function ActionZoneFilters({
   toggleAllForActionType,
   toggleAllForCountry,
   resetZoneFilters,
-  allActionTypes = [],
-  quickSelectTypes = new Set(),
+  globalActionTypeCatalog = [],
+  quickSelectLeaves = new Set(),
   quickSelectCountries = new Set(),
   quickSelectCombo = new Set(),
-  toggleQuickSelectType,
+  toggleQuickSelectLeaf,
+  toggleAllQuickSelectLeavesForType,
+  setAllQuickSelectLeaves,
   toggleQuickSelectCountry,
-  setAllQuickSelectTypes,
   setAllQuickSelectCountries,
   showIntersectionsControl = true,
   considerTerrain = true,
@@ -110,6 +146,7 @@ export default function ActionZoneFilters({
   const [subTab, setSubTab] = React.useState("by-country");
   const [expandedCountries, setExpandedCountries] = React.useState(() => new Set());
   const [expandedActionTypes, setExpandedActionTypes] = React.useState(() => new Set());
+  const [expandedQuickActionTypes, setExpandedQuickActionTypes] = React.useState(() => new Set());
 
   const currentCountries = React.useMemo(
     () => Object.keys(actionZoneAvailableByCountry).sort(),
@@ -148,6 +185,32 @@ export default function ActionZoneFilters({
       return next;
     });
   };
+
+  const isQuickActionTypeExpanded = (actionTypeId) =>
+    expandedQuickActionTypes.has(String(actionTypeId));
+
+  const toggleQuickActionTypeExpanded = (actionTypeId) => {
+    const key = String(actionTypeId);
+    setExpandedQuickActionTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const expandAllQuickActionTypes = () => {
+    setExpandedQuickActionTypes(
+      new Set(globalActionTypeCatalog.map((group) => String(group.actionTypeId))),
+    );
+  };
+
+  const collapseAllQuickActionTypes = () => setExpandedQuickActionTypes(new Set());
+
+  const totalQuickLeaves = countQuickSelectLeaves(globalActionTypeCatalog);
+  const enabledQuickLeaves = countEnabledQuickSelectLeaves(quickSelectLeaves, globalActionTypeCatalog);
+  const allQuickLeavesOn = totalQuickLeaves > 0 && enabledQuickLeaves === totalQuickLeaves;
+  const someQuickLeavesOn = enabledQuickLeaves > 0 && enabledQuickLeaves < totalQuickLeaves;
 
   const expandAllCountries = () => setExpandedCountries(new Set(currentCountries));
   const collapseAllCountries = () => {
@@ -354,19 +417,124 @@ export default function ActionZoneFilters({
 
       {subTab === "quick-select" && (
         <>
-          {allActionTypes.length === 0 && currentCountries.length === 0 ? (
+          {globalActionTypeCatalog.length === 0 && currentCountries.length === 0 ? (
             <div className="action-zone-filters__empty">Нет зон действия в данных</div>
           ) : (
             <div className="action-zone-filters__quick-select">
-              <QuickSelectTable
-                title="Типы действия"
-                items={allActionTypes}
-                getItemKey={(item) => item.actionTypeId}
-                getItemLabel={(item) => item.actionTypeTitle}
-                selectedSet={quickSelectTypes}
-                onToggleItem={toggleQuickSelectType}
-                onSelectAll={setAllQuickSelectTypes}
-              />
+              {globalActionTypeCatalog.length > 0 && (
+                <div className="action-zone-filters__quick-table">
+                  <div className="action-zone-filters__quick-header">
+                    <label className="action-zone-filters__quick-header-label">
+                      <input
+                        type="checkbox"
+                        checked={allQuickLeavesOn}
+                        ref={(el) => {
+                          if (el) el.indeterminate = !allQuickLeavesOn && someQuickLeavesOn;
+                        }}
+                        onChange={() => setAllQuickSelectLeaves?.(!allQuickLeavesOn)}
+                      />
+                      <span>Типы действия</span>
+                    </label>
+                    <span className="action-zone-filters__quick-count">
+                      {enabledQuickLeaves} / {totalQuickLeaves}
+                    </span>
+                  </div>
+
+                  <div className="expand-controls action-zone-filters__quick-expand">
+                    <button type="button" className="expand-btn" onClick={expandAllQuickActionTypes}>
+                      Развернуть
+                    </button>
+                    <button type="button" className="expand-btn" onClick={collapseAllQuickActionTypes}>
+                      Свернуть
+                    </button>
+                  </div>
+
+                  <div className="action-zone-filters__quick-types">
+                    {globalActionTypeCatalog.map((group) => {
+                      const actionTypeId = String(group.actionTypeId);
+                      const typeState = getQuickSelectActionTypeState(quickSelectLeaves, group);
+                      const typeOpen = isQuickActionTypeExpanded(actionTypeId);
+
+                      return (
+                        <details
+                          key={actionTypeId}
+                          className="action-zone-filters__action-type-group"
+                          open={typeOpen}
+                        >
+                          <summary
+                            className="action-zone-filters__action-type-header"
+                            onClick={(e) => {
+                              if (e.target.closest('input[type="checkbox"]')) return;
+                              e.preventDefault();
+                              toggleQuickActionTypeExpanded(actionTypeId);
+                            }}
+                          >
+                            <span
+                              className={`action-zone-filters__chevron${typeOpen ? " action-zone-filters__chevron--expanded" : ""}`}
+                              aria-hidden="true"
+                            />
+                            <input
+                              type="checkbox"
+                              checked={typeState.allOn}
+                              ref={(el) => {
+                                if (el) el.indeterminate = typeState.someOn;
+                              }}
+                              onChange={() =>
+                                toggleAllQuickSelectLeavesForType?.(group, !typeState.allOn)
+                              }
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span className="action-zone-filters__action-type-title">
+                              {group.actionTypeTitle}
+                            </span>
+                            <span className="action-zone-filters__action-type-count">
+                              ({typeState.total})
+                            </span>
+                          </summary>
+
+                          <div className="action-zone-filters__leaf-list">
+                            {group.hasManual && (
+                              <label className="action-zone-filters__leaf-row">
+                                <input
+                                  type="checkbox"
+                                  checked={quickSelectLeaves.has(
+                                    quickSelectLeafKey(actionTypeId, ZONE_LEAF_MANUAL),
+                                  )}
+                                  onChange={() =>
+                                    toggleQuickSelectLeaf?.(actionTypeId, ZONE_LEAF_MANUAL)
+                                  }
+                                />
+                                <span>{MANUAL_ZONE_LABEL}</span>
+                              </label>
+                            )}
+                            {group.ttxParameters.map((param) => {
+                              const leaf = makeParamLeaf(param.parameterId);
+                              return (
+                                <label
+                                  key={param.parameterId}
+                                  className="action-zone-filters__leaf-row"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={quickSelectLeaves.has(
+                                      quickSelectLeafKey(actionTypeId, leaf),
+                                    )}
+                                    onChange={() =>
+                                      toggleQuickSelectLeaf?.(actionTypeId, leaf)
+                                    }
+                                  />
+                                  <span>{param.title}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <QuickSelectTable
                 title="Страны"
                 items={currentCountries}
@@ -376,8 +544,9 @@ export default function ActionZoneFilters({
                 onToggleItem={toggleQuickSelectCountry}
                 onSelectAll={setAllQuickSelectCountries}
               />
+
               <p className="action-zone-filters__quick-hint">
-                Активно комбинаций: {quickSelectCombo.size}
+                Активно сочетаний: {quickSelectCombo.size}
               </p>
             </div>
           )}

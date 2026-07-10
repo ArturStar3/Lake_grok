@@ -165,6 +165,44 @@ export function buildActionZoneCatalog(objects) {
   return result;
 }
 
+/**
+ * Сводный каталог типов действия для «Быстрого выбора» (объединение по всем странам).
+ */
+export function buildGlobalActionTypeCatalog(byCountry) {
+  const merged = new Map();
+
+  Object.values(byCountry).forEach((groups) => {
+    groups.forEach((group) => {
+      const key = String(group.actionTypeId);
+      if (!merged.has(key)) {
+        merged.set(key, {
+          actionTypeId: group.actionTypeId,
+          actionTypeTitle: group.actionTypeTitle,
+          color: group.color,
+          lineType: group.lineType,
+          hasManual: false,
+          ttxParameters: new Map(),
+        });
+      }
+      const target = merged.get(key);
+      if (group.hasManual) target.hasManual = true;
+      group.ttxParameters.forEach((param) => {
+        if (!target.ttxParameters.has(param.parameterId)) {
+          target.ttxParameters.set(param.parameterId, { ...param });
+        }
+      });
+    });
+  });
+
+  return Array.from(merged.values())
+    .map((group) => ({
+      ...group,
+      ttxParameters: Array.from(group.ttxParameters.values())
+        .sort((a, b) => a.title.localeCompare(b.title, 'ru')),
+    }))
+    .sort((a, b) => a.actionTypeTitle.localeCompare(b.actionTypeTitle, 'ru'));
+}
+
 export function getAllLeavesForActionType(group) {
   const leaves = [];
   if (group.hasManual) leaves.push(ZONE_LEAF_MANUAL);
