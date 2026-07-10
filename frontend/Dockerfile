@@ -31,4 +31,7 @@ COPY . .
 
 EXPOSE 5173
 
+ENV VITE_ENABLE_HMR=false
+ENV CHOKIDAR_USEPOLLING=false
+
 CMD ["npm", "run", "dev"]

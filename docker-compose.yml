@@ -95,14 +95,8 @@ services:
       VITE_API_URL: http://localhost:8000
       VITE_TILESERVER_URL: http://localhost:8080
 
-      # Серверный режим: без HMR и без polling — страница не перезагружается сама.
-      # Для локальной разработки с hot-reload поставьте "false".
-      VITE_DISABLE_HMR: "true"
-
-      # HMR (только если VITE_DISABLE_HMR=false)
-      VITE_HMR_HOST: localhost
-
-      # Polling (только если VITE_DISABLE_HMR=false)
+      # Оффлайн/Docker: явно выключаем HMR (перебивает .env.development из volume).
+      VITE_ENABLE_HMR: "false"
       CHOKIDAR_USEPOLLING: "false"
     depends_on:
       - backend

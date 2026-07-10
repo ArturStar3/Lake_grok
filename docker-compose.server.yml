@@ -4,8 +4,8 @@
 # Запуск:
 #   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d
 #
-# На уже загруженном оффлайн-образе достаточно VITE_DISABLE_HMR=true в docker-compose.yml
-# и перезапуска frontend: docker compose restart frontend
+# На уже загруженном оффлайн-образе достаточно перезапуска frontend без VITE_ENABLE_HMR:
+#   docker compose restart frontend
 
 services:
   frontend:
@@ -14,5 +14,5 @@ services:
       dockerfile: Dockerfile.server
     command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
     environment:
-      VITE_DISABLE_HMR: "true"
+      VITE_ENABLE_HMR: "false"
       CHOKIDAR_USEPOLLING: "false"

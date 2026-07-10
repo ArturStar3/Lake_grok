@@ -74,7 +74,7 @@ function shouldSkipAuthRetry(config) {
   return AUTH_NO_RETRY_PATHS.some((path) => url.includes(path));
 }
 
-/** Обновить access-токен по refresh. Возвращает новый access или null. */
+/** Обновить access-токен по refresh. Возвращает новый access или null. Сеть — throw. */
 export async function refreshAccessToken() {
   const refresh = getRefreshToken();
   if (!refresh) return null;
@@ -85,7 +85,10 @@ export async function refreshAccessToken() {
       if (data.refresh) sessionStorage.setItem(REFRESH_KEY, data.refresh);
       return data.access;
     }
-  } catch {
+  } catch (err) {
+    if (!err?.response) {
+      throw err;
+    }
     // invalid or expired refresh token
   }
   return null;
@@ -111,7 +114,12 @@ function createUnauthorizedHandler(retryRequest) {
       });
     }
 
-    const newToken = await refreshPromise;
+    let newToken;
+    try {
+      newToken = await refreshPromise;
+    } catch {
+      return Promise.reject(error);
+    }
     if (!newToken) {
       clearAuth();
       onUnauthorizedCallback?.();

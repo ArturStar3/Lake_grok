@@ -136,9 +136,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
 
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-
-        window.location.href = '/login';
-
+        window.location.replace('/login');
       }
 
     });
