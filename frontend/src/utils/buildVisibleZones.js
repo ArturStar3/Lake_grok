@@ -79,6 +79,7 @@ function collectEquipmentZoneActions(obj) {
         radius: zone.radius_km,
         _equipmentZone: true,
         _deploymentId: deployment.equipment?.id,
+        _equipmentTitle: deployment.equipment?.designation || deployment.equipment?.title || '',
         _parameterId: zone.parameter_id,
         _parameterTitle: zone.parameter_title || '',
         _effectiveColor: zone.zone_color,
@@ -348,6 +349,7 @@ export function buildVisibleZones(objects, actionZoneFilters) {
         parameterId: action._parameterId ?? null,
         isEquipmentZone: Boolean(action._equipmentZone),
         parameterTitle: action._parameterTitle || '',
+        equipmentTitle: action._equipmentTitle || '',
         countryTitle: obj.country?.title || 'Неизвестно',
         zoneKey,
       });
@@ -359,22 +361,36 @@ export function buildVisibleZones(objects, actionZoneFilters) {
 /** Строка для панели зон. */
 export function formatZoneListLine(zone) {
   const country = (zone.countryTitle || zone.obj?.country?.title || 'Неизвестно').trim();
-  const actionTitle = zone.isInundationZone
-    ? INUNDATION_FILTER_LABEL
-    : (zone.actionTitle || 'Зона действия');
-  const inundationLevel = zone.isInundationZone
-    ? formatInundationLevel(zone.zoneMetadata)
-    : '';
 
-  let label = '';
-  if (zone.isEquipmentZone && zone.parameterTitle?.trim()) {
-    label = zone.parameterTitle.trim();
-  } else if (zone.isEquipmentZone) {
-    label = 'Техника';
+  let primary = '';
+  if (zone.isEquipmentZone) {
+    primary = (zone.parameterTitle || 'Техника').trim();
+  } else if (zone.isInundationZone) {
+    const inundationLevel = formatInundationLevel(zone.zoneMetadata);
+    primary = inundationLevel
+      ? `${INUNDATION_FILTER_LABEL} (${inundationLevel})`
+      : INUNDATION_FILTER_LABEL;
   } else {
-    label = (zone.obj?.label || zone.obj?.title || '—').trim() || '—';
+    primary = (zone.actionTitle || 'Зона действия').trim();
   }
 
-  const levelSuffix = inundationLevel ? ` (${inundationLevel})` : '';
-  return `${label} · ${actionTitle}${levelSuffix} · ${country}`;
+  const objectLabel = (zone.obj?.label || zone.obj?.title || '—').trim() || '—';
+
+  const parts = [primary, country, objectLabel];
+
+  if (zone.isEquipmentZone && zone.equipmentTitle?.trim()) {
+    parts.push(zone.equipmentTitle.trim());
+  }
+
+  if (!zone.isPolygonZone) {
+    const radiusKm = zone.action?.radius ?? (zone.radiusMeters ? zone.radiusMeters / 1000 : 0);
+    if (radiusKm > 0) {
+      const formatted = Number.isInteger(radiusKm)
+        ? radiusKm
+        : Math.round(radiusKm * 10) / 10;
+      parts.push(`${formatted} км`);
+    }
+  }
+
+  return parts.join(' - ');
 }

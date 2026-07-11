@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
 import EquipmentDetailModal from './EquipmentDetailModal';
 import './DeployedEquipmentDisplay.css';
@@ -9,42 +9,133 @@ function getPrimaryImage(row) {
   return images[0].image;
 }
 
+const UNCATEGORIZED_KEY = '__none__';
+
+function sortEquipmentItems(items) {
+  return [...items].sort((a, b) =>
+    formatEquipmentLabel(a.equipment).localeCompare(formatEquipmentLabel(b.equipment), 'ru'),
+  );
+}
+
+function getOrCreateChild(parent, key, title, order, depth) {
+  if (!parent.children.has(key)) {
+    parent.children.set(key, {
+      key,
+      title,
+      order,
+      depth,
+      children: new Map(),
+      items: [],
+    });
+  }
+  return parent.children.get(key);
+}
+
+function sortTreeNodes(childrenMap) {
+  return Array.from(childrenMap.values())
+    .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, 'ru'))
+    .map((node) => ({
+      ...node,
+      items: sortEquipmentItems(node.items),
+      children: sortTreeNodes(node.children),
+    }));
+}
+
+function buildCategoryTree(items) {
+  const root = { children: new Map() };
+
+  items.forEach((row) => {
+    const path = row.equipment?.category?.path;
+    if (!path?.length) {
+      const node = getOrCreateChild(root, UNCATEGORIZED_KEY, 'Без категории', 9999, 0);
+      node.items.push(row);
+      return;
+    }
+
+    let current = root;
+    path.forEach((segment, index) => {
+      const node = getOrCreateChild(
+        current,
+        String(segment.id),
+        segment.title,
+        segment.order ?? 9999,
+        index,
+      );
+      if (index === path.length - 1) {
+        node.items.push(row);
+      }
+      current = node;
+    });
+  });
+
+  return sortTreeNodes(root.children);
+}
+
+function EquipmentCard({ row, onSelect }) {
+  const imageUrl = getPrimaryImage(row);
+  const label = formatEquipmentLabel(row.equipment);
+
+  return (
+    <li>
+      <button
+        type="button"
+        className="deployed-equipment-display__card"
+        onClick={() => onSelect(row)}
+      >
+        <div className="deployed-equipment-display__card-image-wrap">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={label}
+              className="deployed-equipment-display__card-image"
+            />
+          ) : (
+            <div className="deployed-equipment-display__card-placeholder">
+              Нет фото
+            </div>
+          )}
+        </div>
+        <div className="deployed-equipment-display__card-body">
+          <span className="deployed-equipment-display__card-title">{label}</span>
+          <span className="deployed-equipment-display__card-qty">
+            {row.quantity}
+          </span>
+        </div>
+      </button>
+    </li>
+  );
+}
+
+function CategoryTreeNode({ node, onSelect }) {
+  const TitleTag = node.depth === 0 ? 'h4' : 'h5';
+
+  return (
+    <div
+      className={`deployed-equipment-display__category deployed-equipment-display__category--depth-${node.depth}`}
+    >
+      <TitleTag className="deployed-equipment-display__category-title">{node.title}</TitleTag>
+      {node.children.map((child) => (
+        <CategoryTreeNode key={child.key} node={child} onSelect={onSelect} />
+      ))}
+      {node.items.length > 0 && (
+        <ul className="deployed-equipment-display__grid">
+          {node.items.map((row) => (
+            <EquipmentCard
+              key={row.equipment?.id}
+              row={row}
+              onSelect={onSelect}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function DeployedEquipmentDisplay({ items = [], onEditInCatalog, hideTitle = false }) {
   const [selectedRow, setSelectedRow] = useState(null);
-  const gridRef = useRef(null);
 
-  useLayoutEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return undefined;
-
-    const syncCardHeights = () => {
-      const cards = grid.querySelectorAll('.deployed-equipment-display__card');
-      if (!cards.length) return;
-
-      cards.forEach((card) => {
-        card.style.height = '';
-      });
-
-      let maxHeight = 0;
-      cards.forEach((card) => {
-        maxHeight = Math.max(maxHeight, card.getBoundingClientRect().height);
-      });
-
-      if (maxHeight > 0) {
-        const heightPx = `${Math.ceil(maxHeight)}px`;
-        cards.forEach((card) => {
-          card.style.height = heightPx;
-        });
-      }
-    };
-
-    syncCardHeights();
-
-    const observer = new ResizeObserver(syncCardHeights);
-    observer.observe(grid);
-
-    return () => observer.disconnect();
-  }, [items]);
+  const categoryTree = useMemo(() => buildCategoryTree(items), [items]);
 
   if (!items.length) return null;
 
@@ -59,42 +150,13 @@ export default function DeployedEquipmentDisplay({ items = [], onEditInCatalog, 
         {!hideTitle && (
           <h3 className="deployed-equipment-display__title">Вооружение и техника</h3>
         )}
-        <ul className="deployed-equipment-display__grid" ref={gridRef}>
-          {items.map((row) => {
-            const imageUrl = getPrimaryImage(row);
-            const label = formatEquipmentLabel(row.equipment);
-
-            return (
-              <li key={row.equipment?.id}>
-                <button
-                  type="button"
-                  className="deployed-equipment-display__card"
-                  onClick={() => setSelectedRow(row)}
-                >
-                  <div className="deployed-equipment-display__card-image-wrap">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={label}
-                        className="deployed-equipment-display__card-image"
-                      />
-                    ) : (
-                      <div className="deployed-equipment-display__card-placeholder">
-                        Нет фото
-                      </div>
-                    )}
-                  </div>
-                  <div className="deployed-equipment-display__card-body">
-                    <span className="deployed-equipment-display__card-title">{label}</span>
-                    <span className="deployed-equipment-display__card-qty">
-                      {row.quantity}
-                    </span>
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        {categoryTree.map((node) => (
+          <CategoryTreeNode
+            key={node.key}
+            node={node}
+            onSelect={setSelectedRow}
+          />
+        ))}
       </section>
 
       <EquipmentDetailModal

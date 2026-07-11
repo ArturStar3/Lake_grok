@@ -952,10 +952,16 @@ class Person(models.Model):
         blank=True,
         verbose_name='Должность',
     )
+    order = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Порядок',
+        help_text='Порядок отображения в списке персоналий объекта',
+    )
 
     class Meta:
         verbose_name = 'Лицо'
         verbose_name_plural = 'Список лиц'
+        ordering = ('order', 'full_name')
         indexes = [
             models.Index(fields=('target',)),
         ]

@@ -1160,6 +1160,7 @@ class PersonListSerializer(serializers.ModelSerializer):
             'position',
             'target',
             'avatar',
+            'order',
         )
 
     def get_avatar(self, obj):
@@ -1179,6 +1180,7 @@ class PersonSerializer(serializers.ModelSerializer):
             'full_name',
             'position',
             'avatar',
+            'order',
         )
 
     def get_avatar(self, obj):
@@ -1195,6 +1197,7 @@ class PersonCreateSerializer(serializers.ModelSerializer):
             'target',
             'full_name',
             'position',
+            'order',
         )
         read_only_fields = ('id',)
 

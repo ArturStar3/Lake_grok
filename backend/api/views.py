@@ -150,7 +150,12 @@ def _equipment_links_prefetch(*, zone_values_only=True):
         equipment_prefetch.append('equipment__images')
     return Prefetch(
         'equipment_links',
-        queryset=TargetEquipment.objects.select_related('equipment').prefetch_related(
+        queryset=TargetEquipment.objects.select_related(
+            'equipment',
+            'equipment__category',
+            'equipment__category__parent',
+            'equipment__category__parent__parent',
+        ).prefetch_related(
             *equipment_prefetch
         ),
     )
@@ -1254,7 +1259,7 @@ class PersonViewSet(viewsets.ModelViewSet):
     permission_classes = [PersonsPermission]
     queryset = Person.objects.select_related('target').prefetch_related(
         Prefetch('photos', queryset=PersonPhoto.objects.order_by('order', 'created_at')),
-    ).order_by('full_name')
+    ).order_by('order', 'full_name')
 
     def destroy(self, request, *args, **kwargs):
         ensure_can_delete(request.user)

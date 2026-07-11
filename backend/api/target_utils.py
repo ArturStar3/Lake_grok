@@ -38,6 +38,39 @@ def _serialize_equipment_images(equipment, request=None):
     return images
 
 
+def _category_node_dict(category):
+    return {
+        'id': category.id,
+        'title': category.title,
+        'order': category.order,
+    }
+
+
+def _equipment_category_path(category):
+    path = []
+    seen = set()
+    cursor = category
+    while cursor and cursor.id not in seen:
+        seen.add(cursor.id)
+        path.append(_category_node_dict(cursor))
+        cursor = cursor.parent
+    path.reverse()
+    return path
+
+
+def _equipment_category_dict(equipment):
+    cat = equipment.category
+    if not cat:
+        return None
+    path = _equipment_category_path(cat)
+    return {
+        'id': cat.id,
+        'title': cat.title,
+        'order': cat.order,
+        'path': path,
+    }
+
+
 def serialize_deployed_equipment(target, include_specs=False, request=None):
     """
     Техника на объекте и зоны из каталога ТТХ.
@@ -85,6 +118,7 @@ def serialize_deployed_equipment(target, include_specs=False, request=None):
                 'id': equipment.id,
                 'title': equipment.title,
                 'designation': equipment.designation,
+                'category': _equipment_category_dict(equipment),
             },
             'quantity': link.quantity,
             'zones': zones,

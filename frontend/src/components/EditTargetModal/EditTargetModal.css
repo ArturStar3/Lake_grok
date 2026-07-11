@@ -726,12 +726,43 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     padding: 14px 16px;
     background: #fff;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.edit-target-modal__persons-order {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.edit-target-modal__persons-order-btn {
+    width: 28px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid #d0d7de;
+    border-radius: 4px;
+    background: #fff;
+    color: #3d5a80;
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.edit-target-modal__persons-order-btn:hover:not(:disabled) {
+    background: #e8f4ff;
+    border-color: #008dd2;
+}
+
+.edit-target-modal__persons-order-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
 }
 
 .edit-target-modal__persons-avatar {

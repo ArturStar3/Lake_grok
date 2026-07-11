@@ -726,6 +726,35 @@ export default function EditTargetModal({
             console.error(err);
         }
     };
+
+    const handleMovePerson = async (index, direction) => {
+        const swapIndex = index + direction;
+        if (swapIndex < 0 || swapIndex >= persons.length) return;
+
+        const reordered = [...persons];
+        [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
+        const updates = reordered.map((person, personIndex) => ({
+            id: person.id,
+            order: personIndex + 1,
+        }));
+
+        try {
+            await Promise.all(
+                updates.map((item) =>
+                    axios.patch(`${API_ROOT}/api/v1/persons/${item.id}/`, { order: item.order }),
+                ),
+            );
+            setPersons(
+                reordered.map((person, personIndex) => ({
+                    ...person,
+                    order: personIndex + 1,
+                })),
+            );
+        } catch (err) {
+            console.error('Ошибка изменения порядка персоналий:', err);
+            await reloadPersons();
+        }
+    };
     
     const handleSave = async () => {
         if (!validateForm()) {
@@ -1576,8 +1605,30 @@ export default function EditTargetModal({
                                         <p className="edit-target-modal__persons-empty">Персоналии не указаны.</p>
                                     ) : (
                                         <ul className="edit-target-modal__persons-list">
-                                            {persons.map((person) => (
+                                            {persons.map((person, index) => (
                                                 <li key={person.id} className="edit-target-modal__persons-item">
+                                                    <div className="edit-target-modal__persons-order">
+                                                        <button
+                                                            type="button"
+                                                            className="edit-target-modal__persons-order-btn"
+                                                            onClick={() => handleMovePerson(index, -1)}
+                                                            disabled={index === 0}
+                                                            aria-label="Переместить выше"
+                                                            title="Выше"
+                                                        >
+                                                            ↑
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="edit-target-modal__persons-order-btn"
+                                                            onClick={() => handleMovePerson(index, 1)}
+                                                            disabled={index === persons.length - 1}
+                                                            aria-label="Переместить ниже"
+                                                            title="Ниже"
+                                                        >
+                                                            ↓
+                                                        </button>
+                                                    </div>
                                                     <img
                                                         className="edit-target-modal__persons-avatar"
                                                         src={person.avatar || noUserIcon}
