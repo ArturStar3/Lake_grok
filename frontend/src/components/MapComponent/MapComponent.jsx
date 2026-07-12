@@ -801,6 +801,8 @@ function MapComponent({
     losComputingCount = 0,
     losZonesCount = 0,
     visibleZones = null,
+    mapUiResetToken = 0,
+    onResetAllMapState,
     // ...existing code...
     onMeasureModeChange,
     onMeasurePointsChange,
@@ -928,6 +930,22 @@ function MapComponent({
     const cursorCoordsRef = useRef(null);
     const skipZoneHoverUpdatesRef = useRef(false);
     const suppressNextMapClickRef = useRef(false);
+
+    useEffect(() => {
+        if (!mapUiResetToken) return;
+        setPinnedZonePanel(null);
+        setPinnedGroupId(null);
+        setHoveredGroupId(null);
+        setHoveredZoneList([]);
+        setSelectedZoneEntryId(null);
+        setActiveZonePopup(null);
+        setActiveZonePopupVersion((v) => v + 1);
+        if (isFullscreen) {
+            setMeasurePoints([]);
+            setIsMeasureMode(false);
+        }
+    }, [mapUiResetToken, isFullscreen]);
+
     const mapEventApiRef = useRef({});
     const countryClickApiRef = useRef({});
     const altAddTargetApiRef = useRef({});
@@ -1245,7 +1263,7 @@ function MapComponent({
       if (currentZoom > 7) {
         return objects;
       }
-      const maxOrder = currentZoom <= 5 ? 2 : 7;
+      const maxOrder = currentZoom <= 5 ? 3 : 8;
       return objects.filter((obj) => {
         const ord = parseInt(obj.marker?.order ?? 999, 10);
         return ord <= maxOrder;
@@ -1846,6 +1864,16 @@ function MapComponent({
                                         disabled={measurePoints.length === 0}
                                     >
                                         Очистить измерения
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="map__measure-menu-item"
+                                        onClick={() => {
+                                            onResetAllMapState?.();
+                                            setIsMeasureMenuOpen(false);
+                                        }}
+                                    >
+                                        Сбросить все
                                     </button>
                                 </div>
                             )}

@@ -1311,7 +1311,7 @@ class PersonDetailView(APIView):
         relations_serializer = PersonRelationSerializer(
             relations,
             many=True,
-            context={'person_id': person_id},
+            context={'person_id': person_id, 'request': request},
         )
 
         photos = PersonPhoto.objects.filter(person=person).order_by('order', 'created_at')

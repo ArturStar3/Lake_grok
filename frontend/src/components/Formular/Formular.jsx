@@ -80,6 +80,7 @@ export default function Formular() {
     const [focusedSituationId, setFocusedSituationId] = useState(null);
     const [timelineRevisionId, setTimelineRevisionId] = useState(null);
     const [highlightedSituationId, setHighlightedSituationId] = useState(null);
+    const [mapUiResetToken, setMapUiResetToken] = useState(0);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
@@ -679,6 +680,60 @@ export default function Formular() {
         setIsToolsOpen(false);
     }, [toggleMeasureMode]);
 
+    const handleResetAllMapState = useCallback(() => {
+        setSelectedObj([]);
+        setFilterCountry([]);
+        setFilterType([]);
+        setFilterTitle('');
+        resetZoneFilters(false);
+        setAllQuickSelectLeaves(false);
+        setAllQuickSelectCountries(false);
+        setShowZoneIntersections(false);
+        handleSelectAllIntersections(false);
+        setEventsFilters({
+            title: '',
+            dateFrom: '',
+            dateTo: '',
+            timeFrom: '',
+            timeTo: '',
+            countries: [],
+            eventTypes: [],
+        });
+        setSelectedEvents([]);
+        setSituationsFilters({
+            title: '',
+            dateFrom: '',
+            dateTo: '',
+            countries: [],
+        });
+        setSelectedSituations([]);
+        setFocusedSituationId(null);
+        setTimelineRevisionId(null);
+        setHighlightedSituationId(null);
+        setSituationRevisions([]);
+        setDetailSituation(null);
+        setSelectedTargetId(null);
+        setHoveredTargetId(null);
+        setIsMeasureMode(false);
+        setMeasurePoints([]);
+        setIsSituationDrawActive(false);
+        setSituationDrawPoints([]);
+        setMapUiResetToken((token) => token + 1);
+        setIsToolsOpen(false);
+    }, [
+        resetZoneFilters,
+        setAllQuickSelectLeaves,
+        setAllQuickSelectCountries,
+        setShowZoneIntersections,
+        handleSelectAllIntersections,
+        setEventsFilters,
+        setSelectedEvents,
+        setSituationsFilters,
+        setSelectedSituations,
+        setIsMeasureMode,
+        setMeasurePoints,
+    ]);
+
     const handleToggleTools = useCallback(() => setIsToolsOpen((prev) => !prev), []);
 
     const handleMapAltClickAddTarget = useCallback(({ lat, lng, countryIso }) => {
@@ -878,6 +933,13 @@ export default function Formular() {
                                                 <svg className="formular__icon" width="20" height="20" aria-hidden="true">
                                                     <use href={"/sprite.svg#measure"} />
                                                 </svg>
+                                            </button>
+                                            <button
+                                                className="tools-menu__item"
+                                                type="button"
+                                                onClick={handleResetAllMapState}
+                                            >
+                                                <span className="tools-menu__label">Сбросить все</span>
                                             </button>
                                         </div>
                                     )}
@@ -1156,6 +1218,8 @@ export default function Formular() {
                                 losComputingCount={losComputingCount}
                                 losZonesCount={losZonesCount}
                                 visibleZones={visibleZones}
+                                mapUiResetToken={mapUiResetToken}
+                                onResetAllMapState={handleResetAllMapState}
                                 situations={situations}
                                 selectedSituationIds={selectedSituations}
                                 activeSituationId={activeSituationId}

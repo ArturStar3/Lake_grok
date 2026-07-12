@@ -1,15 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import AttachmentGallery from './AttachmentGallery';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import noUserIcon from '../../assets/images/no_user.png';
+import './DetailSections.css';
+import './PersonReadModal.css';
+
+function resolveMediaUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const base = API_URL.replace(/\/$/, '');
+  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
+}
 
 export default function PersonReadContent({ person, onRelationClick, className = '' }) {
   const [detail, setDetail] = useState(null);
   const [attachmentsBySection, setAttachmentsBySection] = useState({});
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     if (!person?.id) return undefined;
@@ -40,16 +50,53 @@ export default function PersonReadContent({ person, onRelationClick, className =
   }, [person?.id]);
 
   const displayPerson = detail?.person || person;
-  const avatarUrl = person.avatar || displayPerson?.avatar || photos.find((p) => p.order === 1)?.image;
+  const avatarPhoto = photos.find((p) => p.order === 1);
+  const avatarUrl = useMemo(() => {
+    const raw = displayPerson?.avatar || avatarPhoto?.image || person.avatar;
+    return resolveMediaUrl(raw);
+  }, [displayPerson?.avatar, avatarPhoto?.image, person.avatar]);
+
+  const galleryPhotos = useMemo(
+    () => photos
+      .map((photo) => ({
+        id: photo.id,
+        image: resolveMediaUrl(photo.image),
+        title: photo.title || (photo.order === 1 ? 'Аватар' : 'Фото'),
+      }))
+      .filter((photo) => photo.image),
+    [photos],
+  );
+
+  const extraGalleryPhotos = galleryPhotos.filter((photo) => photo.title !== 'Аватар' || photos.length > 1);
+
+  const openPreview = (image, title) => {
+    if (!image) return;
+    setPreviewImage({ image, title });
+  };
 
   return (
     <div className={`person-read-content ${className}`.trim()}>
       <div className="person-read-content__header">
-        <img
-          className="person-read-content__avatar"
-          src={avatarUrl || noUserIcon}
-          alt=""
-        />
+        {avatarUrl ? (
+          <button
+            type="button"
+            className="person-read-content__avatar-btn"
+            onClick={() => openPreview(avatarUrl, 'Аватар')}
+            aria-label="Открыть аватар"
+          >
+            <img
+              className="person-read-content__avatar"
+              src={avatarUrl}
+              alt=""
+            />
+          </button>
+        ) : (
+          <img
+            className="person-read-content__avatar"
+            src={noUserIcon}
+            alt=""
+          />
+        )}
         <div className="person-read-content__header-text">
           <h4 className="person-read-content__name">{displayPerson?.full_name || person.full_name}</h4>
           {displayPerson?.position && (
@@ -62,19 +109,18 @@ export default function PersonReadContent({ person, onRelationClick, className =
 
       {!loading && detail && (
         <>
-          {photos.length > 1 && (
+          {extraGalleryPhotos.length > 0 && (
             <div className="person-read-content__photos">
               <h5 className="person-read-content__section-title">Фотографии</h5>
-              <AttachmentGallery attachments={photos.map((photo) => ({
-                id: photo.id,
-                image: photo.image,
-                title: photo.title || (photo.order === 1 ? 'Аватар' : 'Фото'),
-              }))} />
+              <AttachmentGallery attachments={extraGalleryPhotos} />
             </div>
           )}
           {(detail.info || []).map((item) => {
             const sectionId = item.section?.id;
-            const attachments = attachmentsBySection[sectionId] || [];
+            const attachments = (attachmentsBySection[sectionId] || []).map((att) => ({
+              ...att,
+              image: resolveMediaUrl(att.image),
+            }));
             const hasContent = item.content?.trim() || attachments.length > 0;
             if (!hasContent) return null;
             return (
@@ -123,6 +169,31 @@ export default function PersonReadContent({ person, onRelationClick, className =
             </div>
           )}
         </>
+      )}
+
+      {previewImage && (
+        <div
+          className="person-read-content__image-preview"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="person-read-content__image-preview-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="person-read-content__image-preview-close"
+              onClick={() => setPreviewImage(null)}
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+            <img src={previewImage.image} alt={previewImage.title} />
+            <div className="person-read-content__image-preview-caption">
+              <strong>{previewImage.title}</strong>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

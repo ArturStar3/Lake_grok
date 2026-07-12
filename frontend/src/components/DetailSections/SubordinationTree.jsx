@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { API_URL } from '../../config/api';
+import { apiClient } from '../../config/axios';
 import SubordinationLevel from './SubordinationLevel';
 import './DetailSections.css';
 
@@ -85,11 +85,7 @@ export default function SubordinationTree({
     }));
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/formular/${nodeId}/`);
-      if (!response.ok) {
-        throw new Error(`Ошибка загрузки: ${response.status}`);
-      }
-      const result = await response.json();
+      const { data: result } = await apiClient.get(`/formular/${nodeId}/`);
       const children = Array.isArray(result) ? [] : result.subordinates || [];
 
       setNodesById((prev) => {

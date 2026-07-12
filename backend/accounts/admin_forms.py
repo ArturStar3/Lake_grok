@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AdminUserCreationForm
 from unfold.widgets import UnfoldAdminTextInputWidget, UnfoldBooleanWidget
 
 
@@ -23,7 +23,24 @@ class ChangePasswordForm(forms.Form):
     )
 
 
-class UserAdminCreationForm(UserCreationForm):
+class UserAdminCreationForm(AdminUserCreationForm):
+    username = forms.CharField(
+        widget=UnfoldAdminTextInputWidget(attrs={'autocomplete': 'username'}),
+    )
+    password1 = forms.CharField(
+        label='Пароль',
+        widget=UnfoldAdminTextInputWidget(attrs={
+            'type': 'password',
+            'autocomplete': 'new-password',
+        }),
+    )
+    password2 = forms.CharField(
+        label='Подтверждение пароля',
+        widget=UnfoldAdminTextInputWidget(attrs={
+            'type': 'password',
+            'autocomplete': 'new-password',
+        }),
+    )
     must_change_password = forms.BooleanField(
         label='Требуется смена пароля',
         required=False,

@@ -182,6 +182,11 @@ UNFOLD = {
                         'link': reverse_lazy('admin:auth_user_changelist'),
                     },
                     {
+                        'title': _('Профили пользователей'),
+                        'icon': 'badge',
+                        'link': reverse_lazy('admin:accounts_userprofile_changelist'),
+                    },
+                    {
                         'title': _('Заявки на регистрацию'),
                         'icon': 'person_add',
                         'link': admin_changelist_link(

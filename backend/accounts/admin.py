@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils.translation import gettext_lazy as _
 from unfold.decorators import action
 
-from infolake.admin_base import InlineOnlyModelAdmin, ModelAdmin, TabularInline
+from infolake.admin_base import ModelAdmin, TabularInline
 
 from .admin_forms import ChangePasswordForm, UserAdminCreationForm
 from .models import AuthAuditLog, PasswordResetRequest, SecurityGroup, UserProfile
@@ -51,12 +51,24 @@ class SecurityGroupAdmin(ModelAdmin):
 
 
 @admin.register(UserProfile)
-class UserProfileAdmin(InlineOnlyModelAdmin):
+class UserProfileAdmin(ModelAdmin):
     list_display = ('user', 'full_name', 'status', 'must_change_password', 'approved_at')
     list_filter = ('status', 'must_change_password')
     filter_horizontal = ('security_groups',)
     search_fields = ('user__username', 'full_name')
-
+    autocomplete_fields = ('user', 'approved_by')
+    readonly_fields = ('approved_by', 'approved_at', 'last_login_ip')
+    fields = (
+        'user',
+        'full_name',
+        'status',
+        'must_change_password',
+        'security_groups',
+        'registration_note',
+        'approved_by',
+        'approved_at',
+        'last_login_ip',
+    )
 
 @admin.register(PasswordResetRequest)
 class PasswordResetRequestAdmin(ModelAdmin):
@@ -84,6 +96,12 @@ class AuthAuditLogAdmin(ModelAdmin):
 
 class UserAdmin(DjangoUserAdmin, ModelAdmin):
     add_form = UserAdminCreationForm
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'usable_password', 'password1', 'password2', 'must_change_password'),
+        }),
+    )
     inlines = [UserProfileInline]
     actions_detail = ['change_password']
     compressed_fields = True
