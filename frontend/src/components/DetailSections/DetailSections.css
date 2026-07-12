@@ -526,6 +526,16 @@
   user-select: none;
   list-style: none;
   flex-wrap: wrap;
+  font-size: 0.72rem;
+}
+
+.subordination-nested-branch__header .subordination-nested-row {
+  font-size: inherit;
+}
+
+.subordination-nested-branch__header .subordination-nested-row__meta,
+.subordination-nested-branch__header .subordination-nested-row__count {
+  font-size: 0.68rem;
 }
 
 .subordination-nested-branch__header::-webkit-details-marker {
