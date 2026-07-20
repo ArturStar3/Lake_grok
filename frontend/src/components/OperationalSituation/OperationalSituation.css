@@ -474,6 +474,58 @@
   color: #c0392b;
 }
 
+.situation-modal__territories-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.situation-modal__territory {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.situation-modal__territory:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.situation-modal__territory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.situation-modal__territory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.situation-modal__territory--active {
+  padding: 10px;
+  margin-left: -10px;
+  margin-right: -10px;
+  border-radius: 8px;
+  background: #f0f8ff;
+  border: 1px solid #008dd2;
+}
+
+.situation-modal__btn--map-active {
+  border-color: #008dd2;
+  color: #0b5073;
+  font-weight: 600;
+}
+
 .situation-polygon {
   cursor: pointer;
 }

@@ -120,21 +120,75 @@ export function mapTargetActionToForm(action) {
 }
 
 export function getZonePolygonPositions(zoneGeometry) {
-  if (!zoneGeometry) return null;
+  const list = getZonePolygonPositionsList(zoneGeometry);
+  if (!list.length) return null;
+  return list[0];
+}
+
+/** Все внешние кольца Polygon / MultiPolygon в формате Leaflet [[lat,lng], ...]. */
+export function getZonePolygonPositionsList(zoneGeometry) {
+  if (!zoneGeometry) return [];
 
   if (zoneGeometry.type === 'Polygon') {
     const ring = zoneGeometry.coordinates?.[0];
-    if (!ring?.length) return null;
-    return ring.map(([lng, lat]) => [lat, lng]);
+    if (!ring?.length) return [];
+    return [ring.map(([lng, lat]) => [lat, lng])];
   }
 
   if (zoneGeometry.type === 'MultiPolygon') {
-    const first = zoneGeometry.coordinates?.[0]?.[0];
-    if (!first?.length) return null;
-    return first.map(([lng, lat]) => [lat, lng]);
+    return (zoneGeometry.coordinates || [])
+      .map((poly) => {
+        const ring = poly?.[0];
+        if (!ring?.length) return null;
+        return ring.map(([lng, lat]) => [lat, lng]);
+      })
+      .filter(Boolean);
   }
 
-  return null;
+  return [];
+}
+
+function positionsRingToDrawPoints(positions) {
+  if (!positions?.length) return [];
+  const points = positions.map(([lat, lng]) => ({ lat, lng }));
+  if (points.length > 1) {
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (first.lat === last.lat && first.lng === last.lng) {
+      return points.slice(0, -1);
+    }
+  }
+  return points;
+}
+
+/** GeoJSON → массив контуров для рисования/редактирования. */
+export function geoJsonToDrawPolygons(zoneGeometry) {
+  return getZonePolygonPositionsList(zoneGeometry)
+    .map((positions) => positionsRingToDrawPoints(positions))
+    .filter((points) => points.length >= 3);
+}
+
+/** N контуров → GeoJSON Polygon (1) или MultiPolygon (2+). */
+export function drawPolygonsToGeoJson(polygons) {
+  if (!polygons?.length) return null;
+  const normalized = polygons.filter((points) => points?.length >= 3);
+  if (!normalized.length) return null;
+  if (normalized.length === 1) {
+    return pointsToGeoJsonPolygon(normalized[0]);
+  }
+  const coordinates = normalized.map((points) => {
+    const ring = points.map((point) => [point.lng, point.lat]);
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      ring.push([...first]);
+    }
+    return [ring];
+  });
+  return {
+    type: 'MultiPolygon',
+    coordinates,
+  };
 }
 
 export function getPolygonBounds(positions) {
@@ -194,17 +248,8 @@ export function pointsToGeoJsonPolygon(points) {
 }
 
 export function geoJsonPolygonToDrawPoints(zoneGeometry) {
-  const positions = getZonePolygonPositions(zoneGeometry);
-  if (!positions?.length) return [];
-  const points = positions.map(([lat, lng]) => ({ lat, lng }));
-  if (points.length > 1) {
-    const first = points[0];
-    const last = points[points.length - 1];
-    if (first.lat === last.lat && first.lng === last.lng) {
-      return points.slice(0, -1);
-    }
-  }
-  return points;
+  const polygons = geoJsonToDrawPolygons(zoneGeometry);
+  return polygons[0] || [];
 }
 
 export function formatInundationLevel(zoneMetadata) {

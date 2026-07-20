@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
 import CountriesMultiAutocomplete from '../common/CountriesMultiAutocomplete/CountriesMultiAutocomplete';
-import { geoJsonPolygonToDrawPoints } from '../../utils/inundationZone';
-import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoints } from '../../utils/polygonDrawUtils';
+import { geoJsonToDrawPolygons } from '../../utils/inundationZone';
+import { drawPointsToEditable, editablePointsKey, parseLatLngPoints } from '../../utils/polygonDrawUtils';
 import { formatSituationDateTime, getSituationDisplayRevision, getSituationRevision, isSituationCurrentRevision } from '../../utils/situationUtils';
 import './OperationalSituation.css';
 
@@ -15,18 +15,24 @@ const SAVE_MODES = {
   edit: { label: 'Сохранить', showModePicker: true },
 };
 
+function drawPolygonsKey(polygons) {
+  if (!polygons?.length) return '';
+  return polygons.map((ring) => editablePointsKey(drawPointsToEditable(ring))).join('|');
+}
+
 export default function SituationModal({
   isOpen,
   onClose,
   mode = 'create',
   situation = null,
   baseRevision = null,
-  drawPoints = [],
-  onDrawPointsChange,
+  drawPolygons = [],
+  onDrawPolygonsChange,
+  activeTerritoryIndex = 0,
+  onActiveTerritoryIndexChange,
   countries = [],
   onSave,
 }) {
-  // Приоритет: явно переданная ревизия таймлайна → current → display.
   const rev = baseRevision || getSituationRevision(situation) || getSituationDisplayRevision(situation);
   const [form, setForm] = useState({
     title: '',
@@ -39,7 +45,7 @@ export default function SituationModal({
   });
   const [saveError, setSaveError] = useState('');
   const [saveMode, setSaveMode] = useState('correction');
-  const [polygonEditable, setPolygonEditable] = useState([]);
+  const [polygonEditables, setPolygonEditables] = useState([]);
   const skipPolygonSyncRef = useRef(false);
 
   useEffect(() => {
@@ -70,7 +76,7 @@ export default function SituationModal({
     setSaveMode(mode === 'fork' ? 'fork' : mode === 'new_state' ? 'new_state' : 'correction');
   }, [isOpen, mode, situation, rev]);
 
-  const drawPointsKeyValue = drawPointsKey(drawPoints);
+  const drawPolygonsKeyValue = drawPolygonsKey(drawPolygons);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,19 +84,58 @@ export default function SituationModal({
       skipPolygonSyncRef.current = false;
       return;
     }
-    const sourcePoints = drawPoints.length > 0
-      ? drawPoints
-      : geoJsonPolygonToDrawPoints(rev?.geometry);
-    const next = drawPointsToEditable(sourcePoints);
-    const nextKey = editablePointsKey(next);
-    setPolygonEditable((prev) => (editablePointsKey(prev) === nextKey ? prev : next));
-  }, [isOpen, drawPointsKeyValue, drawPoints, rev]);
+    const sourcePolygons = drawPolygons.length > 0
+      ? drawPolygons
+      : geoJsonToDrawPolygons(rev?.geometry);
+    const next = sourcePolygons.map((ring) => drawPointsToEditable(ring));
+    const nextKey = drawPolygonsKey(sourcePolygons);
+    setPolygonEditables((prev) => {
+      const prevPolys = prev.map((editable) => parseLatLngPoints(editable) || []);
+      if (drawPolygonsKey(prevPolys) === nextKey) return prev;
+      return next;
+    });
+  }, [isOpen, drawPolygonsKeyValue, drawPolygons, rev]);
 
-  const handlePolygonChange = (editable) => {
-    setPolygonEditable(editable);
-    if (!onDrawPointsChange) return;
+  const syncDrawPolygons = (editables) => {
+    if (!onDrawPolygonsChange) return;
     skipPolygonSyncRef.current = true;
-    onDrawPointsChange(parseLatLngPoints(editable) || []);
+    const polys = editables.map((editable) => parseLatLngPoints(editable) || []).filter((ring) => ring.length >= 3);
+    onDrawPolygonsChange(polys);
+  };
+
+  const handlePolygonChange = (index, editable) => {
+    setPolygonEditables((prev) => {
+      const next = [...prev];
+      next[index] = editable;
+      syncDrawPolygons(next);
+      return next;
+    });
+  };
+
+  const handleAddTerritory = () => {
+    const newIndex = polygonEditables.length;
+    setPolygonEditables((prev) => [...prev, drawPointsToEditable([])]);
+    onActiveTerritoryIndexChange?.(newIndex);
+  };
+
+  const handleRemoveTerritory = (index) => {
+    setPolygonEditables((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, idx) => idx !== index);
+      syncDrawPolygons(next);
+      let nextActive = activeTerritoryIndex;
+      if (index === activeTerritoryIndex) {
+        nextActive = Math.max(0, Math.min(index, next.length - 1));
+      } else if (index < activeTerritoryIndex) {
+        nextActive = activeTerritoryIndex - 1;
+      }
+      onActiveTerritoryIndexChange?.(nextActive);
+      return next;
+    });
+  };
+
+  const handleSelectTerritoryOnMap = (index) => {
+    onActiveTerritoryIndexChange?.(index);
   };
 
   const countryOptions = useMemo(
@@ -104,14 +149,16 @@ export default function SituationModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const points = parseLatLngPoints(polygonEditable, { minCount: 3 });
-    if (!points) return;
+    const polys = polygonEditables
+      .map((editable) => parseLatLngPoints(editable, { minCount: 3 }))
+      .filter(Boolean);
+    if (!polys.length) return;
     const effectiveMode = mode === 'edit' ? saveMode : mode;
     try {
       await onSave?.({
         mode: effectiveMode,
         form,
-        drawPoints: points,
+        drawPolygons: polys,
         situationId: situation?.id,
         revisionId: rev?.id ?? null,
       });
@@ -208,11 +255,59 @@ export default function SituationModal({
             />
           </label>
           <div className="situation-modal__field">
-            <PolygonCoordinateEditor
-              points={polygonEditable}
-              onChange={handlePolygonChange}
-              hint="Задайте контур вручную или измените его на карте"
-            />
+            <div className="situation-modal__territories-header">
+              <span>Территории</span>
+              <button
+                type="button"
+                className="situation-modal__btn situation-modal__btn--ghost"
+                onClick={handleAddTerritory}
+              >
+                Добавить территорию
+              </button>
+            </div>
+            {polygonEditables.map((editable, index) => (
+              <div
+                key={`territory-${index}`}
+                className={`situation-modal__territory${
+                  index === activeTerritoryIndex ? ' situation-modal__territory--active' : ''
+                }`}
+              >
+                <div className="situation-modal__territory-header">
+                  <span>Территория {index + 1}</span>
+                  <div className="situation-modal__territory-actions">
+                    <button
+                      type="button"
+                      className={`situation-modal__btn situation-modal__btn--ghost${
+                        index === activeTerritoryIndex
+                          ? ' situation-modal__btn--map-active'
+                          : ''
+                      }`}
+                      onClick={() => handleSelectTerritoryOnMap(index)}
+                    >
+                      {index === activeTerritoryIndex ? 'На карте' : 'Редактировать на карте'}
+                    </button>
+                    {polygonEditables.length > 1 && (
+                      <button
+                        type="button"
+                        className="situation-modal__btn situation-modal__btn--ghost"
+                        onClick={() => handleRemoveTerritory(index)}
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <PolygonCoordinateEditor
+                  points={editable}
+                  onChange={(next) => handlePolygonChange(index, next)}
+                  hint={
+                    index === activeTerritoryIndex
+                      ? 'Задайте контур вручную или измените его на карте'
+                      : 'Нажмите «Редактировать на карте», чтобы менять контур на карте'
+                  }
+                />
+              </div>
+            ))}
           </div>
           {modeConfig.showModePicker && (
             <div className="situation-modal__save-modes">

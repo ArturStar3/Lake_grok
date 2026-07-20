@@ -1,7 +1,7 @@
 import React, { useMemo, memo } from 'react';
 import { Polygon } from 'react-leaflet';
 import { getZonePolygonStrokeStyle } from '../../utils/actionZoneStyle';
-import { getZonePolygonPositions } from '../../utils/inundationZone';
+import { getZonePolygonPositionsList } from '../../utils/inundationZone';
 import { resolveSituationMapRevision } from '../../utils/situationUtils';
 
 function geometryKey(geometry) {
@@ -14,8 +14,8 @@ function geometryKey(geometry) {
 }
 
 const SituationPolygon = memo(function SituationPolygon({ revision, situationId, onClick }) {
-  const positions = useMemo(
-    () => getZonePolygonPositions(revision?.geometry),
+  const rings = useMemo(
+    () => getZonePolygonPositionsList(revision?.geometry),
     [revision?.id, geometryKey(revision?.geometry)],
   );
 
@@ -39,17 +39,21 @@ const SituationPolygon = memo(function SituationPolygon({ revision, situationId,
     },
   }), [situationId, revision, onClick]);
 
-  if (!positions?.length || revision?.id == null) return null;
+  if (!rings?.length || revision?.id == null) return null;
 
   const layerKey = `${revision.id}-${geometryKey(revision.geometry)}`;
 
   return (
-    <Polygon
-      key={layerKey}
-      positions={positions}
-      pathOptions={pathOptions}
-      eventHandlers={eventHandlers}
-    />
+    <>
+      {rings.map((positions, ringIndex) => (
+        <Polygon
+          key={`${layerKey}-${ringIndex}`}
+          positions={positions}
+          pathOptions={pathOptions}
+          eventHandlers={eventHandlers}
+        />
+      ))}
+    </>
   );
 });
 
@@ -80,7 +84,7 @@ export default memo(function OperationalSituationLayer({
         const rev = resolveSituationMapRevision(item, {
           activeSituationId,
           timelineRevisionId,
-          revisions: situationRevisions,
+          situationRevisions,
         });
         if (!rev) return null;
 

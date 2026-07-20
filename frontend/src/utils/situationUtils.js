@@ -1,4 +1,7 @@
-import { getZonePolygonPositions, pointsToGeoJsonPolygon } from './inundationZone';
+import {
+  drawPolygonsToGeoJson,
+  getZonePolygonPositionsList,
+} from './inundationZone';
 import { stripMarkdown } from './markdown';
 
 const TIMELINE_DESCRIPTION_EXCERPT_LEN = 100;
@@ -168,8 +171,14 @@ function getSituationGeometry(situationOrRevision) {
     || situationOrRevision?.current_revision?.geometry;
 }
 
+function getSituationAllPositions(situationOrRevision) {
+  const rings = getZonePolygonPositionsList(getSituationGeometry(situationOrRevision));
+  if (!rings.length) return [];
+  return rings.flat();
+}
+
 export function getSituationCenter(situationOrRevision) {
-  const positions = getZonePolygonPositions(getSituationGeometry(situationOrRevision));
+  const positions = getSituationAllPositions(situationOrRevision);
   if (!positions?.length) return null;
   const sum = positions.reduce(
     (acc, [lat, lng]) => ({ lat: acc.lat + lat, lng: acc.lng + lng }),
@@ -180,7 +189,7 @@ export function getSituationCenter(situationOrRevision) {
 
 /** Границы полигона обстановки для fitBounds: [[south, west], [north, east]]. */
 export function getSituationBounds(situationOrRevision) {
-  const positions = getZonePolygonPositions(getSituationGeometry(situationOrRevision));
+  const positions = getSituationAllPositions(situationOrRevision);
   if (!positions?.length) return null;
 
   let minLat = Infinity;
@@ -227,14 +236,14 @@ export function getSituationDescriptionExcerpt(
   return `${plain.slice(0, maxLen).trim()}…`;
 }
 
-export function buildSituationRequestBody(form, drawPoints) {
+export function buildSituationRequestBody(form, drawPolygons) {
   return {
     title: form.title,
     description: form.description || '',
     situation_date: form.situationDate || null,
     situation_time: form.situationTime || null,
     color: form.color || '#2f80ed',
-    geometry: pointsToGeoJsonPolygon(drawPoints),
+    geometry: drawPolygonsToGeoJson(drawPolygons || []),
     country_ids: form.countryIds || [],
     change_note: form.changeNote || '',
   };

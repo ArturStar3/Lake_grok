@@ -10,11 +10,14 @@ export default function SituationDrawingToolbar({
   canFinishPolygon,
   canUndoPoint,
   isReady,
+  territoryCount = 0,
+  canAddTerritory = false,
   polygonCoordPoints = [],
   onPolygonCoordChange,
   polygonCoordError = null,
   onFinishPolygon,
   onUndoPoint,
+  onAddTerritory,
   onConfirm,
   onCancel,
 }) {
@@ -26,7 +29,17 @@ export default function SituationDrawingToolbar({
     <div className="situation-draw-toolbar">
       <div className="situation-draw-toolbar__row">
         <span className="situation-draw-toolbar__title">Рисование обстановки</span>
+        {territoryCount > 0 && (
+          <span className="situation-draw-toolbar__count">
+            Территорий: {territoryCount}
+          </span>
+        )}
         <div className="situation-draw-toolbar__actions">
+          {canAddTerritory && onAddTerritory && (
+            <button type="button" className="situation-draw-toolbar__btn" onClick={onAddTerritory}>
+              Добавить территорию
+            </button>
+          )}
           {canUndoPoint && (
             <button type="button" className="situation-draw-toolbar__btn" onClick={onUndoPoint}>
               Отменить точку

@@ -20,7 +20,7 @@ import AddTargetModal from "../AddTargetModal/AddTargetModal";
 import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
-import { geoJsonPolygonToDrawPoints, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
+import { geoJsonToDrawPolygons, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
 import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituation, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
@@ -70,7 +70,11 @@ export default function Formular() {
     const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
     const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
     const [isSituationDrawActive, setIsSituationDrawActive] = useState(false);
+    const [situationDrawPolygons, setSituationDrawPolygons] = useState([]);
     const [situationDrawPoints, setSituationDrawPoints] = useState([]);
+    const [situationDrawTerritoryIndex, setSituationDrawTerritoryIndex] = useState(0);
+    const situationDrawTerritoryIndexRef = useRef(0);
+    const situationDrawPolygonsRef = useRef([]);
     const [situationModalOpen, setSituationModalOpen] = useState(false);
     const [situationModalMode, setSituationModalMode] = useState('create');
     const [situationModalTarget, setSituationModalTarget] = useState(null);
@@ -85,6 +89,14 @@ export default function Formular() {
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
     const revisionsLoadSeqRef = useRef(0);
+
+    useEffect(() => {
+        situationDrawTerritoryIndexRef.current = situationDrawTerritoryIndex;
+    }, [situationDrawTerritoryIndex]);
+
+    useEffect(() => {
+        situationDrawPolygonsRef.current = situationDrawPolygons;
+    }, [situationDrawPolygons]);
 
     const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
     const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();
@@ -386,13 +398,21 @@ export default function Formular() {
         setSituationModalRevisionId(baseRevision?.id ?? null);
         setSituationModalOpen(true);
 
-        if (mode === 'create' && situation?.drawPoints) {
-            setSituationDrawPoints(situation.drawPoints);
-        } else if (situation?.drawPoints) {
-            setSituationDrawPoints(situation.drawPoints);
+        setSituationDrawTerritoryIndex(0);
+        situationDrawTerritoryIndexRef.current = 0;
+
+        if (mode === 'create' && situation?.drawPolygons) {
+            setSituationDrawPolygons(situation.drawPolygons);
+            setSituationDrawPoints(situation.drawPolygons[0] || []);
+        } else if (situation?.drawPolygons) {
+            setSituationDrawPolygons(situation.drawPolygons);
+            setSituationDrawPoints(situation.drawPolygons[0] || []);
         } else if (baseRevision?.geometry) {
-            setSituationDrawPoints(geoJsonPolygonToDrawPoints(baseRevision.geometry));
+            const polys = geoJsonToDrawPolygons(baseRevision.geometry);
+            setSituationDrawPolygons(polys);
+            setSituationDrawPoints(polys[0] || []);
         } else {
+            setSituationDrawPolygons([]);
             setSituationDrawPoints([]);
         }
 
@@ -421,7 +441,10 @@ export default function Formular() {
         setSituationModalTarget(null);
         setSituationModalMode('create');
 
+        setSituationDrawPolygons([]);
         setSituationDrawPoints([]);
+        setSituationDrawTerritoryIndex(0);
+        situationDrawTerritoryIndexRef.current = 0;
         setDetailSituation(null);
         setSituationRevisions([]);
         setFocusedSituationId(null);
@@ -434,16 +457,72 @@ export default function Formular() {
         });
     }, []);
 
-    const handleSituationDrawConfirm = useCallback((points) => {
-        const nextPoints = points || situationDrawPoints;
+    const handleSituationDrawConfirm = useCallback((drawPolygons) => {
+        const polys = drawPolygons?.length ? drawPolygons : situationDrawPolygons;
         setIsSituationDrawActive(false);
-        setSituationDrawPoints(nextPoints);
-        openSituationModal('create', { drawPoints: nextPoints });
-    }, [openSituationModal, situationDrawPoints]);
+        setSituationDrawPolygons([]);
+        setSituationDrawPoints([]);
+        setSituationDrawTerritoryIndex(0);
+        situationDrawTerritoryIndexRef.current = 0;
+        openSituationModal('create', { drawPolygons: polys });
+    }, [openSituationModal, situationDrawPolygons]);
 
     const handleSituationDrawCancel = useCallback(() => {
         setIsSituationDrawActive(false);
+        setSituationDrawPolygons([]);
         setSituationDrawPoints([]);
+        setSituationDrawTerritoryIndex(0);
+        situationDrawTerritoryIndexRef.current = 0;
+    }, []);
+
+    const handleSituationDrawPolygonsChange = useCallback((updater) => {
+        setSituationDrawPolygons((prev) => (
+            typeof updater === 'function' ? updater(prev) : updater
+        ));
+    }, []);
+
+    const handleSituationDrawPointsChange = useCallback((updater) => {
+        setSituationDrawPoints((prevPoints) => {
+            const nextPoints = typeof updater === 'function' ? updater(prevPoints) : updater;
+            const activeIndex = situationDrawTerritoryIndexRef.current;
+            setSituationDrawPolygons((prevPolys) => {
+                const next = [...prevPolys];
+                while (next.length <= activeIndex) {
+                    next.push([]);
+                }
+                next[activeIndex] = nextPoints;
+                if (!nextPoints?.length && next.every((ring) => !ring?.length)) {
+                    return [];
+                }
+                return next;
+            });
+            return nextPoints;
+        });
+    }, []);
+
+    const handleSituationDrawPolygonsFromModal = useCallback((polys) => {
+        setSituationDrawPolygons(polys);
+        const idx = situationDrawTerritoryIndexRef.current;
+        const safeIdx = polys.length ? Math.min(Math.max(0, idx), polys.length - 1) : 0;
+        if (safeIdx !== idx) {
+            setSituationDrawTerritoryIndex(safeIdx);
+            situationDrawTerritoryIndexRef.current = safeIdx;
+        }
+        setSituationDrawPoints(polys[safeIdx] || []);
+    }, []);
+
+    const handleActiveTerritoryIndexChange = useCallback((index) => {
+        setSituationDrawTerritoryIndex(index);
+        situationDrawTerritoryIndexRef.current = index;
+        setSituationDrawPolygons((prev) => {
+            const next = [...prev];
+            while (next.length <= index) {
+                next.push([]);
+            }
+            situationDrawPolygonsRef.current = next;
+            setSituationDrawPoints(next[index] || []);
+            return next;
+        });
     }, []);
 
     const handleSituationEdit = useCallback((situation) => {
@@ -525,7 +604,10 @@ export default function Formular() {
         setSituationModalOpen(false);
         setSituationModalTarget(null);
         setSituationModalRevisionId(null);
+        setSituationDrawPolygons([]);
         setSituationDrawPoints([]);
+        setSituationDrawTerritoryIndex(0);
+        situationDrawTerritoryIndexRef.current = 0;
     }, []);
 
     const applySavedSituationPreview = useCallback(async (savedSituation, { mode, revisionId } = {}) => {
@@ -566,8 +648,8 @@ export default function Formular() {
         setSelectedSituations,
     ]);
 
-    const handleSituationSave = useCallback(async ({ mode, form, drawPoints, situationId, revisionId }) => {
-        const payload = buildSituationRequestBody(form, drawPoints);
+    const handleSituationSave = useCallback(async ({ mode, form, drawPolygons, situationId, revisionId }) => {
+        const payload = buildSituationRequestBody(form, drawPolygons);
         let saved = null;
         if (mode === 'create') {
             saved = await createSituation(payload);
@@ -606,7 +688,10 @@ export default function Formular() {
             setIsSituationDrawActive(false);
             setSituationModalOpen(false);
             setSituationModalTarget(null);
+            setSituationDrawPolygons([]);
             setSituationDrawPoints([]);
+            setSituationDrawTerritoryIndex(0);
+            situationDrawTerritoryIndexRef.current = 0;
             setFocusedSituationId(null);
             setTimelineRevisionId(null);
             setHighlightedSituationId(null);
@@ -626,7 +711,9 @@ export default function Formular() {
             setDetailSituation(situation);
         }
         const displayRevision = getSituationDisplayRevision(situation);
-        setSituationDrawPoints(geoJsonPolygonToDrawPoints(displayRevision?.geometry));
+        const polys = geoJsonToDrawPolygons(displayRevision?.geometry);
+        setSituationDrawPolygons(polys);
+        setSituationDrawPoints(polys[0] || []);
         if (!isFullscreen) {
             flyToSituation(displayRevision || situation);
         }
@@ -717,7 +804,10 @@ export default function Formular() {
         setIsMeasureMode(false);
         setMeasurePoints([]);
         setIsSituationDrawActive(false);
+        setSituationDrawPolygons([]);
         setSituationDrawPoints([]);
+        setSituationDrawTerritoryIndex(0);
+        situationDrawTerritoryIndexRef.current = 0;
         setMapUiResetToken((token) => token + 1);
         setIsToolsOpen(false);
     }, [
@@ -1227,8 +1317,11 @@ export default function Formular() {
                                 situationRevisions={situationRevisions}
                                 onSituationClick={handleSituationMapClick}
                                 isSituationDrawActive={isSituationDrawActive}
+                                situationDrawPolygons={situationDrawPolygons}
+                                onSituationDrawPolygonsChange={handleSituationDrawPolygonsChange}
                                 situationDrawPoints={situationDrawPoints}
-                                onSituationDrawPointsChange={setSituationDrawPoints}
+                                onSituationDrawPointsChange={handleSituationDrawPointsChange}
+                                situationDrawTerritoryIndex={situationDrawTerritoryIndex}
                                 onSituationDrawConfirm={handleSituationDrawConfirm}
                                 onSituationDrawCancel={handleSituationDrawCancel}
                                 detailSituation={detailSituation}
@@ -1353,8 +1446,10 @@ export default function Formular() {
                         ? findSituationRevision(situationRevisions, situationModalRevisionId)
                         : null
                 }
-                drawPoints={situationDrawPoints}
-                onDrawPointsChange={setSituationDrawPoints}
+                drawPolygons={situationDrawPolygons}
+                onDrawPolygonsChange={handleSituationDrawPolygonsFromModal}
+                activeTerritoryIndex={situationDrawTerritoryIndex}
+                onActiveTerritoryIndexChange={handleActiveTerritoryIndexChange}
                 countries={countriesList}
                 onSave={handleSituationSave}
             />

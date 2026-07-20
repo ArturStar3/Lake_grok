@@ -29,12 +29,14 @@ export default function EventDraftLayer({
   onUpdatePoint,
   onRemoveVertex,
   onInsertVertexOnEdge,
+  extraClosedPolygons = [],
 }) {
+  const hasExtraPolygons = extraClosedPolygons.some((ring) => ring?.length >= 3);
   if (!drawMode || drawPoints.length === 0) {
-    if (drawMode === 'circle' && drawPoints.length === 0) return null;
-    if (drawMode === 'rectangle' && drawPoints.length === 0) return null;
-    if (drawMode === 'polygon' && drawPoints.length === 0) return null;
-    if (drawMode !== 'point') return null;
+    if (drawMode === 'circle' && drawPoints.length === 0 && !hasExtraPolygons) return null;
+    if (drawMode === 'rectangle' && drawPoints.length === 0 && !hasExtraPolygons) return null;
+    if (drawMode === 'polygon' && drawPoints.length === 0 && !hasExtraPolygons) return null;
+    if (drawMode !== 'point' && !hasExtraPolygons) return null;
   }
 
   const rectanglePoints = drawMode === 'rectangle'
@@ -51,6 +53,22 @@ export default function EventDraftLayer({
 
   return (
     <>
+      {extraClosedPolygons.map((ring, ringIndex) => (
+        ring?.length >= 3 ? (
+          <Polygon
+            key={`extra-closed-${ringIndex}`}
+            positions={ring.map((p) => [p.lat, p.lng])}
+            pathOptions={{
+              color: DRAFT_COLOR,
+              fillColor: DRAFT_FILL,
+              fillOpacity: 0.2,
+              weight: 1,
+              interactive: false,
+            }}
+          />
+        ) : null
+      ))}
+
       {drawMode === 'point' && drawPoints[0] && (
         <CircleMarker
           center={[drawPoints[0].lat, drawPoints[0].lng]}

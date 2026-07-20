@@ -847,8 +847,11 @@ function MapComponent({
     situationRevisions = [],
     onSituationClick = () => {},
     isSituationDrawActive = false,
+    situationDrawPolygons = [],
+    onSituationDrawPolygonsChange = () => {},
     situationDrawPoints = [],
     onSituationDrawPointsChange = () => {},
+    situationDrawTerritoryIndex = 0,
     onSituationDrawConfirm = () => {},
     onSituationDrawCancel = () => {},
     detailSituation = null,
@@ -985,6 +988,7 @@ function MapComponent({
         && (tableTab === 'situations' || isSituationModalOpen);
     const polygonSessionPoints = polygonDrawSession?.points ?? EMPTY_DRAW_POINTS;
     const situationSessionPoints = situationDrawPoints ?? EMPTY_DRAW_POINTS;
+    const situationCompletedPolygons = situationDrawPolygons ?? EMPTY_DRAW_POINTS;
     const polygonDrawing = useEventDrawing({
         enabled: isPolygonDrawActive,
         isEditMode: true,
@@ -1002,6 +1006,62 @@ function MapComponent({
         // like Events "Произвольная форма" until user finishes explicitly.
         autoClosePolygon: isSituationModalOpen,
     });
+
+    const situationExtraClosedPolygons = useMemo(() => {
+        if (!isSituationDrawingActive) return EMPTY_DRAW_POINTS;
+        if (isSituationModalOpen) {
+            if (!situationCompletedPolygons.length) return EMPTY_DRAW_POINTS;
+            const activeIdx = situationCompletedPolygons.length
+                ? Math.min(
+                    Math.max(0, situationDrawTerritoryIndex),
+                    situationCompletedPolygons.length - 1,
+                )
+                : 0;
+            return situationCompletedPolygons.filter((_, i) => i !== activeIdx);
+        }
+        return situationCompletedPolygons;
+    }, [
+        isSituationDrawingActive,
+        isSituationModalOpen,
+        situationCompletedPolygons,
+        situationDrawTerritoryIndex,
+    ]);
+
+    const situationTerritoryCount = useMemo(() => {
+        const completed = situationCompletedPolygons.length;
+        const active = situationDrawing.drawPoints?.length ?? 0;
+        const activeClosed = situationDrawing.polygonClosed && active >= 3;
+        return completed + (activeClosed ? 1 : 0);
+    }, [
+        situationCompletedPolygons.length,
+        situationDrawing.drawPoints,
+        situationDrawing.polygonClosed,
+    ]);
+
+    const situationDrawReady = useMemo(() => {
+        const completed = situationCompletedPolygons.length;
+        if (completed < 1) return false;
+        const active = situationDrawing.drawPoints || [];
+        if (!active.length) return true;
+        return situationDrawing.polygonClosed && active.length >= 3;
+    }, [
+        situationCompletedPolygons.length,
+        situationDrawing.drawPoints,
+        situationDrawing.polygonClosed,
+    ]);
+
+    const canAddSituationTerritory = useMemo(() => {
+        if (isSituationModalOpen) return false;
+        const active = situationDrawing.drawPoints || [];
+        return situationCompletedPolygons.length >= 1
+            && active.length === 0
+            && !situationDrawing.polygonClosed;
+    }, [
+        isSituationModalOpen,
+        situationCompletedPolygons.length,
+        situationDrawing.drawPoints,
+        situationDrawing.polygonClosed,
+    ]);
 
     const [eventPolygonEditable, setEventPolygonEditable] = useState([]);
     const [zonePolygonEditable, setZonePolygonEditable] = useState([]);
@@ -1793,12 +1853,44 @@ function MapComponent({
     }, [polygonDrawing, onPolygonDrawComplete]);
 
     const handleSituationDrawConfirm = useCallback(() => {
-        if (!situationDrawing.isReady()) {
+        const completed = situationCompletedPolygons || [];
+        const active = situationDrawing.drawPoints || [];
+        const activeClosed = situationDrawing.polygonClosed;
+
+        if (active.length > 0 && !activeClosed) {
             situationDrawing.validateBeforeSave();
             return;
         }
-        onSituationDrawConfirm?.(situationDrawing.drawPoints);
-    }, [situationDrawing, onSituationDrawConfirm]);
+
+        const all = [...completed];
+        if (active.length >= 3 && activeClosed) {
+            all.push(active);
+        }
+
+        if (all.length === 0) {
+            situationDrawing.validateBeforeSave();
+            return;
+        }
+
+        onSituationDrawConfirm?.(all);
+    }, [situationCompletedPolygons, situationDrawing, onSituationDrawConfirm]);
+
+    const handleSituationFinishContour = useCallback(() => {
+        if (!situationDrawing.finishPolygon()) return;
+        const points = situationDrawing.drawPoints;
+        if (points.length < 3) return;
+        onSituationDrawPolygonsChange((prev) => [...(prev || []), points]);
+        onSituationDrawPointsChange([]);
+    }, [
+        situationDrawing,
+        onSituationDrawPolygonsChange,
+        onSituationDrawPointsChange,
+    ]);
+
+    const handleSituationAddTerritory = useCallback(() => {
+        if (!canAddSituationTerritory) return;
+        onSituationDrawPointsChange([]);
+    }, [canAddSituationTerritory, onSituationDrawPointsChange]);
 
     const isMapDrawingEvent = isMapDrawingActive;
 
@@ -2207,6 +2299,11 @@ function MapComponent({
                                     ? situationDrawing.insertVertexAtEdge
                                     : eventDrawing.insertVertexAtEdge
                         }
+                        extraClosedPolygons={
+                            isSituationDrawingActive
+                                ? situationExtraClosedPolygons
+                                : EMPTY_DRAW_POINTS
+                        }
                     />
                 )}
                 {visibleMapEvents.map((item) => renderEventShape(item))}
@@ -2395,7 +2492,19 @@ function MapComponent({
             )}
             {isSituationDrawingActive && isSituationModalOpen && (
                 <div className="situation-map-edit-hint" role="status">
-                    Редактируйте контур на карте: перетаскивайте вершины, кликайте по ребру для новой точки
+                    {situationCompletedPolygons.length > 0 ? (
+                        <>
+                            Редактируется территория{' '}
+                            {Math.min(
+                                situationDrawTerritoryIndex + 1,
+                                situationCompletedPolygons.length,
+                            )}
+                            {' '}из {situationCompletedPolygons.length}: перетаскивайте вершины,
+                            кликайте по ребру для новой точки
+                        </>
+                    ) : (
+                        'Редактируйте контур на карте: перетаскивайте вершины, кликайте по ребру для новой точки'
+                    )}
                 </div>
             )}
             {isSituationDrawingActive && !isSituationModalOpen && (
@@ -2406,8 +2515,11 @@ function MapComponent({
                     polygonClosed={situationDrawing.polygonClosed}
                     canFinishPolygon={situationDrawing.drawMode === 'polygon' && situationDrawing.drawPoints.length >= 3 && !situationDrawing.polygonClosed}
                     canUndoPoint={situationDrawing.drawMode === 'polygon' && situationDrawing.drawPoints.length >= 1 && !situationDrawing.polygonClosed}
-                    isReady={situationDrawing.isReady()}
-                    onFinishPolygon={situationDrawing.finishPolygon}
+                    isReady={situationDrawReady}
+                    territoryCount={situationTerritoryCount}
+                    canAddTerritory={canAddSituationTerritory}
+                    onAddTerritory={handleSituationAddTerritory}
+                    onFinishPolygon={handleSituationFinishContour}
                     onUndoPoint={situationDrawing.undoLastPoint}
                     onConfirm={handleSituationDrawConfirm}
                     onCancel={onSituationDrawCancel}

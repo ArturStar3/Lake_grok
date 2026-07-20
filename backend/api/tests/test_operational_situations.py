@@ -29,6 +29,30 @@ SAMPLE_GEOMETRY = {
     ],
 }
 
+SAMPLE_MULTI_GEOMETRY = {
+    'type': 'MultiPolygon',
+    'coordinates': [
+        [
+            [
+                [71.40, 51.10],
+                [71.50, 51.10],
+                [71.50, 51.20],
+                [71.40, 51.20],
+                [71.40, 51.10],
+            ],
+        ],
+        [
+            [
+                [72.00, 51.30],
+                [72.10, 51.30],
+                [72.10, 51.40],
+                [72.00, 51.40],
+                [72.00, 51.30],
+            ],
+        ],
+    ],
+}
+
 
 def situation_payload(country_id, **overrides):
     data = {
@@ -76,6 +100,46 @@ class OperationalSituationApiTests(APITestCase):
         )
         self.assertEqual(rev_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(rev_resp.data), 1)
+
+    def test_create_and_update_with_multipolygon_geometry(self):
+        create_resp = self.client.post(
+            '/api/v1/operational-situations/',
+            situation_payload(self.country.id, geometry=SAMPLE_MULTI_GEOMETRY),
+            format='json',
+            **self.headers,
+        )
+        self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
+        situation_id = create_resp.data['id']
+        self.assertEqual(
+            create_resp.data['current_revision']['geometry'],
+            SAMPLE_MULTI_GEOMETRY,
+        )
+
+        updated_geometry = {
+            'type': 'MultiPolygon',
+            'coordinates': SAMPLE_MULTI_GEOMETRY['coordinates'] + [
+                [
+                    [
+                        [72.20, 51.50],
+                        [72.30, 51.50],
+                        [72.30, 51.60],
+                        [72.20, 51.60],
+                        [72.20, 51.50],
+                    ],
+                ],
+            ],
+        }
+        patch_resp = self.client.patch(
+            f'/api/v1/operational-situations/{situation_id}/current/',
+            {'geometry': updated_geometry},
+            format='json',
+            **self.headers,
+        )
+        self.assertEqual(patch_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            patch_resp.data['current_revision']['geometry'],
+            updated_geometry,
+        )
 
     def test_new_revision_and_correction(self):
         create_resp = self.client.post(
