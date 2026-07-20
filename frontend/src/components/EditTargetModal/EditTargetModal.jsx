@@ -83,6 +83,7 @@ export default function EditTargetModal({
     onTargetUpdated,
     cachedTargets = null,
     onStartPolygonDraw,
+    onStartVulnerabilityPick,
     formPatch = null,
     onFormPatchApplied,
 }) {
@@ -98,6 +99,7 @@ export default function EditTargetModal({
         lng: '',
         actions: [],
         deployed_equipment: [],
+        vulnerabilities: [],
     });
     
     const [formularData, setFormularData] = useState({});
@@ -433,6 +435,17 @@ export default function EditTargetModal({
                         equipment_id: row.equipment?.id || '',
                         quantity: row.quantity || 1,
                     })),
+                    vulnerabilities: (target.vulnerabilities || []).map((v) => ({
+                        id: v.id,
+                        title: v.title || '',
+                        description: v.description || '',
+                        lat: v.lat != null ? String(v.lat) : '',
+                        lng: v.lng != null ? String(v.lng) : '',
+                        order: v.order ?? 0,
+                        image: v.image || '',
+                        imageFile: null,
+                        _delete: false,
+                    })),
                 });
             
                 const organized = organizeIntoHierarchy(sectionsRes.data);
@@ -755,6 +768,106 @@ export default function EditTargetModal({
             await reloadPersons();
         }
     };
+
+    const syncTargetVulnerabilities = async (rows) => {
+        const listRes = await axios.get(`${API_ROOT}/api/v1/target-vulnerabilities/`, {
+            params: { target: targetId },
+        });
+        const remoteIds = new Set((listRes.data || []).map((v) => v.id));
+        const kept = new Set();
+
+        for (const row of rows || []) {
+            if (row._delete) continue;
+            const title = (row.title || '').trim();
+            if (!title) continue;
+            const lat = parseFloat(row.lat);
+            const lng = parseFloat(row.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+            const payload = {
+                target: targetId,
+                title,
+                description: row.description || '',
+                lat,
+                lng,
+                order: parseInt(row.order, 10) || 0,
+            };
+
+            if (row.imageFile instanceof File) {
+                const fd = new FormData();
+                Object.entries(payload).forEach(([key, value]) => fd.append(key, value));
+                fd.append('image', row.imageFile);
+                if (row.id) {
+                    await axios.patch(`${API_ROOT}/api/v1/target-vulnerabilities/${row.id}/`, fd);
+                    kept.add(row.id);
+                } else {
+                    const created = await axios.post(`${API_ROOT}/api/v1/target-vulnerabilities/`, fd);
+                    kept.add(created.data.id);
+                }
+            } else if (row.id) {
+                await axios.patch(`${API_ROOT}/api/v1/target-vulnerabilities/${row.id}/`, payload);
+                kept.add(row.id);
+            } else {
+                const created = await axios.post(`${API_ROOT}/api/v1/target-vulnerabilities/`, payload);
+                kept.add(created.data.id);
+            }
+        }
+
+        for (const id of remoteIds) {
+            if (!kept.has(id)) {
+                await axios.delete(`${API_ROOT}/api/v1/target-vulnerabilities/${id}/`);
+            }
+        }
+    };
+
+    const handleAddVulnerability = () => {
+        setFormData((prev) => ({
+            ...prev,
+            vulnerabilities: [
+                ...(prev.vulnerabilities || []),
+                {
+                    title: '',
+                    description: '',
+                    lat: prev.lat || '',
+                    lng: prev.lng || '',
+                    order: (prev.vulnerabilities || []).length,
+                    image: '',
+                    imageFile: null,
+                    _delete: false,
+                },
+            ],
+        }));
+    };
+
+    const handleVulnerabilityFieldChange = (index, field, value) => {
+        setFormData((prev) => {
+            const next = [...(prev.vulnerabilities || [])];
+            next[index] = { ...next[index], [field]: value };
+            return { ...prev, vulnerabilities: next };
+        });
+    };
+
+    const handleRemoveVulnerability = (index) => {
+        setFormData((prev) => {
+            const next = [...(prev.vulnerabilities || [])];
+            const row = next[index];
+            if (row?.id) {
+                next[index] = { ...row, _delete: true };
+            } else {
+                next.splice(index, 1);
+            }
+            return { ...prev, vulnerabilities: next };
+        });
+    };
+
+    const handlePickVulnerabilityOnMap = (index) => {
+        if (!onStartVulnerabilityPick) return;
+        onStartVulnerabilityPick({
+            index,
+            formData,
+            formularData,
+        });
+    };
     
     const handleSave = async () => {
         if (!validateForm()) {
@@ -816,6 +929,7 @@ export default function EditTargetModal({
             };
             
             await axios.put(`${API_ROOT}/api/v1/targets/${targetId}/`, dataToSend);
+            await syncTargetVulnerabilities(formData.vulnerabilities || []);
             
             // Сохраняем формуляр
             const items = Object.entries(formularData).map(([sectionId, content]) => ({
@@ -1027,6 +1141,12 @@ export default function EditTargetModal({
                         onClick={() => setActiveTab('formular')}
                     >
                         Формуляр
+                    </button>
+                    <button
+                        className={`edit-target-modal__tab ${activeTab === 'vulnerabilities' ? 'edit-target-modal__tab--active' : ''}`}
+                        onClick={() => setActiveTab('vulnerabilities')}
+                    >
+                        Уязвимости
                     </button>
                     <button
                         className={`edit-target-modal__tab ${activeTab === 'persons' ? 'edit-target-modal__tab--active' : ''}`}
@@ -1584,6 +1704,110 @@ export default function EditTargetModal({
                             {activeTab === 'formular' && (
                                 <div className="edit-target-modal__tab-content">
                                     {sections.map(section => renderSection(section))}
+                                </div>
+                            )}
+
+                            {activeTab === 'vulnerabilities' && (
+                                <div className="edit-target-modal__tab-content">
+                                    <div className="edit-target-modal__vuln-toolbar">
+                                        <button
+                                            type="button"
+                                            className="edit-target-modal__button-add-action"
+                                            onClick={handleAddVulnerability}
+                                        >
+                                            + Добавить уязвимость
+                                        </button>
+                                    </div>
+                                    {(formData.vulnerabilities || []).filter((v) => !v._delete).length === 0 ? (
+                                        <p className="edit-target-modal__vuln-empty">Уязвимые места не заданы.</p>
+                                    ) : (
+                                        <ul className="edit-target-modal__vuln-list">
+                                            {(formData.vulnerabilities || []).map((row, index) => {
+                                                if (row._delete) return null;
+                                                return (
+                                                    <li key={row.id || `vuln-${index}`} className="edit-target-modal__vuln-card">
+                                                        <div className="edit-target-modal__vuln-card-head">
+                                                            <span className="edit-target-modal__vuln-card-index">
+                                                                #{index + 1}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                className="edit-target-modal__vuln-remove"
+                                                                onClick={() => handleRemoveVulnerability(index)}
+                                                            >
+                                                                Удалить
+                                                            </button>
+                                                        </div>
+                                                        <div className="edit-target-modal__field">
+                                                            <label className="edit-target-modal__label">Название</label>
+                                                            <input
+                                                                className="edit-target-modal__input"
+                                                                value={row.title}
+                                                                onChange={(e) => handleVulnerabilityFieldChange(index, 'title', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="edit-target-modal__field">
+                                                            <label className="edit-target-modal__label">Описание</label>
+                                                            <MarkdownEditor
+                                                                value={row.description || ''}
+                                                                onChange={(value) => handleVulnerabilityFieldChange(index, 'description', value)}
+                                                            />
+                                                        </div>
+                                                        <div className="edit-target-modal__vuln-coords">
+                                                            <div className="edit-target-modal__field">
+                                                                <label className="edit-target-modal__label">Широта</label>
+                                                                <input
+                                                                    className="edit-target-modal__input"
+                                                                    value={row.lat}
+                                                                    onChange={(e) => handleVulnerabilityFieldChange(index, 'lat', e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="edit-target-modal__field">
+                                                                <label className="edit-target-modal__label">Долгота</label>
+                                                                <input
+                                                                    className="edit-target-modal__input"
+                                                                    value={row.lng}
+                                                                    onChange={(e) => handleVulnerabilityFieldChange(index, 'lng', e.target.value)}
+                                                                />
+                                                            </div>
+                                                            {onStartVulnerabilityPick && (
+                                                                <div className="edit-target-modal__vuln-map-action">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="edit-target-modal__vuln-map-btn"
+                                                                        onClick={() => handlePickVulnerabilityOnMap(index)}
+                                                                    >
+                                                                        На карте
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="edit-target-modal__field">
+                                                            <label className="edit-target-modal__label">Фото</label>
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="edit-target-modal__vuln-file"
+                                                                onChange={(e) => handleVulnerabilityFieldChange(index, 'imageFile', e.target.files?.[0] || null)}
+                                                            />
+                                                            {row.imageFile ? (
+                                                                <span className="edit-target-modal__vuln-file-name">
+                                                                    {row.imageFile.name}
+                                                                </span>
+                                                            ) : null}
+                                                            {row.image && !row.imageFile ? (
+                                                                <img
+                                                                    src={row.image}
+                                                                    alt=""
+                                                                    className="edit-target-modal__vuln-preview"
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
                                 </div>
                             )}
 

@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import './FormularModal.css';
 import { apiClient } from '../../config/axios';
 import DetailSectionNavigator from '../DetailSections/DetailSectionNavigator';
 import { buildSectionCards, organizeSectionData } from '../../utils/organizeSectionData';
+import { buildZonesForTargetDetail, isActionVisible } from '../../utils/buildVisibleZones';
 
 const FormularModal = ({
   targetId,
@@ -11,6 +12,12 @@ const FormularModal = ({
   onSubordinateFlyTo,
   onSubordinateOpenDetails,
   onEditEquipmentInCatalog,
+  onToggleTargetZone,
+  onShowAllTargetZones,
+  onHideAllTargetZones,
+  actionZoneFilters = {},
+  onVulnerabilityPreviewChange,
+  initialShowVulnerabilitiesOnMap = false,
 }) => {
   const [data, setData] = useState([]);
   const [subordinates, setSubordinates] = useState([]);
@@ -20,7 +27,11 @@ const FormularModal = ({
   const [error, setError] = useState(null);
   const [targetTitle, setTargetTitle] = useState('');
   const [targetMeta, setTargetMeta] = useState(null);
+  const [targetDetail, setTargetDetail] = useState(null);
   const [persons, setPersons] = useState([]);
+  const [showVulnerabilitiesOnMap, setShowVulnerabilitiesOnMap] = useState(
+    () => Boolean(initialShowVulnerabilitiesOnMap),
+  );
 
   useEffect(() => {
     if (!targetId) return;
@@ -65,6 +76,7 @@ const FormularModal = ({
       try {
         const { data: target } = await apiClient.get(`/targets/${targetId}/`);
         setTargetTitle(target.title);
+        setTargetDetail(target);
         setDeployedEquipment(target.deployed_equipment || []);
         setTargetMeta({
           label: target.label,
@@ -85,15 +97,100 @@ const FormularModal = ({
       }
     };
 
+    setShowVulnerabilitiesOnMap(Boolean(initialShowVulnerabilitiesOnMap));
     fetchFormular();
     fetchAttachments();
     fetchTargetDetails();
     fetchPersons();
+    // initialShow читаем только при смене объекта
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId]);
+
+  const targetZones = useMemo(
+    () => buildZonesForTargetDetail(targetDetail),
+    [targetDetail],
+  );
+
+  // Галочки в карточке объекта = состояние общих фильтров «Зоны действия»
+  const zoneEnabledKeys = useMemo(() => {
+    const keys = new Set();
+    if (!targetDetail) return keys;
+    targetZones.forEach((zone) => {
+      if (isActionVisible(targetDetail, zone.action, actionZoneFilters)) {
+        keys.add(zone.zoneKey);
+      }
+    });
+    return keys;
+  }, [targetDetail, targetZones, actionZoneFilters]);
+
+  const vulnerabilityItems = useMemo(() => {
+    const list = targetDetail?.vulnerabilities || [];
+    return list.map((v) => ({
+      id: v.id,
+      title: v.title,
+      description: v.description,
+      image: v.image,
+      lat: v.lat,
+      lng: v.lng,
+    }));
+  }, [targetDetail]);
+
+  useEffect(() => {
+    if (!showVulnerabilitiesOnMap) {
+      onVulnerabilityPreviewChange?.({
+        targetId,
+        visible: false,
+        points: [],
+      });
+      return;
+    }
+    // Пока детали объекта грузятся — не сбрасываем уже показанные точки
+    if (!targetDetail) return;
+    onVulnerabilityPreviewChange?.({
+      targetId,
+      visible: true,
+      points: vulnerabilityItems,
+    });
+  }, [
+    targetId,
+    showVulnerabilitiesOnMap,
+    vulnerabilityItems,
+    targetDetail,
+    onVulnerabilityPreviewChange,
+  ]);
+
+  const handleToggleZone = useCallback((zoneKey) => {
+    const zone = targetZones.find((z) => z.zoneKey === zoneKey);
+    if (!zone) return;
+    const enabled = zoneEnabledKeys.has(zoneKey);
+    onToggleTargetZone?.(zone, !enabled);
+  }, [targetZones, zoneEnabledKeys, onToggleTargetZone]);
+
+  const handleShowAllZones = useCallback(() => {
+    onShowAllTargetZones?.(targetZones);
+  }, [targetZones, onShowAllTargetZones]);
+
+  const handleHideAllZones = useCallback(() => {
+    onHideAllTargetZones?.(targetZones);
+  }, [targetZones, onHideAllTargetZones]);
 
   const sectionCards = useMemo(() => {
     const organized = organizeSectionData(data);
     const extraCards = [];
+
+    // Карточка зон всегда доступна, если у объекта есть зоны (даже 0 выбранных)
+    if (targetZones.length > 0) {
+      extraCards.push({
+        id: 'zones',
+        title: 'Зоны действия',
+        excerpt: zoneEnabledKeys.size > 0
+          ? `на карте: ${zoneEnabledKeys.size} из ${targetZones.length}`
+          : `${targetZones.length} ${targetZones.length === 1 ? 'зона' : 'зон'} — выберите для карты`,
+        badge: { photos: 0, subsections: 0, items: targetZones.length },
+        kind: 'target-zones',
+        payload: {},
+      });
+    }
 
     if (deployedEquipment.length > 0) {
       const totalQty = deployedEquipment.reduce((sum, row) => sum + (row.quantity || 0), 0);
@@ -138,12 +235,35 @@ const FormularModal = ({
       });
     }
 
+    if (vulnerabilityItems.length > 0) {
+      extraCards.push({
+        id: 'vulnerabilities',
+        title: 'Уязвимости',
+        excerpt: `${vulnerabilityItems.length} ${vulnerabilityItems.length === 1 ? 'точка' : 'точек'}`,
+        badge: { photos: 0, subsections: 0, items: vulnerabilityItems.length },
+        kind: 'vulnerabilities',
+        payload: {},
+      });
+    }
+
     return buildSectionCards({
       organized,
       attachmentsBySection,
       extraCards,
     });
-  }, [data, attachmentsBySection, deployedEquipment, subordinates, persons, targetId, targetTitle, targetMeta]);
+  }, [
+    data,
+    attachmentsBySection,
+    deployedEquipment,
+    subordinates,
+    persons,
+    targetId,
+    targetTitle,
+    targetMeta,
+    targetZones,
+    zoneEnabledKeys,
+    vulnerabilityItems,
+  ]);
 
   const handleOverlayClick = (e) => {
     if (e.target.className === 'formular-modal-overlay') {
@@ -216,6 +336,18 @@ const FormularModal = ({
               onSubordinateOpenDetails={onSubordinateOpenDetails}
               onEditEquipmentInCatalog={onEditEquipmentInCatalog}
               onTargetOpenDetails={onSubordinateOpenDetails}
+              targetZonePreview={{
+                zones: targetZones,
+                enabledKeys: zoneEnabledKeys,
+                onToggleZone: handleToggleZone,
+                onShowAll: handleShowAllZones,
+                onHideAll: handleHideAllZones,
+              }}
+              vulnerabilityPreview={{
+                items: vulnerabilityItems,
+                showOnMap: showVulnerabilitiesOnMap,
+                onShowOnMapChange: setShowVulnerabilitiesOnMap,
+              }}
               emptyMessage="Нет данных для отображения"
             />
           )}

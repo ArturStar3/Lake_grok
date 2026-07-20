@@ -39,8 +39,17 @@ import EventDraftLayer from "./EventDraftLayer";
 import { useEventDrawing } from "../../hooks/map/useEventDrawing";
 import { drawPointsToEditable, editablePointsKey, drawPointsKey, EMPTY_DRAW_POINTS, parseLatLngPoints, validateEditablePolygonPoints } from "../../utils/polygonDrawUtils";
 import { calcDistanceMeters } from "../../utils/geoUtils";
-import { isFlagMarker } from "../../utils/markerFilters";
-import { getGroupCirclePositions } from "./markerClusteringUtils";
+import { isFlagMarker, isNonFlagMarker } from "../../utils/markerFilters";
+import { getGroupCirclePositions, setRuntimeClusterDistancePx } from "./markerClusteringUtils";
+import BubbleClusterLayer from "./BubbleClusterLayer";
+import VulnerabilityPointsLayer from "./VulnerabilityPointsLayer";
+import {
+  filterFlagObjectsForZoom,
+  shouldShowNonFlagMarkers,
+  loadMapClusterMode,
+  saveMapClusterMode,
+  DEFAULT_MAP_DISPLAY_ZOOM_RULES,
+} from "../../utils/mapDisplaySettings";
 import { TILE_RASTER_URL, USE_VECTOR_MAP } from "../../config/tiles";
 import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
 import { clearMarkerIconCache } from "../../utils/markerIconCache";
@@ -339,15 +348,27 @@ function MapScaleBar({ isFullscreen }) {
 }
 
 // Компонент для инициализации маркеров ВНУТРИ MapContainer
-function MarkerInitializer({ objects, selectedIds, onMarkersReady }) {
-    // Этот компонент передаёт карту в LabelGeneration
-    // LabelGeneration - компонент-обёртка, которая всю кластеризацию делает
-    return <LabelGeneration objects={objects} selectedIds={selectedIds} onMarkersReady={onMarkersReady} />;
+function MarkerInitializer({ objects, selectedIds, onMarkersReady, clusterMode }) {
+    return (
+        <LabelGeneration
+            objects={objects}
+            selectedIds={selectedIds}
+            onMarkersReady={onMarkersReady}
+            clusterMode={clusterMode}
+        />
+    );
 }
 
 // Компонент для инициализации non-flag маркеров ВНУТРИ MapContainer
-function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds }) {
-    return <NonFlagLabelGeneration objects={objects} onMarkersReady={onMarkersReady} selectedIds={selectedIds} />;
+function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds, clusterMode }) {
+    return (
+        <NonFlagLabelGeneration
+            objects={objects}
+            onMarkersReady={onMarkersReady}
+            selectedIds={selectedIds}
+            clusterMode={clusterMode}
+        />
+    );
 }
 
 const FlagMapMarker = React.memo(function FlagMapMarker({
@@ -876,6 +897,10 @@ function MapComponent({
     isSituationModalOpen = false,
     editingSituationId = null,
     canReadSituations = true,
+    mapZoomRules = DEFAULT_MAP_DISPLAY_ZOOM_RULES,
+    vulnerabilityMapPoints = [],
+    vulnerabilityPickActive = false,
+    onVulnerabilityMapPick,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
 
@@ -894,7 +919,10 @@ function MapComponent({
     const [activeZonePopup, setActiveZonePopup] = useState(null);
     const [activeZonePopupVersion, setActiveZonePopupVersion] = useState(0);
     const [geoData, setGeoData] = useState(null);
-    const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [] });
+    const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [], bubbles: [] });
+    const [flagBubbles, setFlagBubbles] = useState([]);
+    const [nonFlagBubbles, setNonFlagBubbles] = useState([]);
+    const [clusterMode, setClusterModeState] = useState(() => loadMapClusterMode());
     const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
@@ -952,6 +980,8 @@ function MapComponent({
     const mapEventApiRef = useRef({});
     const countryClickApiRef = useRef({});
     const altAddTargetApiRef = useRef({});
+    const vulnerabilityPickRef = useRef(false);
+    vulnerabilityPickRef.current = vulnerabilityPickActive;
     const zoneHoverControllerRef = useRef(null);
     if (!zoneHoverControllerRef.current) {
         zoneHoverControllerRef.current = createZoneHoverController();
@@ -1320,33 +1350,55 @@ function MapComponent({
     //   >7  : all
     // - For non-flag markers: always all (no zoom/order restriction)
     const flagObjectsForMap = useMemo(() => {
-      if (currentZoom > 7) {
-        return objects;
-      }
-      const maxOrder = currentZoom <= 5 ? 3 : 8;
-      return objects.filter((obj) => {
-        const ord = parseInt(obj.marker?.order ?? 999, 10);
-        return ord <= maxOrder;
-      });
-    }, [objects, currentZoom]);
+      return filterFlagObjectsForZoom(objects, currentZoom, mapZoomRules);
+    }, [objects, currentZoom, mapZoomRules]);
 
-    // non-flag markers should be visible only starting from zoom 6 (inclusive)
-    // hide when decreasing zoom below 6
     const nonFlagObjectsForMap = useMemo(() => {
-      if (currentZoom < 6) {
+      if (!shouldShowNonFlagMarkers(currentZoom, mapZoomRules)) {
         return [];
       }
-      return objects;  // all non-flag markers from 6+
-    }, [objects, currentZoom]);
+      return objects;
+    }, [objects, currentZoom, mapZoomRules]);
+
+    useEffect(() => {
+      setRuntimeClusterDistancePx(mapZoomRules?.cluster_distance_px);
+    }, [mapZoomRules]);
+
+    const setClusterMode = useCallback((mode) => {
+      const next = mode === 'bubble' ? 'bubble' : 'legacy';
+      saveMapClusterMode(next);
+      setClusterModeState(next);
+    }, []);
+
+    const allBubbleClusters = useMemo(
+      () => [...flagBubbles, ...nonFlagBubbles],
+      [flagBubbles, nonFlagBubbles],
+    );
+
+    const bubbleModeSingles = useMemo(() => {
+      if (clusterMode !== 'bubble') return [];
+      const result = [];
+      (markerData.clusteredObjects || []).forEach((obj) => {
+        if (selectedSet.has(obj.id) && isFlagMarker(obj)) {
+          result.push({ ...obj, _bubbleSingleIsFlag: true });
+        }
+      });
+      (nonFlagData.groupedObjects || []).forEach((obj) => {
+        if (selectedSet.has(obj.id) && isNonFlagMarker(obj) && !obj.isHidden) {
+          result.push({ ...obj, _bubbleSingleIsFlag: false });
+        }
+      });
+      return result;
+    }, [clusterMode, markerData.clusteredObjects, nonFlagData.groupedObjects, selectedSet]);
 
     // Force-clear nonFlagData when zooming out below 6.
     // The NonFlagMarkerInitializer may not emit a "clear" when its objects prop shrinks,
     // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
     useEffect(() => {
-      if (currentZoom < 6) {
+      if (!shouldShowNonFlagMarkers(currentZoom, mapZoomRules)) {
         setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
       }
-    }, [currentZoom]);
+    }, [currentZoom, mapZoomRules]);
 
     // Зоны действия: состояния фильтров (actionZoneFilters, showZoneIntersections) и UI панели
     // теперь живут в Formular (sidebar). Здесь только потребление переданных props для рендера зон и точек.
@@ -1481,10 +1533,12 @@ function MapComponent({
 
     const handleMarkersReady = useCallback((data) => {
         setMarkerData(data);
+        setFlagBubbles(data?.bubbles || []);
     }, []);
 
     const handleNonFlagMarkersReady = useCallback((data) => {
         setNonFlagData(data);
+        setNonFlagBubbles(data?.bubbles || []);
     }, []);
 
     // Используем clusteredObjects для отображения маркеров (с примененными офсетами)
@@ -1519,6 +1573,12 @@ function MapComponent({
             }
             setPinnedGroupId(null);
             handleZonePanelClose();
+        })();
+
+        // 2b) Выбор точки уязвимости на карте
+        (() => {
+            if (!vulnerabilityPickRef.current || !onVulnerabilityMapPick) return;
+            onVulnerabilityMapPick({ lat: e.latlng.lat, lng: e.latlng.lng });
         })();
 
         // 2) Режим измерения: Ctrl+клик добавляет точку
@@ -1961,6 +2021,34 @@ function MapComponent({
                                         type="button"
                                         className="map__measure-menu-item"
                                         onClick={() => {
+                                            setClusterMode('legacy');
+                                            setIsMeasureMenuOpen(false);
+                                        }}
+                                    >
+                                        {clusterMode === 'legacy' ? '✓ ' : ''}Кластеризация: классическая
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="map__measure-menu-item"
+                                        onClick={() => {
+                                            setClusterMode('bubble');
+                                            setIsMeasureMenuOpen(false);
+                                        }}
+                                    >
+                                        {clusterMode === 'bubble' ? '✓ ' : ''}Кластеризация: круги
+                                    </button>
+                                    {clusterMode === 'bubble' && (
+                                        <p className="map__cluster-legend" role="note">
+                                            <span className="map__cluster-legend-dot map__cluster-legend-dot--flag" aria-hidden />
+                                            флаги
+                                            <span className="map__cluster-legend-dot map__cluster-legend-dot--nonflag" aria-hidden />
+                                            объекты
+                                        </p>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className="map__measure-menu-item"
+                                        onClick={() => {
                                             onResetAllMapState?.();
                                             setIsMeasureMenuOpen(false);
                                         }}
@@ -2201,14 +2289,30 @@ function MapComponent({
                     key={`markers-v${markerVersion}`}
                     objects={flagObjectsForMap} 
                     selectedIds={selectedObj} 
-                    onMarkersReady={handleMarkersReady} 
+                    onMarkersReady={handleMarkersReady}
+                    clusterMode={clusterMode}
                 />
                 <NonFlagMarkerInitializer 
                     key={`nonflag-v${markerVersion}`}
                     objects={nonFlagObjectsForMap} 
                     onMarkersReady={handleNonFlagMarkersReady} 
-                    selectedIds={selectedObj} 
+                    selectedIds={selectedObj}
+                    clusterMode={clusterMode}
                 />
+                {clusterMode === 'bubble' && (
+                    <BubbleClusterLayer
+                        bubbles={allBubbleClusters}
+                        singles={bubbleModeSingles}
+                        onMarkerClick={handleMarkerClickGuarded}
+                        onMarkerHover={handleMarkerHover}
+                        measureMode={effectiveMeasureMode}
+                        eventDrawingActive={isMapDrawingEvent}
+                        altAddTargetActive={isAltAddTargetActive}
+                        onEventMapClick={handleEventMapClick}
+                        onAltClickAddTarget={handleAltClickAddTarget}
+                    />
+                )}
+                {clusterMode === 'legacy' && (
                 <GroupCircleDisplay 
                     groupedObjects={nonFlagData.groupedObjects} 
                     hoveredGroupId={hoveredGroupId} 
@@ -2224,6 +2328,10 @@ function MapComponent({
                     onAltClickAddTarget={handleAltClickAddTarget}
                     onMarkerHover={handleMarkerHover}
                 />
+                )}
+                {vulnerabilityMapPoints.length > 0 && (
+                    <VulnerabilityPointsLayer points={vulnerabilityMapPoints} />
+                )}
                 {geoData && (
                         <MemoGeoJSON
                             data={geoData}
@@ -2316,6 +2424,8 @@ function MapComponent({
                     editingSituationId={editingSituationId}
                     onSituationClick={onSituationClick}
                 />
+                {clusterMode === 'legacy' && (
+                <>
                 <FlagMarkersLayer
                     markers={displayedObjectsForMarkers}
                     iconsById={markerData.iconsById}
@@ -2343,6 +2453,8 @@ function MapComponent({
                     onGroupHover={updateGroupHover}
                     onPinGroup={setPinnedGroupId}
                 />
+                </>
+                )}
                 {(() => {
                     const arr = isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints;
                     return arr.length > 0 && arr.map((point, idx) => {

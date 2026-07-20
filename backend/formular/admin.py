@@ -35,6 +35,8 @@ from .models import (
     PersonAttachment,
     PersonPhoto,
     PersonRelation,
+    MapDisplaySettings,
+    TargetVulnerability,
 )
 from .admin_inlines import (
     TargetInlineAdmin,
@@ -461,3 +463,31 @@ class PersonRelationAdmin(InlineOnlyModelAdmin):
     autocomplete_fields = ('person_from', 'person_to', 'relation_type')
     list_select_related = ('person_from', 'person_to', 'relation_type')
     list_per_page = 50
+
+
+class TargetVulnerabilityInline(admin.TabularInline):
+    model = TargetVulnerability
+    extra = 0
+    fields = ('title', 'lat', 'lng', 'order', 'image')
+    show_change_link = True
+
+
+TargetAdmin.inlines = TargetAdmin.inlines + (TargetVulnerabilityInline,)
+
+
+@admin.register(MapDisplaySettings)
+class MapDisplaySettingsAdmin(ModelAdmin):
+    list_display = ('__str__',)
+    fields = ('zoom_rules',)
+
+    def has_add_permission(self, request):
+        return not MapDisplaySettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        from formular.map_display_utils import validate_map_display_zoom_rules
+
+        obj.zoom_rules = validate_map_display_zoom_rules(obj.zoom_rules)
+        super().save_model(request, obj, form, change)

@@ -1273,3 +1273,95 @@ class OperationalSituationRevision(models.Model):
     def __str__(self):
         return f'{self.title} (v{self.version})'
 
+
+DEFAULT_MAP_DISPLAY_ZOOM_RULES = {
+    'flag_tiers': [
+        {'max_zoom': 5, 'max_order': 3},
+        {'max_zoom': 7, 'max_order': 8},
+    ],
+    'non_flag_min_zoom': 6,
+    'cluster_distance_px': 38,
+}
+
+
+class MapDisplaySettings(models.Model):
+    """Singleton: правила отображения маркеров на карте по масштабу."""
+
+    singleton_id = models.PositiveSmallIntegerField(
+        primary_key=True,
+        default=1,
+        editable=False,
+        verbose_name='ID',
+    )
+    zoom_rules = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Правила зума (JSON)',
+        help_text='flag_tiers, non_flag_min_zoom, cluster_distance_px',
+    )
+
+    class Meta:
+        verbose_name = 'Настройки отображения карты'
+        verbose_name_plural = 'Настройки отображения карты'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(
+            pk=1,
+            defaults={'zoom_rules': DEFAULT_MAP_DISPLAY_ZOOM_RULES},
+        )
+        if not obj.zoom_rules:
+            obj.zoom_rules = DEFAULT_MAP_DISPLAY_ZOOM_RULES.copy()
+            obj.save(update_fields=['zoom_rules'])
+        return obj
+
+    def __str__(self):
+        return 'Настройки отображения карты'
+
+
+class TargetVulnerability(models.Model):
+    """Уязвимое место объекта (точка на карте)."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    target = models.ForeignKey(
+        Target,
+        on_delete=models.CASCADE,
+        related_name='vulnerabilities',
+        verbose_name='Объект',
+    )
+    title = models.CharField(max_length=250, verbose_name='Название')
+    description = models.TextField(blank=True, default='', verbose_name='Описание')
+    image = models.ImageField(
+        upload_to='target_vulnerabilities',
+        blank=True,
+        null=True,
+        verbose_name='Фото',
+    )
+    lat = models.FloatField(verbose_name='Широта')
+    lng = models.FloatField(verbose_name='Долгота')
+    order = models.PositiveIntegerField(default=0, verbose_name='Порядок')
+
+    class Meta:
+        verbose_name = 'Уязвимое место объекта'
+        verbose_name_plural = 'Уязвимые места объектов'
+        ordering = ['order', 'title']
+        indexes = [
+            models.Index(fields=('target', 'order')),
+        ]
+
+    def __str__(self):
+        return f'{self.target.title} — {self.title}'
+

@@ -13,9 +13,17 @@ export default function DetailSectionNavigator({
   onSubordinateOpenDetails,
   onEditEquipmentInCatalog,
   onTargetOpenDetails,
+  initialCardId = null,
+  targetZonePreview = null,
+  vulnerabilityPreview = null,
   emptyMessage = 'Информация отсутствует.',
 }) {
   const [selectedCardId, setSelectedCardId] = useState(null);
+
+  const resolvedInitialId = useMemo(() => {
+    if (!initialCardId) return null;
+    return cards.some((c) => c.id === initialCardId) ? initialCardId : null;
+  }, [cards, initialCardId]);
 
   const selectedCard = useMemo(
     () => cards.find((card) => card.id === selectedCardId) ?? null,
@@ -23,13 +31,14 @@ export default function DetailSectionNavigator({
   );
 
   useEffect(() => {
-    setSelectedCardId(null);
-  }, [resetKey]);
+    setSelectedCardId(resolvedInitialId);
+  }, [resetKey, resolvedInitialId]);
 
   useEffect(() => {
+    if (resolvedInitialId) return;
     if (!autoExpandSingle || cards.length !== 1) return;
     setSelectedCardId(cards[0].id);
-  }, [autoExpandSingle, cards, resetKey]);
+  }, [autoExpandSingle, cards, resetKey, resolvedInitialId]);
 
   const handleSelectCard = useCallback((card) => {
     setSelectedCardId(card.id);
@@ -63,6 +72,8 @@ export default function DetailSectionNavigator({
                   onSubordinateOpenDetails={onSubordinateOpenDetails}
                   onEditEquipmentInCatalog={onEditEquipmentInCatalog}
                   onTargetOpenDetails={onTargetOpenDetails}
+                  targetZonePreview={targetZonePreview}
+                  vulnerabilityPreview={vulnerabilityPreview}
                 />
               </div>
             </div>

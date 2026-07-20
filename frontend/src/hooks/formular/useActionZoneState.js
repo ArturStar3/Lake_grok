@@ -290,6 +290,48 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     });
   }, []);
 
+  /** Включить/выключить конкретный лист фильтра зон. */
+  const setZoneLeaf = useCallback((country, actionTypeId, leaf, enabled) => {
+    if (!country || actionTypeId == null || leaf == null) return;
+    const typeKey = String(actionTypeId);
+    startTransition(() => {
+      setActionZoneFilters((prev) => {
+        const next = { ...prev };
+        const countryFilters = cloneCountryFilters(next[country]);
+        const leafSet = countryFilters[typeKey] ? new Set(countryFilters[typeKey]) : new Set();
+        if (enabled) leafSet.add(leaf);
+        else leafSet.delete(leaf);
+        countryFilters[typeKey] = leafSet;
+        next[country] = countryFilters;
+        return next;
+      });
+    });
+  }, []);
+
+  /**
+   * Пакетно включить/выключить листья (для «Показать все» / «Скрыть все» в карточке объекта).
+   * items: [{ country, actionTypeId, leaf }]
+   */
+  const setZoneLeavesBatch = useCallback((items, enabled) => {
+    if (!Array.isArray(items) || items.length === 0) return;
+    startTransition(() => {
+      setActionZoneFilters((prev) => {
+        const next = { ...prev };
+        items.forEach(({ country, actionTypeId, leaf }) => {
+          if (!country || actionTypeId == null || leaf == null) return;
+          const typeKey = String(actionTypeId);
+          const countryFilters = cloneCountryFilters(next[country]);
+          const leafSet = countryFilters[typeKey] ? new Set(countryFilters[typeKey]) : new Set();
+          if (enabled) leafSet.add(leaf);
+          else leafSet.delete(leaf);
+          countryFilters[typeKey] = leafSet;
+          next[country] = countryFilters;
+        });
+        return next;
+      });
+    });
+  }, []);
+
   const toggleAllForActionType = useCallback((country, group, shouldEnable) => {
     const typeKey = String(group.actionTypeId);
     const leaves = getAllLeavesForActionType(group);
@@ -405,6 +447,8 @@ export function useActionZoneState(objects, { zonesActive = false } = {}) {
     intersections,
     selectedIntersections,
     toggleZoneLeaf,
+    setZoneLeaf,
+    setZoneLeavesBatch,
     toggleAllForActionType,
     toggleAllForCountry,
     resetZoneFilters,

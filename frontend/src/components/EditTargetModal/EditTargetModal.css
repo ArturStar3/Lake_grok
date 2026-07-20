@@ -889,3 +889,138 @@
     width: 100%;
     margin-top: 8px;
 }
+
+/* Уязвимости */
+.edit-target-modal__vuln-toolbar {
+    margin-bottom: 4px;
+}
+
+.edit-target-modal__vuln-empty {
+    margin: 0;
+    padding: 24px 16px;
+    text-align: center;
+    color: #888;
+    font-size: 0.95rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px dashed #d0d5dd;
+}
+
+.edit-target-modal__vuln-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.edit-target-modal__vuln-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.edit-target-modal__vuln-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #edf2f7;
+}
+
+.edit-target-modal__vuln-card-index {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    letter-spacing: 0.02em;
+}
+
+.edit-target-modal__vuln-remove {
+    padding: 6px 12px;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.edit-target-modal__vuln-remove:hover {
+    background: #fee2e2;
+    border-color: #f87171;
+}
+
+.edit-target-modal__vuln-coords {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.edit-target-modal__vuln-map-action {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 1px;
+}
+
+.edit-target-modal__vuln-map-btn {
+    padding: 10px 14px;
+    border: 1px solid #008dd2;
+    border-radius: 6px;
+    background: #e8f6fc;
+    color: #0077b3;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.edit-target-modal__vuln-map-btn:hover {
+    background: #d5eef8;
+    border-color: #0077b3;
+}
+
+.edit-target-modal__vuln-file {
+    font-size: 0.9rem;
+    color: #475569;
+}
+
+.edit-target-modal__vuln-file-name {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.edit-target-modal__vuln-preview {
+    display: block;
+    max-width: 160px;
+    max-height: 120px;
+    margin-top: 4px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    object-fit: cover;
+}
+
+@media (max-width: 720px) {
+    .edit-target-modal__vuln-coords {
+        grid-template-columns: 1fr;
+    }
+
+    .edit-target-modal__vuln-map-action {
+        align-items: stretch;
+    }
+
+    .edit-target-modal__vuln-map-btn {
+        width: 100%;
+    }
+}

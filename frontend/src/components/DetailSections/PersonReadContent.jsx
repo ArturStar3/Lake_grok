@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import AttachmentGallery from './AttachmentGallery';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import noUserIcon from '../../assets/images/no_user.png';
 import './DetailSections.css';
 import './PersonReadModal.css';
-
-function resolveMediaUrl(url) {
-  if (!url) return null;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const base = API_URL.replace(/\/$/, '');
-  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
-}
 
 export default function PersonReadContent({ person, onRelationClick, className = '' }) {
   const [detail, setDetail] = useState(null);
@@ -50,6 +44,7 @@ export default function PersonReadContent({ person, onRelationClick, className =
   }, [person?.id]);
 
   const displayPerson = detail?.person || person;
+  const personDisplayName = displayPerson?.full_name || person?.full_name || 'Персона';
   const avatarPhoto = photos.find((p) => p.order === 1);
   const avatarUrl = useMemo(() => {
     const raw = displayPerson?.avatar || avatarPhoto?.image || person.avatar;
@@ -61,13 +56,16 @@ export default function PersonReadContent({ person, onRelationClick, className =
       .map((photo) => ({
         id: photo.id,
         image: resolveMediaUrl(photo.image),
-        title: photo.title || (photo.order === 1 ? 'Аватар' : 'Фото'),
+        order: photo.order,
+        title: photo.title || (photo.order === 1 ? personDisplayName : 'Фото'),
       }))
       .filter((photo) => photo.image),
-    [photos],
+    [photos, personDisplayName],
   );
 
-  const extraGalleryPhotos = galleryPhotos.filter((photo) => photo.title !== 'Аватар' || photos.length > 1);
+  const extraGalleryPhotos = galleryPhotos.filter(
+    (photo) => !(photo.order === 1 && photos.length === 1),
+  );
 
   const openPreview = (image, title) => {
     if (!image) return;
@@ -81,8 +79,8 @@ export default function PersonReadContent({ person, onRelationClick, className =
           <button
             type="button"
             className="person-read-content__avatar-btn"
-            onClick={() => openPreview(avatarUrl, 'Аватар')}
-            aria-label="Открыть аватар"
+            onClick={() => openPreview(avatarUrl, personDisplayName)}
+            aria-label={`Открыть фото: ${personDisplayName}`}
           >
             <img
               className="person-read-content__avatar"

@@ -2,6 +2,8 @@ import AttachmentGallery from './AttachmentGallery';
 import DeployedEquipmentDisplay from '../TargetEquipment/DeployedEquipmentDisplay';
 import SubordinationTree from './SubordinationTree';
 import FormularCompletionCard from './FormularCompletionCard';
+import TargetZonesPreviewCard from './TargetZonesPreviewCard';
+import TargetVulnerabilitiesCard from './TargetVulnerabilitiesCard';
 import PersonDetailView from './PersonDetailView';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import { itemHasVisibleContent } from '../../utils/organizeSectionData';
@@ -33,6 +35,8 @@ export default function SectionDetailView({
   onSubordinateOpenDetails,
   onEditEquipmentInCatalog,
   onTargetOpenDetails,
+  targetZonePreview,
+  vulnerabilityPreview,
 }) {
   if (!card) return null;
 
@@ -111,6 +115,34 @@ export default function SectionDetailView({
       <div className="detail-sections__detail">
         <h3 className="detail-sections__group-title">{card.title}</h3>
         <PersonDetailView persons={card.payload.persons || []} />
+      </div>
+    );
+  }
+
+  if (card.kind === 'target-zones') {
+    return (
+      <div className="detail-sections__detail">
+        <h3 className="detail-sections__group-title">{card.title}</h3>
+        <TargetZonesPreviewCard
+          zones={targetZonePreview?.zones || []}
+          enabledKeys={targetZonePreview?.enabledKeys}
+          onToggleZone={targetZonePreview?.onToggleZone}
+          onShowAll={targetZonePreview?.onShowAll}
+          onHideAll={targetZonePreview?.onHideAll}
+        />
+      </div>
+    );
+  }
+
+  if (card.kind === 'vulnerabilities') {
+    return (
+      <div className="detail-sections__detail">
+        <h3 className="detail-sections__group-title">{card.title}</h3>
+        <TargetVulnerabilitiesCard
+          items={vulnerabilityPreview?.items || []}
+          showOnMap={vulnerabilityPreview?.showOnMap}
+          onShowOnMapChange={vulnerabilityPreview?.onShowOnMapChange}
+        />
       </div>
     );
   }

@@ -1,0 +1,118 @@
+.target-vulnerabilities-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.target-vulnerabilities-card__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-weight: 500;
+  color: #1f2a38;
+  cursor: pointer;
+}
+
+.target-vulnerabilities-card__toggle input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: #008dd2;
+}
+
+.target-vulnerabilities-card__hint {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.target-vulnerabilities-card__empty {
+  margin: 0;
+  padding: 20px 14px;
+  text-align: center;
+  color: #6b7280;
+  background: #f8fafc;
+  border: 1px dashed #d0d5dd;
+  border-radius: 8px;
+}
+
+.target-vulnerabilities-card__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.target-vulnerabilities-card__item {
+  padding: 0;
+  border-left: 3px solid #b45309;
+  background: #fffbeb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.target-vulnerabilities-card__item-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.target-vulnerabilities-card__item-btn:hover {
+  background: #fef3c7;
+}
+
+.target-vulnerabilities-card__item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.target-vulnerabilities-card__title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  line-height: 1.35;
+}
+
+.target-vulnerabilities-card__desc {
+  margin: 0;
+  line-height: 1.5;
+  color: #555;
+}
+
+.target-vulnerabilities-card__desc p {
+  margin: 0 0 0.5em;
+}
+
+.target-vulnerabilities-card__desc p:last-child {
+  margin-bottom: 0;
+}
+
+.target-vulnerabilities-card__photo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid #e7e0d0;
+  object-fit: cover;
+  background: #f8fafc;
+}

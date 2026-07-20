@@ -35,6 +35,8 @@ import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
 import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
 import { buildVisibleZones } from "../../utils/buildVisibleZones";
+import { getActionFilterDimensions } from "../../utils/inundationZone";
+import { useMapDisplaySettings } from "../../hooks/map/useMapDisplaySettings";
 import { isLosRadarZoneMode } from "../../utils/computeLosZone";
 
 const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
@@ -62,6 +64,10 @@ export default function Formular() {
     const [editTargetFormPatch, setEditTargetFormPatch] = useState(null);
     const [polygonDrawSession, setPolygonDrawSession] = useState(null);
     const polygonDrawSessionRef = useRef(null);
+    const [vulnerabilityPickSession, setVulnerabilityPickSession] = useState(null);
+    const vulnerabilityPickSessionRef = useRef(null);
+    const [vulnerabilityMapPreview, setVulnerabilityMapPreview] = useState(null);
+    const { zoomRules: mapZoomRules } = useMapDisplaySettings();
     const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
     const [editingEvent, setEditingEvent] = useState(null);
     const [editEventDrawMode, setEditEventDrawMode] = useState(null);
@@ -207,6 +213,7 @@ export default function Formular() {
         quickSelectCombo,
         intersections, selectedIntersections,
         toggleZoneLeaf, toggleAllForActionType, toggleAllForCountry, resetZoneFilters,
+        setZoneLeaf, setZoneLeavesBatch,
         toggleQuickSelectLeaf,
         toggleAllQuickSelectLeavesForType,
         setAllQuickSelectLeaves,
@@ -222,6 +229,11 @@ export default function Formular() {
         if (!zonesLayerActive) return [];
         return buildVisibleZones(objects, deferredZoneFilters);
     }, [zonesLayerActive, objects, deferredZoneFilters]);
+
+    const vulnerabilityMapPoints = useMemo(() => {
+        if (!vulnerabilityMapPreview?.visible) return [];
+        return vulnerabilityMapPreview.points || [];
+    }, [vulnerabilityMapPreview]);
 
     const terrainZones = useMemo(() => {
         if (!zonesLayerActive || !considerTerrain) return [];
@@ -897,6 +909,113 @@ export default function Formular() {
         setPolygonDrawSession(null);
     }, []);
 
+    const handleToggleTargetZone = useCallback((zone, enabled) => {
+        const dims = getActionFilterDimensions(zone?.action);
+        const country = zone?.countryTitle || zone?.obj?.country?.title;
+        if (!dims || !country) return;
+        setZoneLeaf(country, dims.actionTypeId, dims.leaf, enabled);
+        if (enabled) {
+            const lat = zone?.centerLat ?? zone?.obj?.lat;
+            const lng = zone?.centerLng ?? zone?.obj?.lng;
+            if (lat != null && lng != null) flyTo(lat, lng, 10);
+        }
+    }, [setZoneLeaf, flyTo]);
+
+    const handleShowAllTargetZones = useCallback((zones) => {
+        const items = (zones || []).map((zone) => {
+            const dims = getActionFilterDimensions(zone?.action);
+            const country = zone?.countryTitle || zone?.obj?.country?.title;
+            if (!dims || !country) return null;
+            return { country, actionTypeId: dims.actionTypeId, leaf: dims.leaf };
+        }).filter(Boolean);
+        setZoneLeavesBatch(items, true);
+        const first = zones?.[0];
+        if (first) {
+            const lat = first.centerLat ?? first.obj?.lat;
+            const lng = first.centerLng ?? first.obj?.lng;
+            if (lat != null && lng != null) flyTo(lat, lng, 10);
+        }
+    }, [setZoneLeavesBatch, flyTo]);
+
+    const handleHideAllTargetZones = useCallback((zones) => {
+        const items = (zones || []).map((zone) => {
+            const dims = getActionFilterDimensions(zone?.action);
+            const country = zone?.countryTitle || zone?.obj?.country?.title;
+            if (!dims || !country) return null;
+            return { country, actionTypeId: dims.actionTypeId, leaf: dims.leaf };
+        }).filter(Boolean);
+        setZoneLeavesBatch(items, false);
+    }, [setZoneLeavesBatch]);
+
+    const handleVulnerabilityPreviewChange = useCallback((payload) => {
+        if (!payload?.visible) {
+            setVulnerabilityMapPreview(null);
+            return;
+        }
+        const points = (payload.points || []).filter((p) => {
+            const lat = Number(p.lat);
+            const lng = Number(p.lng);
+            return Number.isFinite(lat) && Number.isFinite(lng);
+        }).map((p) => ({
+            ...p,
+            lat: Number(p.lat),
+            lng: Number(p.lng),
+        }));
+        if (!points.length) {
+            setVulnerabilityMapPreview(null);
+            return;
+        }
+        setVulnerabilityMapPreview({
+            targetId: payload.targetId,
+            visible: true,
+            points,
+        });
+    }, []);
+
+    // Уязвимости остаются на карте после закрытия модалки — подгоняем вид при включении.
+    useEffect(() => {
+        if (!vulnerabilityMapPreview?.visible || !vulnerabilityMapPreview.points?.length) return;
+        const pts = vulnerabilityMapPreview.points;
+        const lat = pts.reduce((sum, p) => sum + p.lat, 0) / pts.length;
+        const lng = pts.reduce((sum, p) => sum + p.lng, 0) / pts.length;
+        flyTo(lat, lng, pts.length > 1 ? 11 : 13);
+    }, [vulnerabilityMapPreview, flyTo]);
+
+    const handleStartVulnerabilityPick = useCallback((payload) => {
+        const session = {
+            index: payload.index,
+            formSnapshot: payload.formData,
+        };
+        vulnerabilityPickSessionRef.current = session;
+        setVulnerabilityPickSession(session);
+    }, []);
+
+    useEffect(() => {
+        vulnerabilityPickSessionRef.current = vulnerabilityPickSession;
+    }, [vulnerabilityPickSession]);
+
+    const handleVulnerabilityMapPick = useCallback(({ lat, lng }) => {
+        const prev = vulnerabilityPickSessionRef.current;
+        if (!prev?.formSnapshot) return;
+        const vulns = [...(prev.formSnapshot.vulnerabilities || [])];
+        if (vulns[prev.index]) {
+            vulns[prev.index] = {
+                ...vulns[prev.index],
+                lat: String(lat),
+                lng: String(lng),
+            };
+        }
+        setEditTargetFormPatch({ ...prev.formSnapshot, vulnerabilities: vulns });
+        vulnerabilityPickSessionRef.current = null;
+        setVulnerabilityPickSession(null);
+    }, []);
+
+    const handleFormularModalClose = useCallback(() => {
+        setSelectedTargetId(null);
+        // Зоны и уязвимости с карточки объекта оставляем на карте,
+        // пока пользователь не снимет выбор / не откроет другой объект.
+    }, []);
+
     const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
 
     const handleTargetAddedWithFormular = useCallback((newTarget) => {
@@ -1308,6 +1427,10 @@ export default function Formular() {
                                 losComputingCount={losComputingCount}
                                 losZonesCount={losZonesCount}
                                 visibleZones={visibleZones}
+                                mapZoomRules={mapZoomRules}
+                                vulnerabilityMapPoints={vulnerabilityMapPoints}
+                                vulnerabilityPickActive={Boolean(vulnerabilityPickSession)}
+                                onVulnerabilityMapPick={handleVulnerabilityMapPick}
                                 mapUiResetToken={mapUiResetToken}
                                 onResetAllMapState={handleResetAllMapState}
                                 situations={situations}
@@ -1366,11 +1489,22 @@ export default function Formular() {
             {selectedTargetId && (
                 <FormularModal
                     targetId={selectedTargetId}
-                    onClose={() => setSelectedTargetId(null)}
+                    onClose={handleFormularModalClose}
                     onEdit={canEditTargets ? handleEditClick : undefined}
                     onSubordinateFlyTo={handleSubordinateFlyTo}
                     onSubordinateOpenDetails={handleSubordinateOpenDetails}
                     onEditEquipmentInCatalog={canOpenReference ? handleOpenEquipmentInCatalog : undefined}
+                    onToggleTargetZone={handleToggleTargetZone}
+                    onShowAllTargetZones={handleShowAllTargetZones}
+                    onHideAllTargetZones={handleHideAllTargetZones}
+                    actionZoneFilters={actionZoneFilters}
+                    onVulnerabilityPreviewChange={handleVulnerabilityPreviewChange}
+                    initialShowVulnerabilitiesOnMap={
+                        Boolean(
+                            vulnerabilityMapPreview?.visible
+                            && vulnerabilityMapPreview?.targetId === selectedTargetId,
+                        )
+                    }
                 />
             )}
 
@@ -1395,14 +1529,16 @@ export default function Formular() {
 
             <EditTargetModal
                 targetId={editTargetId}
-                isOpen={!!editTargetId && !polygonDrawSession}
+                isOpen={!!editTargetId && !polygonDrawSession && !vulnerabilityPickSession}
                 onClose={() => {
                     setEditTargetId(null);
                     setEditTargetFormPatch(null);
+                    setVulnerabilityPickSession(null);
                 }}
                 onTargetUpdated={handleTargetUpdated}
                 cachedTargets={objects}
                 onStartPolygonDraw={handleStartPolygonDraw}
+                onStartVulnerabilityPick={handleStartVulnerabilityPick}
                 formPatch={editTargetFormPatch}
                 onFormPatchApplied={() => setEditTargetFormPatch(null)}
             />

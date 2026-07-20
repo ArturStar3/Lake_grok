@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import axios from "axios";
-import { processNonFlagClustering } from "./markerClusteringUtils";
+import { processNonFlagClustering, computeCountryBubbleClusters } from "./markerClusteringUtils";
 import { MAP_CONSTANTS } from "../../constants/mapConstants";
 import { filterNonFlagMarkers } from "../../utils/markerFilters";
 import {
@@ -15,12 +15,13 @@ const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 /**
  * Компонент для генерации иконок non-flag объектов с группировкой
  */
-export default function NonFlagLabelGeneration({ objects, onMarkersReady, selectedIds = [] }) {
+export default function NonFlagLabelGeneration({ objects, onMarkersReady, selectedIds = [], clusterMode = 'legacy' }) {
   const mapInstance = useMapEvents({});
   const [svgCache, setSvgCache] = useState(new Map());
   const loadedPathsRef = useRef(new Set());
   const loadingPathsRef = useRef(new Set());
   const [groupedObjects, setGroupedObjects] = useState([]);
+  const [bubbleClusters, setBubbleClusters] = useState([]);
   const [zoom, setZoom] = useState(mapInstance?.getZoom?.() || 0);
 
   useEffect(() => {
@@ -100,12 +101,30 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
     const selectedNonFlagObjects = filterNonFlagMarkers(objects, selectedIds);
 
     if (mapInstance && mapInstance._size) {
-      const processed = processNonFlagClustering(selectedNonFlagObjects, mapInstance, selectedIds);
-      setGroupedObjects(processed);
+      if (clusterMode === 'bubble') {
+        const { visible, bubbles } = computeCountryBubbleClusters(
+          selectedNonFlagObjects,
+          mapInstance,
+        );
+        setBubbleClusters(bubbles);
+        setGroupedObjects(
+          visible.map((obj) => ({
+            ...obj,
+            isGrouped: false,
+            groupSize: 1,
+            groupObjects: [obj],
+          })),
+        );
+      } else {
+        setBubbleClusters([]);
+        const processed = processNonFlagClustering(selectedNonFlagObjects, mapInstance, selectedIds);
+        setGroupedObjects(processed);
+      }
     } else {
       setGroupedObjects(selectedNonFlagObjects);
+      setBubbleClusters([]);
     }
-  }, [clusterKey, objects, selectedIds, mapInstance]);
+  }, [clusterKey, objects, selectedIds, mapInstance, clusterMode]);
 
   const iconsById = useMemo(() => {
     if (!L || !L.DivIcon) {
@@ -132,11 +151,11 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
   useEffect(() => {
     if (!onMarkersReady) return;
     if (Object.keys(iconsById).length > 0) {
-      onMarkersReady({ iconsById, groupedObjects, svgCache });
+      onMarkersReady({ iconsById, groupedObjects, svgCache, bubbles: bubbleClusters });
     } else if (!groupedObjects || groupedObjects.length === 0) {
-      onMarkersReady({ iconsById: {}, groupedObjects: [], svgCache });
+      onMarkersReady({ iconsById: {}, groupedObjects: [], svgCache, bubbles: bubbleClusters });
     }
-  }, [iconsById, groupedObjects, svgCache, onMarkersReady]);
+  }, [iconsById, groupedObjects, svgCache, bubbleClusters, onMarkersReady]);
 
   return null;
 }

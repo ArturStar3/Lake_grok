@@ -307,53 +307,73 @@ export function buildVisibleZones(objects, actionZoneFilters) {
     zoneActions.forEach((action, actionIndex) => {
       if (!isActionVisible(obj, action, actionZoneFilters)) return;
 
-      const zoneMode = action.action_type?.zone_mode || 'flat';
-      const isPolygon = isPolygonZoneMode(zoneMode);
-      const isInundation = isInundationZoneType(action.action_type);
-      const zoneGeometry = action.zone_geometry || null;
-      const polygonPositions = isPolygon ? getZonePolygonPositions(zoneGeometry) : null;
-
-      if (isPolygon) {
-        if (!polygonPositions?.length) return;
-      } else if (!action.radius || action.radius <= 0) {
-        return;
-      }
-
-      const centroid = polygonPositions
-        ? getPolygonCentroid(polygonPositions)
-        : { lat: centerLat, lng: centerLng };
-
-      const { color, lineType } = resolveZoneStyle(action);
-      const zoneKey = buildZoneKey(obj.id, action, actionIndex);
-
-      zones.push({
-        obj,
-        action,
-        actionId: action.id ?? null,
-        actionIndex,
-        actionTitle: action.action_type?.title || 'Зона действия',
-        zoneMode,
-        zoneGeometry,
-        zoneMetadata: action.zone_metadata || null,
-        centerLat: centroid.lat,
-        centerLng: centroid.lng,
-        radiusMeters: isPolygon ? 0 : action.radius * 1000,
-        polygonPositions,
-        polygonBounds: polygonPositions ? getPolygonBounds(polygonPositions) : null,
-        isInundationZone: isInundation,
-        isPolygonZone: isPolygon,
-        color,
-        lineType,
-        actionTypeId: action.action_type?.id,
-        equipmentDeploymentId: action._deploymentId ?? null,
-        parameterId: action._parameterId ?? null,
-        isEquipmentZone: Boolean(action._equipmentZone),
-        parameterTitle: action._parameterTitle || '',
-        equipmentTitle: action._equipmentTitle || '',
-        countryTitle: obj.country?.title || 'Неизвестно',
-        zoneKey,
-      });
+      const zoneEntry = buildZoneEntryFromAction(obj, action, actionIndex, centerLat, centerLng);
+      if (zoneEntry) zones.push(zoneEntry);
     });
+  });
+  return zones;
+}
+
+function buildZoneEntryFromAction(obj, action, actionIndex, centerLat, centerLng) {
+  const zoneMode = action.action_type?.zone_mode || 'flat';
+  const isPolygon = isPolygonZoneMode(zoneMode);
+  const isInundation = isInundationZoneType(action.action_type);
+  const zoneGeometry = action.zone_geometry || null;
+  const polygonPositions = isPolygon ? getZonePolygonPositions(zoneGeometry) : null;
+
+  if (isPolygon) {
+    if (!polygonPositions?.length) return null;
+  } else if (!action.radius || action.radius <= 0) {
+    return null;
+  }
+
+  const centroid = polygonPositions
+    ? getPolygonCentroid(polygonPositions)
+    : { lat: centerLat, lng: centerLng };
+
+  const { color, lineType } = resolveZoneStyle(action);
+  const zoneKey = buildZoneKey(obj.id, action, actionIndex);
+
+  return {
+    obj,
+    action,
+    actionId: action.id ?? null,
+    actionIndex,
+    actionTitle: action.action_type?.title || 'Зона действия',
+    zoneMode,
+    zoneGeometry,
+    zoneMetadata: action.zone_metadata || null,
+    centerLat: centroid.lat,
+    centerLng: centroid.lng,
+    radiusMeters: isPolygon ? 0 : action.radius * 1000,
+    polygonPositions,
+    polygonBounds: polygonPositions ? getPolygonBounds(polygonPositions) : null,
+    isInundationZone: isInundation,
+    isPolygonZone: isPolygon,
+    color,
+    lineType,
+    actionTypeId: action.action_type?.id,
+    equipmentDeploymentId: action._deploymentId ?? null,
+    parameterId: action._parameterId ?? null,
+    isEquipmentZone: Boolean(action._equipmentZone),
+    parameterTitle: action._parameterTitle || '',
+    equipmentTitle: action._equipmentTitle || '',
+    countryTitle: obj.country?.title || 'Неизвестно',
+    zoneKey,
+  };
+}
+
+/** Все зоны одного объекта (без глобальных фильтров вкладки «Зоны действия»). */
+export function buildZonesForTargetDetail(target) {
+  if (!target) return [];
+  const zones = [];
+  const zoneActions = getObjectZoneActions(target);
+  if (!zoneActions.length) return zones;
+  const centerLat = target.lat;
+  const centerLng = target.lng;
+  zoneActions.forEach((action, actionIndex) => {
+    const entry = buildZoneEntryFromAction(target, action, actionIndex, centerLat, centerLng);
+    if (entry) zones.push(entry);
   });
   return zones;
 }

@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.db.models import Q, Count, Prefetch, F, OuterRef, Subquery
 from django.utils import timezone
@@ -77,6 +78,8 @@ from .serializers import (
     PersonCreateSerializer,
     PersonRelationSerializer,
     PersonRelationWriteSerializer,
+    MapDisplaySettingsSerializer,
+    TargetVulnerabilitySerializer,
 )
 from formular.models import (
     Target,
@@ -104,6 +107,8 @@ from formular.models import (
     PersonAttachment,
     PersonPhoto,
     PersonRelation,
+    MapDisplaySettings,
+    TargetVulnerability,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -192,6 +197,10 @@ def _target_detail_queryset():
             ),
             _equipment_links_prefetch(zone_values_only=False),
             'type__countries',
+            Prefetch(
+                'vulnerabilities',
+                queryset=TargetVulnerability.objects.order_by('order', 'title'),
+            ),
         )
         .annotate(children_count=Count('children'))
     )
@@ -1428,6 +1437,38 @@ class PersonPhotoViewSet(viewsets.ModelViewSet):
         if person_id:
             qs = qs.filter(person_id=person_id)
         return qs
+
+
+class MapDisplaySettingsView(APIView):
+    """Singleton-настройки отображения карты (только чтение через API)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        settings_obj = MapDisplaySettings.load()
+        return Response(MapDisplaySettingsSerializer(settings_obj).data)
+
+
+class TargetVulnerabilityViewSet(viewsets.ModelViewSet):
+    """Уязвимые места объекта."""
+
+    serializer_class = TargetVulnerabilitySerializer
+    permission_classes = [TargetsPermission]
+    queryset = TargetVulnerability.objects.select_related('target').order_by('order', 'title')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        qs = filter_by_user_countries(qs, self.request.user, 'target__country_id')
+        target_id = self.request.query_params.get('target')
+        if self.action == 'list' and not target_id:
+            return qs.none()
+        if target_id:
+            qs = qs.filter(target_id=target_id)
+        return qs
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user)
+        return super().destroy(request, *args, **kwargs)
 
 
 class PersonRelationViewSet(viewsets.ModelViewSet):

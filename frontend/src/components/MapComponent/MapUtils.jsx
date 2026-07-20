@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import axios from "axios";
-import { processMarkerClustering, calculateMarkerPosition } from "./markerClusteringUtils";
+import { processMarkerClustering, calculateMarkerPosition, computeCountryBubbleClusters } from "./markerClusteringUtils";
 import { enrichSvg } from "../../utils/svgUtils";
 import { getViewBoxSize } from "../../utils/svgUtils";
 import { MAP_CONSTANTS } from "../../constants/mapConstants";
@@ -95,12 +95,13 @@ function fitMarkerLabel(text, maxWidthPx, maxFont = LABEL_FONT_MAX, minFont = LA
 //     return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
 // };
 
-export default function LabelGeneration({ objects, selectedIds = [], onMarkersReady }) {
+export default function LabelGeneration({ objects, selectedIds = [], onMarkersReady, clusterMode = 'legacy' }) {
   const mapInstance = useMapEvents({});
   const [svgCache, setSvgCache] = useState(new Map());
   const loadedPathsRef = useRef(new Set()); // Отслеживание загруженных путей
   const loadingPathsRef = useRef(new Set()); // Отслеживание текущих загрузок
   const [clusteredObjects, setClusteredObjects] = useState(objects);
+  const [bubbleClusters, setBubbleClusters] = useState([]);
   const [zoom, setZoom] = useState(mapInstance?.getZoom?.() || 0);
 
   useEffect(() => {
@@ -187,12 +188,20 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     if (mapInstance) {
       // Сначала обогащаем объекты реальными размерами
       const enrichedObjects = enrichMarkersWithSvgSize(selectedFlagObjects, svgCache);
-      const processedObjects = processMarkerClustering(enrichedObjects, mapInstance);
-      setClusteredObjects(processedObjects);
+      if (clusterMode === 'bubble') {
+        const { visible, bubbles } = computeCountryBubbleClusters(enrichedObjects, mapInstance);
+        setClusteredObjects(visible);
+        setBubbleClusters(bubbles);
+      } else {
+        setBubbleClusters([]);
+        const processedObjects = processMarkerClustering(enrichedObjects, mapInstance);
+        setClusteredObjects(processedObjects);
+      }
     } else {
       setClusteredObjects(selectedFlagObjects);
+      setBubbleClusters([]);
     }
-  }, [clusterKey, objects, selectedIds, mapInstance, svgCache]);
+  }, [clusterKey, objects, selectedIds, mapInstance, svgCache, clusterMode]);
 
   const iconsById = useMemo(() => {
     if (!L || !L.DivIcon) {
@@ -296,11 +305,11 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
   useEffect(() => {
     if (!onMarkersReady) return;
     if (Object.keys(iconsById).length > 0) {
-      onMarkersReady({ iconsById, clusteredObjects });
+      onMarkersReady({ iconsById, clusteredObjects, bubbles: bubbleClusters });
     } else if (!clusteredObjects || clusteredObjects.length === 0) {
-      onMarkersReady({ iconsById: {}, clusteredObjects: [] });
+      onMarkersReady({ iconsById: {}, clusteredObjects: [], bubbles: bubbleClusters });
     }
-  }, [iconsById, clusteredObjects, onMarkersReady]);
+  }, [iconsById, clusteredObjects, bubbleClusters, onMarkersReady]);
 
   return null;
 }

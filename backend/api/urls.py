@@ -27,6 +27,8 @@ from .views import (
     PersonAttachmentViewSet,
     PersonPhotoViewSet,
     PersonRelationViewSet,
+    MapDisplaySettingsView,
+    TargetVulnerabilityViewSet,
     EquipmentCategoryViewSet,
     EquipmentParameterDefinitionViewSet,
     UnitOfMeasureViewSet,
@@ -151,6 +153,12 @@ router.register(
 )
 
 router.register(
+    r'target-vulnerabilities',
+    TargetVulnerabilityViewSet,
+    basename='target-vulnerabilities'
+)
+
+router.register(
     r'person-relations',
     PersonRelationViewSet,
     basename='person-relations'
@@ -193,5 +201,6 @@ urlpatterns = [
     path('formular/<uuid:target_id>/bulk/', FormularBulkUpdateView.as_view(), name='formular-bulk'),
     path('person/<uuid:person_id>/', PersonDetailView.as_view(), name='person-detail'),
     path('person/<uuid:person_id>/bulk/', PersonBulkUpdateView.as_view(), name='person-bulk'),
+    path('map-display-settings/', MapDisplaySettingsView.as_view(), name='map-display-settings'),
     path('auth/', include('accounts.urls')),
 ]

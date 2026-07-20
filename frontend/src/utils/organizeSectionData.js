@@ -140,6 +140,7 @@ function buildGroupExcerpt(group, _attachmentsBySection) {
 export function buildSectionCards({
   organized,
   attachmentsBySection = {},
+  prependCards = [],
   extraCards = [],
 }) {
   const cards = [];
@@ -177,5 +178,5 @@ export function buildSectionCards({
     });
   });
 
-  return [...cards, ...extraCards];
+  return [...prependCards, ...cards, ...extraCards];
 }

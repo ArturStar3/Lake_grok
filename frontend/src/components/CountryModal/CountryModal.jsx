@@ -103,7 +103,7 @@ export default function CountryModal({
     const sectionCards = useMemo(() => {
         if (!data || !Array.isArray(data)) return [];
         const organized = organizeSectionData(data);
-        const extraCards = completionTargets.length > 0 ? [{
+        const prependCards = completionTargets.length > 0 ? [{
             id: 'formular-completion',
             title: 'Заполненность формуляров',
             excerpt: `${completionTargets.length} объектов`,
@@ -111,7 +111,7 @@ export default function CountryModal({
             kind: 'formular-completion',
             payload: { sections: completionSections, targets: completionTargets },
         }] : [];
-        return buildSectionCards({ organized, attachmentsBySection, extraCards });
+        return buildSectionCards({ organized, attachmentsBySection, prependCards });
     }, [data, attachmentsBySection, completionSections, completionTargets]);
 
     const handleOverlayClick = (e) => {
@@ -232,6 +232,9 @@ export default function CountryModal({
                                 cards={sectionCards}
                                 attachmentsBySection={attachmentsBySection}
                                 resetKey={countryIso}
+                                initialCardId={
+                                    completionTargets.length > 0 ? 'formular-completion' : null
+                                }
                                 autoExpandSingle
                                 onTargetOpenDetails={effectiveOnTargetOpenDetails}
                                 emptyMessage="Информация о стране отсутствует."

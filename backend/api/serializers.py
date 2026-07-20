@@ -28,6 +28,8 @@ from formular.models import (
     PersonAttachment,
     PersonPhoto,
     PersonRelation,
+    MapDisplaySettings,
+    TargetVulnerability,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -38,6 +40,7 @@ from equipment.models import (
     EquipmentImage,
 )
 from .target_utils import create_target_actions, replace_target_equipment, serialize_deployed_equipment
+from formular.map_display_utils import normalize_map_display_zoom_rules
 from formular.zone_geometry_validation import validate_zone_geometry
 
 
@@ -655,6 +658,45 @@ class TargetListSerializer(serializers.ModelSerializer):
         return serialize_deployed_equipment(obj, request=request)
 
 
+class MapDisplaySettingsSerializer(serializers.ModelSerializer):
+    """Настройки отображения карты (singleton)."""
+
+    zoom_rules = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MapDisplaySettings
+        fields = ('zoom_rules',)
+
+    def get_zoom_rules(self, obj):
+        return normalize_map_display_zoom_rules(obj.zoom_rules)
+
+
+class TargetVulnerabilitySerializer(serializers.ModelSerializer):
+    """Уязвимое место объекта."""
+
+    class Meta:
+        model = TargetVulnerability
+        fields = (
+            'id',
+            'target',
+            'title',
+            'description',
+            'image',
+            'lat',
+            'lng',
+            'order',
+        )
+        read_only_fields = ('id',)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        image = data.get('image')
+        request = self.context.get('request')
+        if image and request and not str(image).startswith(('http://', 'https://')):
+            data['image'] = request.build_absolute_uri(image)
+        return data
+
+
 class TargetSerializer(serializers.ModelSerializer):
     """Объект разведки"""
 
@@ -665,6 +707,7 @@ class TargetSerializer(serializers.ModelSerializer):
     type = TargetTypeSerializer()
     children_count = serializers.IntegerField(read_only=True)
     parent = serializers.PrimaryKeyRelatedField(read_only=True)
+    vulnerabilities = TargetVulnerabilitySerializer(many=True, read_only=True)
 
     class Meta:
         model = Target
@@ -686,6 +729,7 @@ class TargetSerializer(serializers.ModelSerializer):
             'marker',
             'parent',
             'children_count',
+            'vulnerabilities',
         )
 
     def get_deployed_equipment(self, obj):

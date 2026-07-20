@@ -6,6 +6,19 @@ const CM_TO_PIXELS = 37.8; // 1 см в пикселях при 96 DPI
 const CLUSTER_DISTANCE_CM = 1; // Расстояние в сантиметрах для группировки
 const CLUSTER_DISTANCE_PX = CLUSTER_DISTANCE_CM * CM_TO_PIXELS; // ~37.8 пикселей
 
+let runtimeClusterDistancePx = 38;
+
+export function setRuntimeClusterDistancePx(px) {
+  const n = Number(px);
+  if (Number.isFinite(n) && n > 0) {
+    runtimeClusterDistancePx = n;
+  }
+}
+
+export function getRuntimeClusterDistancePx() {
+  return runtimeClusterDistancePx;
+}
+
 /**
  * Группирует объекты где is_flag=true по country.title и сортирует по marker.order
  * @param {Array} objects - Массив объектов с данными маркеров
@@ -77,7 +90,7 @@ export const calcDistancePx = (p1, p2) => {
  * @param {Object} map - Инстанс Leaflet карты
  * @returns {Array} Массив объектов, находящихся близко
  */
-export const findNearbyObjects = (baseObj, candidates, map) => {
+export const findNearbyObjects = (baseObj, candidates, map, distancePx = getRuntimeClusterDistancePx()) => {
   if (!map || !baseObj) return [];
 
   const basePixel = latLngToPixel(map, baseObj.lat, baseObj.lng);
@@ -90,21 +103,18 @@ export const findNearbyObjects = (baseObj, candidates, map) => {
     if (!candidatePixel) return false;
 
     const distance = calcDistancePx(basePixel, candidatePixel);
-    return distance <= CLUSTER_DISTANCE_PX;
+    return distance <= distancePx;
   });
 };
 
 /**
  * Группирует объекты в кластеры на основе близости на карте (spatial hash, O(n) среднее).
- * @param {Array} objects - Отсортированные объекты одной страны
- * @param {Object} map - Инстанс Leaflet карты
- * @returns {Array} Массив кластеров, где каждый кластер - это массив объектов
  */
-export const createClusters = (objects, map) => {
+export const createClusters = (objects, map, distancePx = getRuntimeClusterDistancePx()) => {
   if (!Array.isArray(objects) || objects.length === 0) return [];
   if (!map) return objects.map((obj) => [obj]);
 
-  const cellSize = CLUSTER_DISTANCE_PX;
+  const cellSize = distancePx;
   const grid = new Map();
 
   const cellKey = (x, y) => `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`;
@@ -140,7 +150,7 @@ export const createClusters = (objects, map) => {
         if (!cell) continue;
         for (const { obj, pixel } of cell) {
           if (processed.has(obj.id)) continue;
-          if (calcDistancePx(basePixel, pixel) <= CLUSTER_DISTANCE_PX) {
+          if (calcDistancePx(basePixel, pixel) <= distancePx) {
             cluster.push(obj);
             processed.add(obj.id);
           }
@@ -247,6 +257,52 @@ export const processMarkerClustering = (objects, map) => {
   const nonFlaggedObjects = objects.filter(obj => !flaggedIds.has(obj.id));
 
   return [...result, ...nonFlaggedObjects];
+};
+
+/**
+ * Bubble-кластеры по странам: группы из 2+ объектов → круг с числом.
+ */
+export const computeCountryBubbleClusters = (objects, map, distancePx = getRuntimeClusterDistancePx()) => {
+  if (!Array.isArray(objects) || !objects.length || !map) {
+    return { visible: objects || [], bubbles: [] };
+  }
+
+  const grouped = objects.reduce((acc, obj) => {
+    const country = obj.country?.title || 'Unknown';
+    if (!acc[country]) acc[country] = [];
+    acc[country].push(obj);
+    return acc;
+  }, {});
+
+  const hiddenIds = new Set();
+  const bubbles = [];
+
+  Object.entries(grouped).forEach(([country, countryObjects]) => {
+    const sorted = countryObjects[0]?.marker?.is_flag === true
+      ? sortByOrder(countryObjects)
+      : countryObjects;
+    const clusters = createClusters(sorted, map, distancePx);
+    clusters.forEach((cluster) => {
+      if (cluster.length <= 1) return;
+      cluster.forEach((obj) => hiddenIds.add(obj.id));
+      const lat = cluster.reduce((sum, o) => sum + o.lat, 0) / cluster.length;
+      const lng = cluster.reduce((sum, o) => sum + o.lng, 0) / cluster.length;
+      bubbles.push({
+        id: `bubble-${country}-${cluster.map((o) => o.id).slice().sort().join('-')}`,
+        lat,
+        lng,
+        count: cluster.length,
+        members: cluster,
+        country,
+        isFlag: cluster[0]?.marker?.is_flag === true,
+      });
+    });
+  });
+
+  return {
+    visible: objects.filter((obj) => !hiddenIds.has(obj.id)),
+    bubbles,
+  };
 };
 
 /**
