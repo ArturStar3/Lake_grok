@@ -210,7 +210,8 @@ class OperationalSituationApiTests(APITestCase):
         )
         self.assertEqual(patch_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(patch_resp.data['current_revision']['version'], 2)
-        self.assertEqual(patch_resp.data['display_revision']['title'], 'Поздняя')
+        self.assertEqual(patch_resp.data['display_revision']['title'], 'Исправленная ранняя')
+        self.assertEqual(patch_resp.data['display_revision']['situation_date'], '2026-03-10')
 
         rev_resp = self.client.get(
             f'/api/v1/operational-situations/{situation_id}/revisions/',
