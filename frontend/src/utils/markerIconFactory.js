@@ -1,5 +1,6 @@
 import L from 'leaflet';
-import { enrichSvg, getViewBoxSize } from './svgUtils';
+import { enrichSvg, getViewBoxSize, wrapMarkerSvg } from './svgUtils';
+import { getCountryMarkerPalette, markerPaletteCacheKey } from './markerPalette';
 import { MAP_CONSTANTS } from '../constants/mapConstants';
 import { getOrCreateDivIcon, buildIconCacheKey } from './markerIconCache';
 
@@ -42,14 +43,15 @@ export function createNonFlagDivIcon(obj, svgCache) {
   }
   const svg = path ? svgCache.get(path) ?? '' : '';
   const markerScale = parseFloat(obj.marker?.scale) || 1;
-  const markerColor = obj.country?.color || 'blue';
+  const palette = getCountryMarkerPalette(obj.country);
+  const paletteKey = markerPaletteCacheKey(palette);
   const { iconWidth, iconHeight } = computeIconDimensions(svg, markerScale);
 
   const cacheKey = buildIconCacheKey([
     'nonflag',
     obj.id,
     path,
-    markerColor,
+    paletteKey,
     markerScale,
     iconWidth,
     iconHeight,
@@ -57,12 +59,14 @@ export function createNonFlagDivIcon(obj, svgCache) {
   ]);
 
   return getOrCreateDivIcon(cacheKey, () => {
-    const enriched = enrichSvg(svg, iconWidth, iconHeight, obj.id, markerColor);
+    const enriched = enrichSvg(svg, iconWidth, iconHeight, obj.id, palette);
+    const fallbackSvg = `<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" width="${iconWidth}" height="${iconHeight}">
+        <circle cx="25" cy="25" r="22" fill="${palette.color_first}" opacity="0.8" stroke="#FFFFFF" stroke-width="2"/>
+      </svg>`;
+    const inner = enriched || fallbackSvg;
     const html = `
     <div class="non-flag-marker" data-id="${obj.id}">
-      ${enriched || `<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" width="${iconWidth}" height="${iconHeight}">
-        <circle cx="25" cy="25" r="22" fill="${markerColor}" opacity="0.8" stroke="#FFFFFF" stroke-width="2"/>
-      </svg>`}
+      ${wrapMarkerSvg(inner, palette)}
     </div>
   `;
     return new L.DivIcon({

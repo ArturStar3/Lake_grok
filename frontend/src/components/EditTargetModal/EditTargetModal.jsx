@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import { addColorClassToSvg } from '../../utils/svgUtils';
+import { markerPreviewHtml } from '../../utils/svgUtils';
+import { getCountryMarkerPalette } from '../../utils/markerPalette';
 import { useActionsArray } from '../../hooks/useActionsArray';
 import { useDeployedEquipmentArray } from '../../hooks/useDeployedEquipmentArray';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
@@ -340,9 +341,12 @@ export default function EditTargetModal({
         }
     );
 
-    const selectedCountryColor = formData.country 
-        ? countries.find(c => c.id === formData.country)?.color || 'blue'
-        : 'blue';
+    const selectedCountryPalette = useMemo(() => {
+        const country = formData.country
+            ? countries.find((c) => c.id === formData.country)
+            : null;
+        return getCountryMarkerPalette(country);
+    }, [formData.country, countries]);
 
     const loadSeqRef = useRef(0);
     const skipNextApiLoadRef = useRef(false);
@@ -1288,9 +1292,9 @@ export default function EditTargetModal({
                                                             <div 
                                                                 className="edit-target-modal__marker-icon"
                                                                 dangerouslySetInnerHTML={{ 
-                                                                    __html: addColorClassToSvg(
+                                                                    __html: markerPreviewHtml(
                                                                         markerSvgs.get(formData.marker), 
-                                                                        selectedCountryColor
+                                                                        selectedCountryPalette
                                                                     ) 
                                                                 }}
                                                             />
@@ -1343,9 +1347,9 @@ export default function EditTargetModal({
                                                                         <div 
                                                                             className="edit-target-modal__marker-icon"
                                                                             dangerouslySetInnerHTML={{ 
-                                                                                __html: addColorClassToSvg(
+                                                                                __html: markerPreviewHtml(
                                                                                     markerSvgs.get(marker.id), 
-                                                                                    selectedCountryColor
+                                                                                    selectedCountryPalette
                                                                                 ) 
                                                                             }}
                                                                         />

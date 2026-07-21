@@ -12,6 +12,24 @@ python manage.py seed_security_groups
 
 Суперпользователь имеет полный доступ ко всем странам и модулям.
 
+## Backend в Docker (офлайн)
+
+По умолчанию контейнер backend запускается через **Gunicorn** (`DJANGO_SERVER=gunicorn` в `docker-compose.yml`), а не через `runserver --nothreading`. Это нужно, чтобы сохранение пользователя в `/admin/` не блокировало параллельные запросы карты к API.
+
+Подробнее: [ADMIN_USER_STABILITY.md](ADMIN_USER_STABILITY.md).
+
+Для локальной разработки с autoreload задайте в override:
+
+```yaml
+services:
+  backend:
+    environment:
+      DJANGO_SERVER: runserver
+      DJANGO_RUNSERVER_RELOAD: "1"
+```
+
+После смены образа backend пересоберите пакет на машине с интернетом: `docker compose build backend` и `export-offline.ps1`.
+
 ## Переменные окружения (`.env`)
 
 ```env

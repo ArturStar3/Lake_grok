@@ -6,6 +6,7 @@ from django.db.models import Max
 from formular.models import (
     Target,
     Country,
+    MarkerColorPalette,
     Marker,
     EventMarker,
     TargetAction,
@@ -44,19 +45,59 @@ from formular.map_display_utils import normalize_map_display_zoom_rules
 from formular.zone_geometry_validation import validate_zone_geometry
 
 
+class MarkerColorPaletteSerializer(serializers.ModelSerializer):
+    """Палитра цветов маркера страны."""
+
+    class Meta:
+        model = MarkerColorPalette
+        fields = (
+            'id',
+            'title',
+            'color_first',
+            'color_second',
+            'color_third',
+            'color_forth',
+        )
+
+    def _validate_palette_color(self, value):
+        return _validate_hex_color(value)
+
+    def validate_color_first(self, value):
+        return self._validate_palette_color(value)
+
+    def validate_color_second(self, value):
+        return self._validate_palette_color(value)
+
+    def validate_color_third(self, value):
+        return self._validate_palette_color(value)
+
+    def validate_color_forth(self, value):
+        return self._validate_palette_color(value)
+
+
 class CountrySerializer(serializers.ModelSerializer):
     """Список стран"""
+
+    marker_palette = MarkerColorPaletteSerializer(read_only=True)
 
     class Meta:
         model = Country
         fields = (
             'id',
             'title',
-            'color'
+            'marker_palette',
         )
 
 class CountryListSerializer(serializers.ModelSerializer):
     """Список стран для выбора"""
+
+    marker_palette = MarkerColorPaletteSerializer(read_only=True)
+    marker_palette_id = serializers.PrimaryKeyRelatedField(
+        queryset=MarkerColorPalette.objects.all(),
+        source='marker_palette',
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Country
@@ -65,8 +106,19 @@ class CountryListSerializer(serializers.ModelSerializer):
             'title',
             'title_short',
             'iso_code',
-            'color'
+            'marker_palette',
+            'marker_palette_id',
         )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance is None and not attrs.get('marker_palette'):
+            default = MarkerColorPalette.objects.filter(title='Синий').first()
+            if default is None:
+                default = MarkerColorPalette.objects.order_by('id').first()
+            if default:
+                attrs['marker_palette'] = default
+        return attrs
 
 class MarkerSerializer(serializers.ModelSerializer):
     """Список маркеров"""

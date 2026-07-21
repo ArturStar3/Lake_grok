@@ -8,13 +8,39 @@ from django.core.validators import (
 from django.core.exceptions import ValidationError
 
 from .enums import (
-    Colors,
     ActionLineTypes,
     ZoneGeometryModes,
 )
 from .validators import (
-    validate_svg
+    validate_hex_color,
+    validate_svg,
 )
+
+
+class MarkerColorPalette(models.Model):
+    """Палитра из 4 цветов для раскраски SVG-маркеров стран."""
+
+    title = models.CharField(max_length=100, verbose_name='Название', unique=True)
+    color_first = models.CharField(max_length=7, verbose_name='Цвет 1 (first)')
+    color_second = models.CharField(max_length=7, verbose_name='Цвет 2 (second)')
+    color_third = models.CharField(max_length=7, verbose_name='Цвет 3 (third)')
+    color_forth = models.CharField(max_length=7, verbose_name='Цвет 4 (forth)')
+
+    class Meta:
+        verbose_name = 'Палитра маркера'
+        verbose_name_plural = 'Палитры маркеров'
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title
+
+    def clean(self):
+        for field in ('color_first', 'color_second', 'color_third', 'color_forth'):
+            validate_hex_color(getattr(self, field, None))
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Country(models.Model):
@@ -34,11 +60,11 @@ class Country(models.Model):
         # unique=True,
         verbose_name='ISO код страны',
     )
-    color = models.CharField(
-        max_length=20,
-        choices=Colors.choices(),
-        verbose_name = 'Цвет маркера',
-        default = Colors.blue.name
+    marker_palette = models.ForeignKey(
+        MarkerColorPalette,
+        on_delete=models.PROTECT,
+        related_name='countries',
+        verbose_name='Палитра маркера',
     )
 
 

@@ -63,7 +63,7 @@ git pull
 Скрипт выполняет:
 
 1. `npm run build:map-style` — сборка `infolake-unified.json` и маппинга слоёв
-2. `docker compose build` — backend и frontend
+2. `docker compose build` — backend и frontend (backend включает **gunicorn** для параллельных API-запросов)
 3. Проверку наличия всех образов локально
 4. `docker save` → **`infolake_full_offline.tar`**
 5. Копию с датой: `infolake_full_offline_YYYYMMDD_HHMMSS.tar`
@@ -213,6 +213,9 @@ VITE_MAP_VECTOR=false
 
 ## 7. Обновление существующей оффлайн-установки
 
+> **Палитры маркеров стран (`Country.marker_palette`, миграция 0052):**  
+> см. **[OFFLINE_MIGRATION_MARKER_PALETTES.md](OFFLINE_MIGRATION_MARKER_PALETTES.md)** и скрипты в `scripts/offline/`.
+
 На **машине с интернетом:**
 
 ```powershell
@@ -231,6 +234,12 @@ docker compose up -d --no-build --pull never
 docker compose exec backend python manage.py migrate
 ```
 
+Для релиза с палитрами маркеров (migrate + проверка):
+
+```powershell
+.\scripts\offline\post-update-offline.ps1
+```
+
 ---
 
 ## 8. Частые проблемы
@@ -242,6 +251,7 @@ docker compose exec backend python manage.py migrate
 | Карта пустая | Проверьте `tileserver/data/map.mbtiles` |
 | `style.json 404` | Перезапуск tileserver; проверьте `infolake-unified` в `config.json` |
 | Backend не подключается к БД | `DB_HOST`, firewall, PostgreSQL `listen_addresses` |
+| Карта «зависла» после создания user в admin | Старый образ с `runserver --nothreading` — пересобрать backend с Gunicorn; см. [backend/docs/ADMIN_USER_STABILITY.md](backend/docs/ADMIN_USER_STABILITY.md) |
 | Ошибка векторной карты | TileServer :8080 доступен; `VITE_TILESERVER_URL` в compose |
 | Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
 | Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается `939a13e` или новее на `develop-cards`) |
@@ -274,4 +284,7 @@ docker compose exec backend python manage.py migrate
 |--------|---------------|------------|
 | [export-offline.ps1](export-offline.ps1) | Online | Сборка + `docker save` |
 | [import-and-start.ps1](import-and-start.ps1) | Offline | `docker load` + `up --no-build --pull never` |
+| [scripts/offline/prepare-marker-palette-release.ps1](scripts/offline/prepare-marker-palette-release.ps1) | Online | Релиз с палитрами: тесты + export-offline |
+| [scripts/offline/post-update-offline.ps1](scripts/offline/post-update-offline.ps1) | Offline | Обновление + migrate палитр + verify |
+| [OFFLINE_MIGRATION_MARKER_PALETTES.md](OFFLINE_MIGRATION_MARKER_PALETTES.md) | — | Палитры маркеров, миграция 0052 |
 | `python manage.py audit_equipment_zones` | Backend | Диагностика зон из ТТХ техники (`--country`, `--username`) |

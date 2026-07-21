@@ -68,6 +68,10 @@ services:
       # PostgreSQL на хосте (не в Docker)
       DB_HOST: host.docker.internal
       DEM_DATA_DIR: /app/dem_data/glo-90
+      # WSGI для офлайн: admin и API параллельно (не runserver --nothreading)
+      DJANGO_SERVER: gunicorn
+      GUNICORN_WORKERS: "2"
+      GUNICORN_THREADS: "2"
       # Ссылка «Открыть сайт» в Django admin → карта (Vite dev / production frontend).
       FRONTEND_URL: http://localhost:5173
     extra_hosts:

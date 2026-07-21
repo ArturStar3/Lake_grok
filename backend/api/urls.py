@@ -28,6 +28,7 @@ from .views import (
     PersonPhotoViewSet,
     PersonRelationViewSet,
     MapDisplaySettingsView,
+    MarkerColorPaletteViewSet,
     TargetVulnerabilityViewSet,
     EquipmentCategoryViewSet,
     EquipmentParameterDefinitionViewSet,
@@ -48,6 +49,12 @@ router.register(
     r'countries',
     CountryViewSet,
     basename='countries'
+)
+
+router.register(
+    r'marker-color-palettes',
+    MarkerColorPaletteViewSet,
+    basename='marker-color-palettes'
 )
 
 router.register(

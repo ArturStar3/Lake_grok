@@ -6,16 +6,9 @@ import "./CountryModal.css";
 import { API_URL } from "../../config/api";
 import { buildSectionCards, organizeSectionData } from "../../utils/organizeSectionData";
 import { useFormularCompletion } from "../../hooks/formular/useFormularCompletion";
+import { getCountryMarkerPalette } from "../../utils/markerPalette";
 
 const API_ROOT = API_URL;
-
-const COUNTRY_COLOR_MAP = {
-    blue: "#3b82f6",
-    green: "#22c55e",
-    red: "#ef4444",
-    yellow: "#eab308",
-    marine: "#0077BE",
-};
 
 export default function CountryModal({
     countryIso,
@@ -152,7 +145,7 @@ export default function CountryModal({
     };
 
     const countryName = country?.title || "Информация о стране";
-    const markerColor = COUNTRY_COLOR_MAP[country?.color] || COUNTRY_COLOR_MAP.blue;
+    const markerPalette = getCountryMarkerPalette(country);
     
     // Приоритет: открываем подробности, если передан коллбек.
     // Иначе (для старых сценариев) используем onTargetEdit как fallback.
@@ -184,8 +177,10 @@ export default function CountryModal({
                                     )}
                                     <span
                                         className="country-modal__color-dot"
-                                        style={{ backgroundColor: markerColor }}
-                                        title="Цвет маркера на карте"
+                                        style={{
+                                            background: `linear-gradient(90deg, ${markerPalette.color_first}, ${markerPalette.color_third}, ${markerPalette.color_forth})`,
+                                        }}
+                                        title="Палитра маркера на карте"
                                         aria-hidden="true"
                                     />
                                 </div>

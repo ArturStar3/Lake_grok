@@ -18,6 +18,8 @@ export function getViewBoxSize(svgString) {
  * Утилиты для работы с SVG
  */
 
+import { buildMarkerPaletteStyle, markerPaletteCacheKey } from './markerPalette';
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -25,8 +27,8 @@ function escapeRegExp(value) {
 const enrichSvgCache = new Map();
 const ENRICH_SVG_CACHE_MAX = 2000;
 
-function enrichSvgCacheKey(rawSvg, width, height, markerId, color) {
-  return `${markerId}|${color}|${width}|${height}|${rawSvg.length}|${rawSvg.slice(0, 64)}`;
+function enrichSvgCacheKey(rawSvg, width, height, markerId, paletteKey) {
+  return `${markerId}|${paletteKey}|${width}|${height}|${rawSvg.length}|${rawSvg.slice(0, 64)}`;
 }
 
 /** Сброс при смене набора объектов на карте. */
@@ -40,7 +42,7 @@ export function clearEnrichSvgCache() {
  * разрешается по всему HTML-документу и маркеры с order>6 (radialGradient, clipPath)
  * «крадут» градиенты друг у друга.
  */
-export const enrichSvg = (rawSvg, w, h, markerId, color) => {
+export const enrichSvg = (rawSvg, w, h, markerId, palette) => {
   if (!rawSvg) {
     return "";
   }
@@ -48,8 +50,9 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
   const width = typeof w === "string" ? w.replace(/px$/i, "") : w;
   const height = typeof h === "string" ? h.replace(/px$/i, "") : h;
   const suffix = String(markerId ?? 'marker');
+  const paletteKey = markerPaletteCacheKey(palette);
 
-  const cacheKey = enrichSvgCacheKey(rawSvg, width, height, suffix, color);
+  const cacheKey = enrichSvgCacheKey(rawSvg, width, height, suffix, paletteKey);
   if (enrichSvgCache.has(cacheKey)) {
     return enrichSvgCache.get(cacheKey);
   }
@@ -73,7 +76,15 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
       el.setAttribute('id', idMap[oldId]);
     });
 
-    doc.querySelector('svg')?.classList.add(`icon__${color || 'blue'}`);
+    const svgEl = doc.querySelector('svg');
+    if (svgEl) {
+      svgEl.classList.forEach((className) => {
+        if (className.startsWith('icon__')) {
+          svgEl.classList.remove(className);
+        }
+      });
+      svgEl.classList.add('marker-themed');
+    }
 
     let svgString = new XMLSerializer().serializeToString(doc);
 
@@ -116,26 +127,35 @@ export const enrichSvg = (rawSvg, w, h, markerId, color) => {
 };
 
 /**
- * Добавляет или заменяет цветовой класс в SVG
- * @param {string} svgString - SVG код
- * @param {string} color - Цвет для класса (по умолчанию 'blue')
- * @returns {string} SVG с обновленным классом цвета
+ * Оборачивает SVG маркера в контейнер с CSS-переменными палитры.
  */
-export const addColorClassToSvg = (svgString, color = 'blue') => {
+export function wrapMarkerSvg(innerHtml, palette) {
+  if (!innerHtml) return '';
+  return `<div class="marker-palette" style="${buildMarkerPaletteStyle(palette)}">${innerHtml}</div>`;
+}
+
+/** Превью маркера в модалках (SVG + палитра страны). */
+export function markerPreviewHtml(svgString, palette) {
+  const inner = addColorClassToSvg(svgString || '');
+  return wrapMarkerSvg(inner, palette);
+}
+
+/**
+ * @deprecated Используйте wrapMarkerSvg + enrichSvg с палитрой.
+ */
+export const addColorClassToSvg = (svgString, _color = 'blue') => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgString, 'image/svg+xml');
   const svgElement = doc.querySelector('svg');
-  
+
   if (svgElement) {
-    // Удаляем все существующие классы icon__*
-    svgElement.classList.forEach(className => {
+    svgElement.classList.forEach((className) => {
       if (className.startsWith('icon__')) {
         svgElement.classList.remove(className);
       }
     });
-    // Добавляем новый класс
-    svgElement.classList.add(`icon__${color}`);
+    svgElement.classList.add('marker-themed');
   }
-  
+
   return new XMLSerializer().serializeToString(doc);
 };

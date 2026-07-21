@@ -4,21 +4,48 @@ from django.contrib.auth import get_user_model
 
 from accounts.enums import ModuleLevel, UserStatus
 from accounts.models import SecurityGroup
-from formular.enums import Colors
-from formular.models import Country
+from formular.models import Country, MarkerColorPalette
 
 User = get_user_model()
 
 TEST_PASSWORD = 'TestPass1'
 ADMIN_PASSWORD = 'AdminPass1'
 
+DEFAULT_TEST_PALETTE = {
+    'title': 'Синий (тест)',
+    'color_first': '#008DD2',
+    'color_second': '#FEFEFE',
+    'color_third': '#00A0E3',
+    'color_forth': '#A2D9F7',
+}
+
+
+def get_or_create_test_marker_palette(**overrides):
+    spec = {**DEFAULT_TEST_PALETTE, **overrides}
+    palette, _ = MarkerColorPalette.objects.get_or_create(
+        title=spec['title'],
+        defaults={
+            'color_first': spec['color_first'],
+            'color_second': spec['color_second'],
+            'color_third': spec['color_third'],
+            'color_forth': spec['color_forth'],
+        },
+    )
+    return palette
+
 
 def create_country(**kwargs):
+    marker_palette = kwargs.pop('marker_palette', None)
+    if marker_palette is None:
+        marker_palette = (
+            MarkerColorPalette.objects.filter(title='Синий').first()
+            or get_or_create_test_marker_palette()
+        )
     defaults = {
         'title': 'Тестовая страна',
         'title_short': 'ТС',
         'iso_code': 'TST',
-        'color': Colors.blue.name,
+        'marker_palette': marker_palette,
     }
     defaults.update(kwargs)
     return Country.objects.create(**defaults)

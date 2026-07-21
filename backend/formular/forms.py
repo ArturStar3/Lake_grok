@@ -1,16 +1,25 @@
 from django import forms
 
-from .models import Country, ActionType, Colors, ZoneGeometryModes
-from .widgets import ColorRadioSelect, HexColorInput
+from .models import Country, ActionType, MarkerColorPalette, ZoneGeometryModes
+from .widgets import HexColorInput
+
+
+class MarkerColorPaletteForm(forms.ModelForm):
+    class Meta:
+        model = MarkerColorPalette
+        fields = '__all__'
+        widgets = {
+            'color_first': HexColorInput(),
+            'color_second': HexColorInput(),
+            'color_third': HexColorInput(),
+            'color_forth': HexColorInput(),
+        }
 
 
 class CountryForm(forms.ModelForm):
     class Meta:
         model = Country
         fields = '__all__'
-        widgets = {
-            'color': ColorRadioSelect(enum_cls=Colors),
-        }
 
 
 class ActionTypeForm(forms.ModelForm):

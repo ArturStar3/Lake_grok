@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
-import { addColorClassToSvg } from '../../utils/svgUtils';
+import { markerPreviewHtml } from '../../utils/svgUtils';
+import { getCountryMarkerPalette } from '../../utils/markerPalette';
 import { useActionsArray } from '../../hooks/useActionsArray';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
 import { useTargetFormData } from '../../hooks/useTargetFormData';
@@ -126,10 +127,12 @@ export default function AddTargetModal({
         }));
     }, [isOpen, initialCoords, countries]);
 
-    // Получаем цвет выбранной страны
-    const selectedCountryColor = formData.country 
-        ? countries.find(c => c.id === formData.country)?.color || 'blue'
-        : 'blue';
+    const selectedCountryPalette = useMemo(() => {
+        const country = formData.country
+            ? countries.find((c) => c.id === formData.country)
+            : null;
+        return getCountryMarkerPalette(country);
+    }, [formData.country, countries]);
     
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -471,9 +474,9 @@ export default function AddTargetModal({
                                             <div 
                                                 className="add-target-modal__marker-icon"
                                                 dangerouslySetInnerHTML={{ 
-                                                    __html: addColorClassToSvg(
+                                                    __html: markerPreviewHtml(
                                                         markerSvgs.get(formData.marker), 
-                                                        selectedCountryColor
+                                                        selectedCountryPalette
                                                     ) 
                                                 }}
                                             />
@@ -526,9 +529,9 @@ export default function AddTargetModal({
                                                         <div 
                                                             className="add-target-modal__marker-icon"
                                                             dangerouslySetInnerHTML={{ 
-                                                                __html: addColorClassToSvg(
+                                                                __html: markerPreviewHtml(
                                                                     markerSvgs.get(marker.id), 
-                                                                    selectedCountryColor
+                                                                    selectedCountryPalette
                                                                 ) 
                                                             }}
                                                         />

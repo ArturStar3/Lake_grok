@@ -10,9 +10,12 @@ User = get_user_model()
 
 @receiver(post_save, sender=User)
 def ensure_user_profile(sender, instance, created, **kwargs):
-    if created and not hasattr(instance, 'profile'):
-        UserProfile.objects.create(
-            user=instance,
-            status=UserStatus.ACTIVE if instance.is_superuser else UserStatus.PENDING,
-            full_name=instance.get_full_name() or '',
-        )
+    if not created:
+        return
+    UserProfile.objects.get_or_create(
+        user=instance,
+        defaults={
+            'status': UserStatus.ACTIVE if instance.is_superuser else UserStatus.PENDING,
+            'full_name': instance.get_full_name() or '',
+        },
+    )

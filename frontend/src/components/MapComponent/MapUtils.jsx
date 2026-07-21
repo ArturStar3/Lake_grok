@@ -3,8 +3,9 @@ import { useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import axios from "axios";
 import { processMarkerClustering, calculateMarkerPosition, computeCountryBubbleClusters } from "./markerClusteringUtils";
-import { enrichSvg } from "../../utils/svgUtils";
+import { enrichSvg, wrapMarkerSvg } from "../../utils/svgUtils";
 import { getViewBoxSize } from "../../utils/svgUtils";
+import { getCountryMarkerPalette, markerPaletteCacheKey } from "../../utils/markerPalette";
 import { MAP_CONSTANTS } from "../../constants/mapConstants";
 import { filterFlagMarkers } from "../../utils/markerFilters";
 import { buildIconCacheKey, getOrCreateDivIcon } from "../../utils/markerIconCache";
@@ -234,7 +235,8 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
         const labelTop = o.marker?.top || 0;
         const labelHeight = o.marker?.height || 100;
         const labelWidth = o.marker?.width || 100;
-        const markerColor = o.country?.color || "blue";
+        const palette = getCountryMarkerPalette(o.country);
+        const paletteKey = markerPaletteCacheKey(palette);
         const label = o.label || "";
 
         // Вычисляем позицию маркера с учетом смещения в кластере
@@ -253,7 +255,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
           'flag',
           o.id,
           path,
-          markerColor,
+          paletteKey,
           markerScale,
           labelText,
           labelFontSize,
@@ -264,16 +266,17 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
         ]);
 
         map[o.id] = getOrCreateDivIcon(cacheKey, () => {
+          const svgInner = enrichSvg(svg, iconWidth, iconHeight, o.id, palette) || `
+                <svg viewBox="0 0 ${ICON_WIDTH} ${ICON_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="${ICON_WIDTH}" height="${ICON_HEIGHT}" fill="#ccc"/>
+                </svg>
+              `;
           const html = `
           <div class="custom-marker-label"
             style="position:relative; width:${iconWidth}px; height:${iconHeight}px; --marker-offset-y: ${markerPosition.top}px; transform: translateY(var(--marker-offset-y));"
           >
             <span class="svg-marker" data-id="${o.id}" data-cluster-id="${o.clusterId || o.id}">
-              ${enrichSvg(svg, iconWidth, iconHeight, o.id, markerColor) || `
-                <svg viewBox="0 0 ${ICON_WIDTH} ${ICON_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-                  <rect width="${ICON_WIDTH}" height="${ICON_HEIGHT}" fill="#ccc"/>
-                </svg>
-              `}
+              ${wrapMarkerSvg(svgInner, palette)}
             </span>
             <span class="marker-label"
               style="

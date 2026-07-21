@@ -511,85 +511,24 @@
 }
 
 :root {
-    --white-middle-color: #FEFEFE;
-    --green-middle-color: #5aad73;
     --border-color: #2B2A29;
     --text-color: #2B2A29;
-
-    --blue-first-color: #008DD2;
-    --blue-third-color: #00A0E3;
-    --blue-forth-color: #A2D9F7;
-
-    --red-first-color: #970e0e;
-    --red-third-color: #c20b0b;
-    --red-forth-color: #f7baa2;
-
-    --green-first-color: #0e970e;
-    --green-third-color: #0bc214;
-    --green-forth-color: #a2f7bc;
-
-    --yellow-first-color: #8e970e;
-    --yellow-third-color: #c2bf0b;
-    --yellow-forth-color: #f7f1a2;
-
-    --marine-first-color: #0077BE;
-    --marine-third-color: #35a5e6;
-    --marine-forth-color: #95d3f7;
 }
 
-/* Border */
+/* Border / text (общие для SVG-маркеров) */
 .stroke__border-color {stroke: var(--border-color);}
 .fill__text-color {fill: var(--text-color);}
 
-/* Blue */
-.icon__blue .stop-color__first-color {stop-color: var(--blue-first-color);}
-.icon__blue .stop-color__second-color {stop-color: var(--white-middle-color);}
-.icon__blue .stop-color__third-color {stop-color: var(--blue-third-color);}
-.icon__blue .stop-color__forth-color {stop-color: var(--blue-forth-color);}
-.icon__blue .fill__first-color {fill: var(--blue-first-color);}
-.icon__blue .fill__second-color {fill: var(--white-middle-color);}
-.icon__blue .fill__third-color {fill: var(--blue-third-color);}
-.icon__blue .stroke__first-color {stroke: var(--blue-first-color);}
-
-/* Red */
-.icon__red .stop-color__first-color {stop-color: var(--red-first-color);}
-.icon__red .stop-color__second-color {stop-color: var(--white-middle-color);}
-.icon__red .stop-color__third-color {stop-color: var(--red-third-color);}
-.icon__red .stop-color__forth-color {stop-color: var(--red-forth-color);}
-.icon__red .fill__first-color {fill: var(--red-first-color);}
-.icon__red .fill__second-color {fill: var(--white-middle-color);}
-.icon__red .fill__third-color {fill: var(--red-third-color);}
-.icon__red .stroke__first-color {stroke: var(--red-first-color);}
-
-/* Green */
-.icon__green .stop-color__first-color {stop-color: var(--green-first-color);}
-.icon__green .stop-color__second-color {stop-color: var(--white-middle-color);}
-.icon__green .stop-color__third-color {stop-color: var(--green-third-color);}
-.icon__green .stop-color__forth-color {stop-color: var(--green-forth-color);}
-.icon__green .fill__first-color {fill: var(--green-first-color);}
-.icon__green .fill__second-color {fill: var(--white-middle-color);}
-.icon__green .fill__third-color {fill: var(--green-third-color);}
-.icon__green .stroke__first-color {stroke: var(--green-first-color);}
-
-/* Yellow */
-.icon__yellow .stop-color__first-color {stop-color: var(--yellow-first-color);}
-.icon__yellow .stop-color__second-color {stop-color: var(--white-middle-color);}
-.icon__yellow .stop-color__third-color {stop-color: var(--yellow-third-color);}
-.icon__yellow .stop-color__forth-color {stop-color: var(--yellow-forth-color);}
-.icon__yellow .fill__first-color {fill: var(--yellow-first-color);}
-.icon__yellow .fill__second-color {fill: var(--white-middle-color);}
-.icon__yellow .fill__third-color {fill: var(--yellow-third-color);}
-.icon__yellow .stroke__first-color {stroke: var(--yellow-first-color);}
-
-/* Marine */
-.icon__marine .stop-color__first-color {stop-color: var(--marine-first-color);}
-.icon__marine .stop-color__second-color {stop-color: var(--green-middle-color);}
-.icon__marine .stop-color__third-color {stop-color: var(--marine-third-color);}
-.icon__marine .stop-color__forth-color {stop-color: var(--marine-forth-color);}
-.icon__marine .fill__first-color {fill: var(--marine-first-color);}
-.icon__marine .fill__second-color {fill: var(--green-middle-color);}
-.icon__marine .fill__third-color {fill: var(--marine-third-color);}
-.icon__marine .stroke__first-color {stroke: var(--marine-first-color);}
+/* Палитра маркера: цвета задаются inline на .marker-palette (--marker-c1 … c4) */
+.marker-palette .stop-color__first-color { stop-color: var(--marker-c1); }
+.marker-palette .stop-color__second-color { stop-color: var(--marker-c2); }
+.marker-palette .stop-color__third-color { stop-color: var(--marker-c3); }
+.marker-palette .stop-color__forth-color { stop-color: var(--marker-c4); }
+.marker-palette .fill__first-color { fill: var(--marker-c1); }
+.marker-palette .fill__second-color { fill: var(--marker-c2); }
+.marker-palette .fill__third-color { fill: var(--marker-c3); }
+.marker-palette .fill__forth-color { fill: var(--marker-c4); }
+.marker-palette .stroke__first-color { stroke: var(--marker-c1); }
 
 /* Стили для флаговых маркеров */
 .custom-marker-label {

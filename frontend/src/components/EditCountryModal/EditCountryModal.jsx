@@ -13,9 +13,10 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
         title: '',
         title_short: '',
         iso_code: countryIso || '',
-        color: 'blue'
+        marker_palette_id: '',
     });
     
+    const [markerPalettes, setMarkerPalettes] = useState([]);
     const [countryInfos, setCountryInfos] = useState([]);
     const [sections, setSections] = useState([]);
     const [attachmentsBySection, setAttachmentsBySection] = useState({});
@@ -27,12 +28,17 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(!isNewCountry);
     
-    const colorOptions = [
-        { value: 'blue', label: 'Синий' },
-        { value: 'green', label: 'Зеленый' },
-        { value: 'red', label: 'Красный' },
-        { value: 'yellow', label: 'Желтый' }
-    ];
+    useEffect(() => {
+        if (!isOpen) return;
+        (async () => {
+            try {
+                const { data } = await axios.get(`${API_ROOT}/api/v1/marker-color-palettes/`);
+                setMarkerPalettes(Array.isArray(data) ? data : []);
+            } catch (err) {
+                console.warn('Не удалось загрузить палитры маркеров:', err);
+            }
+        })();
+    }, [isOpen]);
     
     useEffect(() => {
         if (isOpen) {
@@ -82,7 +88,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                 title: country.title || '',
                 title_short: country.title_short || '',
                 iso_code: country.iso_code || '',
-                color: country.color || 'blue'
+                marker_palette_id: country.marker_palette?.id ?? '',
             });
             
             setCountryInfos(countryInfoRes.data || []);
@@ -275,7 +281,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                 title: formData.title.trim(),
                 title_short: formData.title_short.trim().toUpperCase(),
                 iso_code: formData.iso_code.trim().toUpperCase(),
-                color: formData.color
+                marker_palette_id: formData.marker_palette_id || undefined,
             };
             
             let savedCountry;
@@ -449,25 +455,26 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                                     </div>
                                     
                                     <div className="edit-country-modal__field">
-                                        <label htmlFor="color" className="edit-country-modal__label">
-                                            Цвет маркера <span className="edit-country-modal__required">*</span>
+                                        <label htmlFor="marker_palette_id" className="edit-country-modal__label">
+                                            Палитра маркера <span className="edit-country-modal__required">*</span>
                                         </label>
                                         <select
-                                            id="color"
-                                            name="color"
-                                            value={formData.color}
+                                            id="marker_palette_id"
+                                            name="marker_palette_id"
+                                            value={formData.marker_palette_id}
                                             onChange={handleChange}
-                                            className={`edit-country-modal__select ${errors.color ? 'edit-country-modal__input--error' : ''}`}
+                                            className={`edit-country-modal__select ${errors.marker_palette_id ? 'edit-country-modal__input--error' : ''}`}
                                             disabled={isSubmitting}
                                         >
-                                            {colorOptions.map(option => (
-                                                <option key={option.value} value={option.value}>
-                                                    {option.label}
+                                            <option value="">Выберите палитру</option>
+                                            {markerPalettes.map((palette) => (
+                                                <option key={palette.id} value={palette.id}>
+                                                    {palette.title}
                                                 </option>
                                             ))}
                                         </select>
-                                        {errors.color && (
-                                            <span className="edit-country-modal__error">{errors.color}</span>
+                                        {errors.marker_palette_id && (
+                                            <span className="edit-country-modal__error">{errors.marker_palette_id}</span>
                                         )}
                                     </div>
                                 </div>

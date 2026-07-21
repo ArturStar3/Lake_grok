@@ -117,6 +117,8 @@ Copy to offline server:
 On offline server:
   .\import-and-start.ps1
   See OFFLINE_MIGRATION.md
+  Marker color palettes: OFFLINE_MIGRATION_MARKER_PALETTES.md
+    scripts\offline\post-update-offline.ps1
 
 NEVER on offline machine:
   docker compose build

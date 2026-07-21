@@ -79,6 +79,7 @@ from .serializers import (
     PersonRelationSerializer,
     PersonRelationWriteSerializer,
     MapDisplaySettingsSerializer,
+    MarkerColorPaletteSerializer,
     TargetVulnerabilitySerializer,
 )
 from formular.models import (
@@ -108,6 +109,7 @@ from formular.models import (
     PersonPhoto,
     PersonRelation,
     MapDisplaySettings,
+    MarkerColorPalette,
     TargetVulnerability,
 )
 from equipment.models import (
@@ -180,7 +182,7 @@ def _target_zones_prefetch():
 def _target_list_queryset():
     """Список targets: без Count(children) и без type__countries."""
     return (
-        Target.objects.select_related('country', 'marker', 'type')
+        Target.objects.select_related('country__marker_palette', 'marker', 'type')
         .prefetch_related(*_target_zones_prefetch())
         .order_by('title')
     )
@@ -189,7 +191,7 @@ def _target_list_queryset():
 def _target_detail_queryset():
     """Детали target: полный prefetch + children_count + все ТТХ техники."""
     return (
-        Target.objects.select_related('country', 'marker', 'type')
+        Target.objects.select_related('country__marker_palette', 'marker', 'type')
         .prefetch_related(
             Prefetch(
                 'actions',
@@ -636,7 +638,23 @@ class CountryViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     serializer_class = CountryListSerializer
     permission_classes = [CountryDossierPermission]
     country_field = 'id'
-    queryset = Country.objects.all().order_by('title')
+    queryset = Country.objects.select_related('marker_palette').all().order_by('title')
+
+class MarkerColorPaletteViewSet(viewsets.ModelViewSet):
+    """CRUD палитр маркеров стран"""
+
+    serializer_class = MarkerColorPaletteSerializer
+    permission_classes = [IsSuperUserOrReadOnlyReference]
+    queryset = MarkerColorPalette.objects.all().order_by('title')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.countries.exists():
+            return Response(
+                {'detail': 'Палитра используется странами'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
 
 class MarkerViewSet(viewsets.ReadOnlyModelViewSet):
     """Список маркеров"""

@@ -2,6 +2,9 @@ from django import forms
 from django.contrib.auth.forms import AdminUserCreationForm
 from unfold.widgets import UnfoldAdminTextInputWidget, UnfoldBooleanWidget
 
+from .enums import UserStatus
+from .models import UserProfile
+
 
 class ChangePasswordForm(forms.Form):
     new_password = forms.CharField(
@@ -51,7 +54,13 @@ class UserAdminCreationForm(AdminUserCreationForm):
     def save(self, commit=True):
         user = super().save(commit=commit)
         if commit and user.pk:
-            profile = user.profile
+            profile, _ = UserProfile.objects.get_or_create(
+                user=user,
+                defaults={
+                    'status': UserStatus.ACTIVE if user.is_superuser else UserStatus.PENDING,
+                    'full_name': user.get_full_name() or '',
+                },
+            )
             profile.must_change_password = self.cleaned_data.get('must_change_password', True)
             profile.save(update_fields=['must_change_password'])
         return user

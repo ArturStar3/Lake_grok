@@ -7,11 +7,11 @@ from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from formular.enums import ActionLineTypes, Colors
 from formular.models import (
     ActionType,
     Country,
     Marker,
+    MarkerColorPalette,
     Target,
     TargetAction,
     TargetType,
@@ -220,12 +220,27 @@ class Command(BaseCommand):
             )
         )
 
+LEGACY_COLOR_TO_PALETTE_TITLE = {
+    'blue': 'Синий',
+    'green': 'Зелёный',
+    'red': 'Красный',
+    'yellow': 'Жёлтый',
+    'marine': 'Морской',
+}
+
+
+    def _palette_for_legacy_color(self, color_key):
+        title = LEGACY_COLOR_TO_PALETTE_TITLE.get(color_key, 'Синий')
+        palette = MarkerColorPalette.objects.filter(title=title).first()
+        if palette:
+            return palette
+        return MarkerColorPalette.objects.order_by('id').first()
+
     def _ensure_countries(self, countries_data):
         result = []
         for row in countries_data:
-            color = str(row.get("color", Colors.blue.name)).strip()
-            if color not in Colors.__members__:
-                color = Colors.blue.name
+            color = str(row.get("color", "blue")).strip()
+            palette = self._palette_for_legacy_color(color)
 
             title = str(row["title"]).strip()
             country, _ = Country.objects.update_or_create(
@@ -233,7 +248,7 @@ class Command(BaseCommand):
                 defaults={
                     "title_short": str(row["title_short"]).strip(),
                     "iso_code": str(row["iso_code"]).strip(),
-                    "color": color,
+                    "marker_palette": palette,
                 },
             )
             result.append(country)

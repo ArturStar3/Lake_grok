@@ -54,6 +54,7 @@ import { TILE_RASTER_URL, USE_VECTOR_MAP } from "../../config/tiles";
 import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
 import { clearMarkerIconCache } from "../../utils/markerIconCache";
 import { clearEnrichSvgCache } from "../../utils/svgUtils";
+import { getCountryMarkerPalette } from "../../utils/markerPalette";
 import { ensureNonFlagIconsForObjects } from "../../utils/markerIconFactory";
 import "./MapComponent.css"
 
@@ -672,13 +673,14 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
             {/* Маркеры элементов в круге */}
             {circleMarkers.map((marker, idx) => {
                 const markerIcon = circleIcons[marker.id] || (iconsById ? iconsById[marker.id] : null);
+                const circleFill = getCountryMarkerPalette(marker.country).color_first;
 
                 return (
                     <Marker
                         key={`circle-marker-${displayGroupId}-${idx}`}
                         position={[marker.lat, marker.lng]}
                         icon={markerIcon || L.divIcon({
-                            html: `<div class="circle-item-marker" style="cursor: pointer; opacity: 0.9;"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="${marker.country?.color || '#4CAF50'}" stroke="#FFFFFF" stroke-width="2"/></svg></div>`,
+                            html: `<div class="circle-item-marker" style="cursor: pointer; opacity: 0.9;"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="${circleFill}" stroke="#FFFFFF" stroke-width="2"/></svg></div>`,
                             className: "circle-item-div-icon",
                             iconSize: [40, 40],
                             iconAnchor: [20, 20]

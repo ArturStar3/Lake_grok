@@ -8,13 +8,14 @@ from django.db.models import Prefetch, Count
 
 from infolake.admin_base import InlineOnlyModelAdmin, ModelAdmin
 
-from .forms import CountryForm, ActionTypeForm
+from .forms import CountryForm, ActionTypeForm, MarkerColorPaletteForm
 from .models import (
     Country,
     CountryInfo,
     Target,
     TargetEquipment,
     Marker,
+    MarkerColorPalette,
     Event,
     EventType,
     EventMarker,
@@ -56,11 +57,42 @@ from .admin_inlines import (
 EMPTY_VALUE_DISPLAY = '<пусто>'
 
 
+@admin.register(MarkerColorPalette)
+class MarkerColorPaletteAdmin(ModelAdmin):
+    form = MarkerColorPaletteForm
+    list_display = ('title', 'swatch_first', 'swatch_second', 'swatch_third', 'swatch_forth')
+    search_fields = ('title',)
+    list_per_page = 50
+
+    def _swatch(self, hex_color):
+        return format_html(
+            '<span style="display:inline-block;width:20px;height:20px;background:{};'
+            'border:1px solid #000;"></span>',
+            hex_color,
+        )
+
+    @admin.display(description='1')
+    def swatch_first(self, obj):
+        return self._swatch(obj.color_first)
+
+    @admin.display(description='2')
+    def swatch_second(self, obj):
+        return self._swatch(obj.color_second)
+
+    @admin.display(description='3')
+    def swatch_third(self, obj):
+        return self._swatch(obj.color_third)
+
+    @admin.display(description='4')
+    def swatch_forth(self, obj):
+        return self._swatch(obj.color_forth)
+
+
 @admin.register(Country)
 class CountryAdmin(ModelAdmin):
     form = CountryForm
-    list_display = ('title', 'color_display')
-    list_filter = ('color',)
+    list_display = ('title', 'palette_display')
+    list_filter = ('marker_palette',)
     search_fields = ('title', 'title_short', 'iso_code')
     list_per_page = 50
     inlines = (
@@ -68,12 +100,19 @@ class CountryAdmin(ModelAdmin):
         CountryInfoInlineAdmin,
     )
 
-    @admin.display(description='Цвет')
-    def color_display(self, obj):
+    @admin.display(description='Палитра')
+    def palette_display(self, obj):
+        p = obj.marker_palette
+        if not p:
+            return EMPTY_VALUE_DISPLAY
         return format_html(
-            '<span style="display:inline-block; width:20px; height:20px;'
-            'background:{}; border:1px solid #000; margin-right:6px;"></span>',
-            obj.color,
+            '{}<span style="margin-left:8px;">{}</span>',
+            mark_safe(''.join(
+                f'<span style="display:inline-block;width:14px;height:14px;background:{c};'
+                f'border:1px solid #000;margin-right:2px;"></span>'
+                for c in (p.color_first, p.color_second, p.color_third, p.color_forth)
+            )),
+            p.title,
         )
 
 
