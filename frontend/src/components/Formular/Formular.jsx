@@ -42,7 +42,7 @@ import { isLosRadarZoneMode } from "../../utils/computeLosZone";
 const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
 const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
 
-export default function Formular() {
+export default function Formular({ onMapFullscreenChange }) {
     const { user } = useAuth();
     const canEditTargets = canWriteModule(user, 'targets');
     const canReadSituations = canReadModule(user, 'operational_situations');
@@ -1092,8 +1092,12 @@ export default function Formular() {
         setTimelineRevisionId(null);
     }, [isFullscreen]);
 
+    useEffect(() => {
+        onMapFullscreenChange?.(isFullscreen);
+    }, [isFullscreen, onMapFullscreenChange]);
+
     return (
-        <section className="formular">
+        <section className={`formular${isFullscreen ? " formular--map-fullscreen" : ""}`}>
             <h1 className="visually-hidden">О</h1>
             <div className="container">
                 <div className="formular__wraper">
@@ -1344,7 +1348,7 @@ export default function Formular() {
                             )}
                         </div>
                     </div>
-                    <div className="formular__features-wraper">
+                    <div className={`formular__features-wraper${isFullscreen ? " formular__features-wraper--fullscreen" : ""}`}>
                         <div className="formular__map">
                             <MapComponent
                                 objects={filteredObjects}
@@ -1433,6 +1437,14 @@ export default function Formular() {
                                 onVulnerabilityMapPick={handleVulnerabilityMapPick}
                                 mapUiResetToken={mapUiResetToken}
                                 onResetAllMapState={handleResetAllMapState}
+                                eventsLoading={eventsLoading}
+                                eventsError={eventsError}
+                                situationsLoading={situationsLoading}
+                                situationsError={situationsError}
+                                canEditTargets={canEditTargets}
+                                onOpenAddTarget={handleOpenAddTargetModal}
+                                canOpenReference={canOpenReference}
+                                onOpenReference={() => setReferenceDataOpen(true)}
                                 situations={situations}
                                 selectedSituationIds={selectedSituations}
                                 activeSituationId={activeSituationId}
@@ -1475,6 +1487,7 @@ export default function Formular() {
                                 editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
                             />
                         </div>
+                        {!isFullscreen && (
                         <div className="formular__features">
                             <Features
                                 isMeasureMode={isMeasureMode}
@@ -1482,6 +1495,7 @@ export default function Formular() {
                                 onRemovePoint={removeMeasurePoint}
                             />
                         </div>
+                        )}
                     </div>
                 </div>
             </div>

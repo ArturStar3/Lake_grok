@@ -1,4 +1,3 @@
-// ...existing code...
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMapEvents, Polyline, Circle, CircleMarker, useMap, Polygon } from "react-leaflet";
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import L from "leaflet";
@@ -7,18 +6,10 @@ import "leaflet/dist/leaflet.css";
 
 import LabelGeneration from "./MapUtils";
 import NonFlagLabelGeneration from "./NonFlagMarkerUtils";
-import ObjectsTable from "../ObjectsTable/ObjectsTable";
-import EventsTable from "../Events/EventsTable";
-import EventsFilterPanel from "../Events/EventsFilterPanel";
-import FilterPanel from "../FilterPanel/FilterPanel";
-import Features from "../Features/Features";
-import ActionZoneFilters from "../Features/ActionZoneFilters";
-import IntersectionTable from "../IntersectionTable/IntersectionTable";
 import ActionRadiusLegendButton from "./ActionRadiusLegendButton";
 import ActionZonesLayer from "./ActionZonesLayer";
 import MapVectorBaseLayer from "./MapVectorBaseLayer";
 import MapOverlayLayers from "./MapOverlayLayers";
-import MapLayerPanel from "./MapLayerPanel";
 import { useMapOverlayLayers } from "../../hooks/useMapOverlayLayers";
 import ZoneHoverListPanel from "./ZoneHoverListPanel";
 import ZoneActionPopupManager, { buildZonePopupPayload } from "./ZoneActionPopupManager";
@@ -30,9 +21,6 @@ import EventDrawingToolbar from "./EventDrawingToolbar";
 import SituationDrawingToolbar from "./SituationDrawingToolbar";
 import OperationalSituationLayer from "./OperationalSituationLayer";
 import SituationDetailPanel from "../OperationalSituation/SituationDetailPanel";
-import SituationsFilterPanel from "../OperationalSituation/SituationsFilterPanel";
-import SituationsTable from "../OperationalSituation/SituationsTable";
-import SituationsTimeline from "../OperationalSituation/SituationsTimeline";
 import { filterRevisionsForSituation } from "../../utils/situationUtils";
 import InundationDrawBanner from "./InundationDrawBanner";
 import EventDraftLayer from "./EventDraftLayer";
@@ -56,7 +44,13 @@ import { clearMarkerIconCache } from "../../utils/markerIconCache";
 import { clearEnrichSvgCache } from "../../utils/svgUtils";
 import { getCountryMarkerPalette } from "../../utils/markerPalette";
 import { ensureNonFlagIconsForObjects } from "../../utils/markerIconFactory";
-import "./MapComponent.css"
+import MapFullscreenTopBar from "./MapFullscreenTopBar";
+import MapFullscreenDock from "./MapFullscreenDock";
+import MapFullscreenPanel from "./MapFullscreenPanel";
+import MapFullscreenPanelBody, { MapFullscreenPanelFeatures } from "./MapFullscreenPanelBody";
+import MapFullscreenZoomControls, { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
+import "./MapComponent.css";
+import "./MapFullscreen.css";
 
 // delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -903,10 +897,20 @@ function MapComponent({
     vulnerabilityMapPoints = [],
     vulnerabilityPickActive = false,
     onVulnerabilityMapPick,
+    eventsLoading = false,
+    eventsError = null,
+    situationsLoading = false,
+    situationsError = null,
+    canEditTargets = false,
+    onOpenAddTarget,
+    canOpenReference = false,
+    onOpenReference,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [dockTab, setDockTab] = useState(null);
+    const panelTouchStartX = useRef(0);
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
     const [vectorMapError, setVectorMapError] = useState(null);
@@ -949,6 +953,42 @@ function MapComponent({
         setFullscreenTab(tab);
         onTableTabChange?.(tab);
     }, [onTableTabChange]);
+
+    const closeFullscreenPanel = useCallback(() => {
+        setIsSidebarOpen(false);
+        setDockTab(null);
+    }, []);
+
+    const openDock = useCallback((tab) => {
+        if (dockTab === tab && isSidebarOpen) {
+            closeFullscreenPanel();
+            return;
+        }
+        setDockTab(tab);
+        if (tab !== 'layers') {
+            handleFullscreenTabChange(tab);
+        }
+        setIsSidebarOpen(true);
+    }, [dockTab, isSidebarOpen, closeFullscreenPanel, handleFullscreenTabChange]);
+
+    const selectPanelTab = useCallback((tab) => {
+        setDockTab(tab);
+        if (tab !== 'layers') {
+            handleFullscreenTabChange(tab);
+        }
+        setIsSidebarOpen(true);
+    }, [handleFullscreenTabChange]);
+
+    const handlePanelTouchStart = useCallback((e) => {
+        panelTouchStartX.current = e.touches[0]?.clientX ?? 0;
+    }, []);
+
+    const handlePanelTouchEnd = useCallback((e) => {
+        const endX = e.changedTouches[0]?.clientX ?? 0;
+        if (endX - panelTouchStartX.current > 70) {
+            closeFullscreenPanel();
+        }
+    }, [closeFullscreenPanel]);
 
     const selectedSet = useMemo(() => new Set(selectedObj), [selectedObj]);
     const selectedEventIdSet = useMemo(() => new Set(selectedEventIds), [selectedEventIds]);
@@ -1451,21 +1491,13 @@ function MapComponent({
     }, [isFullscreen]);
 
     useEffect(() => {
-        // Click outside sidebar detection
-        const handleClickOutside = (e) => {
-            if (sidebarRef.current && !sidebarRef.current.contains(e.target)) {
-                setIsSidebarOpen(false);
-            }
-        };
-        
-        if (isFullscreen && isSidebarOpen) {
-            document.addEventListener("mousedown", handleClickOutside);
-            return () => document.removeEventListener("mousedown", handleClickOutside);
+        if (!isFullscreen) {
+            closeFullscreenPanel();
         }
-    }, [isFullscreen, isSidebarOpen]);
+    }, [isFullscreen, closeFullscreenPanel]);
 
     useEffect(() => {
-        // Click outside measure menu detection
+        // Click outside measure menu (top bar tools)
         const handleClickOutside = (e) => {
             if (measureMenuRef.current && !measureMenuRef.current.contains(e.target)) {
                 setIsMeasureMenuOpen(false);
@@ -1906,6 +1938,129 @@ function MapComponent({
         });
     }, [measurePoints]);
 
+    const fullscreenTabCounts = useMemo(() => ({
+        objects: objects?.length ?? 0,
+        events: events?.length ?? 0,
+        zones: showActionRadius ? (intersections?.length ?? 0) : 0,
+        situations: situations?.length ?? 0,
+    }), [objects, events, intersections, situations, showActionRadius]);
+
+    const handleFsToggleMeasure = useCallback(() => {
+        setIsMeasureMode((prev) => {
+            const next = !prev;
+            if (!next) setMeasurePoints([]);
+            return next;
+        });
+        setIsMeasureMenuOpen(false);
+    }, []);
+
+    const handleFsClearMeasure = useCallback(() => {
+        setMeasurePoints([]);
+        setIsMeasureMenuOpen(false);
+    }, []);
+
+    const handleFsClusterLegacy = useCallback(() => {
+        setClusterMode('legacy');
+        setIsMeasureMenuOpen(false);
+    }, []);
+
+    const handleFsClusterBubble = useCallback(() => {
+        setClusterMode('bubble');
+        setIsMeasureMenuOpen(false);
+    }, []);
+
+    const handleFsResetAll = useCallback(() => {
+        onResetAllMapState?.();
+        setIsMeasureMenuOpen(false);
+    }, [onResetAllMapState]);
+
+    const handleFsOpenTools = useCallback(() => {
+        setIsMeasureMenuOpen((open) => !open);
+    }, []);
+
+    const panelBodyProps = {
+        showActionRadius,
+        overlayEnabledById,
+        currentZoom,
+        toggleOverlayLayer,
+        setAllOverlayLayers,
+        objects,
+        zoneObjects,
+        targetTypes,
+        filterCountry,
+        onFilterCountryChange,
+        filterType,
+        onFilterTypeChange,
+        filterTitle,
+        onFilterTitleChange,
+        selectedObj,
+        onCheckboxChange,
+        handleMarkerClickGuarded,
+        hoveredTargetId,
+        setHoveredTargetId,
+        mapRef,
+        onEditClick,
+        onDeleteClick,
+        eventsLoading,
+        eventsError,
+        countriesList,
+        eventTypesList,
+        eventsFilters,
+        onEventsFiltersChange,
+        events,
+        selectedEventIds,
+        onEventCheckboxChange,
+        onEventFlyTo,
+        onEventEdit,
+        onEventDelete,
+        actionZoneAvailableByCountry,
+        actionZoneFilters,
+        showZoneIntersections,
+        setShowZoneIntersections,
+        toggleZoneLeaf,
+        toggleAllForActionType,
+        toggleAllForCountry,
+        resetZoneFilters,
+        globalActionTypeCatalog,
+        quickSelectLeaves,
+        quickSelectCountries,
+        quickSelectCombo,
+        toggleQuickSelectLeaf,
+        toggleAllQuickSelectLeavesForType,
+        setAllQuickSelectLeaves,
+        toggleQuickSelectCountry,
+        setAllQuickSelectCountries,
+        considerTerrain,
+        onConsiderTerrainChange,
+        losComputingCount,
+        losZonesCount,
+        equipmentZoneDiagnostics,
+        intersections,
+        selectedIntersections,
+        onIntersectionToggle,
+        onSelectAllIntersections,
+        situationsLoading,
+        situationsError,
+        situationsFilters,
+        onSituationsFiltersChange,
+        situations,
+        selectedSituationIds,
+        onSituationCheckboxChange,
+        onSituationRowClick,
+        onSituationFlyTo,
+        onSituationEdit,
+        onSituationDelete,
+        onSituationCreate,
+        highlightedSituationId,
+        activeSituationTimeline,
+        timelineRevisionId,
+        onTimelineRevisionSelect,
+        onTimelineRevisionEdit,
+        onTimelineRevisionDelete,
+        canEditSituations,
+        canDeleteSituations,
+    };
+
     const handlePolygonDrawConfirm = useCallback(() => {
         if (!polygonDrawing.isReady()) {
             polygonDrawing.validateBeforeSave();
@@ -1958,7 +2113,7 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen": ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
+            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
             ref={containerRef}
         >
             {vectorMapError && USE_VECTOR_MAP && (
@@ -1966,297 +2121,64 @@ function MapComponent({
                     Ошибка загрузки векторной карты: {vectorMapError}
                 </div>
             )}
-            {isFullscreen && isSidebarOpen && (
-                <div className="map__sidebar" ref={sidebarRef}>
-                    <div className="map__sidebar-header">
-                        <h2 className="map__sidebar-title">Инструменты</h2>
-                        <button
-                            type="button"
-                            className="map__sidebar-close"
-                            onClick={() => setIsSidebarOpen(false)}
-                            aria-label="Закрыть"
-                        >
-                            ✕
-                        </button>
-                    </div>
-
-                    <div className="map__sidebar-section">
-                        <div className="map__measure-menu-wrapper" ref={measureMenuRef}>
-                            <button
-                                type="button"
-                                className={`map__measure-btn${effectiveMeasureMode ? " map__measure-btn--active" : ""}`}
-                                onClick={() => setIsMeasureMenuOpen(!isMeasureMenuOpen)}
-                            >
-                                Инструменты
-                                <span className={`map__measure-menu-arrow${isMeasureMenuOpen ? " map__measure-menu-arrow--open" : ""}`}>▼</span>
-                            </button>
-                            {isMeasureMenuOpen && (
-                                <div className="map__measure-menu">
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            setIsMeasureMode((prev) => {
-                                                const next = !prev;
-                                                if (!next) {
-                                                    setMeasurePoints([]);
-                                                }
-                                                return next;
-                                            });
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                    >
-                                        {effectiveMeasureMode ? '✓ ' : ''}Режим измерения
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            setMeasurePoints([]);
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                        disabled={measurePoints.length === 0}
-                                    >
-                                        Очистить измерения
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            setClusterMode('legacy');
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                    >
-                                        {clusterMode === 'legacy' ? '✓ ' : ''}Кластеризация: классическая
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            setClusterMode('bubble');
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                    >
-                                        {clusterMode === 'bubble' ? '✓ ' : ''}Кластеризация: круги
-                                    </button>
-                                    {clusterMode === 'bubble' && (
-                                        <p className="map__cluster-legend" role="note">
-                                            <span className="map__cluster-legend-dot map__cluster-legend-dot--flag" aria-hidden />
-                                            флаги
-                                            <span className="map__cluster-legend-dot map__cluster-legend-dot--nonflag" aria-hidden />
-                                            объекты
-                                        </p>
-                                    )}
-                                    <button
-                                        type="button"
-                                        className="map__measure-menu-item"
-                                        onClick={() => {
-                                            onResetAllMapState?.();
-                                            setIsMeasureMenuOpen(false);
-                                        }}
-                                    >
-                                        Сбросить все
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="map__sidebar-section">
-                        <MapLayerPanel
-                            enabledById={overlayEnabledById}
-                            currentZoom={currentZoom}
-                            onToggle={toggleOverlayLayer}
-                            onSetAll={setAllOverlayLayers}
-                        />
-                    </div>
-
-                    <div className="map__sidebar-section map__objects-section">
-                        <div className="formular__tabs">
-                            <button
-                                type="button"
-                                className={`formular__tab${fullscreenTab === "objects" ? " formular__tab--active" : ""}`}
-                                onClick={() => handleFullscreenTabChange("objects")}
-                            >
-                                Объекты
-                            </button>
-                            <button
-                                type="button"
-                                className={`formular__tab${fullscreenTab === "events" ? " formular__tab--active" : ""}`}
-                                onClick={() => handleFullscreenTabChange("events")}
-                            >
-                                События
-                            </button>
-                            <button
-                                type="button"
-                                className={`formular__tab${fullscreenTab === "zones" ? " formular__tab--active" : ""}`}
-                                onClick={() => handleFullscreenTabChange("zones")}
-                            >
-                                Зоны действия
-                            </button>
-                            {canReadSituations && (
-                            <button
-                                type="button"
-                                className={`formular__tab${fullscreenTab === "situations" ? " formular__tab--active" : ""}`}
-                                onClick={() => handleFullscreenTabChange("situations")}
-                            >
-                                Обстановка
-                            </button>
-                            )}
-                        </div>
-
-                        {fullscreenTab === "objects" && (
-                            <>
-                                <FilterPanel
-                                    objects={zoneObjects.length > 0 ? zoneObjects : objects}
-                                    targetTypes={targetTypes}
-                                    filterCountry={filterCountry}
-                                    onFilterCountryChange={onFilterCountryChange}
-                                    filterType={filterType}
-                                    onFilterTypeChange={onFilterTypeChange}
-                                    filterTitle={filterTitle}
-                                    onFilterTitleChange={onFilterTitleChange}
-                                />
-                                <ObjectsTable
-                                    data={objects}
-                                    targetTypes={targetTypes}
-                                    selectedObj={selectedObj}
-                                    onCheckboxChange={onCheckboxChange}
-                                    onTitleClick={handleMarkerClickGuarded}
-                                    hoveredTargetId={hoveredTargetId}
-                                    onRowHover={setHoveredTargetId}
-                                    onObjectClick={(obj) => {
-                                        if (mapRef.current && obj?.lat != null && obj?.lng != null) {
-                                            requestAnimationFrame(() => {
-                                                if (mapRef.current) {
-                                                    mapRef.current.flyTo([obj.lat, obj.lng], 8, {
-                                                        duration: 1.0,
-                                                        easeLinearity: 0.3
-                                                    });
-                                                }
-                                            });
-                                        }
-                                    }}
-                                    onEditClick={onEditClick}
-                                    onDeleteClick={onDeleteClick}
-                                />
-                            </>
+            {isFullscreen && (
+                <>
+                    <MapFullscreenTopBar
+                        toolsMenuRef={measureMenuRef}
+                        isToolsOpen={isMeasureMenuOpen}
+                        onToggleTools={() => setIsMeasureMenuOpen((v) => !v)}
+                        effectiveMeasureMode={effectiveMeasureMode}
+                        measurePointsLength={measurePoints.length}
+                        clusterMode={clusterMode}
+                        onToggleMeasure={handleFsToggleMeasure}
+                        onClearMeasure={handleFsClearMeasure}
+                        onClusterLegacy={handleFsClusterLegacy}
+                        onClusterBubble={handleFsClusterBubble}
+                        onResetAll={handleFsResetAll}
+                        onExitFullscreen={toggleFullscreen}
+                        canEditTargets={canEditTargets}
+                        onOpenAddTarget={onOpenAddTarget}
+                        canOpenReference={canOpenReference}
+                        onOpenReference={onOpenReference}
+                    />
+                    <MapFullscreenPanel
+                        panelRef={sidebarRef}
+                        isOpen={isSidebarOpen}
+                        dockTab={dockTab || fullscreenTab}
+                        canReadSituations={canReadSituations}
+                        onSelectTab={selectPanelTab}
+                        onClose={closeFullscreenPanel}
+                        onTouchStart={handlePanelTouchStart}
+                        onTouchEnd={handlePanelTouchEnd}
+                        featuresFooter={(
+                            <MapFullscreenPanelFeatures
+                                effectiveMeasureMode={effectiveMeasureMode}
+                                fullscreenMeasurements={fullscreenMeasurements}
+                                onRemoveMeasurePoint={(id) => setMeasurePoints((prev) => prev.filter((p) => p.id !== id))}
+                            />
                         )}
-
-                        {fullscreenTab === "events" && (
-                            <>
-                                <EventsFilterPanel
-                                    countries={countriesList}
-                                    eventTypes={eventTypesList}
-                                    filters={eventsFilters}
-                                    onChange={onEventsFiltersChange}
-                                />
-                                <EventsTable
-                                    data={events}
-                                    selectedEvents={selectedEventIds}
-                                    onCheckboxChange={onEventCheckboxChange}
-                                    onFlyTo={onEventFlyTo}
-                                    onEdit={onEventEdit}
-                                    onDelete={onEventDelete}
-                                />
-                            </>
-                        )}
-
-                        {fullscreenTab === "zones" && (
-                            <>
-                                <ActionZoneFilters
-                                    actionZoneAvailableByCountry={actionZoneAvailableByCountry}
-                                    actionZoneFilters={actionZoneFilters}
-                                    showZoneIntersections={showZoneIntersections}
-                                    setShowZoneIntersections={setShowZoneIntersections}
-                                    hasEnabledZones={showActionRadius}
-                                    toggleZoneLeaf={toggleZoneLeaf}
-                                    toggleAllForActionType={toggleAllForActionType}
-                                    toggleAllForCountry={toggleAllForCountry}
-                                    resetZoneFilters={resetZoneFilters}
-                                    globalActionTypeCatalog={globalActionTypeCatalog}
-                                    quickSelectLeaves={quickSelectLeaves}
-                                    quickSelectCountries={quickSelectCountries}
-                                    quickSelectCombo={quickSelectCombo}
-                                    toggleQuickSelectLeaf={toggleQuickSelectLeaf}
-                                    toggleAllQuickSelectLeavesForType={toggleAllQuickSelectLeavesForType}
-                                    setAllQuickSelectLeaves={setAllQuickSelectLeaves}
-                                    toggleQuickSelectCountry={toggleQuickSelectCountry}
-                                    setAllQuickSelectCountries={setAllQuickSelectCountries}
-                                    considerTerrain={considerTerrain}
-                                    onConsiderTerrainChange={onConsiderTerrainChange}
-                                    losComputingCount={losComputingCount}
-                                    losZonesCount={losZonesCount}
-                                    equipmentZoneDiagnostics={equipmentZoneDiagnostics}
-                                    variant="tab"
-                                />
-                                {showZoneIntersections && (
-                                    <IntersectionTable
-                                        intersections={intersections}
-                                        selectedIntersections={selectedIntersections}
-                                        onIntersectionToggle={onIntersectionToggle}
-                                        onSelectAllIntersections={onSelectAllIntersections}
-                                    />
-                                )}
-                            </>
-                        )}
-
-                        {fullscreenTab === "situations" && (
-                            <>
-                                <SituationsFilterPanel
-                                    countries={countriesList}
-                                    filters={situationsFilters}
-                                    onChange={onSituationsFiltersChange}
-                                />
-                                <SituationsTable
-                                    data={situations}
-                                    selectedSituations={selectedSituationIds}
-                                    onCheckboxChange={onSituationCheckboxChange}
-                                    onRowClick={onSituationRowClick}
-                                    onFlyTo={onSituationFlyTo}
-                                    onEdit={onSituationEdit}
-                                    onDelete={onSituationDelete}
-                                    onCreate={onSituationCreate}
-                                    highlightedSituationId={highlightedSituationId}
-                                />
-                                {selectedSituationIds.length > 0 ? (
-                                    <SituationsTimeline
-                                        revisions={activeSituationTimeline}
-                                        selectedRevisionId={timelineRevisionId}
-                                        onSelectRevision={onTimelineRevisionSelect}
-                                        onEditRevision={canEditSituations ? onTimelineRevisionEdit : undefined}
-                                        onDeleteRevision={
-                                            canEditSituations && canDeleteSituations
-                                                ? onTimelineRevisionDelete
-                                                : undefined
-                                        }
-                                        canEdit={canEditSituations}
-                                        canDelete={canEditSituations && canDeleteSituations}
-                                        sortDirection="asc"
-                                        groupBySituation={selectedSituationIds.length > 1}
-                                    />
-                                ) : (
-                                    <p className="situations-timeline__empty">
-                                        Выберите обстановку checkbox в таблице
-                                    </p>
-                                )}
-                            </>
-                        )}
-
-                    </div>
-
-                    <div className="map__sidebar-section map__features-section">
-                        <Features 
-                            isMeasureMode={effectiveMeasureMode}
-                            measurements={fullscreenMeasurements}
-                            onRemovePoint={(id) => {
-                                setMeasurePoints((prev) => prev.filter((p) => p.id !== id));
-                            }}
-                        />
-                    </div>
-                </div>
+                    >
+                        <MapFullscreenPanelBody {...panelBodyProps} dockTab={dockTab ?? fullscreenTab} />
+                    </MapFullscreenPanel>
+                    <MapFullscreenDock
+                        dockTab={dockTab}
+                        onOpenDock={openDock}
+                        canReadSituations={canReadSituations}
+                        tabCounts={fullscreenTabCounts}
+                        currentZoom={currentZoom}
+                        onOpenTools={handleFsOpenTools}
+                    />
+                    <MapFullscreenZoomControls mapRef={mapRef} defaultCenter={center} defaultZoom={4} />
+                    <MapFullscreenMeasureBanner
+                        visible={effectiveMeasureMode}
+                        onCancel={() => {
+                            setIsMeasureMode(false);
+                            setMeasurePoints([]);
+                        }}
+                    />
+                </>
             )}
-            
+
             <MapContainer
                 ref={mapRef}
                 center={center}
@@ -2551,20 +2473,12 @@ function MapComponent({
                 />
             )}
 
-            <FullscreenControl
-                isFullscreen={isFullscreen}
-                onToggle={toggleFullscreen}
-                sidebarOpen={isFullscreen && isSidebarOpen}
-            />
-            {isFullscreen && !isSidebarOpen && (
-                <button
-                    type="button"
-                    className="map__sidebar-toggle"
-                    onClick={() => setIsSidebarOpen(true)}
-                    aria-label="Открыть панель инструментов"
-                >
-                    ☰
-                </button>
+            {!isFullscreen && (
+                <FullscreenControl
+                    isFullscreen={isFullscreen}
+                    onToggle={toggleFullscreen}
+                    sidebarOpen={false}
+                />
             )}
             <EventDrawingToolbar
                 visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive}

@@ -30,8 +30,12 @@
     height: 100vh;
     z-index: 500;
     border-radius: 0;
-    box-shadow: 0;
+    box-shadow: none;
     overflow: hidden;
+    --fs-top-h: 50px;
+    --fs-dock-w: 74px;
+    --fs-panel-w: min(460px, 34vw);
+    --fs-chrome-right: var(--fs-dock-w);
 }
 
 .map__fullscreen-btn {

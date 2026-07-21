@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -11,11 +12,18 @@ import PendingApprovalPage from './pages/auth/PendingApprovalPage';
 import './config/axios';
 
 function AppShell() {
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle('fullscreen-mode', mapFullscreen);
+    return () => document.body.classList.remove('fullscreen-mode');
+  }, [mapFullscreen]);
+
   return (
-    <div className="app">
-      <Header />
-      <main>
-        <Formular />
+    <div className={`app${mapFullscreen ? ' app--map-fullscreen' : ''}`}>
+      {!mapFullscreen && <Header />}
+      <main className={mapFullscreen ? 'main--map-fullscreen' : undefined}>
+        <Formular onMapFullscreenChange={setMapFullscreen} />
       </main>
     </div>
   );
