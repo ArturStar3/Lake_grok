@@ -14,9 +14,10 @@ function geometryKey(geometry) {
 }
 
 const SituationPolygon = memo(function SituationPolygon({ revision, situationId, onClick }) {
+  const revisionGeometryKey = geometryKey(revision?.geometry);
   const rings = useMemo(
     () => getZonePolygonPositionsList(revision?.geometry),
-    [revision?.id, geometryKey(revision?.geometry)],
+    [revision?.geometry, revision?.id, revisionGeometryKey],
   );
 
   const pathOptions = useMemo(() => {

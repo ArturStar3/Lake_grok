@@ -21,7 +21,7 @@ import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
 import { geoJsonToDrawPolygons, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
-import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituation, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
+import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
 import { toggleIdInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
