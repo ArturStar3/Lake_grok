@@ -4,7 +4,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 
 from accounts.permissions import IsActiveAppUser
 from accounts.services.permissions import (
-    can_delete,
+    can_delete_module,
     can_manage_reference,
     get_allowed_country_ids,
     has_country_access,
@@ -37,8 +37,8 @@ def ensure_can_write(user, module, country_id=None):
         raise PermissionDenied('Недостаточно прав для редактирования')
 
 
-def ensure_can_delete(user):
-    if not can_delete(user):
+def ensure_can_delete(user, module):
+    if not can_delete_module(user, module):
         raise PermissionDenied('Недостаточно прав для удаления')
 
 

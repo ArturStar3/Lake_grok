@@ -20,18 +20,77 @@
   pointer-events: auto;
 }
 
+.map-fs-topbar__brand-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .map-fs-topbar__brand {
   width: 30px;
   height: 30px;
+  padding: 0;
+  border: none;
   border-radius: 8px;
-  background: #008dd2;
-  color: #fff;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
+  cursor: pointer;
   flex-shrink: 0;
+}
+
+.map-fs-topbar__brand:hover {
+  background: #f1f5f9;
+}
+
+.map-fs-topbar__logo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+}
+
+.map-fs-topbar__account-dropdown {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 8px 0;
+  z-index: 700;
+}
+
+.map-fs-topbar__account-user {
+  padding: 8px 14px 10px;
+  font-size: 0.82rem;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+}
+
+.map-fs-topbar__account-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.map-fs-topbar__account-item:hover {
+  background: #f8fafc;
+}
+
+.map-fs-topbar__account-item--danger {
+  color: #b91c1c;
 }
 
 .map-fs-topbar__title {
@@ -210,14 +269,14 @@
   color: #008dd2;
 }
 
-.map-fs-dock__footer {
+.map-fs-dock__collapse {
   border-top: 1px solid #e2e8f0;
   margin: 0 10px;
   padding: 4px 0 6px;
 }
 
-.map-fs-dock__tools-shortcut {
-  min-height: 56px;
+.map-fs-dock__hide {
+  min-height: 48px;
   width: 100%;
   border: none;
   cursor: pointer;
@@ -225,27 +284,84 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   background: transparent;
   color: #64748b;
   font-size: 9px;
   font-weight: 600;
   font-family: inherit;
-}
-
-.map-fs-dock__tools-shortcut:hover {
-  background: #f0f8ff;
-  color: #008dd2;
   border-radius: 6px;
 }
 
-.map-fs-dock__zoom {
-  display: block;
-  text-align: center;
-  font-size: 9px;
+.map-fs-dock__hide:hover {
+  background: #f0f8ff;
+  color: #008dd2;
+}
+
+.map--fs-dock-hidden {
+  --fs-dock-w: 0px;
+}
+
+.map--fs-dock-hidden .map-fs-dock {
+  display: none;
+}
+
+.map-fs-dock-reveal {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 560;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 28px;
+  min-height: 72px;
+  padding: 8px 0;
+  border: 1px solid #e2e8f0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background: rgba(254, 254, 254, 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
   color: #64748b;
-  font-family: monospace;
-  padding-bottom: 4px;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: inherit;
+  pointer-events: auto;
+}
+
+.map-fs-dock-reveal:hover {
+  background: #f0f8ff;
+  color: #008dd2;
+}
+
+.map-fs-panel__add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #fefefe;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  cursor: pointer;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.map-fs-panel__add-btn:hover {
+  background: #f0f8ff;
+  border-color: #008dd2;
+  color: #008dd2;
 }
 
 .map-fs-panel {
@@ -325,6 +441,13 @@
   flex-direction: column;
 }
 
+.map-fs-panel__scroll:has(.map-layer-panel--flat) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 8px;
+}
+
 .map-fs-panel__scroll {
   flex: 1;
   min-height: 0;
@@ -353,36 +476,45 @@
   color: #64748b;
 }
 
-.map-fs-zoom-controls {
-  position: absolute;
-  top: calc(var(--fs-top-h) + 14px);
+/* Leaflet zoom — слева на карте, ниже fullscreen top bar */
+.map--fullscreen.leaflet-container .leaflet-top.leaflet-left,
+.map.map--fullscreen .leaflet-container .leaflet-top.leaflet-left {
+  top: calc(var(--fs-top-h, 50px) + 10px);
+  bottom: auto;
   left: 14px;
-  z-index: 520;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  pointer-events: auto;
 }
 
-.map-fs-map-btn {
+.map--fullscreen.leaflet-container .leaflet-control-zoom,
+.map.map--fullscreen .leaflet-container .leaflet-control-zoom {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.map--fullscreen.leaflet-container .leaflet-control-zoom a,
+.map.map--fullscreen .leaflet-container .leaflet-control-zoom a {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  line-height: 34px;
+  font-size: 18px;
   background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(6px);
-  border: none;
   color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-  transition: background 0.14s;
-  font-family: inherit;
+  border: none;
 }
 
-.map-fs-map-btn:hover {
+.map--fullscreen.leaflet-container .leaflet-control-zoom a:hover,
+.map.map--fullscreen .leaflet-container .leaflet-control-zoom a:hover {
   background: rgba(0, 141, 210, 0.85);
+  color: #fff;
+}
+
+.map--fullscreen.leaflet-container .leaflet-control-zoom-in,
+.map.map--fullscreen .leaflet-container .leaflet-control-zoom-in {
+  border-radius: 8px 8px 0 0;
+}
+
+.map--fullscreen.leaflet-container .leaflet-control-zoom-out,
+.map.map--fullscreen .leaflet-container .leaflet-control-zoom-out {
+  border-radius: 0 0 8px 8px;
 }
 
 .map-fs-measure-banner {
@@ -430,19 +562,14 @@
 
 .map--fullscreen .map-scale-bar {
   bottom: 20px;
-  left: 0;
-  right: var(--fs-chrome-right);
-  transform: none;
-  width: auto;
-  margin: 0 auto;
-  justify-content: center;
-  transition: right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Центр видимой области карты (минус dock/панель справа), не растягивать на всю ширину */
+  left: calc(50% - var(--fs-chrome-right, 0px) / 2);
+  right: auto;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - var(--fs-chrome-right, 0px) - 24px);
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
-}
-
-.map--fullscreen .map-scale-numeric,
-.map--fullscreen .map-scale-dropdown {
-  pointer-events: auto;
 }
 
 .map--fullscreen .situation-map-edit-hint {

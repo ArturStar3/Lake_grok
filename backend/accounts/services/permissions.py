@@ -85,8 +85,10 @@ def can_write_module(user, module):
     return LEVEL_RANK.get(get_module_permission(user, module), 0) >= LEVEL_RANK[ModuleLevel.WRITE]
 
 
-def can_delete(user):
-    return has_flag(user, 'can_delete')
+def can_delete_module(user, module):
+    if module not in MODULE_FIELDS:
+        return False
+    return LEVEL_RANK.get(get_module_permission(user, module), 0) >= LEVEL_RANK[ModuleLevel.WRITE_DELETE]
 
 
 def can_manage_reference(user):
@@ -136,11 +138,10 @@ def user_can_write(user, module, country_id=None):
 
 def build_permissions_payload(user):
     if is_super_access(user):
-        modules = {m: ModuleLevel.WRITE for m in MODULE_FIELDS}
+        modules = {m: ModuleLevel.WRITE_DELETE for m in MODULE_FIELDS}
         return {
             'is_superuser': True,
             'modules': modules,
-            'can_delete': True,
             'can_manage_reference': True,
             'can_manage_users': True,
             'can_approve_registrations': True,
@@ -161,7 +162,6 @@ def build_permissions_payload(user):
     return {
         'is_superuser': False,
         'modules': modules,
-        'can_delete': any(getattr(g, 'can_delete', False) for g in groups),
         'can_manage_reference': any(getattr(g, 'can_manage_reference', False) for g in groups),
         'can_manage_users': any(getattr(g, 'can_manage_users', False) for g in groups),
         'can_approve_registrations': any(

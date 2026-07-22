@@ -49,6 +49,9 @@ export function clearAuth() {
 }
 
 function attachAuthHeader(config) {
+  if (shouldSkipAuthBearer(config)) {
+    return config;
+  }
   const token = getAccessToken();
   if (token) {
     config.headers = config.headers || {};
@@ -69,9 +72,22 @@ const responseInterceptorIds = {
 
 const AUTH_NO_RETRY_PATHS = ['/auth/refresh/', '/auth/login/', '/auth/register/'];
 
+/** Публичные auth-запросы: старый Bearer не отправляем — иначе JWTAuthentication вернёт 401 до LoginView */
+const AUTH_NO_BEARER_PATHS = [
+  '/auth/login/',
+  '/auth/register/',
+  '/auth/forgot-password/',
+  '/auth/password-reset/',
+];
+
 function shouldSkipAuthRetry(config) {
   const url = config?.url || '';
   return AUTH_NO_RETRY_PATHS.some((path) => url.includes(path));
+}
+
+function shouldSkipAuthBearer(config) {
+  const url = config?.url || '';
+  return AUTH_NO_BEARER_PATHS.some((path) => url.includes(path));
 }
 
 /** Обновить access-токен по refresh. Возвращает новый access или null. Сеть — throw. */

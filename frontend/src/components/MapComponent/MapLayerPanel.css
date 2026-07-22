@@ -4,6 +4,34 @@
     gap: 10px;
 }
 
+.map-layer-panel--flat {
+    flex: 1;
+    min-height: 0;
+    gap: 12px;
+}
+
+.map-layer-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.map-layer-panel__header-label {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.map-layer-panel--flat .map-layer-panel__groups {
+    max-height: none;
+    flex: 1;
+    min-height: 0;
+    overflow-y: visible;
+}
+
 .map-layer-panel__groups {
     display: flex;
     flex-direction: column;

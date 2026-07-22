@@ -17,28 +17,27 @@ class SecurityGroup(models.Model):
         help_text='Пустой список — нет доступа к данным стран',
     )
     targets = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Объекты',
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Объекты',
     )
     events = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='События',
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='События',
     )
     formular = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Формуляр',
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Формуляр',
     )
     country_dossier = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Досье страны',
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Досье страны',
     )
     persons = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Персоналии',
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Персоналии',
     )
     equipment = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Техника',
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE, verbose_name='Техника',
     )
     operational_situations = models.CharField(
-        max_length=10, choices=ModuleLevel.choices, default=ModuleLevel.NONE,
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE,
         verbose_name='Оперативная обстановка',
     )
-    can_delete = models.BooleanField(default=False, verbose_name='Удаление записей')
     can_manage_reference = models.BooleanField(default=False, verbose_name='Справочники')
     can_manage_users = models.BooleanField(default=False, verbose_name='Управление пользователями')
     can_approve_registrations = models.BooleanField(default=False, verbose_name='Одобрение регистраций')

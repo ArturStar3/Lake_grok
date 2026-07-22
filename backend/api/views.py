@@ -233,7 +233,7 @@ class TargetViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
         return self.filter_by_allowed_countries(qs)
 
     def destroy(self, request, *args, **kwargs):
-        ensure_can_delete(request.user)
+        ensure_can_delete(request.user, 'targets')
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], url_path='parent-options')
@@ -937,7 +937,7 @@ class EventViewSet(CountryScopedQuerysetMixin, viewsets.ModelViewSet):
     queryset = Event.objects.select_related('country', 'marker', 'event_type').all().order_by('-created_at')
 
     def destroy(self, request, *args, **kwargs):
-        ensure_can_delete(request.user)
+        ensure_can_delete(request.user, 'events')
         return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
@@ -1155,7 +1155,7 @@ class OperationalSituationViewSet(viewsets.ModelViewSet):
         )
 
     def destroy(self, request, *args, **kwargs):
-        ensure_can_delete(request.user)
+        ensure_can_delete(request.user, 'operational_situations')
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['get', 'post'], url_path='revisions')
@@ -1208,7 +1208,7 @@ class OperationalSituationViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Ревизия не найдена'}, status=status.HTTP_404_NOT_FOUND)
 
         if request.method == 'DELETE':
-            ensure_can_delete(request.user)
+            ensure_can_delete(request.user, 'operational_situations')
             result = delete_operational_situation_revision(revision)
             if result is None:
                 return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1289,7 +1289,7 @@ class PersonViewSet(viewsets.ModelViewSet):
     ).order_by('order', 'full_name')
 
     def destroy(self, request, *args, **kwargs):
-        ensure_can_delete(request.user)
+        ensure_can_delete(request.user, 'persons')
         return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
@@ -1485,7 +1485,7 @@ class TargetVulnerabilityViewSet(viewsets.ModelViewSet):
         return qs
 
     def destroy(self, request, *args, **kwargs):
-        ensure_can_delete(request.user)
+        ensure_can_delete(request.user, 'targets')
         return super().destroy(request, *args, **kwargs)
 
 

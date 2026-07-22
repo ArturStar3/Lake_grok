@@ -25,7 +25,6 @@ class Command(BaseCommand):
                 'country_dossier': ModuleLevel.READ,
                 'persons': ModuleLevel.READ,
                 'equipment': ModuleLevel.READ,
-                'can_delete': False,
             },
         )
         if not created:
@@ -63,14 +62,13 @@ class Command(BaseCommand):
             name='Администраторы',
             defaults={
                 'description': 'Полный доступ ко всем странам и управление пользователями',
-                'targets': ModuleLevel.WRITE,
-                'events': ModuleLevel.WRITE,
-                'operational_situations': ModuleLevel.WRITE,
+                'targets': ModuleLevel.WRITE_DELETE,
+                'events': ModuleLevel.WRITE_DELETE,
+                'operational_situations': ModuleLevel.WRITE_DELETE,
                 'formular': ModuleLevel.WRITE,
                 'country_dossier': ModuleLevel.WRITE,
-                'persons': ModuleLevel.WRITE,
+                'persons': ModuleLevel.WRITE_DELETE,
                 'equipment': ModuleLevel.WRITE,
-                'can_delete': True,
                 'can_manage_reference': True,
                 'can_manage_users': True,
                 'can_approve_registrations': True,

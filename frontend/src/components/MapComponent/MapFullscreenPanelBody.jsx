@@ -92,10 +92,14 @@ export default function MapFullscreenPanelBody({
   onTimelineRevisionDelete,
   canEditSituations,
   canDeleteSituations,
+  canEditTargets = false,
+  onOpenAddTarget,
+  onSelectEventTool,
 }) {
   if (dockTab === 'layers') {
     return (
       <MapLayerPanel
+        layout="flat"
         enabledById={overlayEnabledById}
         currentZoom={currentZoom}
         onToggle={toggleOverlayLayer}
@@ -107,6 +111,11 @@ export default function MapFullscreenPanelBody({
   if (dockTab === 'objects') {
     return (
       <>
+        {canEditTargets && onOpenAddTarget && (
+          <button type="button" className="map-fs-panel__add-btn" onClick={onOpenAddTarget}>
+            + Добавить объект
+          </button>
+        )}
         <FilterPanel
           objects={zoneObjects.length > 0 ? zoneObjects : objects}
           targetTypes={targetTypes}
@@ -142,6 +151,15 @@ export default function MapFullscreenPanelBody({
   if (dockTab === 'events') {
     return (
       <>
+        {onSelectEventTool && (
+          <button
+            type="button"
+            className="map-fs-panel__add-btn"
+            onClick={() => onSelectEventTool('point')}
+          >
+            + Добавить событие
+          </button>
+        )}
         {eventsLoading && <p className="formular__status formular__status--loading">Загрузка событий…</p>}
         {eventsError && <p className="formular__status formular__status--error">{eventsError}</p>}
         <EventsFilterPanel

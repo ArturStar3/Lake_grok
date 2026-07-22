@@ -121,11 +121,15 @@ export default function BubbleClusterLayer({
             }}
           >
             {label ? (
-              <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
+              <Tooltip
+                permanent
+                direction="top"
+                offset={[0, -4]}
+                opacity={0.85}
+                className="map-bubble-single-tooltip"
+                interactive={false}
+              >
                 {label}
-                <span className="map-bubble-single-kind">
-                  {isFlag ? ' · флаг' : ' · объект'}
-                </span>
               </Tooltip>
             ) : null}
           </CircleMarker>

@@ -48,7 +48,7 @@ import MapFullscreenTopBar from "./MapFullscreenTopBar";
 import MapFullscreenDock from "./MapFullscreenDock";
 import MapFullscreenPanel from "./MapFullscreenPanel";
 import MapFullscreenPanelBody, { MapFullscreenPanelFeatures } from "./MapFullscreenPanelBody";
-import MapFullscreenZoomControls, { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
+import { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
 import "./MapComponent.css";
 import "./MapFullscreen.css";
 
@@ -84,31 +84,20 @@ function FullscreenControl({ isFullscreen, onToggle, sidebarOpen = false }) {
 
 // Стандартные топографические / военные масштабы для дропдауна выбора и снаппинга.
 // Убраны масштабы детальнее 1:10 000 (по требованию пользователя).
-const AVAILABLE_DENOMINATORS = [25000, 50000, 100000, 200000, 500000, 1000000, 2500000, 3000000];
+const AVAILABLE_DENOMINATORS = [
+    25000, 50000, 100000, 200000, 500000, 1000000, 2500000, 3000000,
+    5000000, 10000000, 50000000,
+];
 
-// Линейка масштаба (топографический стиль) — числовое 1:N + двухцветная графическая шкала.
-// Отображается только в полноэкранном режиме, внизу по центру.
-// Адаптивно пересчитывает реальный масштаб по данным Leaflet.
-// По клику на числовое значение открывает выпадающий список для выбора масштаба (меняет зум карты).
+function metersPerPxAtZoom(lat, zoom) {
+    return 156543.03392 * Math.cos((lat * Math.PI) / 180) / Math.pow(2, zoom);
+}
+
+// Линейка масштаба (топографический стиль) — двухцветная графическая шкала (только fullscreen).
 function MapScaleBar({ isFullscreen }) {
     const map = useMap();
     const [scale, setScale] = useState(null);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const numericRef = useRef(null);
-    const dropdownRef = useRef(null);
     const scaleTimeoutRef = useRef(null);
-
-    // Обратный расчёт зума для заданного знаменателя масштаба (1:N).
-    // Использует ту же константу Web Mercator и приближение, что и updateScale.
-    const getZoomForDenominator = useCallback((denominator, lat) => {
-        if (!denominator || typeof lat !== "number") return null;
-        const latRad = (lat * Math.PI) / 180;
-        const mpp0 = 156543.03392 * Math.cos(latRad);
-        // targetMpp согласован с формулой denomRaw = niceMeters / (barWidth * 0.000264583333)
-        const targetMpp = denominator * 0.000264583333;
-        const z = Math.log2(mpp0 / targetMpp);
-        return Math.max(0, Math.min(19, Math.round(z)));
-    }, []);
 
     const updateScale = useCallback(() => {
         if (!map || !isFullscreen) {
@@ -118,16 +107,11 @@ function MapScaleBar({ isFullscreen }) {
 
         const center = map.getCenter();
         const zoom = map.getZoom();
+        const metersPerPxRuler = metersPerPxAtZoom(center.lat, zoom);
 
-        // Метров на пиксель (Web Mercator, с учётом широты)
-        const metersPerPx = 156543.03392 * Math.cos((center.lat * Math.PI) / 180) / Math.pow(2, zoom);
-
-        // Целевая визуальная ширина линейки (px). Подбирается под типичный размер контрола.
         const targetPx = 170;
+        let groundMeters = targetPx * metersPerPxRuler;
 
-        let groundMeters = targetPx * metersPerPx;
-
-        // Округление до "красивого" картографического расстояния (ряд 1, 2, 5)
         const exp = Math.floor(Math.log10(Math.max(groundMeters, 1)));
         const base = Math.pow(10, exp);
         const coeff = groundMeters / base;
@@ -139,26 +123,9 @@ function MapScaleBar({ isFullscreen }) {
         else niceCoeff = 10;
 
         let niceMeters = niceCoeff * base;
-
-        // Реальная ширина бара в пикселях для выбранного расстояния
-        let barWidth = Math.round(niceMeters / metersPerPx);
+        let barWidth = Math.round(niceMeters / metersPerPxRuler);
         barWidth = Math.max(80, Math.min(260, barWidth));
 
-        // Вычисляем Representative Fraction (1 : N) — военный/топо формат
-        // Используем стандартное приближение для 96 DPI
-        const denomRaw = Math.round(niceMeters / (barWidth * 0.000264583333));
-        // Используем общий список доступных масштабов
-        let denom = AVAILABLE_DENOMINATORS[0];
-        let bestDiff = Math.abs(denomRaw - denom);
-        for (const c of AVAILABLE_DENOMINATORS) {
-            const diff = Math.abs(denomRaw - c);
-            if (diff < bestDiff) {
-                bestDiff = diff;
-                denom = c;
-            }
-        }
-
-        // Форматируем подпись расстояния на линейке
         let distLabel;
         let unit;
         if (niceMeters >= 1000) {
@@ -169,12 +136,10 @@ function MapScaleBar({ isFullscreen }) {
             unit = "м";
         }
 
-        // 4 сегмента — классика топографических карт (чередование двух цветов)
         const numSegments = 4;
         const segmentWidth = Math.floor(barWidth / numSegments);
 
         setScale({
-            denom,
             barWidth,
             distLabel,
             unit,
@@ -187,8 +152,6 @@ function MapScaleBar({ isFullscreen }) {
         if (!map) return undefined;
 
         const scheduleUpdate = () => {
-            // Небольшой debounce, чтобы не дёргалось во время зума/перемещения.
-            // Отменяем предыдущий таймер, иначе при быстром зуме/пане они копятся.
             if (scaleTimeoutRef.current) clearTimeout(scaleTimeoutRef.current);
             scaleTimeoutRef.current = setTimeout(updateScale, 60);
         };
@@ -196,8 +159,6 @@ function MapScaleBar({ isFullscreen }) {
         map.on("zoomend", scheduleUpdate);
         map.on("moveend", scheduleUpdate);
         map.on("resize", scheduleUpdate);
-
-        // Первоначальный расчёт
         updateScale();
 
         return () => {
@@ -208,79 +169,9 @@ function MapScaleBar({ isFullscreen }) {
         };
     }, [map, updateScale]);
 
-    // Закрываем дропдаун при выходе из fullscreen или при потере карты
-    useEffect(() => {
-        if (!isFullscreen) {
-            setIsDropdownOpen(false);
-        }
-    }, [isFullscreen]);
-
-    // Закрытие по клику вне + Escape
-    useEffect(() => {
-        if (!isDropdownOpen) return undefined;
-
-        const handleOutside = (e) => {
-            const target = e.target;
-            if (
-                dropdownRef.current &&
-                !dropdownRef.current.contains(target) &&
-                numericRef.current &&
-                !numericRef.current.contains(target)
-            ) {
-                setIsDropdownOpen(false);
-            }
-        };
-
-        const handleKey = (e) => {
-            if (e.key === "Escape") {
-                setIsDropdownOpen(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleOutside);
-        document.addEventListener("keydown", handleKey);
-
-        return () => {
-            document.removeEventListener("mousedown", handleOutside);
-            document.removeEventListener("keydown", handleKey);
-        };
-    }, [isDropdownOpen]);
-
-    const handleNumericClick = (e) => {
-        e.stopPropagation();
-        if (!isFullscreen) return;
-        setIsDropdownOpen((prev) => !prev);
-    };
-
-    const handleScaleSelect = (newDenom) => {
-        if (!map || !scale || newDenom === scale.denom) {
-            setIsDropdownOpen(false);
-            return;
-        }
-
-        const center = map.getCenter();
-        const targetZoom = getZoomForDenominator(newDenom, center.lat);
-
-        if (targetZoom !== null && typeof targetZoom === "number") {
-            // Сохраняем центр, меняем зум. Используем flyTo для приятной анимации (короткая).
-            map.flyTo(center, targetZoom, { duration: 0.25 });
-        }
-
-        setIsDropdownOpen(false);
-    };
-
     if (!isFullscreen || !scale) {
         return null;
     }
-
-    const formatMilitaryScale = (d) => {
-        // Военный/топографический формат: 1 : 50 000
-        // Поддержка крупных масштабов до 1:3 000 000
-        const str = d.toString();
-        // Вставляем пробелы каждые 3 цифры справа налево
-        const withSpaces = str.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-        return `1 : ${withSpaces}`;
-    };
 
     const segments = [];
     for (let i = 0; i < scale.numSegments; i += 1) {
@@ -301,33 +192,7 @@ function MapScaleBar({ isFullscreen }) {
     }
 
     return (
-        <div className="map-scale-bar">
-            <div
-                className="map-scale-numeric"
-                ref={numericRef}
-                onClick={handleNumericClick}
-                title="Выбрать масштаб"
-            >
-                {formatMilitaryScale(scale.denom)}
-            </div>
-
-            {isDropdownOpen && (
-                <div className="map-scale-dropdown" ref={dropdownRef}>
-                    {AVAILABLE_DENOMINATORS.map((d) => {
-                        const isActive = d === scale.denom;
-                        return (
-                            <div
-                                key={d}
-                                className={`map-scale-option${isActive ? " map-scale-option--active" : ""}`}
-                                onClick={() => handleScaleSelect(d)}
-                            >
-                                {formatMilitaryScale(d)}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
+        <div className="map-scale-bar map-scale-bar--ruler-only">
             <div
                 className="map-scale-ruler"
                 style={{ width: `${scale.barWidth}px` }}
@@ -910,6 +775,7 @@ function MapComponent({
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [dockTab, setDockTab] = useState(null);
+    const [isDockVisible, setIsDockVisible] = useState(true);
     const panelTouchStartX = useRef(0);
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
@@ -959,7 +825,17 @@ function MapComponent({
         setDockTab(null);
     }, []);
 
+    const hideDock = useCallback(() => {
+        closeFullscreenPanel();
+        setIsDockVisible(false);
+    }, [closeFullscreenPanel]);
+
+    const showDock = useCallback(() => {
+        setIsDockVisible(true);
+    }, []);
+
     const openDock = useCallback((tab) => {
+        if (!isDockVisible) setIsDockVisible(true);
         if (dockTab === tab && isSidebarOpen) {
             closeFullscreenPanel();
             return;
@@ -969,7 +845,7 @@ function MapComponent({
             handleFullscreenTabChange(tab);
         }
         setIsSidebarOpen(true);
-    }, [dockTab, isSidebarOpen, closeFullscreenPanel, handleFullscreenTabChange]);
+    }, [dockTab, isSidebarOpen, isDockVisible, closeFullscreenPanel, handleFullscreenTabChange]);
 
     const selectPanelTab = useCallback((tab) => {
         setDockTab(tab);
@@ -1493,6 +1369,7 @@ function MapComponent({
     useEffect(() => {
         if (!isFullscreen) {
             closeFullscreenPanel();
+            setIsDockVisible(true);
         }
     }, [isFullscreen, closeFullscreenPanel]);
 
@@ -1974,10 +1851,6 @@ function MapComponent({
         setIsMeasureMenuOpen(false);
     }, [onResetAllMapState]);
 
-    const handleFsOpenTools = useCallback(() => {
-        setIsMeasureMenuOpen((open) => !open);
-    }, []);
-
     const panelBodyProps = {
         showActionRadius,
         overlayEnabledById,
@@ -2059,6 +1932,9 @@ function MapComponent({
         onTimelineRevisionDelete,
         canEditSituations,
         canDeleteSituations,
+        canEditTargets,
+        onOpenAddTarget,
+        onSelectEventTool: handleSelectEventTool,
     };
 
     const handlePolygonDrawConfirm = useCallback(() => {
@@ -2113,7 +1989,7 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
+            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
             ref={containerRef}
         >
             {vectorMapError && USE_VECTOR_MAP && (
@@ -2160,15 +2036,29 @@ function MapComponent({
                     >
                         <MapFullscreenPanelBody {...panelBodyProps} dockTab={dockTab ?? fullscreenTab} />
                     </MapFullscreenPanel>
+                    {isDockVisible && (
                     <MapFullscreenDock
                         dockTab={dockTab}
                         onOpenDock={openDock}
                         canReadSituations={canReadSituations}
                         tabCounts={fullscreenTabCounts}
-                        currentZoom={currentZoom}
-                        onOpenTools={handleFsOpenTools}
+                        onHideDock={hideDock}
                     />
-                    <MapFullscreenZoomControls mapRef={mapRef} defaultCenter={center} defaultZoom={4} />
+                    )}
+                    {!isDockVisible && (
+                        <button
+                            type="button"
+                            className="map-fs-dock-reveal"
+                            title="Показать панели"
+                            aria-label="Показать панели"
+                            onClick={showDock}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <polyline points="15,18 9,12 15,6" />
+                            </svg>
+                            <span>Меню</span>
+                        </button>
+                    )}
                     <MapFullscreenMeasureBanner
                         visible={effectiveMeasureMode}
                         onCancel={() => {

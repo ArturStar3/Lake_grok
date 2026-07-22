@@ -7,6 +7,8 @@ import { API_URL } from "../../config/api";
 import { buildSectionCards, organizeSectionData } from "../../utils/organizeSectionData";
 import { useFormularCompletion } from "../../hooks/formular/useFormularCompletion";
 import { getCountryMarkerPalette } from "../../utils/markerPalette";
+import { useAuth } from "../../context/AuthContext";
+import { hasCountryAccess } from "../../utils/permissions";
 
 const API_ROOT = API_URL;
 
@@ -17,6 +19,7 @@ export default function CountryModal({
     onTargetOpenDetails,
     canEditCountry = false,
 }) {
+    const { user } = useAuth();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -27,11 +30,13 @@ export default function CountryModal({
     const [attachmentsBySection, setAttachmentsBySection] = useState({});
     const { sections: completionSections, targets: completionTargets } = useFormularCompletion(countryId);
 
+    const canShowEdit = canEditCountry && hasCountryAccess(user, countryId);
+
     useEffect(() => {
-        if (!canEditCountry) {
+        if (!canShowEdit) {
             setIsEditModalOpen(false);
         }
-    }, [canEditCountry]);
+    }, [canShowEdit]);
 
     useEffect(() => {
         if (!countryIso) return;
@@ -187,7 +192,7 @@ export default function CountryModal({
                             )}
                         </div>
                         <div className="country-modal__header-actions">
-                            {!loading && !error && canEditCountry && (
+                            {!loading && !error && canShowEdit && (
                                 <button
                                     className="country-modal__edit-btn"
                                     onClick={() => setIsEditModalOpen(true)}
@@ -239,7 +244,7 @@ export default function CountryModal({
                 </div>
             </div>
             
-            {isEditModalOpen && canEditCountry && (
+            {isEditModalOpen && canShowEdit && (
                 <EditCountryModal
                     countryId={countryId}
                     countryIso={countryIso}

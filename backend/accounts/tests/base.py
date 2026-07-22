@@ -54,14 +54,13 @@ def create_country(**kwargs):
 def create_admin_group(**kwargs):
     defaults = {
         'name': 'Тест-админы',
-        'targets': ModuleLevel.WRITE,
-        'events': ModuleLevel.WRITE,
-        'operational_situations': ModuleLevel.WRITE,
+        'targets': ModuleLevel.WRITE_DELETE,
+        'events': ModuleLevel.WRITE_DELETE,
+        'operational_situations': ModuleLevel.WRITE_DELETE,
         'formular': ModuleLevel.WRITE,
         'country_dossier': ModuleLevel.WRITE,
-        'persons': ModuleLevel.WRITE,
+        'persons': ModuleLevel.WRITE_DELETE,
         'equipment': ModuleLevel.WRITE,
-        'can_delete': True,
         'can_manage_reference': True,
         'can_manage_users': True,
         'can_approve_registrations': True,

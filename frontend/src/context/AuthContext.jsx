@@ -164,6 +164,8 @@ export function AuthProvider({ children }) {
 
     refreshSeqRef.current += 1;
 
+    clearAuth();
+
     const { data } = await apiClient.post('/auth/login/', { username, password });
 
     storeAuth({ access: data.access, refresh: data.refresh, user: data.user });

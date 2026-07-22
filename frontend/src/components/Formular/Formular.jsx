@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, startTransition, useDeferredValue } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { canDelete, canManageReference, canReadModule, canWriteModule } from "../../utils/permissions";
+import { canDeleteModule, canManageReference, canReadModule, canWriteModule } from "../../utils/permissions";
 import UsersAdminPanel from "../Admin/UsersAdminPanel";
 import "./Formular.css";
 import FilterPanel from "../FilterPanel/FilterPanel";
@@ -47,8 +47,10 @@ export default function Formular({ onMapFullscreenChange }) {
     const canEditTargets = canWriteModule(user, 'targets');
     const canReadSituations = canReadModule(user, 'operational_situations');
     const canEditSituations = canWriteModule(user, 'operational_situations');
-    const canRemoveTargets = canDelete(user);
-    const canDeleteSituations = canDelete(user);
+    const canRemoveTargets = canDeleteModule(user, 'targets');
+    const canDeleteSituations = canDeleteModule(user, 'operational_situations');
+    const canDeleteEvents = canDeleteModule(user, 'events');
+    const canEditCountryDossier = canWriteModule(user, 'country_dossier');
     const canOpenReference = canManageReference(user);
     const [usersAdminOpen, setUsersAdminOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("objects");
@@ -72,7 +74,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const [editingEvent, setEditingEvent] = useState(null);
     const [editEventDrawMode, setEditEventDrawMode] = useState(null);
     const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
-    const [isFullscreen, setFullscreen] = useState(false);
+    const [isFullscreen, setFullscreen] = useState(true);
     const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
     const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
     const [isSituationDrawActive, setIsSituationDrawActive] = useState(false);
@@ -1284,7 +1286,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                         onCheckboxChange={handleEventCheckboxChange}
                                         onFlyTo={handleEventFlyTo}
                                         onEdit={handleEventEdit}
-                                        onDelete={handleEventDelete}
+                                        onDelete={canDeleteEvents ? handleEventDelete : undefined}
                                     />
                                 </>
                             )}
@@ -1382,7 +1384,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 onAltClickAddTarget={handleMapAltClickAddTarget}
                                 onEditClick={handleEditClick}
                                 onTargetOpenDetails={handleSubordinateOpenDetails}
-                                canEditCountry={canOpenReference}
+                                canEditCountry={canEditCountryDossier}
                                 onDeleteClick={handleDeleteClick}
                                 onEventSave={handleEventSave}
                                 filterCountry={filterCountry}

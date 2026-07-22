@@ -14,14 +14,17 @@ function readInitialCollapsed() {
 
 /**
  * Панель переключения картографических слоёв (гидрография, транспорт, POI и т.д.).
+ * layout="flat" — без сворачивания (fullscreen dock «Слои»).
  */
 export default function MapLayerPanel({
+  layout = "flat",
   enabledById = {},
   currentZoom = 0,
   onToggle,
   onSetAll,
 }) {
-  const [collapsed, setCollapsed] = useState(readInitialCollapsed);
+  const isFlat = layout === "flat";
+  const [collapsed, setCollapsed] = useState(() => (isFlat ? false : readInitialCollapsed()));
   const selectAllRef = useRef(null);
 
   const groups = useMemo(() => {
@@ -42,14 +45,16 @@ export default function MapLayerPanel({
   const total = MAP_OVERLAY_LAYERS.length;
   const allEnabled = enabledCount === total && total > 0;
   const someEnabled = enabledCount > 0 && enabledCount < total;
+  const contentVisible = isFlat || !collapsed;
 
   useEffect(() => {
+    if (isFlat) return;
     try {
       localStorage.setItem(COLLAPSE_STORAGE_KEY, collapsed ? "1" : "0");
     } catch {
       // localStorage недоступен — молча пропускаем
     }
-  }, [collapsed]);
+  }, [collapsed, isFlat]);
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -70,79 +75,88 @@ export default function MapLayerPanel({
   const isLayerUnavailable = (layer) =>
     typeof layer.minZoom === 'number' && currentZoom < layer.minZoom;
 
-  return (
-    <div className="map-layer-panel">
-      <button
-        type="button"
-        className="map-layer-panel__title"
-        aria-expanded={!collapsed}
-        onClick={() => setCollapsed((prev) => !prev)}
-      >
-        <span
-          className={`map-layer-panel__chevron${collapsed ? " map-layer-panel__chevron--collapsed" : ""}`}
-          aria-hidden="true"
-        >
-          ▾
+  const layerList = (
+    <>
+      <p className="map-layer-panel__hint">
+        Слои с пометкой zoom включаются при приближении карты.
+      </p>
+
+      <label className="map-layer-panel__item map-layer-panel__item--all">
+        <input
+          ref={selectAllRef}
+          type="checkbox"
+          checked={allEnabled}
+          onChange={(e) => handleSetAll(e.target.checked)}
+        />
+        <span className="map-layer-panel__label map-layer-panel__label--all">
+          {allEnabled ? "Снять выделение" : "Выделить все"}
         </span>
-        <span>Слои карты</span>
-        <span className="map-layer-panel__counter">{enabledCount}/{total}</span>
-      </button>
+      </label>
 
-      {!collapsed && (
-        <>
-          <p className="map-layer-panel__hint">
-            Слои с пометкой zoom включаются при приближении карты.
-          </p>
-
-          <label className="map-layer-panel__item map-layer-panel__item--all">
-            <input
-              ref={selectAllRef}
-              type="checkbox"
-              checked={allEnabled}
-              onChange={(e) => handleSetAll(e.target.checked)}
-            />
-            <span className="map-layer-panel__label map-layer-panel__label--all">
-              {allEnabled ? "Снять выделение" : "Выделить все"}
-            </span>
-          </label>
-
-          <div className="map-layer-panel__groups">
-            {groups.map(([groupTitle, layers]) => (
-              <div key={groupTitle} className="map-layer-panel__group">
-                <div className="map-layer-panel__group-title">{groupTitle}</div>
-                {layers.map((layer) => {
-                  const unavailable = isLayerUnavailable(layer);
-                  return (
-                    <label
-                      key={layer.id}
-                      className={`map-layer-panel__item${unavailable ? " map-layer-panel__item--unavailable" : ""}`}
-                      title={
-                        unavailable
-                          ? `Рекомендуется с zoom ${layer.minZoom} и выше (сейчас ${currentZoom})`
-                          : undefined
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(enabledById[layer.id])}
-                        onChange={() => onToggle?.(layer.id)}
-                      />
-                      <span className="map-layer-panel__label">
-                        {layer.label}
-                        {unavailable && (
-                          <span className="map-layer-panel__zoom-hint">
-                            {' '}(zoom ≥{layer.minZoom})
-                          </span>
-                        )}
+      <div className="map-layer-panel__groups">
+        {groups.map(([groupTitle, layers]) => (
+          <div key={groupTitle} className="map-layer-panel__group">
+            <div className="map-layer-panel__group-title">{groupTitle}</div>
+            {layers.map((layer) => {
+              const unavailable = isLayerUnavailable(layer);
+              return (
+                <label
+                  key={layer.id}
+                  className={`map-layer-panel__item${unavailable ? " map-layer-panel__item--unavailable" : ""}`}
+                  title={
+                    unavailable
+                      ? `Рекомендуется с zoom ${layer.minZoom} и выше (сейчас ${currentZoom})`
+                      : undefined
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(enabledById[layer.id])}
+                    onChange={() => onToggle?.(layer.id)}
+                  />
+                  <span className="map-layer-panel__label">
+                    {layer.label}
+                    {unavailable && (
+                      <span className="map-layer-panel__zoom-hint">
+                        {' '}(zoom ≥{layer.minZoom})
                       </span>
-                    </label>
-                  );
-                })}
-              </div>
-            ))}
+                    )}
+                  </span>
+                </label>
+              );
+            })}
           </div>
-        </>
+        ))}
+      </div>
+    </>
+  );
+
+  return (
+    <div className={`map-layer-panel${isFlat ? " map-layer-panel--flat" : ""}`}>
+      {isFlat ? (
+        <div className="map-layer-panel__header">
+          <span className="map-layer-panel__header-label">Включено слоёв</span>
+          <span className="map-layer-panel__counter">{enabledCount}/{total}</span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="map-layer-panel__title"
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((prev) => !prev)}
+        >
+          <span
+            className={`map-layer-panel__chevron${collapsed ? " map-layer-panel__chevron--collapsed" : ""}`}
+            aria-hidden="true"
+          >
+            ▾
+          </span>
+          <span>Слои карты</span>
+          <span className="map-layer-panel__counter">{enabledCount}/{total}</span>
+        </button>
       )}
+
+      {contentVisible && layerList}
     </div>
   );
 }

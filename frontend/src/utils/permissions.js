@@ -1,4 +1,4 @@
-const LEVEL_RANK = { none: 0, read: 1, write: 2 };
+const LEVEL_RANK = { none: 0, read: 1, write: 2, write_delete: 3 };
 
 export function getPermissions(user) {
   return user?.permissions || null;
@@ -18,10 +18,11 @@ export function canWriteModule(user, module) {
   return LEVEL_RANK[perms.modules?.[module] || 'none'] >= LEVEL_RANK.write;
 }
 
-export function canDelete(user) {
+export function canDeleteModule(user, module) {
   const perms = getPermissions(user);
   if (!perms) return false;
-  return Boolean(perms.is_superuser || perms.can_delete);
+  if (perms.is_superuser) return true;
+  return LEVEL_RANK[perms.modules?.[module] || 'none'] >= LEVEL_RANK.write_delete;
 }
 
 export function canManageReference(user) {
