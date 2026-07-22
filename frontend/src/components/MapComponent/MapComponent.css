@@ -2,6 +2,20 @@
     width: 100%;
     height: 100%;
     position: relative;
+    z-index: auto;
+    inset: auto;
+    overflow: hidden;
+}
+
+.map:not(.map--fullscreen) {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 100%;
+    height: 100%;
+    z-index: auto;
+    border-radius: inherit;
+    box-shadow: none;
 }
 
 .map__vector-error {

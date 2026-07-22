@@ -1262,21 +1262,22 @@ function MapComponent({
     }, [showActionRadius]);
 
     // Zoom-based marker filtering (supplemented):
-    // - For flag markers: graduated by zoom
-    //   <=5 : only order <=2
-    //   <=7 : order <=7
-    //   >7  : all
-    // - For non-flag markers: always all (no zoom/order restriction)
+    // Zoom filtering (legacy only):
+    // - Flags: graduated by zoom / order tiers from mapZoomRules
+    // - Non-flag: hidden below non_flag_min_zoom
+    // Bubble mode: no zoom filtering — all selected objects participate in clusters.
     const flagObjectsForMap = useMemo(() => {
+      if (clusterMode === 'bubble') return objects;
       return filterFlagObjectsForZoom(objects, currentZoom, mapZoomRules);
-    }, [objects, currentZoom, mapZoomRules]);
+    }, [objects, currentZoom, mapZoomRules, clusterMode]);
 
     const nonFlagObjectsForMap = useMemo(() => {
+      if (clusterMode === 'bubble') return objects;
       if (!shouldShowNonFlagMarkers(currentZoom, mapZoomRules)) {
         return [];
       }
       return objects;
-    }, [objects, currentZoom, mapZoomRules]);
+    }, [objects, currentZoom, mapZoomRules, clusterMode]);
 
     useEffect(() => {
       setRuntimeClusterDistancePx(mapZoomRules?.cluster_distance_px);
@@ -1309,14 +1310,15 @@ function MapComponent({
       return result;
     }, [clusterMode, markerData.clusteredObjects, nonFlagData.groupedObjects, selectedSet]);
 
-    // Force-clear nonFlagData when zooming out below 6.
+    // Force-clear nonFlagData when zooming out below non_flag_min_zoom (legacy only).
     // The NonFlagMarkerInitializer may not emit a "clear" when its objects prop shrinks,
     // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
     useEffect(() => {
+      if (clusterMode === 'bubble') return;
       if (!shouldShowNonFlagMarkers(currentZoom, mapZoomRules)) {
         setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
       }
-    }, [currentZoom, mapZoomRules]);
+    }, [currentZoom, mapZoomRules, clusterMode]);
 
     // Зоны действия: состояния фильтров (actionZoneFilters, showZoneIntersections) и UI панели
     // теперь живут в Formular (sidebar). Здесь только потребление переданных props для рендера зон и точек.
@@ -1359,11 +1361,14 @@ function MapComponent({
     }, []);
 
     useEffect(() => {
-        if (mapRef.current) {
-            setTimeout(() => {
-                mapRef.current.invalidateSize();
-            }, 0);
-        }
+        if (!mapRef.current) return undefined;
+        const map = mapRef.current;
+        const t0 = setTimeout(() => map.invalidateSize(), 0);
+        const t1 = setTimeout(() => map.invalidateSize(), 100);
+        return () => {
+            clearTimeout(t0);
+            clearTimeout(t1);
+        };
     }, [isFullscreen]);
 
     useEffect(() => {
@@ -1439,8 +1444,8 @@ function MapComponent({
     }), []);
     
     const toggleFullscreen = () => {
-        setIsFullscreen(!isFullscreen);
-    }
+        setIsFullscreen((v) => !v);
+    };
 
     const handleMarkersReady = useCallback((data) => {
         setMarkerData(data);
@@ -2076,7 +2081,6 @@ function MapComponent({
                 minZoom={2}
                 maxZoom={19}
                 style={{height: "100%", width: "100%"}}
-                className={isFullscreen ? "map--fullscreen" : ""}
                 maxBounds={mapMaxBounds}
                 maxBoundsViscosity={1}
             >
