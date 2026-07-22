@@ -7,13 +7,22 @@
 :root {
     --border-color: #808080;
     --shadow-color: rgba(71,80,9,0.2);
+    --il-primary: #008dd2;
+    --il-primary-tint: #f0f8ff;
+    --il-primary-light: #e8f4ff;
+    --il-surface: #fefefe;
+    --il-bg: #dfe6ee;
+    --il-border: #e2e8f0;
+    --il-text: #2b2a29;
+    --il-text-sec: #334155;
+    --il-text-muted: #64748b;
 }
 
 body {
     font-family: "Roboto", "Helvetica", sans-serif;
     font-weight: 500;
     margin: 0;
-    background-color: rgb(128, 128, 128, 0.3);
+    background-color: var(--il-bg);
 }
 
 body.fullscreen-mode {
@@ -25,6 +34,12 @@ body.fullscreen-mode {
     height: 100vh;
 }
 
+.app:not(.app--map-fullscreen) {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
 .main--map-fullscreen {
     flex: 1;
     min-height: 0;
@@ -34,6 +49,9 @@ body.fullscreen-mode {
 
 main {
     flex-grow: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 h1, h2 {

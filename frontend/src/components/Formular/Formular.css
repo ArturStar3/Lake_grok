@@ -1,26 +1,39 @@
 .formular {
-    padding: 10px 20px 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 176px);
+    height: calc(100vh - 56px);
+    background: var(--il-bg, #dfe6ee);
 }
 
 .formular__wraper {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    /* grid-template-rows: minmax(0, 5fr) minmax(0, 2fr); */
-    gap: 10px 20px;
+    display: flex;
+    gap: 12px;
     flex: 1;
-    width: 80vw;
+    width: 100%;
+    min-height: 0;
+    padding: 12px 14px;
+    box-sizing: border-box;
+}
+
+.container--split {
+    max-width: none;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .formular__content,
 .formular__map,
 .formular__features {
     width: 100%;
-    background-color: #FEFEFE;
-    border-radius: 30px;
-    box-shadow: 0 0 12px 2px rgba(0, 0, 0, 0.5);
+    background-color: var(--il-surface, #fefefe);
+    border-radius: 26px;
+    box-shadow: 0 0 12px 2px rgba(0, 0, 0, 0.12);
     overflow: hidden;
 }
 
@@ -32,6 +45,7 @@
     padding: 0;
     height: 100vh;
     max-height: 100vh;
+    background: transparent;
 }
 
 .formular--map-fullscreen .container {
@@ -43,9 +57,11 @@
 
 .formular--map-fullscreen .formular__wraper {
     width: 100%;
+    display: grid;
     grid-template-columns: 1fr;
     gap: 0;
     height: 100vh;
+    padding: 0;
 }
 
 .formular__features-wraper--fullscreen {
@@ -53,6 +69,7 @@
     max-height: none;
     height: 100vh;
     grid-template-rows: 1fr;
+    display: grid;
 }
 
 .formular__features-wraper--fullscreen .formular__map {
@@ -63,34 +80,151 @@
 }
 
 .formular__features-wraper {
-    position: sticky;
-    top: 10px;
-    max-height: 85vh;
-    display: grid;
-    grid-template-rows: minmax(0, 5fr) minmax(0, 2fr);
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
 }
 
 .formular__map {
-    height: 100%;
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    position: relative;
 }
 
 .formular__content {
-    /* grid-row: span 2; */
+    flex: 0 0 42%;
+    max-width: 42%;
     position: relative;
     z-index: 0;
-    padding: 20px;
-    width: 100%;
-    min-height: 77vh;
+    padding: 0;
+    width: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .formular__features {
-    border-radius: 15px;
-    padding: 15px;
+    border-radius: 14px;
+    padding: 10px 14px;
     display: flex;
-    height: 1005;
+    height: 120px;
+    flex-shrink: 0;
     overflow: auto;
     min-height: 0;
+    box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.08);
+}
+
+.formular__chip-tabs {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--il-border, #e2e8f0);
+    flex-shrink: 0;
+}
+
+.formular__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--il-border, #e2e8f0);
+    background: #f8fafc;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--il-text-sec, #334155);
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.formular__chip svg {
+    opacity: 0.55;
+    flex-shrink: 0;
+}
+
+.formular__chip--active {
+    background: var(--il-primary, #008dd2);
+    border-color: var(--il-primary, #008dd2);
+    color: #fff;
+}
+
+.formular__chip--active svg {
+    opacity: 1;
+}
+
+.formular__panel-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--il-border, #e2e8f0);
+    flex-shrink: 0;
+}
+
+.formular__panel-toolbar-spacer {
+    flex: 1;
+}
+
+.formular__filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    background: var(--il-surface, #fefefe);
+    border: 1px solid var(--il-border, #e2e8f0);
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--il-text-sec, #334155);
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+}
+
+.formular__filter-toggle--open {
+    background: var(--il-primary-light, #e8f4ff);
+    border-color: var(--il-primary, #008dd2);
+    color: var(--il-primary, #008dd2);
+}
+
+.formular__add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    background: var(--il-primary, #008dd2);
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.formular__add-btn:hover {
+    background: #0076b3;
+}
+
+.formular__data-wraper {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 0 4px 8px;
+}
+
+.formular:not(.formular--map-fullscreen) .formular__data-wraper {
+    padding: 0 8px 10px;
 }
 
 .formular__heading-wraper {

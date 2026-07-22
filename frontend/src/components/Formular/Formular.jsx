@@ -77,6 +77,8 @@ export default function Formular({ onMapFullscreenChange }) {
     const [isFullscreen, setFullscreen] = useState(true);
     const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
     const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
+    const [filtersOpen, setFiltersOpen] = useState(true);
+    const [eventDrawRequest, setEventDrawRequest] = useState(0);
     const [isSituationDrawActive, setIsSituationDrawActive] = useState(false);
     const [situationDrawPolygons, setSituationDrawPolygons] = useState([]);
     const [situationDrawPoints, setSituationDrawPoints] = useState([]);
@@ -1084,9 +1086,16 @@ export default function Formular({ onMapFullscreenChange }) {
 
     useEffect(() => {
         const openUsersAdmin = () => setUsersAdminOpen(true);
+        const openReference = () => {
+            if (canOpenReference) setReferenceDataOpen(true);
+        };
         window.addEventListener('infolake:open-users-admin', openUsersAdmin);
-        return () => window.removeEventListener('infolake:open-users-admin', openUsersAdmin);
-    }, []);
+        window.addEventListener('infolake:open-reference', openReference);
+        return () => {
+            window.removeEventListener('infolake:open-users-admin', openUsersAdmin);
+            window.removeEventListener('infolake:open-reference', openReference);
+        };
+    }, [canOpenReference]);
 
     useEffect(() => {
         if (isFullscreen) return;
@@ -1100,10 +1109,99 @@ export default function Formular({ onMapFullscreenChange }) {
 
     return (
         <section className={`formular${isFullscreen ? " formular--map-fullscreen" : ""}`}>
-            <h1 className="visually-hidden">О</h1>
-            <div className="container">
+            <h1 className="visually-hidden">InfoLake</h1>
+            <div className={`container${isFullscreen ? "" : " container--split"}`}>
                 <div className="formular__wraper">
                     <div className={`formular__content${isFullscreen ? " formular__content--map-fullscreen" : ""}`}>
+                        {!isFullscreen && (
+                        <>
+                        <div className="formular__chip-tabs" role="tablist">
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === "objects"}
+                                className={`formular__chip${activeTab === "objects" ? " formular__chip--active" : ""}`}
+                                onClick={() => handleTabChange("objects")}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                    <circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="8" />
+                                </svg>
+                                Объекты
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === "events"}
+                                className={`formular__chip${activeTab === "events" ? " formular__chip--active" : ""}`}
+                                onClick={() => handleTabChange("events")}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                </svg>
+                                События
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === "zones"}
+                                className={`formular__chip${activeTab === "zones" ? " formular__chip--active" : ""}`}
+                                onClick={() => handleTabChange("zones")}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                    <circle cx="12" cy="12" r="10" strokeDasharray="4 2.5" /><circle cx="12" cy="12" r="5" />
+                                </svg>
+                                Зоны действия
+                            </button>
+                            {canReadSituations && (
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === "situations"}
+                                className={`formular__chip${activeTab === "situations" ? " formular__chip--active" : ""}`}
+                                onClick={() => handleTabChange("situations")}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                    <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M6 12l3-3 3 3 4-4" />
+                                </svg>
+                                Оперативная обстановка
+                            </button>
+                            )}
+                        </div>
+                        <div className="formular__panel-toolbar">
+                            <button
+                                type="button"
+                                className={`formular__filter-toggle${filtersOpen ? " formular__filter-toggle--open" : ""}`}
+                                onClick={() => setFiltersOpen((v) => !v)}
+                            >
+                                Фильтры {filtersOpen ? "▾" : "▸"}
+                            </button>
+                            <div className="formular__panel-toolbar-spacer" />
+                            {activeTab === "objects" && canEditTargets && (
+                                <button type="button" className="formular__add-btn" onClick={handleOpenAddTargetModal}>
+                                    + Объект
+                                </button>
+                            )}
+                            {activeTab === "events" && (
+                                <button
+                                    type="button"
+                                    className="formular__add-btn"
+                                    onClick={() => {
+                                        handleTabChange("events");
+                                        setEventDrawRequest((n) => n + 1);
+                                    }}
+                                >
+                                    + Событие
+                                </button>
+                            )}
+                            {activeTab === "situations" && canEditSituations && (
+                                <button type="button" className="formular__add-btn" onClick={handleSituationCreateStart}>
+                                    + Обстановку
+                                </button>
+                            )}
+                        </div>
+                        </>
+                        )}
+                        {isFullscreen && (
                         <div className="formular__heading-wraper">
                             <h2 className="formular__title">ОР</h2>
                             <div className="formular__heading-actions">
@@ -1161,7 +1259,9 @@ export default function Formular({ onMapFullscreenChange }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="formular__data-wraper">
+                        )}
+                        <div className={`formular__data-wraper${!isFullscreen && !filtersOpen ? " formular__data-wraper--filters-collapsed" : ""}`}>
+                            {isFullscreen && (
                             <div className="formular__tabs">
                                 <button
                                     type="button"
@@ -1194,6 +1294,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 </button>
                                 )}
                             </div>
+                            )}
                             {activeTab === "objects" && (
                                 <>
                                     {objectsLoading && (
@@ -1202,6 +1303,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                     {objectsError && (
                                         <p className="formular__status formular__status--error">{objectsError}</p>
                                     )}
+                                    {(isFullscreen || filtersOpen) && (
                                     <FilterPanel
                                         objects={objects}
                                         targetTypes={targetTypes}
@@ -1212,6 +1314,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                         filterTitle={filterTitle}
                                         onFilterTitleChange={setFilterTitle}
                                     />
+                                    )}
                                     <ObjectsTable
                                         data={tableObjects}
                                         targetTypes={targetTypes}
@@ -1274,12 +1377,14 @@ export default function Formular({ onMapFullscreenChange }) {
                                     {eventsError && (
                                         <p className="formular__status formular__status--error">{eventsError}</p>
                                     )}
+                                    {(isFullscreen || filtersOpen) && (
                                     <EventsFilterPanel
                                         countries={countriesList}
                                         eventTypes={eventTypesList}
                                         filters={eventsFilters}
                                         onChange={setEventsFilters}
                                     />
+                                    )}
                                     <EventsTable
                                         data={events}
                                         selectedEvents={selectedEvents}
@@ -1298,11 +1403,13 @@ export default function Formular({ onMapFullscreenChange }) {
                                     {situationsError && (
                                         <p className="formular__status formular__status--error">{situationsError}</p>
                                     )}
+                                    {(isFullscreen || filtersOpen) && (
                                     <SituationsFilterPanel
                                         countries={countriesList}
                                         filters={situationsFilters}
                                         onChange={setSituationsFilters}
                                     />
+                                    )}
                                     <SituationsTable
                                         data={situations}
                                         selectedSituations={selectedSituations}
@@ -1447,6 +1554,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 onOpenAddTarget={handleOpenAddTargetModal}
                                 canOpenReference={canOpenReference}
                                 onOpenReference={() => setReferenceDataOpen(true)}
+                                eventDrawRequest={eventDrawRequest}
                                 situations={situations}
                                 selectedSituationIds={selectedSituations}
                                 activeSituationId={activeSituationId}
@@ -1489,7 +1597,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
                             />
                         </div>
-                        {!isFullscreen && (
+                        {!isFullscreen && isMeasureMode && (
                         <div className="formular__features">
                             <Features
                                 isMeasureMode={isMeasureMode}

@@ -48,6 +48,7 @@ import MapFullscreenTopBar from "./MapFullscreenTopBar";
 import MapFullscreenDock from "./MapFullscreenDock";
 import MapFullscreenPanel from "./MapFullscreenPanel";
 import MapFullscreenPanelBody, { MapFullscreenPanelFeatures } from "./MapFullscreenPanelBody";
+import MapSplitHud from "./MapSplitHud";
 import { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
 import "./MapComponent.css";
 import "./MapFullscreen.css";
@@ -770,6 +771,7 @@ function MapComponent({
     onOpenAddTarget,
     canOpenReference = false,
     onOpenReference,
+    eventDrawRequest = 0,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
 
@@ -1193,6 +1195,11 @@ function MapComponent({
         }
         eventDrawing.selectTool(tool);
     }, [effectiveMeasureMode, isFullscreen, onMeasureModeChange, eventDrawing]);
+
+    useEffect(() => {
+        if (!eventDrawRequest) return;
+        handleSelectEventTool('point');
+    }, [eventDrawRequest, handleSelectEventTool]);
 
     const handleEventConfirm = useCallback(() => {
         if (eventDrawing.validateBeforeSave()) return;
@@ -2087,6 +2094,30 @@ function MapComponent({
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <MapScaleBar isFullscreen={isFullscreen} />
                 <MapEventBridge apiRef={mapEventApiRef} />
+                {!isFullscreen && (
+                    <MapSplitHud
+                        toolsOpen={isMeasureMenuOpen}
+                        onToggleTools={() => setIsMeasureMenuOpen((v) => !v)}
+                        toolsMenuRef={measureMenuRef}
+                        effectiveMeasureMode={effectiveMeasureMode}
+                        measurePointsLength={(isFullscreen ? measurePoints : measurements).length}
+                        clusterMode={clusterMode}
+                        onToggleMeasure={() => {
+                            if (isFullscreen) {
+                                setIsMeasureMode((m) => !m);
+                            } else {
+                                onMeasureModeChange?.(!measureMode);
+                            }
+                        }}
+                        onClearMeasure={() => {
+                            if (isFullscreen) setMeasurePoints([]);
+                            else onMeasurePointsChange?.([]);
+                        }}
+                        onClusterLegacy={() => setClusterMode('legacy')}
+                        onClusterBubble={() => setClusterMode('bubble')}
+                        onResetAll={() => onResetAllMapState?.()}
+                    />
+                )}
                 {USE_VECTOR_MAP ? (
                     <MapVectorBaseLayer
                         onMapReady={handleMaplibreReady}
