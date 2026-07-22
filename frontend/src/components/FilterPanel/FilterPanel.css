@@ -4,6 +4,29 @@
     margin-bottom: 0;
 }
 
+.filter-panel--embedded {
+    z-index: 2;
+    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+.filter-panel--embedded .filter-panel__content {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin: 0;
+    box-shadow: none;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+.filter-panel__embedded-reset {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+}
+
 .filter-panel__header {
     display: flex;
     justify-content: space-between;

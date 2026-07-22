@@ -16,8 +16,10 @@ export default function FilterPanel({
     onFilterTypeChange,
     filterTitle,
     onFilterTitleChange,
+    embedded = false,
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const showContent = embedded || isExpanded;
     const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [countrySearch, setCountrySearch] = useState("");
@@ -131,7 +133,8 @@ export default function FilterPanel({
     }, [isCountryDropdownOpen, isTypeDropdownOpen]);
 
     return (
-        <div className="filter-panel">
+        <div className={`filter-panel${embedded ? ' filter-panel--embedded' : ''}`}>
+            {!embedded && (
             <div className="filter-panel__header">
                 <button 
                     className="filter-panel__toggle"
@@ -165,9 +168,22 @@ export default function FilterPanel({
                     </button>
                 )}
             </div>
+            )}
 
-            {isExpanded && (
+            {showContent && (
                 <div className="filter-panel__content">
+                    {embedded && totalActiveFilters > 0 && (
+                        <div className="filter-panel__embedded-reset">
+                            <button
+                                type="button"
+                                className="filter-panel__reset"
+                                onClick={handleReset}
+                                title="Сбросить все фильтры"
+                            >
+                                Сбросить
+                            </button>
+                        </div>
+                    )}
                     <div className="filter-panel__section" ref={countryDropdownRef}>
                         <label className="filter-panel__label">
                             Страна

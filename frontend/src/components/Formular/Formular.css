@@ -225,6 +225,18 @@
 
 .formular:not(.formular--map-fullscreen) .formular__data-wraper {
     padding: 0 8px 10px;
+    overflow: visible;
+}
+
+.formular__tab-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.formular:not(.formular--map-fullscreen) .formular__tab-body {
+    overflow: auto;
 }
 
 .formular__heading-wraper {

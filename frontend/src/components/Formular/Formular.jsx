@@ -1305,6 +1305,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                     )}
                                     {(isFullscreen || filtersOpen) && (
                                     <FilterPanel
+                                        embedded={!isFullscreen}
                                         objects={objects}
                                         targetTypes={targetTypes}
                                         filterCountry={filterCountry}
@@ -1315,6 +1316,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                         onFilterTitleChange={setFilterTitle}
                                     />
                                     )}
+                                    <div className="formular__tab-body">
                                     <ObjectsTable
                                         data={tableObjects}
                                         targetTypes={targetTypes}
@@ -1329,6 +1331,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                         canEditTargets={canEditTargets}
                                         canDeleteTargets={canRemoveTargets}
                                     />
+                                    </div>
                                 </>
                             )}
                             {activeTab === "zones" && (
