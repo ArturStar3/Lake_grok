@@ -62,6 +62,7 @@ def create_admin_group(**kwargs):
         'persons': ModuleLevel.WRITE_DELETE,
         'equipment': ModuleLevel.WRITE,
         'reports': ModuleLevel.WRITE_DELETE,
+        'data_exchange': ModuleLevel.WRITE_DELETE,
         'can_manage_reference': True,
         'can_manage_users': True,
         'can_approve_registrations': True,

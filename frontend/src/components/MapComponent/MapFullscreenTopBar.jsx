@@ -24,6 +24,8 @@ export default function MapFullscreenTopBar({
   onOpenReference,
   canOpenReports = false,
   onOpenReports,
+  canOpenDataExchange = false,
+  onOpenDataExchange,
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -111,6 +113,11 @@ export default function MapFullscreenTopBar({
       {canOpenReports && onOpenReports && (
         <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenReports}>
           Отчёты
+        </button>
+      )}
+      {canOpenDataExchange && onOpenDataExchange && (
+        <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenDataExchange}>
+          Импорт / экспорт
         </button>
       )}
       <div className="map-fs-topbar__tools-wrap" ref={toolsMenuRef}>

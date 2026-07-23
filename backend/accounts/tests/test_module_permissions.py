@@ -28,6 +28,8 @@ class ModuleWriteDeletePermissionTests(APITestCase):
             'country_dossier': ModuleLevel.NONE,
             'persons': ModuleLevel.NONE,
             'equipment': ModuleLevel.NONE,
+            'reports': ModuleLevel.NONE,
+            'data_exchange': ModuleLevel.NONE,
         }
         defaults.update(module_levels)
         group = SecurityGroup.objects.create(**defaults)
@@ -63,6 +65,8 @@ class ModuleWriteDeletePermissionTests(APITestCase):
             title='Obj',
             country=self.country,
             type=self.target_type,
+            lat=43.2,
+            lng=76.9,
         )
         self.client.force_authenticate(user=user)
         response = self.client.delete(f'/api/v1/targets/{target.id}/')
@@ -76,6 +80,8 @@ class ModuleWriteDeletePermissionTests(APITestCase):
             title='Obj2',
             country=self.country,
             type=self.target_type,
+            lat=43.3,
+            lng=76.8,
         )
         login = self.client.post(
             '/api/v1/auth/login/',

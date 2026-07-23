@@ -23,6 +23,7 @@ MODULE_FIELDS = (
     'persons',
     'equipment',
     'reports',
+    'data_exchange',
 )
 
 LEVEL_RANK = {

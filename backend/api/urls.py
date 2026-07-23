@@ -37,6 +37,7 @@ from .views import (
     EquipmentImageViewSet,
 )
 from reports.views import ReportTemplateViewSet
+from data_exchange.views import DataExchangeExportView, ImportSessionViewSet
 
 router = DefaultRouter()
 
@@ -208,8 +209,15 @@ router.register(
     basename='report-templates',
 )
 
+router.register(
+    r'data-exchange/sessions',
+    ImportSessionViewSet,
+    basename='data-exchange-sessions',
+)
+
 urlpatterns = [
     path('', include(router.urls)),
+    path('data-exchange/export/', DataExchangeExportView.as_view(), name='data-exchange-export'),
     path('country/<str:iso_code>/', CountryInfoView.as_view(), name='country-info'),
     path('formular/<uuid:target_id>/', FormularView.as_view(), name='formular'),
     path('formular/<uuid:target_id>/bulk/', FormularBulkUpdateView.as_view(), name='formular-bulk'),

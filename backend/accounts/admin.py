@@ -45,6 +45,7 @@ class SecurityGroupAdmin(ModelAdmin):
         'formular',
         'country_dossier',
         'reports',
+        'data_exchange',
         'can_manage_users',
     )
     filter_horizontal = ('countries',)

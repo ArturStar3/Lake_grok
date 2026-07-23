@@ -42,6 +42,10 @@ class SecurityGroup(models.Model):
         max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE,
         verbose_name='Отчёты',
     )
+    data_exchange = models.CharField(
+        max_length=16, choices=ModuleLevel.choices, default=ModuleLevel.NONE,
+        verbose_name='Импорт/экспорт данных',
+    )
     can_manage_reference = models.BooleanField(default=False, verbose_name='Справочники')
     can_manage_users = models.BooleanField(default=False, verbose_name='Управление пользователями')
     can_approve_registrations = models.BooleanField(default=False, verbose_name='Одобрение регистраций')

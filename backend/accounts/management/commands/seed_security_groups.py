@@ -9,6 +9,19 @@ MIDDLE_EAST_ISO = {
 }
 
 
+def _ensure_module(group, field, desired, update_fields, *, upgrade_only=False):
+    current = getattr(group, field)
+    if current == ModuleLevel.NONE:
+        setattr(group, field, desired)
+        update_fields.append(field)
+        return
+    if upgrade_only and current != desired:
+        rank = {ModuleLevel.NONE: 0, ModuleLevel.READ: 1, ModuleLevel.WRITE: 2, ModuleLevel.WRITE_DELETE: 3}
+        if rank.get(current, 0) < rank.get(desired, 0):
+            setattr(group, field, desired)
+            update_fields.append(field)
+
+
 class Command(BaseCommand):
     help = 'Создать базовые группы безопасности'
 
@@ -26,16 +39,14 @@ class Command(BaseCommand):
                 'persons': ModuleLevel.READ,
                 'equipment': ModuleLevel.READ,
                 'reports': ModuleLevel.WRITE,
+                'data_exchange': ModuleLevel.WRITE,
             },
         )
         if not created:
             update_fields = []
-            if group.operational_situations == ModuleLevel.NONE:
-                group.operational_situations = ModuleLevel.WRITE
-                update_fields.append('operational_situations')
-            if group.reports == ModuleLevel.NONE:
-                group.reports = ModuleLevel.WRITE
-                update_fields.append('reports')
+            _ensure_module(group, 'operational_situations', ModuleLevel.WRITE, update_fields)
+            _ensure_module(group, 'reports', ModuleLevel.WRITE, update_fields)
+            _ensure_module(group, 'data_exchange', ModuleLevel.WRITE, update_fields)
             if update_fields:
                 group.save(update_fields=update_fields)
         if me_countries.exists():
@@ -56,16 +67,14 @@ class Command(BaseCommand):
                 'persons': ModuleLevel.READ,
                 'equipment': ModuleLevel.READ,
                 'reports': ModuleLevel.READ,
+                'data_exchange': ModuleLevel.READ,
             },
         )
         if not created:
             update_fields = []
-            if operators.operational_situations == ModuleLevel.NONE:
-                operators.operational_situations = ModuleLevel.READ
-                update_fields.append('operational_situations')
-            if operators.reports == ModuleLevel.NONE:
-                operators.reports = ModuleLevel.READ
-                update_fields.append('reports')
+            _ensure_module(operators, 'operational_situations', ModuleLevel.READ, update_fields)
+            _ensure_module(operators, 'reports', ModuleLevel.READ, update_fields)
+            _ensure_module(operators, 'data_exchange', ModuleLevel.READ, update_fields)
             if update_fields:
                 operators.save(update_fields=update_fields)
         self.stdout.write(self.style.SUCCESS(
@@ -84,6 +93,7 @@ class Command(BaseCommand):
                 'persons': ModuleLevel.WRITE_DELETE,
                 'equipment': ModuleLevel.WRITE,
                 'reports': ModuleLevel.WRITE_DELETE,
+                'data_exchange': ModuleLevel.WRITE_DELETE,
                 'can_manage_reference': True,
                 'can_manage_users': True,
                 'can_approve_registrations': True,
@@ -91,13 +101,9 @@ class Command(BaseCommand):
         )
         if not created:
             update_fields = []
-            if admins.operational_situations == ModuleLevel.NONE:
-                admins.operational_situations = ModuleLevel.WRITE
-                update_fields.append('operational_situations')
-            if admins.reports in (ModuleLevel.NONE, ModuleLevel.READ, ModuleLevel.WRITE):
-                if admins.reports != ModuleLevel.WRITE_DELETE:
-                    admins.reports = ModuleLevel.WRITE_DELETE
-                    update_fields.append('reports')
+            _ensure_module(admins, 'operational_situations', ModuleLevel.WRITE, update_fields)
+            _ensure_module(admins, 'reports', ModuleLevel.WRITE_DELETE, update_fields, upgrade_only=True)
+            _ensure_module(admins, 'data_exchange', ModuleLevel.WRITE_DELETE, update_fields, upgrade_only=True)
             if update_fields:
                 admins.save(update_fields=update_fields)
         if created:

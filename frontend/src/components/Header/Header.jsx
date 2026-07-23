@@ -12,6 +12,7 @@ function Header() {
   const menuRef = useRef(null);
   const canOpenReference = canManageReference(user);
   const canOpenReports = canReadModule(user, 'reports');
+  const canOpenDataExchange = canReadModule(user, 'data_exchange');
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -97,6 +98,18 @@ function Header() {
                 }}
               >
                 Отчёты
+              </button>
+            )}
+            {canOpenDataExchange && (
+              <button
+                type="button"
+                className="header__dropdown-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  window.dispatchEvent(new CustomEvent('infolake:open-data-exchange'));
+                }}
+              >
+                Импорт / экспорт
               </button>
             )}
             <button type="button" className="header__dropdown-item header__dropdown-item--danger" onClick={handleLogout}>

@@ -85,6 +85,10 @@ class ReportsPermission(ModulePermission):
     module = 'reports'
 
 
+class DataExchangePermission(ModulePermission):
+    module = 'data_exchange'
+
+
 class CountryScopedQuerysetMixin:
     """Фильтрация queryset по разрешённым странам."""
 
