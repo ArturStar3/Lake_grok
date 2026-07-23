@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { FULLSCREEN_DOCK_TABS, FULLSCREEN_TAB_LABELS } from './mapFullscreenConstants';
 
 export default function MapFullscreenPanel({
@@ -14,11 +15,29 @@ export default function MapFullscreenPanel({
 }) {
   const tabs = FULLSCREEN_DOCK_TABS.filter((t) => t !== 'situations' || canReadSituations);
 
+  useEffect(() => {
+    if (isOpen) return;
+    const panel = panelRef?.current;
+    if (!panel) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panel.contains(active)) {
+      active.blur();
+    }
+  }, [isOpen, panelRef]);
+
+  const handleClose = () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panelRef?.current?.contains(active)) {
+      active.blur();
+    }
+    onClose();
+  };
+
   return (
     <aside
       ref={panelRef}
       className={`map-fs-panel${isOpen ? ' map-fs-panel--open' : ''}`}
-      aria-hidden={!isOpen}
+      {...(!isOpen ? { inert: '' } : {})}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -35,7 +54,7 @@ export default function MapFullscreenPanel({
             </button>
           ))}
         </div>
-        <button type="button" className="map-fs-panel__close" onClick={onClose} aria-label="Закрыть панель">
+        <button type="button" className="map-fs-panel__close" onClick={handleClose} aria-label="Закрыть панель">
           ✕
         </button>
       </div>

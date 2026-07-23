@@ -223,7 +223,7 @@ export default function MapFullscreenPanelBody({
 
   if (dockTab === 'situations') {
     return (
-      <>
+      <div className="map-fs-panel__situations">
         {situationsLoading && <p className="formular__status formular__status--loading">Загрузка обстановки…</p>}
         {situationsError && <p className="formular__status formular__status--error">{situationsError}</p>}
         <SituationsFilterPanel
@@ -257,7 +257,7 @@ export default function MapFullscreenPanelBody({
         ) : (
           <p className="situations-timeline__empty">Выберите обстановку checkbox в таблице</p>
         )}
-      </>
+      </div>
     );
   }
 
