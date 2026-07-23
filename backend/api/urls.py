@@ -36,6 +36,7 @@ from .views import (
     EquipmentViewSet,
     EquipmentImageViewSet,
 )
+from reports.views import ReportTemplateViewSet
 
 router = DefaultRouter()
 
@@ -199,6 +200,12 @@ router.register(
     r'equipment-images',
     EquipmentImageViewSet,
     basename='equipment-images'
+)
+
+router.register(
+    r'report-templates',
+    ReportTemplateViewSet,
+    basename='report-templates',
 )
 
 urlpatterns = [

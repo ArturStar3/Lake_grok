@@ -771,6 +771,8 @@ function MapComponent({
     onOpenAddTarget,
     canOpenReference = false,
     onOpenReference,
+    canOpenReports = false,
+    onOpenReports,
     eventDrawRequest = 0,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
@@ -2028,6 +2030,8 @@ function MapComponent({
                         onOpenAddTarget={onOpenAddTarget}
                         canOpenReference={canOpenReference}
                         onOpenReference={onOpenReference}
+                        canOpenReports={canOpenReports}
+                        onOpenReports={onOpenReports}
                     />
                     <MapFullscreenPanel
                         panelRef={sidebarRef}

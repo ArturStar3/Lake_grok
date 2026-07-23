@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>{{ template_name }}</title>
+</head>
+<body>
+  <header class="report-cover">
+    <div class="report-cover__badge">InfoLake — отчёт</div>
+    <h1 class="report-cover__title">{{ template_name }}</h1>
+    {% if template_description %}
+      <p class="report-cover__description">{{ template_description }}</p>
+    {% endif %}
+    <p class="report-cover__meta">
+      Сформирован: {{ generated_at|date:"d.m.Y H:i" }}
+      {% if generated_by %}
+        · {{ generated_by.get_full_name|default:generated_by.username }}
+      {% endif %}
+    </p>
+  </header>
+
+  {% for fragment in sections_html %}
+    {{ fragment|safe }}
+  {% empty %}
+    <p class="report-section__empty">В шаблоне нет разделов.</p>
+  {% endfor %}
+</body>
+</html>

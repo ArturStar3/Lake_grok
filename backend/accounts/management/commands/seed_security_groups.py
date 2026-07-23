@@ -25,11 +25,19 @@ class Command(BaseCommand):
                 'country_dossier': ModuleLevel.READ,
                 'persons': ModuleLevel.READ,
                 'equipment': ModuleLevel.READ,
+                'reports': ModuleLevel.WRITE,
             },
         )
         if not created:
-            group.operational_situations = ModuleLevel.WRITE
-            group.save(update_fields=['operational_situations'])
+            update_fields = []
+            if group.operational_situations == ModuleLevel.NONE:
+                group.operational_situations = ModuleLevel.WRITE
+                update_fields.append('operational_situations')
+            if group.reports == ModuleLevel.NONE:
+                group.reports = ModuleLevel.WRITE
+                update_fields.append('reports')
+            if update_fields:
+                group.save(update_fields=update_fields)
         if me_countries.exists():
             group.countries.set(me_countries)
         self.stdout.write(self.style.SUCCESS(
@@ -47,13 +55,19 @@ class Command(BaseCommand):
                 'country_dossier': ModuleLevel.READ,
                 'persons': ModuleLevel.READ,
                 'equipment': ModuleLevel.READ,
+                'reports': ModuleLevel.READ,
             },
         )
         if not created:
-            group_level = operators.operational_situations
-            if group_level == ModuleLevel.NONE:
+            update_fields = []
+            if operators.operational_situations == ModuleLevel.NONE:
                 operators.operational_situations = ModuleLevel.READ
-                operators.save(update_fields=['operational_situations'])
+                update_fields.append('operational_situations')
+            if operators.reports == ModuleLevel.NONE:
+                operators.reports = ModuleLevel.READ
+                update_fields.append('reports')
+            if update_fields:
+                operators.save(update_fields=update_fields)
         self.stdout.write(self.style.SUCCESS(
             f"{'Создана' if created else 'Обновлена'} группа «{operators.name}»"
         ))
@@ -69,14 +83,23 @@ class Command(BaseCommand):
                 'country_dossier': ModuleLevel.WRITE,
                 'persons': ModuleLevel.WRITE_DELETE,
                 'equipment': ModuleLevel.WRITE,
+                'reports': ModuleLevel.WRITE_DELETE,
                 'can_manage_reference': True,
                 'can_manage_users': True,
                 'can_approve_registrations': True,
             },
         )
         if not created:
-            admins.operational_situations = ModuleLevel.WRITE
-            admins.save(update_fields=['operational_situations'])
+            update_fields = []
+            if admins.operational_situations == ModuleLevel.NONE:
+                admins.operational_situations = ModuleLevel.WRITE
+                update_fields.append('operational_situations')
+            if admins.reports in (ModuleLevel.NONE, ModuleLevel.READ, ModuleLevel.WRITE):
+                if admins.reports != ModuleLevel.WRITE_DELETE:
+                    admins.reports = ModuleLevel.WRITE_DELETE
+                    update_fields.append('reports')
+            if update_fields:
+                admins.save(update_fields=update_fields)
         if created:
             admins.countries.set(Country.objects.all())
         self.stdout.write(self.style.SUCCESS(

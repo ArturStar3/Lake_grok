@@ -22,6 +22,7 @@ MODULE_FIELDS = (
     'country_dossier',
     'persons',
     'equipment',
+    'reports',
 )
 
 LEVEL_RANK = {
@@ -37,4 +38,5 @@ DELETE_CAPABLE_MODULES = (
     'events',
     'operational_situations',
     'persons',
+    'reports',
 )

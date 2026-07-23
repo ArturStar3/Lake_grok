@@ -61,6 +61,7 @@ def create_admin_group(**kwargs):
         'country_dossier': ModuleLevel.WRITE,
         'persons': ModuleLevel.WRITE_DELETE,
         'equipment': ModuleLevel.WRITE,
+        'reports': ModuleLevel.WRITE_DELETE,
         'can_manage_reference': True,
         'can_manage_users': True,
         'can_approve_registrations': True,

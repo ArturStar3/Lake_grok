@@ -33,6 +33,7 @@ class SecurityGroupSerializer(serializers.ModelSerializer):
             'country_dossier',
             'persons',
             'equipment',
+            'reports',
             'can_manage_reference',
             'can_manage_users',
             'can_approve_registrations',

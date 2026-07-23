@@ -85,7 +85,7 @@ export default memo(function OperationalSituationLayer({
         const rev = resolveSituationMapRevision(item, {
           activeSituationId,
           timelineRevisionId,
-          situationRevisions,
+          revisions: situationRevisions,
         });
         if (!rev) return null;
 

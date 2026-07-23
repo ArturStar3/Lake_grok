@@ -23,7 +23,17 @@ WORKDIR /app
 # Все системные зависимости устанавливаются одной командой.
 # После docker load базовые слои + этот слой уже будут на целевой машине.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev gcc libgdal-dev \
+    && apt-get install -y --no-install-recommends \
+        libpq-dev \
+        gcc \
+        libgdal-dev \
+        libpango-1.0-0 \
+        libpangoft2-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
+        libffi-dev \
+        shared-mime-info \
+        fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

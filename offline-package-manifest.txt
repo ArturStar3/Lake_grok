@@ -1,6 +1,6 @@
 ﻿InfoLake offline package manifest
-Generated: 2026-07-10 09:47:29
-Git branch: develop-cards
+Generated: 2026-07-22 21:24:58
+Git branch: develop__style
 
 Docker images in infolake_full_offline.tar:
   - maptiler/tileserver-gl:latest
@@ -9,8 +9,8 @@ Docker images in infolake_full_offline.tar:
 
 Archive:
   Stable:    .\infolake_full_offline.tar
-  Timestamp: .\infolake_full_offline_20260710_094220.tar
-  Size:      2674.9 MB
+  Timestamp: .\infolake_full_offline_20260722_212344.tar
+  Size:      2677.8 MB
 
 Copy to offline server:
   1. infolake_full_offline.tar (this archive)
@@ -23,6 +23,8 @@ Copy to offline server:
 On offline server:
   .\import-and-start.ps1
   See OFFLINE_MIGRATION.md
+  Marker color palettes: OFFLINE_MIGRATION_MARKER_PALETTES.md
+    scripts\offline\post-update-offline.ps1
 
 NEVER on offline machine:
   docker compose build

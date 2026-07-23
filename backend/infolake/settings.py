@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'accounts',
     'formular',
     'equipment',
+    'reports',
     'api',
 ]
 
