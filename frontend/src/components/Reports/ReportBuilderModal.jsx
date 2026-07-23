@@ -8,7 +8,6 @@ import {
   deleteReportTemplate,
   downloadFileBlob,
   generateAdhocReport,
-  generatePresetReport,
   generateReport,
   getReportSectionTypes,
   getReportTemplate,
@@ -16,10 +15,13 @@ import {
   previewPdfBlob,
   updateReportTemplate,
 } from '../../api/reports';
-import ReportTemplateList from './ReportTemplateList';
-import ReportTemplateEditor from './ReportTemplateEditor';
-import ReportPresetPanel from './ReportPresetPanel';
-import { fromApiTemplate, toApiPayload } from './reportTemplateUtils';
+import ReportSidebar from './ReportSidebar';
+import ReportComposer from './ReportComposer';
+import {
+  extractGlobalCountryIds,
+  fromApiTemplate,
+  toApiPayload,
+} from './reportTemplateUtils';
 import './ReportBuilderModal.css';
 
 const EMPTY_FORM = {
@@ -38,30 +40,23 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
   const canWrite = canWriteModule(user, 'reports');
   const canDelete = canDeleteModule(user, 'reports');
 
-  const [tab, setTab] = useState('quick'); // quick | templates
-  const [mode, setMode] = useState('list'); // list | edit (within templates)
   const [templates, setTemplates] = useState([]);
   const [sectionTypes, setSectionTypes] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [templateSearch, setTemplateSearch] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
+  const [globalCountryIds, setGlobalCountryIds] = useState([]);
   const [exportFormat, setExportFormat] = useState('pdf');
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const [error, setError] = useState('');
-  const [presetError, setPresetError] = useState('');
-  const [editorError, setEditorError] = useState('');
-  const [reference, setReference] = useState({
-    countries: [],
-    eventTypes: [],
-    actionTypes: [],
-    targetTypes: [],
-    equipmentCategories: [],
-    targets: [],
-  });
+  const [listError, setListError] = useState('');
+  const [composerError, setComposerError] = useState('');
+  const [countries, setCountries] = useState([]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setListError('');
     try {
       const [list, types] = await Promise.all([
         listReportTemplates(),
@@ -69,91 +64,72 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
       ]);
       setTemplates(list);
       setSectionTypes(types);
+      return list;
     } catch (err) {
       console.error(err);
-      setError('Не удалось загрузить шаблоны отчётов');
+      setListError('Не удалось загрузить шаблоны отчётов');
+      return [];
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadReference = useCallback(async () => {
+  const loadCountries = useCallback(async () => {
     try {
-      const [
-        countriesRes,
-        eventTypesRes,
-        actionTypesRes,
-        targetTypesRes,
-        categoriesRes,
-        targetsRes,
-      ] = await Promise.all([
-        axios.get(`${API_URL}/api/v1/countries/`),
-        axios.get(`${API_URL}/api/v1/event-types/`),
-        axios.get(`${API_URL}/api/v1/action-types/`),
-        axios.get(`${API_URL}/api/v1/target-types/`),
-        axios.get(`${API_URL}/api/v1/equipment-categories/`),
-        axios.get(`${API_URL}/api/v1/targets/`),
-      ]);
-      setReference({
-        countries: Array.isArray(countriesRes.data) ? countriesRes.data : [],
-        eventTypes: Array.isArray(eventTypesRes.data) ? eventTypesRes.data : [],
-        actionTypes: Array.isArray(actionTypesRes.data) ? actionTypesRes.data : [],
-        targetTypes: Array.isArray(targetTypesRes.data) ? targetTypesRes.data : [],
-        equipmentCategories: Array.isArray(categoriesRes.data) ? categoriesRes.data : [],
-        targets: Array.isArray(targetsRes.data) ? targetsRes.data : (targetsRes.data?.results || []),
-      });
+      const countriesRes = await axios.get(`${API_URL}/api/v1/countries/`);
+      setCountries(Array.isArray(countriesRes.data) ? countriesRes.data : []);
     } catch (err) {
-      console.error('Не удалось загрузить справочники для отчётов', err);
+      console.error('Не удалось загрузить страны для отчётов', err);
+    }
+  }, []);
+
+  const openTemplate = useCallback(async (tpl) => {
+    if (!tpl?.id) return;
+    setBusy(true);
+    setComposerError('');
+    try {
+      const full = await getReportTemplate(tpl.id);
+      const nextForm = fromApiTemplate(full);
+      setForm(nextForm);
+      setGlobalCountryIds(extractGlobalCountryIds(nextForm.sections));
+      setSelectedId(full.id);
+    } catch (err) {
+      console.error(err);
+      setComposerError('Не удалось открыть шаблон');
+    } finally {
+      setBusy(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return;
-    setTab('quick');
-    setMode('list');
-    setForm(EMPTY_FORM);
+    if (!isOpen) return undefined;
+    let cancelled = false;
+    setTemplateSearch('');
     setExportFormat('pdf');
-    setEditorError('');
-    setPresetError('');
-    loadList();
-    loadReference();
-  }, [isOpen, loadList, loadReference]);
+    setComposerError('');
+    setForm({ ...EMPTY_FORM });
+    setSelectedId(null);
+    setGlobalCountryIds([]);
+    loadCountries();
+    (async () => {
+      const list = await loadList();
+      if (cancelled) return;
+      if (list.length > 0) {
+        await openTemplate(list[0]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, loadList, loadCountries, openTemplate]);
 
   if (!isOpen) return null;
 
   const handleCreate = () => {
-    setForm({ ...EMPTY_FORM });
-    setEditorError('');
-    setMode('edit');
-  };
-
-  const handleEdit = async (tpl) => {
-    setBusy(true);
-    setEditorError('');
-    try {
-      const full = await getReportTemplate(tpl.id);
-      setForm(fromApiTemplate(full));
-      setMode('edit');
-    } catch (err) {
-      console.error(err);
-      setError('Не удалось открыть шаблон');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleGenerate = async (tpl) => {
-    setBusyId(tpl.id);
-    const ext = exportExtension(exportFormat);
-    try {
-      const blob = await generateReport(tpl.id, [], exportFormat);
-      downloadFileBlob(blob, `${tpl.name || 'report'}.${ext}`);
-    } catch (err) {
-      console.error(err);
-      setError(err?.message || `Не удалось сформировать ${ext.toUpperCase()}`);
-    } finally {
-      setBusyId(null);
-    }
+    setSelectedId(null);
+    setForm({ ...EMPTY_FORM, name: 'Новый отчёт' });
+    setGlobalCountryIds([]);
+    setComposerError('');
   };
 
   const handleDelete = async (tpl) => {
@@ -161,47 +137,25 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
     setBusyId(tpl.id);
     try {
       await deleteReportTemplate(tpl.id);
-      setTemplates((prev) => prev.filter((item) => item.id !== tpl.id));
+      const nextList = templates.filter((item) => item.id !== tpl.id);
+      setTemplates(nextList);
+      if (selectedId === tpl.id) {
+        if (nextList[0]) {
+          await openTemplate(nextList[0]);
+        } else {
+          handleCreate();
+        }
+      }
     } catch (err) {
       console.error(err);
-      setError('Не удалось удалить шаблон');
+      setListError('Не удалось удалить шаблон');
     } finally {
       setBusyId(null);
     }
   };
 
-  const handlePresetGenerate = async (payload) => {
-    setBusy(true);
-    setPresetError('');
-    const format = payload.format || exportFormat || 'pdf';
-    const ext = exportExtension(format);
-    try {
-      const blob = await generatePresetReport({ ...payload, format });
-      downloadFileBlob(blob, `${payload.name || 'report'}.${ext}`);
-    } catch (err) {
-      console.error(err);
-      setPresetError(err?.message || `Не удалось сформировать ${ext.toUpperCase()}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handlePreview = async () => {
-    setBusy(true);
-    setEditorError('');
-    try {
-      const blob = await generateAdhocReport(toApiPayload(form), 'pdf');
-      previewPdfBlob(blob);
-    } catch (err) {
-      console.error(err);
-      setEditorError(err?.message || 'Не удалось сформировать предпросмотр PDF');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const persistTemplate = async () => {
-    const payload = toApiPayload(form);
+    const payload = toApiPayload(form, globalCountryIds);
     if (form.id) {
       return updateReportTemplate(form.id, payload);
     }
@@ -209,33 +163,61 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
   };
 
   const handleSave = async () => {
+    if (!canWrite) return;
     setBusy(true);
-    setEditorError('');
+    setComposerError('');
     try {
       const saved = await persistTemplate();
-      setForm(fromApiTemplate(saved));
+      const nextForm = fromApiTemplate(saved);
+      setForm(nextForm);
+      setGlobalCountryIds(extractGlobalCountryIds(nextForm.sections));
+      setSelectedId(saved.id);
       await loadList();
     } catch (err) {
       console.error(err);
-      setEditorError('Не удалось сохранить шаблон');
+      setComposerError('Не удалось сохранить шаблон');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSaveAndGenerate = async () => {
+  const handlePreview = async () => {
     setBusy(true);
-    setEditorError('');
-    const ext = exportExtension(exportFormat);
+    setComposerError('');
     try {
-      const saved = await persistTemplate();
-      setForm(fromApiTemplate(saved));
-      await loadList();
-      const blob = await generateReport(saved.id, [], exportFormat);
-      downloadFileBlob(blob, `${saved.name || 'report'}.${ext}`);
+      const blob = await generateAdhocReport(toApiPayload(form, globalCountryIds), 'pdf');
+      previewPdfBlob(blob);
     } catch (err) {
       console.error(err);
-      setEditorError(err?.message || `Не удалось сохранить или сформировать ${ext.toUpperCase()}`);
+      setComposerError(err?.message || 'Не удалось сформировать предпросмотр PDF');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    setBusy(true);
+    setComposerError('');
+    const ext = exportExtension(exportFormat);
+    try {
+      let templateId = form.id;
+      if (canWrite) {
+        const saved = await persistTemplate();
+        const nextForm = fromApiTemplate(saved);
+        setForm(nextForm);
+        setGlobalCountryIds(extractGlobalCountryIds(nextForm.sections));
+        setSelectedId(saved.id);
+        templateId = saved.id;
+        await loadList();
+        const blob = await generateReport(templateId, [], exportFormat);
+        downloadFileBlob(blob, `${saved.name || 'report'}.${ext}`);
+      } else {
+        const blob = await generateAdhocReport(toApiPayload(form, globalCountryIds), exportFormat);
+        downloadFileBlob(blob, `${form.name || 'report'}.${ext}`);
+      }
+    } catch (err) {
+      console.error(err);
+      setComposerError(err?.message || `Не удалось сформировать ${ext.toUpperCase()}`);
     } finally {
       setBusy(false);
     }
@@ -244,7 +226,7 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
   return (
     <div className="report-modal__overlay" onClick={onClose}>
       <div
-        className="report-modal__content"
+        className="report-modal__content report-modal__content--builder"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -254,7 +236,7 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
           <div>
             <h2 id="report-modal-title">Отчёты</h2>
             <p className="report-modal__subtitle">
-              Полные отчёты по странам и объектам, конструктор шаблонов (PDF / DOCX)
+              Шаблоны слева, состав и фильтры справа · PDF / DOCX
             </p>
           </div>
           <button type="button" className="report-modal__close" onClick={onClose} aria-label="Закрыть">
@@ -262,73 +244,37 @@ export default function ReportBuilderModal({ isOpen, onClose }) {
           </button>
         </header>
 
-        {mode === 'list' && (
-          <div className="report-modal__tabs">
-            <button
-              type="button"
-              className={`report-modal__tab${tab === 'quick' ? ' report-modal__tab--active' : ''}`}
-              onClick={() => setTab('quick')}
-            >
-              Быстрый отчёт
-            </button>
-            <button
-              type="button"
-              className={`report-modal__tab${tab === 'templates' ? ' report-modal__tab--active' : ''}`}
-              onClick={() => setTab('templates')}
-            >
-              Свои шаблоны
-            </button>
-          </div>
-        )}
-
-        <div className="report-modal__body">
-          {mode === 'edit' ? (
-            <ReportTemplateEditor
-              form={form}
-              onChange={setForm}
-              sectionTypes={sectionTypes}
-              reference={reference}
-              canWrite={canWrite}
-              busy={busy}
-              error={editorError}
-              exportFormat={exportFormat}
-              onExportFormatChange={setExportFormat}
-              onBack={() => {
-                setMode('list');
-                setTab('templates');
-                setEditorError('');
-                loadList();
-              }}
-              onPreview={handlePreview}
-              onSave={handleSave}
-              onSaveAndGenerate={handleSaveAndGenerate}
-            />
-          ) : tab === 'quick' ? (
-            <ReportPresetPanel
-              countries={reference.countries}
-              targets={reference.targets}
-              busy={busy}
-              error={presetError}
-              exportFormat={exportFormat}
-              onExportFormatChange={setExportFormat}
-              onGenerate={handlePresetGenerate}
-            />
-          ) : (
-            <ReportTemplateList
-              templates={templates}
-              loading={loading}
-              error={error}
-              canWrite={canWrite}
-              canDelete={canDelete}
-              onCreate={handleCreate}
-              onEdit={handleEdit}
-              onGenerate={handleGenerate}
-              onDelete={handleDelete}
-              busyId={busyId}
-              exportFormat={exportFormat}
-              onExportFormatChange={setExportFormat}
-            />
-          )}
+        <div className="report-builder">
+          <ReportSidebar
+            templates={templates}
+            selectedId={selectedId}
+            search={templateSearch}
+            onSearchChange={setTemplateSearch}
+            loading={loading}
+            error={listError}
+            canWrite={canWrite}
+            canDelete={canDelete}
+            busyId={busyId}
+            onCreate={handleCreate}
+            onSelect={openTemplate}
+            onDelete={handleDelete}
+          />
+          <ReportComposer
+            form={form}
+            onChange={setForm}
+            sectionTypes={sectionTypes}
+            countries={countries}
+            globalCountryIds={globalCountryIds}
+            onGlobalCountryIdsChange={setGlobalCountryIds}
+            canWrite={canWrite}
+            busy={busy}
+            error={composerError}
+            exportFormat={exportFormat}
+            onExportFormatChange={setExportFormat}
+            onPreview={handlePreview}
+            onSave={handleSave}
+            onDownload={handleDownload}
+          />
         </div>
       </div>
     </div>

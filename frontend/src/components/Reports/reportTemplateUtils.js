@@ -32,16 +32,62 @@ export function createEmptySection(sectionType, label, order = 0) {
   };
 }
 
-export function toApiPayload(form) {
+/** Вшить глобальный список стран в фильтры разделов. */
+export function applyGlobalCountryIds(sections, countryIds = []) {
+  const ids = Array.isArray(countryIds)
+    ? countryIds.map(Number).filter((n) => !Number.isNaN(n))
+    : [];
+  return (sections || []).map((section) => {
+    const defaults = defaultFiltersForType(section.section_type);
+    const filters = {
+      ...defaults,
+      ...(section.filters || {}),
+    };
+    if (Object.prototype.hasOwnProperty.call(defaults, 'country_ids')) {
+      filters.country_ids = [...ids];
+    }
+    if (Object.prototype.hasOwnProperty.call(defaults, 'origin_country_ids')) {
+      filters.origin_country_ids = [...ids];
+    }
+    return {
+      ...section,
+      filters,
+    };
+  });
+}
+
+/** Достать страны для UI: union country_ids / origin_country_ids по секциям. */
+export function extractGlobalCountryIds(sections) {
+  const set = new Set();
+  for (const section of sections || []) {
+    const filters = section.filters || {};
+    for (const key of ['country_ids', 'origin_country_ids']) {
+      const list = filters[key];
+      if (Array.isArray(list)) {
+        list.forEach((id) => {
+          const n = Number(id);
+          if (!Number.isNaN(n)) set.add(n);
+        });
+      }
+    }
+  }
+  return [...set];
+}
+
+export function toApiPayload(form, globalCountryIds = null) {
+  const countryIds = globalCountryIds != null
+    ? globalCountryIds
+    : extractGlobalCountryIds(form.sections);
+  const sections = applyGlobalCountryIds(form.sections || [], countryIds);
   return {
     name: form.name?.trim() || 'Без названия',
     description: form.description || '',
-    sections: (form.sections || []).map((section, index) => ({
+    sections: sections.map((section, index) => ({
       section_type: section.section_type,
       title: section.title?.trim() || section.section_type,
       order: index,
       filters: section.filters || defaultFiltersForType(section.section_type),
-      page_break_before: Boolean(section.page_break_before),
+      page_break_before: index > 0 ? section.page_break_before !== false : false,
     })),
   };
 }

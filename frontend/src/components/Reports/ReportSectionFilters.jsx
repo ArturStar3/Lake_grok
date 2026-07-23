@@ -23,7 +23,7 @@ function computeDropdownPosition(triggerEl) {
   };
 }
 
-function MultiSelect({ label, options, values, onChange, getOptionLabel, getOptionValue }) {
+export function MultiSelect({ label, options, values, onChange, getOptionLabel, getOptionValue }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [dropdownStyle, setDropdownStyle] = useState(null);
