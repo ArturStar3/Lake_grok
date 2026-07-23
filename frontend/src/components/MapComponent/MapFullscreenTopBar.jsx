@@ -22,6 +22,8 @@ export default function MapFullscreenTopBar({
   onOpenAddTarget,
   canOpenReference,
   onOpenReference,
+  canOpenReports = false,
+  onOpenReports,
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -104,6 +106,11 @@ export default function MapFullscreenTopBar({
       {canOpenReference && onOpenReference && (
         <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenReference}>
           Справочники
+        </button>
+      )}
+      {canOpenReports && onOpenReports && (
+        <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenReports}>
+          Отчёты
         </button>
       )}
       <div className="map-fs-topbar__tools-wrap" ref={toolsMenuRef}>

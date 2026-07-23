@@ -41,6 +41,7 @@ import { isLosRadarZoneMode } from "../../utils/computeLosZone";
 
 const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
 const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
+const ReportBuilderModal = lazy(() => import("../Reports/ReportBuilderModal"));
 
 export default function Formular({ onMapFullscreenChange }) {
     const { user } = useAuth();
@@ -52,6 +53,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const canDeleteEvents = canDeleteModule(user, 'events');
     const canEditCountryDossier = canWriteModule(user, 'country_dossier');
     const canOpenReference = canManageReference(user);
+    const canOpenReports = canReadModule(user, 'reports');
     const [usersAdminOpen, setUsersAdminOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("objects");
     const [selectedObj, setSelectedObj] = useState([]);
@@ -76,6 +78,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
     const [isFullscreen, setFullscreen] = useState(true);
     const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
+    const [isReportsOpen, setReportsOpen] = useState(false);
     const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
     const [filtersOpen, setFiltersOpen] = useState(true);
     const [eventDrawRequest, setEventDrawRequest] = useState(0);
@@ -1089,13 +1092,18 @@ export default function Formular({ onMapFullscreenChange }) {
         const openReference = () => {
             if (canOpenReference) setReferenceDataOpen(true);
         };
+        const openReports = () => {
+            if (canOpenReports) setReportsOpen(true);
+        };
         window.addEventListener('infolake:open-users-admin', openUsersAdmin);
         window.addEventListener('infolake:open-reference', openReference);
+        window.addEventListener('infolake:open-reports', openReports);
         return () => {
             window.removeEventListener('infolake:open-users-admin', openUsersAdmin);
             window.removeEventListener('infolake:open-reference', openReference);
+            window.removeEventListener('infolake:open-reports', openReports);
         };
-    }, [canOpenReference]);
+    }, [canOpenReference, canOpenReports]);
 
     useEffect(() => {
         if (isFullscreen) return;
@@ -1557,6 +1565,8 @@ export default function Formular({ onMapFullscreenChange }) {
                                 onOpenAddTarget={handleOpenAddTargetModal}
                                 canOpenReference={canOpenReference}
                                 onOpenReference={() => setReferenceDataOpen(true)}
+                                canOpenReports={canOpenReports}
+                                onOpenReports={() => setReportsOpen(true)}
                                 eventDrawRequest={eventDrawRequest}
                                 situations={situations}
                                 selectedSituationIds={selectedSituations}
@@ -1690,6 +1700,12 @@ export default function Formular({ onMapFullscreenChange }) {
                     onActionTypesChanged={reloadReferenceLists}
                     onTargetTypesChanged={() => {}}
                     initialEquipmentId={referenceEquipmentId}
+                />
+                )}
+                {canOpenReports && (
+                <ReportBuilderModal
+                    isOpen={isReportsOpen}
+                    onClose={() => setReportsOpen(false)}
                 />
                 )}
             </Suspense>

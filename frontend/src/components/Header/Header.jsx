@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { canManageUsers, canManageReference } from '../../utils/permissions';
+import { canManageUsers, canManageReference, canReadModule } from '../../utils/permissions';
 import './Header.css';
 import logo from '../../assets/images/logo.png';
 
@@ -11,6 +11,7 @@ function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const canOpenReference = canManageReference(user);
+  const canOpenReports = canReadModule(user, 'reports');
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -84,6 +85,18 @@ function Header() {
                 }}
               >
                 Справочники
+              </button>
+            )}
+            {canOpenReports && (
+              <button
+                type="button"
+                className="header__dropdown-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  window.dispatchEvent(new CustomEvent('infolake:open-reports'));
+                }}
+              >
+                Отчёты
               </button>
             )}
             <button type="button" className="header__dropdown-item header__dropdown-item--danger" onClick={handleLogout}>

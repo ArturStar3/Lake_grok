@@ -1,0 +1,13 @@
+<section class="report-section{% if page_break_before %} report-section--break{% endif %}">
+  <h2 class="report-section__title">{{ section.title }}</h2>
+
+  {% if data.access_denied %}
+    <p class="report-section__denied">Нет доступа к данным</p>
+  {% elif not data.targets %}
+    <p class="report-section__empty">Нет данных по выбранным объектам</p>
+  {% else %}
+    {% for target in data.targets %}
+      {% include "reports/pdf/_partial_target_dossier.html" with target=target page_break=forloop.counter0 %}
+    {% endfor %}
+  {% endif %}
+</section>

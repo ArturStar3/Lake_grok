@@ -94,6 +94,7 @@ class CountryAdmin(ModelAdmin):
     list_display = ('title', 'palette_display')
     list_filter = ('marker_palette',)
     search_fields = ('title', 'title_short', 'iso_code')
+    autocomplete_fields = ('marker_palette',)
     list_per_page = 50
     inlines = (
         TargetInlineAdmin,

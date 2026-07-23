@@ -1,0 +1,31 @@
+<section class="report-section{% if page_break_before %} report-section--break{% endif %}">
+  <h2 class="report-section__title">{{ section.title }}</h2>
+  {% if data.access_denied %}
+    <p class="report-section__denied">Нет доступа к данным</p>
+  {% elif not data.rows %}
+    <p class="report-section__empty">Нет данных по выбранным фильтрам</p>
+  {% else %}
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Наименование</th>
+          <th>Обозначение</th>
+          <th>Категория</th>
+          <th>Страна происхождения</th>
+          <th>Описание</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data.rows %}
+          <tr>
+            <td>{{ row.title }}</td>
+            <td>{{ row.designation }}</td>
+            <td>{{ row.category }}</td>
+            <td>{{ row.origin_country }}</td>
+            <td>{{ row.description }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>

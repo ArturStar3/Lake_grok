@@ -50,7 +50,7 @@
 
 ```powershell
 cd D:\Artur\Проект\Lake_grok
-git checkout develop-cards
+git checkout develop__style
 git pull
 ```
 
@@ -108,26 +108,32 @@ tileserver/data/map.mbtiles
 
 ```
 Lake_grok/
-├── infolake_full_offline.tar          # обязательно (~2–4 ГБ)
-├── offline-package-manifest.txt       # справка по содержимому
-├── export-offline.ps1                 # для следующих обновлений (online)
+├── infolake_full_offline.tar          # обязательно (~2–4 ГБ), свежий export
+├── offline-package-manifest.txt       # дата, ветка, размер
 ├── import-and-start.ps1               # запуск на offline
+├── export-offline.ps1                 # только для следующих online-сборок
 ├── docker-compose.yml
-├── backend/
+├── OFFLINE_MIGRATION.md
+├── OFFLINE_MIGRATION_MARKER_PALETTES.md
+├── scripts/offline/                   # post-update, backup, migrate helpers
+├── backend/                           # включая .env целевого сервера
 ├── frontend/
-├── tileserver/
-│   ├── data/map.mbtiles               # обязательно для карты
-│   ├── styles/infolake-unified.json   # генерируется build:map-style
-│   └── config.json
-└── backend/.env                       # настройки целевого сервера
+└── tileserver/
+    ├── data/map.mbtiles               # обязательно для карты (не в git)
+    ├── data/dem/                      # если используются зоны LOS
+    ├── styles/infolake-unified.json   # после build:map-style
+    └── config.json
 ```
 
-**Не обязательно копировать:**
+**Не копировать:**
 
 - `node_modules/`, `frontend/node_modules/` — есть в образе frontend
-- `frontend/dist/` — при dev-режиме в Docker не нужен
-- `.git/` — по желанию
+- `frontend/dist/` — при Vite dev в Docker не нужен
 - `**/__pycache__/`
+- старые `infolake_full_offline_*.tar` (кроме одного датированного бэкапа по желанию)
+- `.git/` — по желанию
+
+Перед копированием проверьте `offline-package-manifest.txt`: ветка `develop__style`, свежая дата генерации.
 
 ---
 
@@ -172,16 +178,21 @@ docker compose ps
 
 ### 5.5. Миграции Django (первый запуск)
 
+При старте backend entrypoint уже выполняет `migrate --noinput` (в том числе `accounts.0007` — уровень прав модулей `write_delete`). Повторный вызов безопасен:
+
 ```powershell
 docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py createsuperuser
 ```
 
-Опционально — демо-данные / иерархия:
+Опционально — примеры групп безопасности и иерархия объектов:
 
 ```powershell
+docker compose exec backend python manage.py seed_security_groups
 docker compose exec backend python manage.py rebuild_target_hierarchy
 ```
+
+Подробнее по правам: [backend/docs/OFFLINE_AUTH.md](backend/docs/OFFLINE_AUTH.md).
 
 ---
 
@@ -254,7 +265,7 @@ docker compose exec backend python manage.py migrate
 | Карта «зависла» после создания user в admin | Старый образ с `runserver --nothreading` — пересобрать backend с Gunicorn; см. [backend/docs/ADMIN_USER_STABILITY.md](backend/docs/ADMIN_USER_STABILITY.md) |
 | Ошибка векторной карты | TileServer :8080 доступен; `VITE_TILESERVER_URL` в compose |
 | Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
-| Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается `939a13e` или новее на `develop-cards`) |
+| Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается актуальный коммит ветки `develop__style`) |
 
 ---
 
@@ -273,7 +284,8 @@ docker compose exec backend python manage.py migrate
 - [ ] Docker + PostgreSQL установлены
 - [ ] Проект и `.tar` скопированы
 - [ ] `.\import-and-start.ps1` — контейнеры `Up`
-- [ ] `migrate` / `createsuperuser` выполнены
+- [ ] `createsuperuser` выполнен (migrate уже в entrypoint)
+- [ ] Опционально: `seed_security_groups`
 - [ ] Frontend :5173, API :8000, карта отображается
 
 ---

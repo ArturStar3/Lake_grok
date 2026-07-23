@@ -81,6 +81,10 @@ class EquipmentPermission(ModulePermission):
     module = 'equipment'
 
 
+class ReportsPermission(ModulePermission):
+    module = 'reports'
+
+
 class CountryScopedQuerysetMixin:
     """Фильтрация queryset по разрешённым странам."""
 

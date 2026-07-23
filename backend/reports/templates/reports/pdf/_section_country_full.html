@@ -1,0 +1,37 @@
+<section class="report-section{% if page_break_before %} report-section--break{% endif %}">
+  <h2 class="report-section__title">{{ section.title }}</h2>
+
+  {% if data.access_denied %}
+    <p class="report-section__denied">Нет доступа к данным</p>
+  {% elif not data.countries %}
+    <p class="report-section__empty">Нет данных по выбранным странам</p>
+  {% else %}
+    {% for country in data.countries %}
+      <div class="country-block{% if not forloop.first %} country-block--break{% endif %}">
+        <h2 class="country-block__title">{{ country.title }}</h2>
+        <p class="country-block__meta">
+          {% if country.title_short %}{{ country.title_short }} · {% endif %}
+          {{ country.iso_code }}
+        </p>
+
+        <h3 class="dossier-h2">Досье страны</h3>
+        {% if country.dossier_access_denied %}
+          <p class="report-section__denied">Нет доступа к досье страны</p>
+        {% else %}
+          {% include "reports/pdf/_partial_dossier_sections.html" with dossier=country.dossier %}
+        {% endif %}
+
+        <h3 class="dossier-h2">Объекты</h3>
+        {% if country.targets_access_denied %}
+          <p class="report-section__denied">Нет доступа к объектам</p>
+        {% elif not country.targets %}
+          <p class="report-section__empty">Объекты не найдены</p>
+        {% else %}
+          {% for target in country.targets %}
+            {% include "reports/pdf/_partial_target_dossier.html" with target=target page_break=True %}
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+</section>

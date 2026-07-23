@@ -1,0 +1,28 @@
+{% if dossier.standalone or dossier.groups %}
+  <div class="dossier-tree">
+    {% for item in dossier.standalone %}
+      {% if item.content_html %}
+        <div class="dossier-section">
+          <h3 class="dossier-h3">{{ item.section_title }}</h3>
+          <div class="dossier-prose">{{ item.content_html|safe }}</div>
+        </div>
+      {% endif %}
+    {% endfor %}
+
+    {% for group in dossier.groups %}
+      <div class="dossier-group">
+        <h3 class="dossier-h2">{{ group.parent.title }}</h3>
+        {% for child in group.children %}
+          <div class="dossier-section dossier-section--child">
+            <h4 class="dossier-h3">{{ child.section_title }}</h4>
+            {% if child.content_html %}
+              <div class="dossier-prose">{{ child.content_html|safe }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="report-section__empty">Нет заполненных разделов</p>
+{% endif %}

@@ -1,0 +1,38 @@
+<section class="report-section{% if page_break_before %} report-section--break{% endif %}">
+  <h2 class="report-section__title">{{ section.title }}</h2>
+  {% if data.access_denied %}
+    <p class="report-section__denied">Нет доступа к данным</p>
+  {% elif not data.rows %}
+    <p class="report-section__empty">Нет данных по выбранным фильтрам</p>
+  {% else %}
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Название</th>
+          <th>Версия</th>
+          <th>Дата</th>
+          <th>Время</th>
+          <th>Страны</th>
+          <th>Цвет</th>
+          <th>Описание</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data.rows %}
+          <tr>
+            <td>{{ row.title }}</td>
+            <td>{{ row.version }}</td>
+            <td>{{ row.situation_date }}</td>
+            <td>{{ row.situation_time }}</td>
+            <td>{{ row.countries }}</td>
+            <td>
+              {% if row.color %}<span class="report-swatch" style="background: {{ row.color }}"></span>{% endif %}
+              {{ row.color }}
+            </td>
+            <td>{{ row.description }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>

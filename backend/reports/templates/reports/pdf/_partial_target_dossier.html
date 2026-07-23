@@ -1,0 +1,92 @@
+<article class="target-block{% if page_break %} target-block--break{% endif %}">
+  <h2 class="target-block__title">{{ target.title }}</h2>
+  <p class="target-block__meta">
+    {% if target.type %}<span>{{ target.type }}</span>{% endif %}
+    {% if target.country %}<span>· {{ target.country }}</span>{% endif %}
+    {% if target.label %}<span>· {{ target.label }}</span>{% endif %}
+    <span>· {{ target.lat }}, {{ target.lng }}</span>
+  </p>
+
+  <h3 class="dossier-h2">Формуляр</h3>
+  {% if target.formular.access_denied %}
+    <p class="report-section__denied">{{ target.formular_note|default:"Нет доступа к формуляру" }}</p>
+  {% else %}
+    {% include "reports/pdf/_partial_dossier_sections.html" with dossier=target.formular %}
+  {% endif %}
+
+  <h3 class="dossier-h2">Зоны действия</h3>
+  {% if target.zones %}
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Тип зоны</th>
+          <th>Радиус, км</th>
+          <th>Геометрия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for zone in target.zones %}
+          <tr>
+            <td>{{ zone.action_type }}</td>
+            <td>{{ zone.radius_km }}</td>
+            <td>{% if zone.has_geometry %}Да{% else %}Нет{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="report-section__empty">Зоны не заданы</p>
+  {% endif %}
+
+  <h3 class="dossier-h2">Вооружение и техника</h3>
+  {% if target.equipment %}
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Наименование</th>
+          <th>Обозначение</th>
+          <th>Категория</th>
+          <th>Кол-во</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in target.equipment %}
+          <tr>
+            <td>{{ item.title }}</td>
+            <td>{{ item.designation }}</td>
+            <td>{{ item.category }}</td>
+            <td>{{ item.quantity }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="report-section__empty">Техника не указана</p>
+  {% endif %}
+
+  <h3 class="dossier-h2">Уязвимости</h3>
+  {% if target.vulnerabilities %}
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Название</th>
+          <th>Описание</th>
+          <th>Широта</th>
+          <th>Долгота</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in target.vulnerabilities %}
+          <tr>
+            <td>{{ item.title }}</td>
+            <td>{{ item.description }}</td>
+            <td>{{ item.lat }}</td>
+            <td>{{ item.lng }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="report-section__empty">Уязвимости не указаны</p>
+  {% endif %}
+</article>

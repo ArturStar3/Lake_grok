@@ -133,17 +133,20 @@ export function resolveSituationMapRevision(
   {
     activeSituationId = null,
     timelineRevisionId = null,
-    revisions = [],
+    revisions,
+    situationRevisions,
   } = {},
 ) {
   if (!situation) return null;
+
+  const revisionList = revisions ?? situationRevisions ?? [];
 
   const situationId = String(situation.id);
   const isActive = activeSituationId != null
     && String(activeSituationId) === situationId;
 
   if (isActive && timelineRevisionId != null) {
-    const selected = findSituationRevision(revisions, timelineRevisionId);
+    const selected = findSituationRevision(revisionList, timelineRevisionId);
     if (selected && String(getSituationId(selected)) === situationId) {
       return selected;
     }
