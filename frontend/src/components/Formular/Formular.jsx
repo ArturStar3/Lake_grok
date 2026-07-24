@@ -1716,6 +1716,7 @@ export default function Formular({ onMapFullscreenChange }) {
                 <ReportBuilderModal
                     isOpen={isReportsOpen}
                     onClose={() => setReportsOpen(false)}
+                    selectedTargetIds={selectedObj}
                 />
                 )}
                 {canOpenDataExchange && (

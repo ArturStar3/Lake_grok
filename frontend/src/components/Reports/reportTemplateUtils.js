@@ -111,3 +111,79 @@ export function fromApiTemplate(template) {
     })),
   };
 }
+
+/** Шаблон только из секций objects_full (библиотека вкладки «По объектам»). */
+export function isObjectsOnlyTemplate(template) {
+  const types = Array.isArray(template?.section_types) && template.section_types.length > 0
+    ? template.section_types
+    : (template?.sections || []).map((s) => s.section_type);
+  return types.length > 0 && types.every((t) => t === 'objects_full');
+}
+
+export function createEmptyObjectsForm(name = 'Отчёт по объектам') {
+  return {
+    id: null,
+    name,
+    description: '',
+    targetIds: [],
+    countryIds: [],
+  };
+}
+
+export function objectsFormFromTemplate(template) {
+  const form = fromApiTemplate(template);
+  const section = (form.sections || []).find((s) => s.section_type === 'objects_full')
+    || form.sections?.[0]
+    || null;
+  const filters = section?.filters || {};
+  return {
+    id: form.id,
+    name: form.name,
+    description: form.description,
+    targetIds: Array.isArray(filters.target_ids) ? filters.target_ids.map(String) : [],
+    countryIds: Array.isArray(filters.country_ids) ? filters.country_ids.map(Number).filter((n) => !Number.isNaN(n)) : [],
+  };
+}
+
+/** Страны, у которых выбраны все видимые объекты. */
+export function deriveFullySelectedCountryIds(targets, selectedTargetIds = []) {
+  const selected = new Set((selectedTargetIds || []).map((id) => Number(id)));
+  const byCountry = new Map();
+  for (const target of targets || []) {
+    const countryId = target.country?.id ?? target.country_id;
+    if (countryId == null) continue;
+    const cid = Number(countryId);
+    if (!byCountry.has(cid)) byCountry.set(cid, []);
+    byCountry.get(cid).push(Number(target.id));
+  }
+  const result = [];
+  for (const [cid, ids] of byCountry) {
+    if (ids.length > 0 && ids.every((id) => selected.has(id))) {
+      result.push(cid);
+    }
+  }
+  return result;
+}
+
+export function toObjectsApiPayload(form, targets = []) {
+  const targetIds = (form.targetIds || [])
+    .map((id) => Number(id))
+    .filter((n) => !Number.isNaN(n) && n > 0);
+  const countryIds = Array.isArray(form.countryIds) && form.countryIds.length > 0
+    ? form.countryIds.map(Number).filter((n) => !Number.isNaN(n))
+    : deriveFullySelectedCountryIds(targets, targetIds);
+  return {
+    name: form.name?.trim() || 'Отчёт по объектам',
+    description: form.description || '',
+    sections: [{
+      section_type: 'objects_full',
+      title: 'Полный отчёт по объектам',
+      order: 0,
+      filters: {
+        target_ids: targetIds,
+        country_ids: countryIds,
+      },
+      page_break_before: false,
+    }],
+  };
+}

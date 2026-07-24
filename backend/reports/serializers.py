@@ -72,6 +72,7 @@ class ReportTemplateSerializer(serializers.ModelSerializer):
     sections = ReportSectionSerializer(many=True)
     created_by_name = serializers.SerializerMethodField()
     sections_count = serializers.SerializerMethodField()
+    section_types = serializers.SerializerMethodField()
 
     class Meta:
         model = ReportTemplate
@@ -85,8 +86,17 @@ class ReportTemplateSerializer(serializers.ModelSerializer):
             'updated_at',
             'sections',
             'sections_count',
+            'section_types',
         )
-        read_only_fields = ('id', 'created_by', 'created_at', 'updated_at', 'created_by_name', 'sections_count')
+        read_only_fields = (
+            'id',
+            'created_by',
+            'created_at',
+            'updated_at',
+            'created_by_name',
+            'sections_count',
+            'section_types',
+        )
 
     def get_created_by_name(self, obj):
         user = obj.created_by
@@ -94,10 +104,16 @@ class ReportTemplateSerializer(serializers.ModelSerializer):
             return ''
         return user.get_full_name() or user.username
 
-    def get_sections_count(self, obj):
+    def _iter_sections(self, obj):
         if hasattr(obj, '_prefetched_objects_cache') and 'sections' in obj._prefetched_objects_cache:
-            return len(obj.sections.all())
-        return obj.sections.count()
+            return list(obj.sections.all())
+        return list(obj.sections.order_by('order', 'id'))
+
+    def get_sections_count(self, obj):
+        return len(self._iter_sections(obj))
+
+    def get_section_types(self, obj):
+        return [section.section_type for section in self._iter_sections(obj)]
 
     def validate_sections(self, value):
         if not isinstance(value, list):

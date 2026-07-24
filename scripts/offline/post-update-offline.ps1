@@ -18,4 +18,10 @@ if (-not $SkipLoad) {
 }
 
 & (Join-Path $PSScriptRoot "apply-marker-palette-migration.ps1") -ProjectRoot $ProjectRoot -ExpectSeedPalettes
-exit $LASTEXITCODE
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "=== Seed report templates ===" -ForegroundColor Cyan
+docker compose exec -T backend python manage.py seed_report_templates
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+exit 0
