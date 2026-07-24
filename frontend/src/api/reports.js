@@ -4,6 +4,9 @@ const BASE = '/report-templates/';
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
+/** Longer than gunicorn worker timeout (300s in compose) so client sees server errors, not premature abort. */
+const REPORT_GENERATION_TIMEOUT_MS = 360000;
+
 async function ensureFileBlob(response, expectedContentType = 'application/pdf') {
   const blob = response.data;
   const contentType = String(response.headers?.['content-type'] || blob?.type || '');
@@ -78,7 +81,11 @@ export async function generateReport(id, overrides = [], format = 'pdf') {
   const response = await apiClient.post(
     `${BASE}${id}/generate/`,
     { overrides, format },
-    { responseType: 'blob', validateStatus: () => true },
+    {
+      responseType: 'blob',
+      validateStatus: () => true,
+      timeout: REPORT_GENERATION_TIMEOUT_MS,
+    },
   );
   if (response.status >= 400) {
     await ensureFileBlob(response, expected); // throws with server detail
@@ -91,7 +98,11 @@ export async function generateAdhocReport(payload, format = 'pdf') {
   const response = await apiClient.post(
     `${BASE}generate-adhoc/`,
     { ...payload, format },
-    { responseType: 'blob', validateStatus: () => true },
+    {
+      responseType: 'blob',
+      validateStatus: () => true,
+      timeout: REPORT_GENERATION_TIMEOUT_MS,
+    },
   );
   if (response.status >= 400) {
     await ensureFileBlob(response, expected);
@@ -110,7 +121,11 @@ export async function generatePresetReport({
   const response = await apiClient.post(
     `${BASE}generate-preset/`,
     { kind, country_ids, target_ids, name, format },
-    { responseType: 'blob', validateStatus: () => true },
+    {
+      responseType: 'blob',
+      validateStatus: () => true,
+      timeout: REPORT_GENERATION_TIMEOUT_MS,
+    },
   );
   if (response.status >= 400) {
     await ensureFileBlob(response, expected);

@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 from django.utils import timezone
 from django.utils.text import slugify
 from docx import Document
+from docx.enum.text import WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 
@@ -97,6 +98,57 @@ def _set_run_gray(run):
     run.italic = True
 
 
+def _set_paragraph_spacing(style, *, before_pt, after_pt, line_spacing=1.0, keep_with_next=False):
+    """Explicit spacing so python-docx default template gaps do not accumulate."""
+    pf = style.paragraph_format
+    pf.space_before = Pt(before_pt)
+    pf.space_after = Pt(after_pt)
+    pf.line_spacing = line_spacing
+    pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+    if keep_with_next:
+        pf.keep_with_next = True
+
+
+def _tighten_styles(doc: Document):
+    """
+    Override default Word template spacing.
+
+    Headings get at most ~2 lines of extra space; body text stays compact.
+    """
+    normal = doc.styles['Normal']
+    normal.font.name = 'Calibri'
+    normal.font.size = Pt(11)
+    normal._element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
+    _set_paragraph_spacing(normal, before_pt=0, after_pt=6, line_spacing=1.15)
+
+    heading_specs = {
+        'Title': (0, 10),
+        'Heading 1': (14, 6),
+        'Heading 2': (12, 4),
+        'Heading 3': (10, 3),
+        'Heading 4': (8, 2),
+    }
+    for style_name, (before_pt, after_pt) in heading_specs.items():
+        try:
+            style = doc.styles[style_name]
+        except KeyError:
+            continue
+        _set_paragraph_spacing(
+            style,
+            before_pt=before_pt,
+            after_pt=after_pt,
+            line_spacing=1.0,
+            keep_with_next=True,
+        )
+
+    for style_name in ('List Bullet', 'List Number'):
+        try:
+            style = doc.styles[style_name]
+        except KeyError:
+            continue
+        _set_paragraph_spacing(style, before_pt=0, after_pt=2, line_spacing=1.15)
+
+
 def _write_denied(doc, text='Нет доступа к данным'):
     p = doc.add_paragraph()
     run = p.add_run(text)
@@ -126,7 +178,6 @@ def _write_rows_table(doc, columns, rows):
         cells = table.rows[r_idx].cells
         for c_idx, (_, key) in enumerate(columns):
             cells[c_idx].text = _cell_value(row, key)
-    doc.add_paragraph()
 
 
 class _HtmlToDocxParser(HTMLParser):
@@ -265,7 +316,6 @@ class _HtmlToDocxParser(HTMLParser):
                     for paragraph in cell.paragraphs:
                         for run in paragraph.runs:
                             run.bold = True
-        self.doc.add_paragraph()
 
     def close(self):
         self._flush_paragraph()
@@ -468,10 +518,7 @@ def build_docx_bytes(*, template_name, template_description, sections, user, sec
     ordered = sorted(list(sections), key=lambda s: (getattr(s, 'order', 0), getattr(s, 'id', 0) or 0))
 
     doc = Document()
-    style = doc.styles['Normal']
-    style.font.name = 'Calibri'
-    style.font.size = Pt(11)
-    style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Calibri')
+    _tighten_styles(doc)
 
     doc.add_heading(template_name or 'Отчёт', level=0)
     if template_description:

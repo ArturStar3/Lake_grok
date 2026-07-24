@@ -11,6 +11,8 @@
 *.env
 backend/.env
 backend/.env.*
+!.env.example
+!backend/.env.example
 
 # ----------------------------------------
 # Python / Django

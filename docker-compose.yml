@@ -38,7 +38,7 @@ services:
     mem_limit: 4g
     cpus: "2.0"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:8080/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,6 +72,8 @@ services:
       DJANGO_SERVER: gunicorn
       GUNICORN_WORKERS: "2"
       GUNICORN_THREADS: "2"
+      # PDF/DOCX отчёты на слабом офлайн-железе могут занимать >2 мин
+      GUNICORN_TIMEOUT: "300"
       # Ссылка «Открыть сайт» в Django admin → карта (Vite dev / production frontend).
       FRONTEND_URL: http://localhost:5173
     extra_hosts:

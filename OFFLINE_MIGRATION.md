@@ -264,8 +264,10 @@ docker compose exec backend python manage.py migrate
 | Backend не подключается к БД | `DB_HOST`, firewall, PostgreSQL `listen_addresses` |
 | Карта «зависла» после создания user в admin | Старый образ с `runserver --nothreading` — пересобрать backend с Gunicorn; см. [backend/docs/ADMIN_USER_STABILITY.md](backend/docs/ADMIN_USER_STABILITY.md) |
 | Ошибка векторной карты | TileServer :8080 доступен; `VITE_TILESERVER_URL` в compose |
+| PDF-отчёт: `timeout of 15000ms` / `ECONNABORTED` | Нужен код с таймаутом генерации 360 с и `GUNICORN_TIMEOUT=300` в compose; обновите проект + перезапустите контейнеры (образы из свежего `export-offline.ps1`) |
+| PDF/DOCX долго формируется | Нормально на слабом ПК; не прерывайте запрос до ~5 мин; уменьшите число разделов/стран в шаблоне |
 | Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
-| Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается актуальный коммит ветки `develop__style`) |
+| Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается актуальный коммит рабочей ветки, напр. `develop_report`) |
 
 ---
 
