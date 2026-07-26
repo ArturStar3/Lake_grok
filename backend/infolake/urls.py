@@ -33,8 +33,9 @@ urlpatterns = [
     *equipment_admin_redirect_urlpatterns(),
     path('admin/markdown-preview/', markdown_preview, name='admin_markdown_preview'),
     path('admin/', admin.site.urls),
-    path('api/v1/', include(api_urls))
+    path('api/v1/', include(api_urls)),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Media: в офлайн/self-hosted нет отдельного CDN/nginx — отдаём файлы через Django
+# и при DEBUG=False (иначе вложения/фото перестанут открываться).
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

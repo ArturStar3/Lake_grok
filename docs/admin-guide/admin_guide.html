@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>InfoLake — Руководство администратора</title>
+  <link rel="stylesheet" href="admin_guide.css" />
+</head>
+<body>
+
+  <section class="cover">
+    <p class="cover__badge">InfoLake · Production</p>
+    <h1 class="cover__title">Руководство администратора</h1>
+    <p class="cover__lead">
+      Эксплуатация production-контура: архитектура, первый запуск, повседневные операции,
+      обновления через <code>apply-update.bat</code>, резервные копии, пользователи и типовые сбои.
+    </p>
+    <p class="cover__meta">Версия документа: 1.0.0 · июль 2026 · Без иллюстраций</p>
+  </section>
+
+  <section class="toc">
+    <h2>Содержание</h2>
+    <ol>
+      <li><a href="#arch">Архитектура</a></li>
+      <li><a href="#launch">Первый запуск</a></li>
+      <li><a href="#ops">Повседневные операции</a></li>
+      <li><a href="#updates">Обновления</a></li>
+      <li><a href="#backup">Резервные копии и восстановление</a></li>
+      <li><a href="#users">Пользователи и права</a></li>
+      <li><a href="#env">Файл backend/.env</a></li>
+      <li><a href="#errors">Страницы ошибок</a></li>
+      <li><a href="#trouble">Диагностика</a></li>
+      <li><a href="#escalate">Эскалация разработчику</a></li>
+    </ol>
+  </section>
+
+  <section id="arch" class="chapter">
+    <h2>1. Архитектура</h2>
+    <p>Production-контур — три контейнера Docker и PostgreSQL на хосте Windows:</p>
+    <table>
+      <thead>
+        <tr><th>Сервис</th><th>Порт</th><th>Роль</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>frontend</td><td>5173</td><td>Веб-интерфейс (собранная статика, <code>vite preview</code>)</td></tr>
+        <tr><td>backend</td><td>8000</td><td>API и Django Admin (Gunicorn)</td></tr>
+        <tr><td>tileserver</td><td>8080</td><td>Векторная карта из <code>map.mbtiles</code></td></tr>
+        <tr><td>PostgreSQL</td><td>5432</td><td>БД на хосте (<code>DB_HOST=host.docker.internal</code>)</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Запуск всегда через два файла compose:
+      <code>docker-compose.yml</code> + <code>docker-compose.server.yml</code>.
+      Второй отключает bind-mount исходников frontend и поднимает production-образ.
+    </p>
+    <p class="note">
+      Ветка git на сервере — только <strong>production</strong>.
+      Разработка ведётся на <code>develop_report</code> (и других ветках) на машине разработчика.
+    </p>
+  </section>
+
+  <section id="launch" class="chapter page-break">
+    <h2>2. Первый запуск</h2>
+    <p>
+      Пошаговая инструкция вынесена в файл <strong>PRODUCTION_LAUNCH.md</strong> в корне проекта.
+      Краткий чек-лист:
+    </p>
+    <ol>
+      <li>Docker Desktop + PostgreSQL + Git установлены.</li>
+      <li>Проект на диске, ветка <code>production</code>.</li>
+      <li><code>tileserver/data/map.mbtiles</code> на месте.</li>
+      <li><code>backend/.env</code> из <code>.env.example</code>, <code>DEBUG=False</code>.</li>
+      <li><code>docker load</code> образов → <code>import-and-start.ps1</code> или compose up с server-override.</li>
+      <li><code>createsuperuser</code>, проверка URL :5173 / :8000 / :8080.</li>
+    </ol>
+  </section>
+
+  <section id="ops" class="chapter">
+    <h2>3. Повседневные операции</h2>
+    <h3>3.1. Старт / останов</h3>
+    <pre>cd D:\InfoLake\Lake_grok
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
+docker compose -f docker-compose.yml -f docker-compose.server.yml down</pre>
+    <h3>3.2. Статус и логи</h3>
+    <pre>docker compose -f docker-compose.yml -f docker-compose.server.yml ps
+docker compose -f docker-compose.yml -f docker-compose.server.yml logs --tail 100
+docker compose -f docker-compose.yml -f docker-compose.server.yml logs -f frontend</pre>
+    <h3>3.3. Проверка доступности</h3>
+    <ul>
+      <li>http://localhost:5173 — интерфейс</li>
+      <li>http://localhost:8000/admin/ — админка</li>
+      <li>http://localhost:8000/api/v1/ — API</li>
+      <li>http://localhost:8080/ — TileServer</li>
+    </ul>
+    <p class="warn">
+      На офлайн-сервере <strong>запрещено</strong>:
+      <code>docker compose build</code>, <code>docker compose pull</code>, <code>docker pull</code>.
+      Образы приходят только через <code>docker load</code> / пакет обновления.
+    </p>
+  </section>
+
+  <section id="updates" class="chapter page-break">
+    <h2>4. Обновления</h2>
+    <h3>4.1. Для оператора</h3>
+    <ol>
+      <li>Получить от разработчика <code>infolake_update_vX.Y.Z.zip</code>.</li>
+      <li>Распаковать в любую папку (например <code>D:\InfoLake\updates\v1.0.1</code>).</li>
+      <li>Дважды щёлкнуть <strong>apply-update.bat</strong>.</li>
+      <li>Дождаться зелёного баннера «ОБНОВЛЕНИЕ ЗАВЕРШЕНО».</li>
+    </ol>
+    <p>Скрипт автоматически:</p>
+    <ul>
+      <li>создаёт резервную копию PostgreSQL в <code>backups\</code>;</li>
+      <li>применяет код из <code>update.bundle</code> (fast-forward ветки production);</li>
+      <li>загружает Docker-образы из <code>images.tar</code>;</li>
+      <li>перезапускает контейнеры, выполняет migrate и seed шаблонов отчётов;</li>
+      <li>проверяет HTTP-доступность frontend / backend / tileserver.</li>
+    </ul>
+    <h3>4.2. При ошибке</h3>
+    <p>
+      Красный баннер «ОШИБКА — ВЫПОЛНЕН ОТКАТ» означает: скрипт вернул код и образы
+      к состоянию до обновления. <strong>Не пытайтесь чинить вручную.</strong>
+      Отправьте разработчику файл <code>logs\update-YYYYMMDD_HHMMSS.log</code>.
+    </p>
+    <h3>4.3. Для разработчика (сборка пакета)</h3>
+    <pre>git checkout production
+# после merge из develop_report и bump VERSION / CHANGELOG
+.\scripts\production\prepare-update-package.ps1</pre>
+    <p>Результат: <code>dist\updates\infolake_update_vX.Y.Z.zip</code>.</p>
+  </section>
+
+  <section id="backup" class="chapter">
+    <h2>5. Резервные копии и восстановление</h2>
+    <h3>5.1. Автобэкап перед обновлением</h3>
+    <p>
+      <code>apply-update.ps1</code> вызывает
+      <code>scripts\offline\backup-postgres-before-migrate.ps1</code>
+      → файл <code>backups\infolake_pre_migrate_*.dump</code> (формат custom, <code>pg_dump -Fc</code>).
+    </p>
+    <h3>5.2. Ручной бэкап</h3>
+    <pre>.\scripts\offline\backup-postgres-before-migrate.ps1</pre>
+    <h3>5.3. Восстановление (только с участием разработчика / опытного админа)</h3>
+    <pre>docker compose -f docker-compose.yml -f docker-compose.server.yml down
+pg_restore -h localhost -U infolake -d infolake_db --clean --if-exists backups\infolake_pre_migrate_XXXX.dump
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never</pre>
+    <p class="warn">
+      Автоматический откат БД скриптом обновления <em>не</em> выполняется.
+      Откатываются код и Docker-образы; БД откатывают вручную из dump при необходимости.
+    </p>
+    <p>Также сохраняйте копии <code>backend\media</code> и <code>tileserver\data\map.mbtiles</code>.</p>
+  </section>
+
+  <section id="users" class="chapter page-break">
+    <h2>6. Пользователи и права</h2>
+    <ul>
+      <li>Суперпользователь: <code>createsuperuser</code> (см. PRODUCTION_LAUNCH.md).</li>
+      <li>Группы безопасности: Django Admin → группы; страны + уровни модулей
+        (<code>none</code> / <code>read</code> / <code>write</code> / <code>write_delete</code>).</li>
+      <li>Регистрация: статус <code>pending</code> → одобрение в «Управление пользователями».</li>
+      <li>Сброс пароля: админ выдаёт временный пароль; пользователь обязан сменить его.</li>
+      <li>Примеры групп: <code>seed_security_groups</code>.</li>
+    </ul>
+    <p class="note">Подробности API и JWT: <code>backend/docs/OFFLINE_AUTH.md</code>.</p>
+  </section>
+
+  <section id="env" class="chapter">
+    <h2>7. Файл backend/.env</h2>
+    <table>
+      <thead><tr><th>Параметр</th><th>Production</th></tr></thead>
+      <tbody>
+        <tr><td><code>DEBUG</code></td><td><strong>False</strong> (обязательно)</td></tr>
+        <tr><td><code>SECRET_KEY</code></td><td>Длинная случайная строка, не из примера</td></tr>
+        <tr><td><code>DB_*</code></td><td>Учётные данные PostgreSQL на хосте</td></tr>
+        <tr><td><code>DB_HOST</code></td><td><code>host.docker.internal</code> (Docker Desktop)</td></tr>
+        <tr><td><code>ALLOWED_HOSTS</code></td><td><code>localhost,127.0.0.1</code> или IP сервера</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="errors" class="chapter">
+    <h2>8. Страницы ошибок</h2>
+    <ul>
+      <li><strong>Frontend 404</strong> — неизвестный URL в браузере (не карта/логин).</li>
+      <li><strong>Frontend ErrorBoundary</strong> — сбой отрисовки React; кнопка «Обновить страницу».</li>
+      <li><strong>Backend 404/500</strong> — HTML-шаблоны при <code>DEBUG=False</code>
+        (админка, редкие HTML-запросы к Django).</li>
+    </ul>
+    <p>API по-прежнему отвечает JSON-ошибками (стандарт DRF).</p>
+  </section>
+
+  <section id="trouble" class="chapter page-break">
+    <h2>9. Диагностика</h2>
+    <table>
+      <thead><tr><th>Симптом</th><th>Действие</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Карта пустая</td>
+          <td>Проверить наличие <code>tileserver/data/map.mbtiles</code>, логи tileserver</td>
+        </tr>
+        <tr>
+          <td>Backend не стартует / ошибка БД</td>
+          <td><code>DB_HOST</code>, пароль, PostgreSQL запущен, firewall</td>
+        </tr>
+        <tr>
+          <td>Frontend «завис», docker kill не помогает</td>
+          <td>См. OFFLINE_MIGRATION.md §8.1: <code>wsl --shutdown</code>, лимиты памяти, production compose</td>
+        </tr>
+        <tr>
+          <td>apply-update: «не fast-forward»</td>
+          <td>Локальная история расходится — эскалация разработчику, не править git вручную</td>
+        </tr>
+        <tr>
+          <td>Медиа/фото 404 при DEBUG=False</td>
+          <td>Убедиться, что том <code>backend/media</code> на месте; код отдаёт media через Django</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="escalate" class="chapter">
+    <h2>10. Эскалация разработчику</h2>
+    <p>Перед обращением соберите:</p>
+    <ol>
+      <li>Файл <code>logs\update-*.log</code> (если сбой обновления).</li>
+      <li>Вывод <code>docker compose … ps</code> и <code>logs --tail 200</code>.</li>
+      <li>Содержимое <code>VERSION</code> и результат <code>git log -1 --oneline</code>.</li>
+      <li>Краткое описание: что делали, время, воспроизводится ли после reboot.</li>
+    </ol>
+    <p class="footer-note">
+      Связанные документы: PRODUCTION_LAUNCH.md, OFFLINE_MIGRATION.md,
+      OFFLINE_MIGRATION_MARKER_PALETTES.md, backend/docs/OFFLINE_AUTH.md.
+    </p>
+  </section>
+
+</body>
+</html>

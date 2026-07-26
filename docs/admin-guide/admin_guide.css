@@ -1,0 +1,132 @@
+@page {
+  size: A4;
+  margin: 2cm 1.6cm 2.2cm 1.6cm;
+
+  @bottom-center {
+    content: "InfoLake · Руководство администратора · стр. " counter(page) " / " counter(pages);
+    font-size: 8.5pt;
+    color: #64748b;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Arial, sans-serif;
+  font-size: 10.5pt;
+  color: #1e293b;
+  line-height: 1.45;
+}
+
+h1, h2, h3 {
+  color: #0f172a;
+  page-break-after: avoid;
+}
+
+h2 {
+  font-size: 14pt;
+  margin: 0 0 10pt;
+  padding-bottom: 4pt;
+  border-bottom: 1.5pt solid #0f766e;
+}
+
+h3 {
+  font-size: 11.5pt;
+  margin: 12pt 0 6pt;
+  color: #0f766e;
+}
+
+p, li { margin: 0 0 6pt; }
+ul, ol { margin: 0 0 10pt; padding-left: 18pt; }
+a { color: #0f766e; text-decoration: none; }
+
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace;
+  font-size: 9pt;
+  background: #f1f5f9;
+  padding: 1pt 4pt;
+  border-radius: 3pt;
+}
+
+pre {
+  font-family: "DejaVu Sans Mono", Consolas, monospace;
+  font-size: 8.5pt;
+  background: #f8fafc;
+  border: 1pt solid #e2e8f0;
+  border-radius: 4pt;
+  padding: 8pt 10pt;
+  white-space: pre-wrap;
+  page-break-inside: avoid;
+}
+
+.cover {
+  margin-bottom: 28pt;
+  padding: 8pt 0 18pt;
+  border-bottom: 3pt solid #0f766e;
+}
+
+.cover__badge {
+  display: inline-block;
+  margin: 0 0 10pt;
+  padding: 3pt 10pt;
+  background: #ccfbf1;
+  color: #0f766e;
+  border-radius: 4pt;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.cover__title { margin: 0 0 10pt; font-size: 22pt; }
+.cover__lead { margin: 0 0 14pt; font-size: 11.5pt; color: #334155; max-width: 90%; }
+.cover__meta { margin: 0; font-size: 9pt; color: #64748b; }
+
+.toc { margin-bottom: 22pt; }
+.toc h2 { border-bottom-color: #94a3b8; }
+.toc li { margin-bottom: 4pt; }
+
+.chapter { margin-top: 16pt; }
+.page-break { page-break-before: always; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8pt 0 12pt;
+  font-size: 9.5pt;
+}
+
+th, td {
+  border: 1pt solid #cbd5e1;
+  padding: 5pt 7pt;
+  vertical-align: top;
+  text-align: left;
+}
+
+th {
+  background: #f0fdfa;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.note {
+  margin: 8pt 0 12pt;
+  padding: 8pt 10pt;
+  background: #f0fdfa;
+  border-left: 3pt solid #0f766e;
+  color: #334155;
+  font-size: 9.5pt;
+}
+
+.warn {
+  margin: 8pt 0 12pt;
+  padding: 8pt 10pt;
+  background: #fef3c7;
+  border-left: 3pt solid #d97706;
+  color: #334155;
+  font-size: 9.5pt;
+}
+
+.footer-note {
+  margin-top: 16pt;
+  font-size: 9pt;
+  color: #64748b;
+}

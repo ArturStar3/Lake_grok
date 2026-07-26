@@ -1,0 +1,35 @@
+"""Сборка PDF руководства администратора (WeasyPrint).
+
+  docker compose exec -T -v ${PWD}/docs:/docs --entrypoint python backend /docs/admin-guide/build_pdf.py
+или из контейнера с смонтированным docs.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from weasyprint import CSS, HTML
+
+HERE = Path(__file__).resolve().parent
+HTML_PATH = HERE / "admin_guide.html"
+CSS_PATH = HERE / "admin_guide.css"
+OUT_PATH = HERE / "InfoLake_Admin_Guide.pdf"
+OUT_PATH_RU = HERE / "InfoLake_Руководство_администратора.pdf"
+
+
+def main() -> None:
+    if not HTML_PATH.exists():
+        raise SystemExit(f"Не найден {HTML_PATH}")
+    html = HTML(filename=str(HTML_PATH), base_url=str(HERE))
+    styles = [CSS(filename=str(CSS_PATH))] if CSS_PATH.exists() else []
+    OUT_PATH.write_bytes(html.write_pdf(stylesheets=styles))
+    print(f"OK: {OUT_PATH} ({OUT_PATH.stat().st_size} bytes)")
+    try:
+        OUT_PATH_RU.write_bytes(OUT_PATH.read_bytes())
+        print(f"OK: {OUT_PATH_RU}")
+    except OSError as exc:
+        print(f"Skip RU copy (file locked?): {exc}")
+
+
+if __name__ == "__main__":
+    main()

@@ -227,6 +227,11 @@ VITE_MAP_VECTOR=false
 
 ## 7. Обновление существующей оффлайн-установки
 
+> **Production-сервер с ограниченным доступом:** используйте пакет
+> `infolake_update_vX.Y.Z.zip` и **`apply-update.bat`**
+> (см. [PRODUCTION_LAUNCH.md](PRODUCTION_LAUNCH.md) и руководство администратора).
+> Ниже — ручной/классический путь через полный tar.
+
 > **Палитры маркеров стран (`Country.marker_palette`, миграция 0052):**  
 > см. **[OFFLINE_MIGRATION_MARKER_PALETTES.md](OFFLINE_MIGRATION_MARKER_PALETTES.md)** и скрипты в `scripts/offline/`.
 

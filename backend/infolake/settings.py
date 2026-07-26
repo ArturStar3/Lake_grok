@@ -38,9 +38,12 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-me44xie!ww&7r=1u#cgowir&+l+9@&gg^&l*2$^9p36v93kk#6')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Production: DEBUG=False в backend/.env (см. .env.example). Dev: DEBUG=True.
+DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = ['*']
+# Список хостов через запятую в .env, либо '*' для локальной разработки.
+_allowed = env('ALLOWED_HOSTS', default='*')
+ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()] if _allowed != '*' else ['*']
 
 # URL фронтенда для ссылки «Открыть сайт» в админке (браузер на хосте, не внутри Docker).
 FRONTEND_URL = env('FRONTEND_URL')
