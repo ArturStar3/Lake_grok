@@ -63,7 +63,7 @@ git pull
 Скрипт выполняет:
 
 1. `npm run build:map-style` — сборка `infolake-unified.json` и маппинга слоёв
-2. `docker compose build` — backend и frontend (backend включает **gunicorn** для параллельных API-запросов)
+2. `docker compose -f docker-compose.yml -f docker-compose.server.yml build` — backend и **production frontend** (`Dockerfile.server`: `npm run build` + `vite preview`, без bind-mount и HMR)
 3. Проверку наличия всех образов локально
 4. `docker save` → **`infolake_full_offline.tar`**
 5. Копию с датой: `infolake_full_offline_YYYYMMDD_HHMMSS.tar`
@@ -113,6 +113,7 @@ Lake_grok/
 ├── import-and-start.ps1               # запуск на offline
 ├── export-offline.ps1                 # только для следующих online-сборок
 ├── docker-compose.yml
+├── docker-compose.server.yml          # production frontend (без Vite bind-mount)
 ├── OFFLINE_MIGRATION.md
 ├── OFFLINE_MIGRATION_MARKER_PALETTES.md
 ├── scripts/offline/                   # post-update, backup, migrate helpers
@@ -128,7 +129,7 @@ Lake_grok/
 **Не копировать:**
 
 - `node_modules/`, `frontend/node_modules/` — есть в образе frontend
-- `frontend/dist/` — при Vite dev в Docker не нужен
+- `frontend/dist/` — уже внутри production-образа (`Dockerfile.server`); bind-mount исходников на оффлайн не используется
 - `**/__pycache__/`
 - старые `infolake_full_offline_*.tar` (кроме одного датированного бэкапа по желанию)
 - `.git/` — по желанию
@@ -172,9 +173,11 @@ cd D:\InfoLake\Lake_grok
 
 ```powershell
 docker load -i infolake_full_offline.tar
-docker compose up -d --no-build --pull never
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
+docker compose -f docker-compose.yml -f docker-compose.server.yml ps
 ```
+
+> **Важно:** оффлайн всегда запускайте с `docker-compose.server.yml`. Базовый `docker-compose.yml` один (с bind-mount `./frontend:/app` и `npm run dev`) предназначен для разработки; на сервере он со временем раздувает память WSL2/Docker Desktop.
 
 ### 5.5. Миграции Django (первый запуск)
 
@@ -239,10 +242,10 @@ git pull
 На **оффлайн-сервере:**
 
 ```powershell
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.server.yml down
 docker load -i infolake_full_offline.tar
-docker compose up -d --no-build --pull never
-docker compose exec backend python manage.py migrate
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
+docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend python manage.py migrate
 ```
 
 Для релиза с палитрами маркеров (migrate + проверка):
@@ -266,8 +269,38 @@ docker compose exec backend python manage.py migrate
 | Ошибка векторной карты | TileServer :8080 доступен; `VITE_TILESERVER_URL` в compose |
 | PDF-отчёт: `timeout of 15000ms` / `ECONNABORTED` | Нужен код с таймаутом генерации 360 с и `GUNICORN_TIMEOUT=300` в compose; обновите проект + перезапустите контейнеры (образы из свежего `export-offline.ps1`) |
 | PDF/DOCX долго формируется | Нормально на слабом ПК; не прерывайте запрос до ~5 мин; уменьшите число разделов/стран в шаблоне |
+| Frontend «завис», `docker kill` / `compose down` не помогают, только reboot | Скорее WSL2/Docker Desktop thrashing (память), не баг React. См. раздел **8.1** ниже |
 | Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
 | Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается актуальный коммит рабочей ветки, напр. `develop_report`) |
+
+### 8.1. Зависание контейнера frontend (unkillable)
+
+Симптом: после нескольких часов работы `infolake-frontend` перестаёт отвечать; `docker compose down` / `docker kill` зависают; помогает только перезагрузка ПК.
+
+**Причина (наиболее вероятная):** исчерпание RAM у Docker Desktop / WSL2 (`vmmem`), а не «зависший» процесс Node. Когда VM уходит в swap-thrashing, демон Docker перестаёт отвечать на kill.
+
+**Что уже сделано в проекте:**
+
+- Оффлайн-скрипты поднимают frontend через `docker-compose.server.yml` (статика + `vite preview`, **без** bind-mount исходников).
+- У `frontend` / `backend` заданы `mem_limit` / `cpus` и healthcheck у frontend — при утечке Docker OOM-kill'ит контейнер вместо всей VM.
+- HMR и polling в Docker отключены (`VITE_ENABLE_HMR=false`).
+
+**Если зависание повторится:**
+
+1. До полной перезагрузки попробуйте `wsl --shutdown` (в PowerShell от администратора) — часто восстанавливает Docker быстрее reboot.
+2. Ограничьте память WSL2 — создайте `%UserProfile%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=6GB
+processors=4
+swap=2GB
+```
+
+Затем снова `wsl --shutdown` и перезапустите Docker Desktop.
+
+3. Перед зависанием смотрите диспетчер задач (`vmmem` / Docker) и `docker stats` — рост памяти frontend/tileserver без отката указывает на источник давления.
+4. Убедитесь, что на оффлайн-сервере **не** запущен чистый `docker compose up` без `-f docker-compose.server.yml`.
 
 ---
 

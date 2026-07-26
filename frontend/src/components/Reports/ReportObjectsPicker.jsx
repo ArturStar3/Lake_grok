@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   groupObjectsByCountryAndTypeTree,
   makeTypeExpandKey,
@@ -12,6 +12,15 @@ function toggleSetKey(setter, key) {
     else next.add(key);
     return next;
   });
+}
+
+function idsEqual(a = [], b = []) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (String(a[i]) !== String(b[i])) return false;
+  }
+  return true;
 }
 
 const ObjectRow = memo(function ObjectRow({ item, isSelected, onToggle }) {
@@ -80,29 +89,31 @@ const TypeGroupNode = memo(function TypeGroupNode({
         )}
       </summary>
 
-      <div className="report-objects-picker__branch-objects">
-        {node.items.map((item) => (
-          <ObjectRow
-            key={item.id}
-            item={item}
-            isSelected={selectedSet.has(item.id)}
-            onToggle={onObjectToggle}
-          />
-        ))}
-        {node.children.map((child) => (
-          <TypeGroupNode
-            key={child.typeId}
-            node={child}
-            countryKey={countryKey}
-            depth={depth + 1}
-            expandedTypes={expandedTypes}
-            onToggleType={onToggleType}
-            selectedSet={selectedSet}
-            onTypeCheckbox={onTypeCheckbox}
-            onObjectToggle={onObjectToggle}
-          />
-        ))}
-      </div>
+      {isOpen && (
+        <div className="report-objects-picker__branch-objects">
+          {node.items.map((item) => (
+            <ObjectRow
+              key={item.id}
+              item={item}
+              isSelected={selectedSet.has(item.id)}
+              onToggle={onObjectToggle}
+            />
+          ))}
+          {node.children.map((child) => (
+            <TypeGroupNode
+              key={child.typeId}
+              node={child}
+              countryKey={countryKey}
+              depth={depth + 1}
+              expandedTypes={expandedTypes}
+              onToggleType={onToggleType}
+              selectedSet={selectedSet}
+              onTypeCheckbox={onTypeCheckbox}
+              onObjectToggle={onObjectToggle}
+            />
+          ))}
+        </div>
+      )}
     </details>
   );
 });
@@ -113,6 +124,11 @@ export default function ReportObjectsPicker({
   selectedIds = [],
   onChange,
 }) {
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   const selectedSet = useMemo(() => {
     const set = new Set();
     (selectedIds || []).forEach((id) => {
@@ -144,27 +160,30 @@ export default function ReportObjectsPicker({
     setExpandedTypes(new Set());
   };
 
-  const emitIds = useCallback((ids) => {
-    onChange?.(ids.map(String));
-  }, [onChange]);
+  const emitIds = useCallback((nextIds) => {
+    const normalized = [...new Set((nextIds || []).map(String))];
+    if (idsEqual(normalized, (selectedIdsRef.current || []).map(String))) return;
+    onChangeRef.current?.(normalized);
+  }, []);
 
   const setMany = useCallback((items, checked) => {
-    const next = new Set((selectedIds || []).map(String));
+    const prev = (selectedIdsRef.current || []).map(String);
+    const next = new Set(prev);
     items.forEach((item) => {
       const key = String(item.id);
       if (checked) next.add(key);
       else next.delete(key);
     });
     emitIds([...next]);
-  }, [selectedIds, emitIds]);
+  }, [emitIds]);
 
   const handleObjectToggle = useCallback((id, checked) => {
     const key = String(id);
-    const next = new Set((selectedIds || []).map(String));
+    const next = new Set((selectedIdsRef.current || []).map(String));
     if (checked) next.add(key);
     else next.delete(key);
     emitIds([...next]);
-  }, [selectedIds, emitIds]);
+  }, [emitIds]);
 
   const handleSelectAllChange = (e) => {
     const checked = e.target.checked;
@@ -252,40 +271,42 @@ export default function ReportObjectsPicker({
                 )}
               </summary>
 
-              <div className="report-objects-picker__country-objects">
-                {typeNodes.map((node) => (
-                  <TypeGroupNode
-                    key={node.typeId}
-                    node={node}
-                    countryKey={countryKey}
-                    depth={0}
-                    expandedTypes={expandedTypes}
-                    onToggleType={toggleType}
-                    selectedSet={selectedSet}
-                    onTypeCheckbox={setMany}
-                    onObjectToggle={handleObjectToggle}
-                  />
-                ))}
+              {isCountryOpen && (
+                <div className="report-objects-picker__country-objects">
+                  {typeNodes.map((node) => (
+                    <TypeGroupNode
+                      key={node.typeId}
+                      node={node}
+                      countryKey={countryKey}
+                      depth={0}
+                      expandedTypes={expandedTypes}
+                      onToggleType={toggleType}
+                      selectedSet={selectedSet}
+                      onTypeCheckbox={setMany}
+                      onObjectToggle={handleObjectToggle}
+                    />
+                  ))}
 
-                {orphanItems.length > 0 && (
-                  <details className="report-objects-picker__branch" open>
-                    <summary className="report-objects-picker__branch-header">
-                      <span className="report-objects-picker__branch-name">Без типа</span>
-                      <span className="report-objects-picker__count">({orphanItems.length})</span>
-                    </summary>
-                    <div className="report-objects-picker__branch-objects">
-                      {orphanItems.map((item) => (
-                        <ObjectRow
-                          key={item.id}
-                          item={item}
-                          isSelected={selectedSet.has(item.id)}
-                          onToggle={handleObjectToggle}
-                        />
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
+                  {orphanItems.length > 0 && (
+                    <details className="report-objects-picker__branch" open>
+                      <summary className="report-objects-picker__branch-header">
+                        <span className="report-objects-picker__branch-name">Без типа</span>
+                        <span className="report-objects-picker__count">({orphanItems.length})</span>
+                      </summary>
+                      <div className="report-objects-picker__branch-objects">
+                        {orphanItems.map((item) => (
+                          <ObjectRow
+                            key={item.id}
+                            item={item}
+                            isSelected={selectedSet.has(item.id)}
+                            onToggle={handleObjectToggle}
+                          />
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
             </details>
           );
         })}

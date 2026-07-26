@@ -28,6 +28,7 @@ export default function MapFullscreenPanelBody({
   onFilterTitleChange,
   selectedObj,
   onCheckboxChange,
+  onSelectionChange,
   handleMarkerClickGuarded,
   hoveredTargetId,
   setHoveredTargetId,
@@ -131,6 +132,7 @@ export default function MapFullscreenPanelBody({
           targetTypes={targetTypes}
           selectedObj={selectedObj}
           onCheckboxChange={onCheckboxChange}
+          onSelectionChange={onSelectionChange}
           onTitleClick={handleMarkerClickGuarded}
           hoveredTargetId={hoveredTargetId}
           onRowHover={setHoveredTargetId}

@@ -1,0 +1,44 @@
+{
+  "version": 8,
+  "name": "Overlay: Admin Boundary Accent",
+  "metadata": {
+    "openmaptiles:version": "3.x",
+    "infolake:overlay": true
+  },
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "mbtiles://{openmaptiles}"
+    }
+  },
+  "glyphs": "{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "country-boundary-bold",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "minzoom": 1,
+      "filter": ["all", ["==", "admin_level", 2], ["!=", "maritime", 1]],
+      "layout": {"line-cap": "round", "line-join": "round"},
+      "paint": {
+        "line-color": "#1a1a1a",
+        "line-opacity": 0.9,
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          1, 1.5,
+          4, 2.5,
+          8, 4.5,
+          12, 8
+        ]
+      }
+    }
+  ]
+}

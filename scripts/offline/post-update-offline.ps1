@@ -12,8 +12,8 @@ if (-not $SkipLoad) {
     & (Join-Path $ProjectRoot "import-and-start.ps1") -TarFile $TarFile
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
-    Write-Host "=== docker compose up (SkipLoad) ===" -ForegroundColor Cyan
-    docker compose up -d --no-build --pull never
+    Write-Host "=== docker compose up (SkipLoad, production frontend) ===" -ForegroundColor Cyan
+    docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
@@ -21,7 +21,7 @@ if (-not $SkipLoad) {
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "=== Seed report templates ===" -ForegroundColor Cyan
-docker compose exec -T backend python manage.py seed_report_templates
+docker compose -f docker-compose.yml -f docker-compose.server.yml exec -T backend python manage.py seed_report_templates
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 exit 0

@@ -31,6 +31,9 @@
     "overlay-railways": {
       "style": "overlay-railways.json"
     },
+    "overlay-roads": {
+      "style": "overlay-roads.json"
+    },
     "overlay-ferry": {
       "style": "overlay-ferry.json"
     },
@@ -39,6 +42,9 @@
     },
     "overlay-road-labels": {
       "style": "overlay-road-labels.json"
+    },
+    "overlay-admin-boundary": {
+      "style": "overlay-admin-boundary.json"
     },
     "overlay-mountain-peaks": {
       "style": "overlay-mountain-peaks.json"

@@ -5,6 +5,9 @@
     "openmaptiles:version": "3.x",
     "infolake:unified": true,
     "infolake:layerMapping": {
+      "countryBordersBold": [
+        "ovl-overlay-admin-boundary-country-boundary-bold"
+      ],
       "aeroway": [
         "ovl-overlay-aeroway-aeroway-apron",
         "ovl-overlay-aeroway-aeroway-taxiway",
@@ -48,6 +51,17 @@
       "roadLabels": [
         "ovl-overlay-road-labels-road-name"
       ],
+      "roads": [
+        "ovl-overlay-roads-road-minor-casing",
+        "ovl-overlay-roads-road-minor",
+        "ovl-overlay-roads-road-path",
+        "ovl-overlay-roads-road-secondary-tertiary-casing",
+        "ovl-overlay-roads-road-secondary-tertiary",
+        "ovl-overlay-roads-road-trunk-primary-casing",
+        "ovl-overlay-roads-road-trunk-primary",
+        "ovl-overlay-roads-road-motorway-casing",
+        "ovl-overlay-roads-road-motorway"
+      ],
       "water": [
         "ovl-overlay-water-water",
         "ovl-overlay-water-water-intermittent",
@@ -55,9 +69,10 @@
         "ovl-overlay-water-waterway-stream-canal"
       ]
     },
-    "infolake:generatedAt": "2026-07-24T10:06:37.241Z",
+    "infolake:generatedAt": "2026-07-26T16:40:49.863Z",
     "infolake:sourceStyles": [
       "borders-labels.json",
+      "overlay-admin-boundary.json",
       "overlay-aeroway.json",
       "overlay-districts.json",
       "overlay-ferry.json",
@@ -69,6 +84,7 @@
       "overlay-poi-transport.json",
       "overlay-railways.json",
       "overlay-road-labels.json",
+      "overlay-roads.json",
       "overlay-water.json"
     ]
   },
@@ -719,7 +735,7 @@
       }
     },
     {
-      "id": "road-minor-casing",
+      "id": "ovl-overlay-roads-road-minor-casing",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -742,7 +758,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#b3aca0",
@@ -778,10 +795,14 @@
           20,
           13
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-minor",
+      "id": "ovl-overlay-roads-road-minor",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -804,7 +825,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#ffffff",
@@ -840,10 +862,14 @@
           20,
           10
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-path",
+      "id": "ovl-overlay-roads-road-path",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -864,7 +890,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#b09a80",
@@ -900,10 +927,14 @@
           20,
           3
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-secondary-tertiary-casing",
+      "id": "ovl-overlay-roads-road-secondary-tertiary-casing",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -930,7 +961,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#b8901f",
@@ -968,10 +1000,14 @@
           20,
           15
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-secondary-tertiary",
+      "id": "ovl-overlay-roads-road-secondary-tertiary",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -998,7 +1034,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#ffe082",
@@ -1036,10 +1073,14 @@
           20,
           13
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-trunk-primary-casing",
+      "id": "ovl-overlay-roads-road-trunk-primary-casing",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -1066,7 +1107,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#c46a1c",
@@ -1104,10 +1146,14 @@
           20,
           16
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-trunk-primary",
+      "id": "ovl-overlay-roads-road-trunk-primary",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -1134,7 +1180,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#ffb84d",
@@ -1172,10 +1219,14 @@
           20,
           14
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-motorway-casing",
+      "id": "ovl-overlay-roads-road-motorway-casing",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -1201,7 +1252,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#b0521a",
@@ -1239,10 +1291,14 @@
           20,
           18
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
-      "id": "road-motorway",
+      "id": "ovl-overlay-roads-road-motorway",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
@@ -1268,7 +1324,8 @@
       ],
       "layout": {
         "line-cap": "round",
-        "line-join": "round"
+        "line-join": "round",
+        "visibility": "visible"
       },
       "paint": {
         "line-color": "#ff8a33",
@@ -1306,6 +1363,10 @@
           20,
           15
         ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-roads",
+        "infolake:frontendLayerId": "roads"
       }
     },
     {
@@ -2413,6 +2474,56 @@
         "text-color": "#5a6a78",
         "text-halo-color": "rgba(242,242,242,0.85)",
         "text-halo-width": 2
+      }
+    },
+    {
+      "id": "ovl-overlay-admin-boundary-country-boundary-bold",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "minzoom": 1,
+      "filter": [
+        "all",
+        [
+          "==",
+          "admin_level",
+          2
+        ],
+        [
+          "!=",
+          "maritime",
+          1
+        ]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "none"
+      },
+      "paint": {
+        "line-color": "#1a1a1a",
+        "line-opacity": 0.9,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          1,
+          1.5,
+          4,
+          2.5,
+          8,
+          4.5,
+          12,
+          8
+        ]
+      },
+      "metadata": {
+        "infolake:overlay": "overlay-admin-boundary",
+        "infolake:frontendLayerId": "countryBordersBold"
       }
     },
     {

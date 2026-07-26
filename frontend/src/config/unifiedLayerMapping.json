@@ -1,5 +1,8 @@
 {
   "layerMapping": {
+    "countryBordersBold": [
+      "ovl-overlay-admin-boundary-country-boundary-bold"
+    ],
     "aeroway": [
       "ovl-overlay-aeroway-aeroway-apron",
       "ovl-overlay-aeroway-aeroway-taxiway",
@@ -43,6 +46,17 @@
     "roadLabels": [
       "ovl-overlay-road-labels-road-name"
     ],
+    "roads": [
+      "ovl-overlay-roads-road-minor-casing",
+      "ovl-overlay-roads-road-minor",
+      "ovl-overlay-roads-road-path",
+      "ovl-overlay-roads-road-secondary-tertiary-casing",
+      "ovl-overlay-roads-road-secondary-tertiary",
+      "ovl-overlay-roads-road-trunk-primary-casing",
+      "ovl-overlay-roads-road-trunk-primary",
+      "ovl-overlay-roads-road-motorway-casing",
+      "ovl-overlay-roads-road-motorway"
+    ],
     "water": [
       "ovl-overlay-water-water",
       "ovl-overlay-water-water-intermittent",
@@ -51,6 +65,7 @@
     ]
   },
   "defaultVisible": [
-    "railways"
+    "railways",
+    "roads"
   ]
 }

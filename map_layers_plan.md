@@ -15,10 +15,12 @@
 | Водоёмы и реки | `water` | `overlay-water` | `water` (озёра, водохранилища), `waterway` (реки, каналы, ручьи) | Гидрография |
 | Подписи гидрографии | `hydroLabels` | `overlay-hydro-labels` | `water_name` | Гидрография |
 | Железные дороги | `railways` | `overlay-railways` | `transportation` class=rail/transit | Транспорт |
+| Дороги и автомагистрали | `roads` | `overlay-roads` | `transportation` class=motorway/trunk/primary/secondary/tertiary/minor/path | Транспорт |
 | Паромы и морские линии | `ferry` | `overlay-ferry` | `transportation` class=ferry | Транспорт |
 | Названия дорог и улиц | `roadLabels` | `overlay-road-labels` | `transportation_name` | Транспорт |
 | Аэродромы и ВПП | `aeroway` | `overlay-aeroway` | `aeroway` (ВПП, рулёжки, перрон), `aerodrome_label` | Аэродромы |
 | Вершины и рельеф | `mountainPeaks` | `overlay-mountain-peaks` | `mountain_peak` (название, высота) | Рельеф |
+| Границы государств (акцент) | `countryBordersBold` | `overlay-admin-boundary` | `boundary` admin_level=2 (жирная линия, без заливки) | Границы |
 | Районы, кварталы, острова | `districts` | `overlay-districts` | `place` class=suburb/quarter/neighbourhood/island/islet | Подписи |
 | Номера домов | `houseNumbers` | `overlay-house-numbers` | `housenumber` | Подписи |
 | Соц. инфраструктура (школы, больницы, полиция) | `poiInfrastructure` | `overlay-poi-infrastructure` | `poi` (медицина, охрана порядка, образование, религия) | Точки интереса |
@@ -36,8 +38,8 @@
 | `water`, `waterway` | база (`borders-labels`) + `overlay-water` |
 | `water_name` | `overlay-hydro-labels` |
 | `landcover`, `landuse`, `park` | база (`borders-labels`) |
-| `boundary`, `place` | база (границы/подписи стран, городов) + `overlay-districts` (районы/кварталы/острова) |
-| `transportation` | база (дороги) + `overlay-railways` + `overlay-ferry` |
+| `boundary`, `place` | база (тонкие границы/подписи стран, городов) + `overlay-admin-boundary` (акцент границ стран) + `overlay-districts` (районы/кварталы/острова) |
+| `transportation` | `overlay-roads` (дороги, defaultOn) + `overlay-railways` + `overlay-ferry` |
 | `transportation_name` | `overlay-road-labels` |
 | `building` | база (контуры зданий) |
 | `aeroway`, `aerodrome_label` | `overlay-aeroway` |

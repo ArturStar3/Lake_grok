@@ -63,6 +63,16 @@ export const MAP_OVERLAY_LAYERS = [
     maplibreLayerIds: layerMapping.railways || [],
   },
   {
+    id: 'roads',
+    label: 'Дороги и автомагистрали',
+    group: 'Транспорт',
+    style: 'overlay-roads',
+    defaultOn: true,
+    minZoom: 0,
+    zIndex: 205,
+    maplibreLayerIds: layerMapping.roads || [],
+  },
+  {
     id: 'ferry',
     label: 'Паромы и морские линии',
     group: 'Транспорт',
@@ -101,6 +111,16 @@ export const MAP_OVERLAY_LAYERS = [
     minZoom: 10,
     zIndex: 280,
     maplibreLayerIds: layerMapping.mountainPeaks || [],
+  },
+  {
+    id: 'countryBordersBold',
+    label: 'Границы государств (акцент)',
+    group: 'Границы',
+    style: 'overlay-admin-boundary',
+    defaultOn: false,
+    minZoom: 1,
+    zIndex: 195,
+    maplibreLayerIds: layerMapping.countryBordersBold || [],
   },
   {
     id: 'districts',

@@ -22,7 +22,7 @@ import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
 import { geoJsonToDrawPolygons, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
 import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
-import { toggleIdInList } from "../../utils/selectionUtils";
+import { toggleIdInList, toggleIdsInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
 import { useReferenceData } from "../../hooks/useReferenceData";
@@ -321,6 +321,10 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handleCheckboxChange = useCallback((id, checked) => {
         setSelectedObj((prev) => toggleIdInList(prev, id, checked));
+    }, []);
+
+    const handleSelectionChange = useCallback((ids, checked) => {
+        setSelectedObj((prev) => toggleIdsInList(prev, ids, checked));
     }, []);
 
     const handleEventCheckboxChange = useCallback((id, checked) => {
@@ -1338,6 +1342,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                         targetTypes={targetTypes}
                                         selectedObj={selectedObj}
                                         onCheckboxChange={handleCheckboxChange}
+                                        onSelectionChange={handleSelectionChange}
                                         onObjectClick={handleObjectClick}
                                         hoveredTargetId={hoveredTargetId}
                                         onTitleClick={setSelectedTargetId}
@@ -1489,6 +1494,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 measurements={measurements}
                                 onAddMeasurePoint={addMeasurePoint}
                                 onCheckboxChange={handleCheckboxChange}
+                                onSelectionChange={handleSelectionChange}
                                 showActionRadius={zonesLayerActive}
                                 actionTypes={actionTypesList}
                                 actionRadiusMode={actionRadiusMode}
@@ -1717,6 +1723,8 @@ export default function Formular({ onMapFullscreenChange }) {
                     isOpen={isReportsOpen}
                     onClose={() => setReportsOpen(false)}
                     selectedTargetIds={selectedObj}
+                    targets={objects}
+                    targetTypes={targetTypes}
                 />
                 )}
                 {canOpenDataExchange && (

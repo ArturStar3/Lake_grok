@@ -31,12 +31,12 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "`nLoaded images:" -ForegroundColor DarkGray
 docker images --format "  {{.Repository}}:{{.Tag}}" | Select-String -Pattern "infolake-|maptiler/tileserver"
 
-Write-Host "`nStarting containers (offline: no build, no pull)..." -ForegroundColor Cyan
-docker compose up -d --no-build --pull never
+Write-Host "`nStarting containers (offline: production frontend, no build, no pull)..." -ForegroundColor Cyan
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`nStatus:" -ForegroundColor Green
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.server.yml ps
 
 Write-Host "`nURLs (on this machine):"
 Write-Host "  Frontend:   http://localhost:5173"

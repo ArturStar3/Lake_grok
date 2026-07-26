@@ -27,6 +27,7 @@ const OVERLAY_TO_FRONTEND_ID = {
   'overlay-water': 'water',
   'overlay-hydro-labels': 'hydroLabels',
   'overlay-railways': 'railways',
+  'overlay-roads': 'roads',
   'overlay-ferry': 'ferry',
   'overlay-road-labels': 'roadLabels',
   'overlay-aeroway': 'aeroway',
@@ -36,10 +37,20 @@ const OVERLAY_TO_FRONTEND_ID = {
   'overlay-poi-infrastructure': 'poiInfrastructure',
   'overlay-poi-transport': 'poiTransport',
   'overlay-poi-services': 'poiServices',
+  'overlay-admin-boundary': 'countryBordersBold',
 };
 
 /** Слои, видимые по умолчанию (совпадает с defaultOn в tiles.js) */
-const DEFAULT_VISIBLE_FRONTEND_IDS = new Set(['railways']);
+const DEFAULT_VISIBLE_FRONTEND_IDS = new Set(['railways', 'roads']);
+
+/**
+ * Куда вставить слои оверлея в едином стиле (вместо append в конец).
+ * Нужно для дорог: они должны остаться под зданиями / границами / подписями.
+ * Значение — id базового слоя, перед которым вставлять.
+ */
+const OVERLAY_INSERT_BEFORE = {
+  'overlay-roads': 'building',
+};
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -89,6 +100,27 @@ function mergeOverlayLayers(overlayKey, overlayStyle, layerMapping, frontendId) 
   return merged;
 }
 
+/**
+ * Вставляет слои оверлея перед указанным базовым слоем (или в конец, если якорь не найден).
+ */
+function insertOverlayLayers(layers, overlayLayers, insertBeforeId) {
+  if (!insertBeforeId) {
+    layers.push(...overlayLayers);
+    return;
+  }
+
+  const idx = layers.findIndex((layer) => layer.id === insertBeforeId);
+  if (idx === -1) {
+    console.warn(
+      `Якорь «${insertBeforeId}» не найден — оверлей добавлен в конец`,
+    );
+    layers.push(...overlayLayers);
+    return;
+  }
+
+  layers.splice(idx, 0, ...overlayLayers);
+}
+
 function build() {
   const basePath = path.join(STYLES_DIR, BASE_STYLE);
   const base = readJson(basePath);
@@ -127,8 +159,10 @@ function build() {
       layerMapping,
       frontendId,
     );
-    unified.layers.push(...overlayLayers);
-    console.log(`+ ${overlayKey}: ${overlayLayers.length} слоёв → ${frontendId}`);
+    const insertBefore = OVERLAY_INSERT_BEFORE[overlayKey] || null;
+    insertOverlayLayers(unified.layers, overlayLayers, insertBefore);
+    const placeNote = insertBefore ? ` (перед «${insertBefore}»)` : '';
+    console.log(`+ ${overlayKey}: ${overlayLayers.length} слоёв → ${frontendId}${placeNote}`);
   });
 
   fs.writeFileSync(OUTPUT_STYLE, `${JSON.stringify(unified, null, 2)}\n`, 'utf8');

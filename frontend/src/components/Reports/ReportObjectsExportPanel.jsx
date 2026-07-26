@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import FormatToggle from './FormatToggle';
 import ReportObjectsPicker from './ReportObjectsPicker';
 
@@ -7,6 +8,10 @@ function normalizeIds(ids = []) {
       .map((id) => String(id))
       .filter((id) => id && id !== 'null' && id !== 'undefined' && id !== '0'),
   )];
+}
+
+function idsKey(ids = []) {
+  return normalizeIds(ids).join('\0');
 }
 
 export default function ReportObjectsExportPanel({
@@ -24,20 +29,35 @@ export default function ReportObjectsExportPanel({
   onGenerate,
 }) {
   const formatLabel = String(exportFormat || 'pdf').toUpperCase();
-  const targetIds = normalizeIds(form?.targetIds);
+  const formTargetKey = idsKey(form?.targetIds);
+  const targetIds = useMemo(
+    () => normalizeIds(form?.targetIds),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- content key avoids new array identity
+    [formTargetKey],
+  );
+  const mapTargetKey = idsKey(mapTargetIds);
+  const normalizedMapIds = useMemo(
+    () => normalizeIds(mapTargetIds),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- content key avoids new array identity
+    [mapTargetKey],
+  );
   const selectedCount = targetIds.length;
-  const mapCount = normalizeIds(mapTargetIds).length;
+  const mapCount = normalizedMapIds.length;
   const disabled = busy;
 
-  const patch = (partial) => onChange?.({ ...form, ...partial });
+  const patchForm = useCallback((partial) => {
+    onChange?.({ ...(form || {}), ...partial });
+  }, [form, onChange]);
 
-  const applyFromMap = () => {
-    patch({ targetIds: normalizeIds(mapTargetIds) });
-  };
+  const applyFromMap = useCallback(() => {
+    patchForm({ targetIds: normalizedMapIds });
+  }, [patchForm, normalizedMapIds]);
 
-  const handleTargetsChange = (nextIds) => {
-    patch({ targetIds: normalizeIds(nextIds) });
-  };
+  const handleTargetsChange = useCallback((nextIds) => {
+    const next = normalizeIds(nextIds);
+    if (idsKey(next) === formTargetKey) return;
+    patchForm({ targetIds: next });
+  }, [patchForm, formTargetKey]);
 
   const canGenerate = selectedCount > 0 && Boolean(form?.name?.trim());
 
@@ -53,7 +73,7 @@ export default function ReportObjectsExportPanel({
             className="report-filters__input"
             value={form?.name || ''}
             disabled={!canWrite || disabled}
-            onChange={(e) => patch({ name: e.target.value })}
+            onChange={(e) => patchForm({ name: e.target.value })}
             placeholder="Отчёт по объектам"
           />
         </label>

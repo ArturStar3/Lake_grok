@@ -200,6 +200,7 @@ export default function ObjectsTable({
     targetTypes = [],
     selectedObj,
     onCheckboxChange,
+    onSelectionChange,
     onObjectClick,
     onTitleClick,
     hoveredTargetId,
@@ -234,18 +235,25 @@ export default function ObjectsTable({
     const dataIds = useMemo(() => data.map((item) => item.id), [data]);
     const isAllSelected = data.length > 0 && dataIds.every((id) => selectedSet.has(id));
 
+    const applyBatch = useCallback((ids, checked) => {
+        if (onSelectionChange) {
+            onSelectionChange(ids, checked);
+            return;
+        }
+        ids.forEach((id) => onCheckboxChange?.(id, checked));
+    }, [onSelectionChange, onCheckboxChange]);
+
     const handleSelectAllChange = (e) => {
-        const isChecked = e.target.checked;
-        dataIds.forEach((id) => onCheckboxChange(id, isChecked));
+        applyBatch(dataIds, e.target.checked);
     };
 
     const handleCountryCheckbox = useCallback((items, checked) => {
-        items.forEach((item) => onCheckboxChange(item.id, checked));
-    }, [onCheckboxChange]);
+        applyBatch(items.map((item) => item.id), checked);
+    }, [applyBatch]);
 
     const handleTypeCheckbox = useCallback((items, checked) => {
-        items.forEach((item) => onCheckboxChange(item.id, checked));
-    }, [onCheckboxChange]);
+        applyBatch(items.map((item) => item.id), checked);
+    }, [applyBatch]);
 
     const toggleCountry = (countryKey) => toggleSetKey(setExpandedCountries, countryKey);
     const toggleType = useCallback((typeKey) => toggleSetKey(setExpandedTypes, typeKey), []);

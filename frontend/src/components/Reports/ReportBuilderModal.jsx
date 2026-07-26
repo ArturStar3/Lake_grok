@@ -51,12 +51,16 @@ export default function ReportBuilderModal({
   isOpen,
   onClose,
   selectedTargetIds = [],
+  targets: targetsProp,
+  targetTypes: targetTypesProp,
 }) {
   const { user } = useAuth();
   const canWrite = canWriteModule(user, 'reports');
   const canDelete = canDeleteModule(user, 'reports');
   const selectedTargetIdsRef = useRef(selectedTargetIds);
   selectedTargetIdsRef.current = selectedTargetIds;
+  const hasExternalTargets = targetsProp !== undefined;
+  const hasExternalTargetTypes = targetTypesProp !== undefined;
 
   const [tab, setTab] = useState('templates');
   const [templates, setTemplates] = useState([]);
@@ -81,8 +85,11 @@ export default function ReportBuilderModal({
   const [objectsBusy, setObjectsBusy] = useState(false);
   const [objectsBusyId, setObjectsBusyId] = useState(null);
   const [objectsError, setObjectsError] = useState('');
-  const [targets, setTargets] = useState([]);
-  const [targetTypes, setTargetTypes] = useState([]);
+  const [fetchedTargets, setFetchedTargets] = useState([]);
+  const [fetchedTargetTypes, setFetchedTargetTypes] = useState([]);
+
+  const targets = hasExternalTargets ? (targetsProp || []) : fetchedTargets;
+  const targetTypes = hasExternalTargetTypes ? (targetTypesProp || []) : fetchedTargetTypes;
 
   const objectsTemplates = useMemo(
     () => (templates || []).filter(isObjectsOnlyTemplate),
@@ -109,20 +116,42 @@ export default function ReportBuilderModal({
     }
   }, []);
 
-  const loadReference = useCallback(async () => {
+  const loadCountries = useCallback(async () => {
     try {
-      const [countriesRes, targetsRes, typesRes] = await Promise.all([
-        axios.get(`${API_URL}/api/v1/countries/`),
-        axios.get(`${API_URL}/api/v1/targets/`),
-        axios.get(`${API_URL}/api/v1/target-types/`),
-      ]);
+      const countriesRes = await axios.get(`${API_URL}/api/v1/countries/`);
       setCountries(unwrapList(countriesRes.data));
-      setTargets(unwrapList(targetsRes.data));
-      setTargetTypes(unwrapList(typesRes.data));
     } catch (err) {
-      console.error('Не удалось загрузить справочники для отчётов', err);
+      console.error('Не удалось загрузить страны для отчётов', err);
     }
   }, []);
+
+  /** Fallback only when parent did not pass map data (should be rare). */
+  const loadObjectsReferenceFallback = useCallback(async () => {
+    const needTargets = !hasExternalTargets && fetchedTargets.length === 0;
+    const needTypes = !hasExternalTargetTypes && fetchedTargetTypes.length === 0;
+    if (!needTargets && !needTypes) return;
+    try {
+      const requests = [];
+      if (needTargets) requests.push(axios.get(`${API_URL}/api/v1/targets/`));
+      if (needTypes) requests.push(axios.get(`${API_URL}/api/v1/target-types/`));
+      const results = await Promise.all(requests);
+      let idx = 0;
+      if (needTargets) {
+        setFetchedTargets(unwrapList(results[idx].data));
+        idx += 1;
+      }
+      if (needTypes) {
+        setFetchedTargetTypes(unwrapList(results[idx].data));
+      }
+    } catch (err) {
+      console.error('Не удалось загрузить объекты для отчётов', err);
+    }
+  }, [
+    hasExternalTargets,
+    hasExternalTargetTypes,
+    fetchedTargets.length,
+    fetchedTargetTypes.length,
+  ]);
 
   const openTemplate = useCallback(async (tpl) => {
     if (!tpl?.id) return;
@@ -178,7 +207,7 @@ export default function ReportBuilderModal({
     setGlobalCountryIds([]);
     setObjectsSelectedId(null);
     setObjectsForm(createEmptyObjectsForm());
-    loadReference();
+    loadCountries();
     (async () => {
       const list = await loadList();
       if (cancelled) return;
@@ -199,7 +228,13 @@ export default function ReportBuilderModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, loadList, loadReference, openTemplate, openObjectsTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, loadList, loadCountries, openTemplate, openObjectsTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen || tab !== 'objects') return undefined;
+    loadObjectsReferenceFallback();
+    return undefined;
+  }, [isOpen, tab, loadObjectsReferenceFallback]);
 
   if (!isOpen) return null;
 

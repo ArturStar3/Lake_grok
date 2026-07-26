@@ -38,8 +38,8 @@ if (-not $SkipMapStyle) {
 }
 
 if (-not $SkipBuild) {
-    Write-Host "`n=== Building Docker images ===" -ForegroundColor Cyan
-    $buildArgs = @("compose", "build")
+    Write-Host "`n=== Building Docker images (production frontend) ===" -ForegroundColor Cyan
+    $buildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "build")
     if ($NoCache) { $buildArgs += "--no-cache" }
     docker @buildArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -110,12 +110,13 @@ Copy to offline server:
   1. infolake_full_offline.tar (this archive)
   2. Full project folder (git clone / zip), EXCLUDING:
      - node_modules, __pycache__, .git (optional)
-     - frontend/dist (optional if using Vite dev in Docker)
+     - frontend/dist (built into production frontend image)
   3. tileserver/data/map.mbtiles (NOT in git, copy separately)
   4. backend/.env (create from .env.example on target)
 
 On offline server:
   .\import-and-start.ps1
+  (uses docker-compose.yml + docker-compose.server.yml — static frontend, no Vite bind-mount)
   See OFFLINE_MIGRATION.md
   Marker color palettes: OFFLINE_MIGRATION_MARKER_PALETTES.md
     scripts\offline\post-update-offline.ps1

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Circle, Polygon, Polyline, useMap } from "react-leaflet";
 
 // Глобальные переменные для анимации
@@ -35,15 +35,54 @@ function stopGlobalAnimation() {
     }
 }
 
+/** Стабильный [lat, lng] — иначе каждый ре-рендер родителя пересоздаёт массив и дергает useEffect. */
+function useStableCenter(center) {
+    const lat = Array.isArray(center) ? center[0] : undefined;
+    const lng = Array.isArray(center) ? center[1] : undefined;
+    return useMemo(() => {
+        if (lat == null || lng == null) return center;
+        return [lat, lng];
+    }, [lat, lng]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/**
+ * Планирует findFn с отложенным retry; оба таймера снимаются в cleanup.
+ * @returns {() => void} cleanup
+ */
+function scheduleFindWithRetry(findFn, firstDelay = 50, retryDelay = 100) {
+    let retryId = null;
+    const firstId = setTimeout(() => {
+        if (!findFn()) {
+            retryId = setTimeout(findFn, retryDelay);
+        }
+    }, firstDelay);
+
+    return () => {
+        clearTimeout(firstId);
+        if (retryId != null) clearTimeout(retryId);
+    };
+}
+
+function unregisterZone(zoneRef) {
+    if (zoneRef.current) {
+        animatedZones.delete(zoneRef.current);
+        zoneRef.current = null;
+    }
+    if (animatedZones.size === 0) {
+        stopGlobalAnimation();
+    }
+}
+
 // ============================================
 // 1. GRADIENT - Градиентная заливка
 // ============================================
 export function GradientZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     return (
         <>
             {/* Внутренний круг */}
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius * 0.3}
                 pathOptions={{
                     color: color,
@@ -55,7 +94,7 @@ export function GradientZone({ center, radius, color }) {
             />
             {/* Средний круг */}
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius * 0.65}
                 pathOptions={{
                     color: color,
@@ -67,7 +106,7 @@ export function GradientZone({ center, radius, color }) {
             />
             {/* Внешний круг */}
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 pathOptions={{
                     color: color,
@@ -86,6 +125,7 @@ export function GradientZone({ center, radius, color }) {
 // 2. RADAR - Радиальные лучи (вращающиеся)
 // ============================================
 export function RadarZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const linesRef = useRef([]);
     const zoneRef = useRef(null);
     const mapRef = useMap();
@@ -114,31 +154,24 @@ export function RadarZone({ center, radius, color }) {
             });
         };
         
-        zoneRef.current = { type: 'radar', update, center };
+        zoneRef.current = { type: 'radar', update, center: stableCenter };
         animatedZones.add(zoneRef.current);
         startGlobalAnimation();
         
-        return () => {
-            if (zoneRef.current) {
-                animatedZones.delete(zoneRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
-        };
-    }, [center, radius, mapRef]);
+        return () => unregisterZone(zoneRef);
+    }, [stableCenter, radius, mapRef]);
     
     // Создаём статичные лучи (анимация через DOM)
     const rays = [];
     for (let i = 0; i < 8; i++) {
         const angle = (i * 360) / 8 * (Math.PI / 180);
-        const endLat = center[0] + (radius / 111320) * Math.cos(angle);
-        const endLng = center[1] + (radius / (111320 * Math.cos(center[0] * Math.PI / 180))) * Math.sin(angle);
+        const endLat = stableCenter[0] + (radius / 111320) * Math.cos(angle);
+        const endLng = stableCenter[1] + (radius / (111320 * Math.cos(stableCenter[0] * Math.PI / 180))) * Math.sin(angle);
         
         rays.push(
             <Polyline
                 key={i}
-                positions={[center, [endLat, endLng]]}
+                positions={[stableCenter, [endLat, endLng]]}
                 ref={(el) => { if (linesRef.current[i]) linesRef.current[i].element = el; }}
                 pathOptions={{
                     color: color,
@@ -153,7 +186,7 @@ export function RadarZone({ center, radius, color }) {
     return (
         <>
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 pathOptions={{
                     color: color,
@@ -172,6 +205,7 @@ export function RadarZone({ center, radius, color }) {
 // 3. WAVE - Волновой эффект (текущая реализация)
 // ============================================
 export function WaveZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const pulse1Ref = useRef(null);
     const pulse2Ref = useRef(null);
     const circleDataRef = useRef(null);
@@ -209,7 +243,7 @@ export function WaveZone({ center, radius, color }) {
                     }
                 };
                 
-                circleDataRef.current = { type: 'wave', update, center };
+                circleDataRef.current = { type: 'wave', update, center: stableCenter };
                 animatedZones.add(circleDataRef.current);
                 startGlobalAnimation();
                 return true;
@@ -217,27 +251,18 @@ export function WaveZone({ center, radius, color }) {
             return false;
         };
         
-        const timeoutId = setTimeout(() => {
-            if (!findCircles()) {
-                setTimeout(findCircles, 100);
-            }
-        }, 50);
+        const clearTimers = scheduleFindWithRetry(findCircles);
         
         return () => {
-            clearTimeout(timeoutId);
-            if (circleDataRef.current) {
-                animatedZones.delete(circleDataRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
+            clearTimers();
+            unregisterZone(circleDataRef);
         };
-    }, [radius, center, mapRef]);
+    }, [radius, stableCenter, mapRef]);
     
     return (
         <>
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 pathOptions={{
                     color: color,
@@ -249,7 +274,7 @@ export function WaveZone({ center, radius, color }) {
                 }}
             />
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 ref={pulse1Ref}
                 pathOptions={{
@@ -261,7 +286,7 @@ export function WaveZone({ center, radius, color }) {
                 }}
             />
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 ref={pulse2Ref}
                 pathOptions={{
@@ -280,6 +305,7 @@ export function WaveZone({ center, radius, color }) {
 // 4. PULSE - Пульсирующая заливка
 // ============================================
 export function PulseZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const circleRef = useRef(null);
     const zoneRef = useRef(null);
     const mapRef = useMap();
@@ -302,7 +328,7 @@ export function PulseZone({ center, radius, color }) {
                     }
                 };
                 
-                zoneRef.current = { type: 'pulse', update, center };
+                zoneRef.current = { type: 'pulse', update, center: stableCenter };
                 animatedZones.add(zoneRef.current);
                 startGlobalAnimation();
                 return true;
@@ -310,26 +336,17 @@ export function PulseZone({ center, radius, color }) {
             return false;
         };
         
-        const timeoutId = setTimeout(() => {
-            if (!findCircle()) {
-                setTimeout(findCircle, 100);
-            }
-        }, 50);
+        const clearTimers = scheduleFindWithRetry(findCircle);
         
         return () => {
-            clearTimeout(timeoutId);
-            if (zoneRef.current) {
-                animatedZones.delete(zoneRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
+            clearTimers();
+            unregisterZone(zoneRef);
         };
-    }, [radius, center, mapRef]);
+    }, [radius, stableCenter, mapRef]);
     
     return (
         <Circle
-            center={center}
+            center={stableCenter}
             radius={radius}
             ref={circleRef}
             pathOptions={{
@@ -348,6 +365,7 @@ export function PulseZone({ center, radius, color }) {
 // 5. RINGS - Концентрические кольца с вращением
 // ============================================
 export function RingsZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const ring1Ref = useRef(null);
     const ring2Ref = useRef(null);
     const ring3Ref = useRef(null);
@@ -367,24 +385,17 @@ export function RingsZone({ center, radius, color }) {
             });
         };
         
-        zoneRef.current = { type: 'rings', update, center };
+        zoneRef.current = { type: 'rings', update, center: stableCenter };
         animatedZones.add(zoneRef.current);
         startGlobalAnimation();
         
-        return () => {
-            if (zoneRef.current) {
-                animatedZones.delete(zoneRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
-        };
-    }, [radius, center, mapRef]);
+        return () => unregisterZone(zoneRef);
+    }, [radius, stableCenter, mapRef]);
     
     return (
         <>
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius * 0.4}
                 ref={ring1Ref}
                 pathOptions={{
@@ -397,7 +408,7 @@ export function RingsZone({ center, radius, color }) {
                 }}
             />
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius * 0.7}
                 ref={ring2Ref}
                 pathOptions={{
@@ -410,7 +421,7 @@ export function RingsZone({ center, radius, color }) {
                 }}
             />
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 ref={ring3Ref}
                 pathOptions={{
@@ -430,6 +441,7 @@ export function RingsZone({ center, radius, color }) {
 // 6. SECTOR - Секторное покрытие (радар)
 // ============================================
 export function SectorZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const [sectorPath, setSectorPath] = React.useState([]);
     const pathRef = useRef(null);
     const zoneRef = useRef(null);
@@ -443,38 +455,31 @@ export function SectorZone({ center, radius, color }) {
             const sectorAngle = 90; // Угол сектора
             
             // Создаём сектор
-            const points = [center];
+            const points = [stableCenter];
             const startAngle = rotation * (Math.PI / 180);
             const endAngle = (rotation + sectorAngle) * (Math.PI / 180);
             
             for (let angle = startAngle; angle <= endAngle; angle += 0.1) {
-                const lat = center[0] + (radius / 111320) * Math.cos(angle);
-                const lng = center[1] + (radius / (111320 * Math.cos(center[0] * Math.PI / 180))) * Math.sin(angle);
+                const lat = stableCenter[0] + (radius / 111320) * Math.cos(angle);
+                const lng = stableCenter[1] + (radius / (111320 * Math.cos(stableCenter[0] * Math.PI / 180))) * Math.sin(angle);
                 points.push([lat, lng]);
             }
-            points.push(center);
+            points.push(stableCenter);
             
             setSectorPath(points);
         };
         
-        zoneRef.current = { type: 'sector', update, center };
+        zoneRef.current = { type: 'sector', update, center: stableCenter };
         animatedZones.add(zoneRef.current);
         startGlobalAnimation();
         
-        return () => {
-            if (zoneRef.current) {
-                animatedZones.delete(zoneRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
-        };
-    }, [radius, center, mapRef]);
+        return () => unregisterZone(zoneRef);
+    }, [radius, stableCenter, mapRef]);
     
     return (
         <>
             <Circle
-                center={center}
+                center={stableCenter}
                 radius={radius}
                 pathOptions={{
                     color: color,
@@ -506,6 +511,7 @@ export function SectorZone({ center, radius, color }) {
 // 7. ALERT - Мерцающий контур
 // ============================================
 export function AlertZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const circleRef = useRef(null);
     const zoneRef = useRef(null);
     const mapRef = useMap();
@@ -525,7 +531,7 @@ export function AlertZone({ center, radius, color }) {
                     }
                 };
                 
-                zoneRef.current = { type: 'alert', update, center };
+                zoneRef.current = { type: 'alert', update, center: stableCenter };
                 animatedZones.add(zoneRef.current);
                 startGlobalAnimation();
                 return true;
@@ -533,26 +539,17 @@ export function AlertZone({ center, radius, color }) {
             return false;
         };
         
-        const timeoutId = setTimeout(() => {
-            if (!findCircle()) {
-                setTimeout(findCircle, 100);
-            }
-        }, 50);
+        const clearTimers = scheduleFindWithRetry(findCircle);
         
         return () => {
-            clearTimeout(timeoutId);
-            if (zoneRef.current) {
-                animatedZones.delete(zoneRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
+            clearTimers();
+            unregisterZone(zoneRef);
         };
-    }, [radius, center, mapRef]);
+    }, [radius, stableCenter, mapRef]);
     
     return (
         <Circle
-            center={center}
+            center={stableCenter}
             radius={radius}
             ref={circleRef}
             pathOptions={{
@@ -571,6 +568,7 @@ export function AlertZone({ center, radius, color }) {
 // 8. DASHED_ROTATE - Вращающийся пунктир
 // ============================================
 export function DashedRotateZone({ center, radius, color }) {
+    const stableCenter = useStableCenter(center);
     const circleRef = useRef(null);
     const zoneRef = useRef(null);
     const mapRef = useMap();
@@ -589,7 +587,7 @@ export function DashedRotateZone({ center, radius, color }) {
                     }
                 };
                 
-                zoneRef.current = { type: 'dashed_rotate', update, center };
+                zoneRef.current = { type: 'dashed_rotate', update, center: stableCenter };
                 animatedZones.add(zoneRef.current);
                 startGlobalAnimation();
                 return true;
@@ -597,26 +595,17 @@ export function DashedRotateZone({ center, radius, color }) {
             return false;
         };
         
-        const timeoutId = setTimeout(() => {
-            if (!findCircle()) {
-                setTimeout(findCircle, 100);
-            }
-        }, 50);
+        const clearTimers = scheduleFindWithRetry(findCircle);
         
         return () => {
-            clearTimeout(timeoutId);
-            if (zoneRef.current) {
-                animatedZones.delete(zoneRef.current);
-            }
-            if (animatedZones.size === 0) {
-                stopGlobalAnimation();
-            }
+            clearTimers();
+            unregisterZone(zoneRef);
         };
-    }, [radius, center, mapRef]);
+    }, [radius, stableCenter, mapRef]);
     
     return (
         <Circle
-            center={center}
+            center={stableCenter}
             radius={radius}
             ref={circleRef}
             pathOptions={{
