@@ -1,12 +1,14 @@
 # prepare-update-package.ps1
 # На машине С интернетом: собирает пакет обновления для оффлайн/production-сервера.
 #
-# Результат: dist/updates/infolake_update_vX.Y.Z.zip
+# Результат: dist/updates/infolake_update_vX.Y.Z/ и .tar
 #   - update.bundle          (git bundle ветки production)
 #   - images.tar             (docker images)
 #   - apply-update.ps1/.bat  (скрипт применения)
 #   - VERSION, CHANGELOG.md, UPDATE_MANIFEST.txt
 #
+# Примечание: ZIP не используется — images.tar слишком велик для Compress-Archive.
+
 # Требования: Docker Desktop, git, ветка production существует и запушена локально.
 param(
     [string]$OutputDir = "",
@@ -121,8 +123,8 @@ Contents:
   - VERSION, CHANGELOG.md
 
 On the target computer:
-  1. Скопируйте ВСЮ папку обновления (или распакуйте ZIP) рядом с проектом
-     ИЛИ внутрь папки проекта Lake_grok.
+  1. Распакуйте .tar (или скопируйте папку) так, чтобы рядом лежали
+     apply-update.bat, update.bundle, images.tar
   2. Дважды щёлкните apply-update.bat
   3. Дождитесь зелёного сообщения «ОБНОВЛЕНИЕ ЗАВЕРШЕНО»
   4. При красном «ОШИБКА — ВЫПОЛНЕН ОТКАТ» отправьте файл logs\update-*.log разработчику
@@ -131,16 +133,33 @@ Do NOT run docker compose build / pull on the offline machine.
 "@
 Set-Content -Path (Join-Path $workDir "UPDATE_MANIFEST.txt") -Value $manifest -Encoding UTF8
 
-$zipName = "infolake_update_v$version.zip"
-$zipPath = Join-Path $zipDir $zipName
-if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+$packName = "infolake_update_v$version"
+$packDir = Join-Path $zipDir $packName
+if (Test-Path $packDir) { Remove-Item $packDir -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $packDir | Out-Null
 
-Write-Host "`n=== Creating ZIP ===" -ForegroundColor Cyan
-Compress-Archive -Path (Join-Path $workDir "*") -DestinationPath $zipPath -Force
+Write-Host "`n=== Assembling package folder ===" -ForegroundColor Cyan
+Copy-Item (Join-Path $workDir "*") -Destination $packDir -Recurse -Force
 
-$sizeMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
+# ZIP через Compress-Archive не подходит для images.tar (~2+ ГБ).
+# Упаковываем в .tar (встроенный tar Windows 10+) — оператор может распаковать 7-Zip / tar.
+$tarPath = Join-Path $zipDir "$packName.tar"
+if (Test-Path $tarPath) { Remove-Item $tarPath -Force }
+
+Write-Host "`n=== Creating TAR (large images) ===" -ForegroundColor Cyan
+Push-Location $packDir
+try {
+    tar -cf $tarPath *
+    if ($LASTEXITCODE -ne 0) { throw "tar create failed" }
+} finally {
+    Pop-Location
+}
+
+$sizeMb = [math]::Round((Get-Item $tarPath).Length / 1MB, 1)
+$folderMb = [math]::Round(((Get-ChildItem $packDir -Recurse -File | Measure-Object -Property Length -Sum).Sum) / 1MB, 1)
 Write-Host "`nDone!" -ForegroundColor Green
-Write-Host "  Package: $zipPath"
-Write-Host "  Size:    $sizeMb MB"
+Write-Host "  Folder:  $packDir  (~$folderMb MB)"
+Write-Host "  Archive: $tarPath  ($sizeMb MB)"
 Write-Host "  Work:    $workDir"
-Write-Host "`nПередайте ZIP (или папку work) оператору на целевой компьютер."
+Write-Host "`nPass the folder or .tar to the operator (extract next to the project)."
+Write-Host "Inside the package: double-click apply-update.bat"

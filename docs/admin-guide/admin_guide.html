@@ -102,7 +102,7 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml logs -f fronte
     <h2>4. Обновления</h2>
     <h3>4.1. Для оператора</h3>
     <ol>
-      <li>Получить от разработчика <code>infolake_update_vX.Y.Z.zip</code>.</li>
+      <li>Получить от разработчика <code>infolake_update_vX.Y.Z.tar</code> (или папку пакета).</li>
       <li>Распаковать в любую папку (например <code>D:\InfoLake\updates\v1.0.1</code>).</li>
       <li>Дважды щёлкнуть <strong>apply-update.bat</strong>.</li>
       <li>Дождаться зелёного баннера «ОБНОВЛЕНИЕ ЗАВЕРШЕНО».</li>
@@ -125,7 +125,7 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml logs -f fronte
     <pre>git checkout production
 # после merge из develop_report и bump VERSION / CHANGELOG
 .\scripts\production\prepare-update-package.ps1</pre>
-    <p>Результат: <code>dist\updates\infolake_update_vX.Y.Z.zip</code>.</p>
+    <p>Результат: <code>dist\updates\infolake_update_vX.Y.Z\</code> и <code>.tar</code>.</p>
   </section>
 
   <section id="backup" class="chapter">

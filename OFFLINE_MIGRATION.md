@@ -228,7 +228,7 @@ VITE_MAP_VECTOR=false
 ## 7. Обновление существующей оффлайн-установки
 
 > **Production-сервер с ограниченным доступом:** используйте пакет
-> `infolake_update_vX.Y.Z.zip` и **`apply-update.bat`**
+> `infolake_update_vX.Y.Z.tar` (или папку) и **`apply-update.bat`**
 > (см. [PRODUCTION_LAUNCH.md](PRODUCTION_LAUNCH.md) и руководство администратора).
 > Ниже — ручной/классический путь через полный tar.
 

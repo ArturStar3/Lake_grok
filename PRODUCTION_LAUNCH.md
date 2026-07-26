@@ -21,7 +21,7 @@
 
 От администратора/разработчика вы должны получить:
 
-1. **`infolake_full_offline.tar`** — Docker-образы (первый запуск) **или** пакет `infolake_update_vX.Y.Z.zip` (содержит `images.tar` + `update.bundle`).
+1. **`infolake_full_offline.tar`** — Docker-образы (первый запуск) **или** пакет `infolake_update_vX.Y.Z.tar` (содержит `images.tar` + `update.bundle`).
 2. Папку/архив **кода** ветки `production` (или `update.bundle` для `git clone`).
 3. Файл **`tileserver/data/map.mbtiles`** (карта; в git не входит).
 4. Параметры БД для файла `backend/.env` (имя БД, пользователь, пароль).
@@ -172,8 +172,8 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend p
 
 ## 9. Как применять обновления дальше
 
-1. Разработчик передаёт файл **`infolake_update_vX.Y.Z.zip`** (или папку с `apply-update.bat`, `update.bundle`, `images.tar`).
-2. Оператор **распаковывает** ZIP (например в `D:\InfoLake\updates\v1.0.1\`).
+1. Разработчик передаёт файл **`infolake_update_vX.Y.Z.tar`** (или папку с `apply-update.bat`, `update.bundle`, `images.tar`).
+2. Оператор **распаковывает** архив (например в `D:\InfoLake\updates\v1.0.1\`).
 3. Дважды щёлкает **`apply-update.bat`**.
 4. Ждёт зелёное сообщение **«ОБНОВЛЕНИЕ ЗАВЕРШЕНО»**.
 5. При красном **«ОШИБКА — ВЫПОЛНЕН ОТКАТ»** — **не чинит сам**, отправляет разработчику файл `Lake_grok\logs\update-….log`.
