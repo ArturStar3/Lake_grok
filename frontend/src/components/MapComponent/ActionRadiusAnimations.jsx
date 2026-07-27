@@ -13,14 +13,20 @@ function startGlobalAnimation() {
     startTime = performance.now();
     
     const animate = (currentTime) => {
+        // Не тратим CPU/GPU, когда вкладка скрыта.
+        if (document.hidden) {
+            animationFrameId = requestAnimationFrame(animate);
+            return;
+        }
+
         const elapsed = currentTime - startTime;
-        const bounds = mapInstance ? mapInstance.getBounds() : null;
-        
+        const bounds = mapInstance ? mapInstance.getBounds().pad(0.05) : null;
+
         animatedZones.forEach(({ update, center }) => {
             if (bounds && !bounds.contains(center)) return;
             update(elapsed);
         });
-        
+
         animationFrameId = requestAnimationFrame(animate);
     };
     
@@ -440,42 +446,48 @@ export function RingsZone({ center, radius, color }) {
 // ============================================
 // 6. SECTOR - Секторное покрытие (радар)
 // ============================================
+function buildSectorPoints(center, radius, rotationDeg, sectorAngle = 90) {
+    const points = [center];
+    const startAngle = rotationDeg * (Math.PI / 180);
+    const endAngle = (rotationDeg + sectorAngle) * (Math.PI / 180);
+    const cosLat = Math.cos(center[0] * Math.PI / 180);
+
+    for (let angle = startAngle; angle <= endAngle; angle += 0.1) {
+        const lat = center[0] + (radius / 111320) * Math.cos(angle);
+        const lng = center[1] + (radius / (111320 * cosLat)) * Math.sin(angle);
+        points.push([lat, lng]);
+    }
+    points.push(center);
+    return points;
+}
+
 export function SectorZone({ center, radius, color }) {
     const stableCenter = useStableCenter(center);
-    const [sectorPath, setSectorPath] = React.useState([]);
-    const pathRef = useRef(null);
+    const polygonRef = useRef(null);
     const zoneRef = useRef(null);
     const mapRef = useMap();
-    
+    const initialPath = useMemo(
+        () => buildSectorPoints(stableCenter, radius, 0),
+        [stableCenter, radius],
+    );
+
     useEffect(() => {
         if (!mapInstance) mapInstance = mapRef;
-        
+
         const update = (elapsed) => {
-            const rotation = (elapsed / 4000) * 360; // 4 секунды на оборот
-            const sectorAngle = 90; // Угол сектора
-            
-            // Создаём сектор
-            const points = [stableCenter];
-            const startAngle = rotation * (Math.PI / 180);
-            const endAngle = (rotation + sectorAngle) * (Math.PI / 180);
-            
-            for (let angle = startAngle; angle <= endAngle; angle += 0.1) {
-                const lat = stableCenter[0] + (radius / 111320) * Math.cos(angle);
-                const lng = stableCenter[1] + (radius / (111320 * Math.cos(stableCenter[0] * Math.PI / 180))) * Math.sin(angle);
-                points.push([lat, lng]);
-            }
-            points.push(stableCenter);
-            
-            setSectorPath(points);
+            const rotation = (elapsed / 4000) * 360;
+            const layer = polygonRef.current;
+            if (!layer) return;
+            layer.setLatLngs(buildSectorPoints(stableCenter, radius, rotation));
         };
-        
+
         zoneRef.current = { type: 'sector', update, center: stableCenter };
         animatedZones.add(zoneRef.current);
         startGlobalAnimation();
-        
+
         return () => unregisterZone(zoneRef);
     }, [radius, stableCenter, mapRef]);
-    
+
     return (
         <>
             <Circle
@@ -489,20 +501,18 @@ export function SectorZone({ center, radius, color }) {
                     interactive: false
                 }}
             />
-            {sectorPath.length > 0 && (
-                <Polygon
-                    positions={sectorPath}
-                    ref={pathRef}
-                    pathOptions={{
-                        color: color,
-                        fillColor: color,
-                        fillOpacity: 0.2,
-                        weight: 2,
-                        opacity: 0.5,
-                        interactive: false
-                    }}
-                />
-            )}
+            <Polygon
+                positions={initialPath}
+                ref={polygonRef}
+                pathOptions={{
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.2,
+                    weight: 2,
+                    opacity: 0.5,
+                    interactive: false
+                }}
+            />
         </>
     );
 }

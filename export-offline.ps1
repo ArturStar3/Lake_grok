@@ -4,7 +4,8 @@ param(
     [string]$OutputDir = ".",
     [switch]$NoCache,
     [switch]$SkipBuild,
-    [switch]$SkipMapStyle
+    [switch]$SkipMapStyle,
+    [switch]$Dev
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,8 +39,13 @@ if (-not $SkipMapStyle) {
 }
 
 if (-not $SkipBuild) {
-    Write-Host "`n=== Building Docker images (production frontend) ===" -ForegroundColor Cyan
-    $buildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "build")
+    if ($Dev) {
+        Write-Host "`n=== Building Docker images (DEV: bind-mount frontend/backend/tileserver) ===" -ForegroundColor Cyan
+        $buildArgs = @("compose", "build")
+    } else {
+        Write-Host "`n=== Building Docker images (production frontend) ===" -ForegroundColor Cyan
+        $buildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "build")
+    }
     if ($NoCache) { $buildArgs += "--no-cache" }
     docker @buildArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -93,10 +99,18 @@ $sizeMb = (Get-Item $stablePath).Length / 1MB
 $gitBranch = ""
 try { $gitBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch { }
 
+$modeLabel = if ($Dev) { "DEV (bind-mount required)" } else { "PRODUCTION (docker-compose.server.yml)" }
+$startCmd = if ($Dev) {
+    "  docker compose up -d --no-build --pull never"
+} else {
+    "  .\import-and-start.ps1`n  (uses docker-compose.yml + docker-compose.server.yml — static frontend, no Vite bind-mount)"
+}
+
 $manifest = @"
 InfoLake offline package manifest
 Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Git branch: $gitBranch
+Mode: $modeLabel
 
 Docker images in infolake_full_offline.tar:
 $(($images | ForEach-Object { "  - $_" }) -join "`n")
@@ -110,13 +124,17 @@ Copy to offline server:
   1. infolake_full_offline.tar (this archive)
   2. Full project folder (git clone / zip), EXCLUDING:
      - node_modules, __pycache__, .git (optional)
-     - frontend/dist (built into production frontend image)
+     - frontend/dist (production only — built into image)
   3. tileserver/data/map.mbtiles (NOT in git, copy separately)
   4. backend/.env (create from .env.example on target)
+$(if ($Dev) {
+@"
+  5. DEV mode: also copy frontend/ and tileserver/ (styles, config.json) — bind-mount from disk
+"@
+} else { "" })
 
 On offline server:
-  .\import-and-start.ps1
-  (uses docker-compose.yml + docker-compose.server.yml — static frontend, no Vite bind-mount)
+$startCmd
   See OFFLINE_MIGRATION.md
   Marker color palettes: OFFLINE_MIGRATION_MARKER_PALETTES.md
     scripts\offline\post-update-offline.ps1
@@ -125,6 +143,7 @@ NEVER on offline machine:
   docker compose build
   docker compose pull
   docker pull
+  docker compose up --build
 "@
 
 Set-Content -Path $manifestPath -Value $manifest -Encoding UTF8
