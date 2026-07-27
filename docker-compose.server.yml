@@ -13,7 +13,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.server
     command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
-    volumes: []
+    # !reset обязателен: иначе Compose дописывает bind-mount из docker-compose.yml,
+    # и старый ./frontend/dist с хоста затеняет свежий dist внутри образа.
+    volumes: !reset []
     environment:
       VITE_ENABLE_HMR: "false"
       CHOKIDAR_USEPOLLING: "false"
