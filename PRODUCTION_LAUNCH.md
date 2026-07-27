@@ -110,7 +110,14 @@ DB_PORT=5432
 
 SECRET_KEY=длинная-случайная-строка
 DEBUG=False
-ALLOWED_HOSTS=localhost,127.0.0.1
+ALLOWED_HOSTS=localhost,127.0.0.1,172.16.80.207
+
+# CORS: origin для frontend-браузера (укажите ваш URL/hostname + порт)
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://172.16.80.207:5173
+CORS_ALLOW_ALL_ORIGINS=False
+
+# URL фронтенда, который Django использует в admin (ссылка "Открыть сайт")
+FRONTEND_URL=http://172.16.80.207:5173
 ```
 
 > **Важно:** в production всегда `DEBUG=False`. Иначе страницы ошибок 404/500 не покажутся, а на экран могут попасть технические детали.
