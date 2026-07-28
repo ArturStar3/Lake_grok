@@ -108,7 +108,13 @@ $modeLabel = if ($Dev) { "DEV (bind-mount required)" } else { "PRODUCTION (docke
 $startCmd = if ($Dev) {
     "  docker compose --profile dev up -d --no-build --pull never"
 } else {
-    "  .\import-and-start.ps1`n  (uses docker-compose.yml + docker-compose.server.yml — nginx :80, static frontend)"
+    "  .\import-and-start.ps1`n  (uses docker-compose.yml + docker-compose.server.yml, nginx :80, static frontend)"
+}
+
+$devCopyNote = if ($Dev) {
+    "  5. DEV mode: also copy frontend/ and tileserver/ (styles, config.json) - bind-mount from disk"
+} else {
+    ""
 }
 
 $manifest = @"
@@ -129,14 +135,10 @@ Copy to offline server:
   1. infolake_full_offline.tar (this archive)
   2. Full project folder (git clone / zip), EXCLUDING:
      - node_modules, __pycache__, .git (optional)
-     - frontend/dist (production only — built into image)
+     - frontend/dist (production only - built into image)
   3. tileserver/data/map.mbtiles (NOT in git, copy separately)
   4. backend/.env (create from .env.example on target)
-$(if ($Dev) {
-@"
-  5. DEV mode: also copy frontend/ and tileserver/ (styles, config.json) — bind-mount from disk
-"@
-} else { "" })
+$devCopyNote
 
 On offline server:
 $startCmd
