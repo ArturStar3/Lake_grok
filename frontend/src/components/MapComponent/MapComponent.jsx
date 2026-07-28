@@ -49,6 +49,7 @@ import MapFullscreenDock from "./MapFullscreenDock";
 import MapFullscreenPanel from "./MapFullscreenPanel";
 import MapFullscreenPanelBody, { MapFullscreenPanelFeatures } from "./MapFullscreenPanelBody";
 import MapSplitHud from "./MapSplitHud";
+import MapSearchControl from "./MapSearchControl";
 import { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
 import "./MapComponent.css";
 import "./MapFullscreen.css";
@@ -2411,6 +2412,12 @@ function MapComponent({
                     sidebarOpen={false}
                 />
             )}
+            <MapSearchControl
+                objects={zoneObjectsSource}
+                countries={countriesList}
+                geoData={geoData}
+                mapRef={mapRef}
+            />
             <EventDrawingToolbar
                 visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive}
                 isEditMode={isEventEditModeActive}

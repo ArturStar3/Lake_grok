@@ -15,10 +15,12 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+import re
+
+from django.urls import path, include, re_path
 from django.conf import settings
-from django.conf.urls.static import static
 from django.views.generic import RedirectView
+from django.views.static import serve
 
 from api import urls as api_urls
 from equipment.admin_redirects import equipment_admin_redirect_urlpatterns
@@ -37,5 +39,13 @@ urlpatterns = [
 ]
 
 # Media: в офлайн/self-hosted нет отдельного CDN/nginx — отдаём файлы через Django
-# и при DEBUG=False (иначе вложения/фото перестанут открываться).
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# и при DEBUG=False (django.conf.urls.static.static() в этом режиме не регистрирует маршруты).
+if settings.MEDIA_URL and settings.MEDIA_ROOT:
+    media_prefix = re.escape(settings.MEDIA_URL.lstrip('/'))
+    urlpatterns += [
+        re_path(
+            rf'^{media_prefix}(?P<path>.*)$',
+            serve,
+            {'document_root': settings.MEDIA_ROOT},
+        ),
+    ]
