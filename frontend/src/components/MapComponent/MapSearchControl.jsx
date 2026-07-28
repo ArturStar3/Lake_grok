@@ -73,7 +73,9 @@ export default function MapSearchControl({
   countries = [],
   geoData = null,
   mapRef,
+  layout = 'overlay',
 }) {
+  const isTopbarLayout = layout === 'topbar';
   const listId = useId();
   const containerRef = useRef(null);
   const inputRef = useRef(null);
@@ -185,7 +187,9 @@ export default function MapSearchControl({
   return (
     <div
       ref={containerRef}
-      className={`map-search-control${isExpanded ? ' map-search-control--expanded' : ''}`}
+      className={`map-search-control${
+        isTopbarLayout ? ' map-search-control--topbar' : ''
+      }${isExpanded ? ' map-search-control--expanded' : ''}`}
     >
       <button
         type="button"

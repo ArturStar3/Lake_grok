@@ -2035,6 +2035,15 @@ function MapComponent({
                         onOpenReference={onOpenReference}
                         canOpenReports={canOpenReports}
                         onOpenReports={onOpenReports}
+                        searchControl={(
+                            <MapSearchControl
+                                objects={zoneObjectsSource}
+                                countries={countriesList}
+                                geoData={geoData}
+                                mapRef={mapRef}
+                                layout="topbar"
+                            />
+                        )}
                     />
                     <MapFullscreenPanel
                         panelRef={sidebarRef}
@@ -2412,12 +2421,14 @@ function MapComponent({
                     sidebarOpen={false}
                 />
             )}
-            <MapSearchControl
-                objects={zoneObjectsSource}
-                countries={countriesList}
-                geoData={geoData}
-                mapRef={mapRef}
-            />
+            {!isFullscreen && (
+                <MapSearchControl
+                    objects={zoneObjectsSource}
+                    countries={countriesList}
+                    geoData={geoData}
+                    mapRef={mapRef}
+                />
+            )}
             <EventDrawingToolbar
                 visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive}
                 isEditMode={isEventEditModeActive}

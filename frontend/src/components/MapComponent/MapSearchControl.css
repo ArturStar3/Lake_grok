@@ -129,3 +129,53 @@
   font-size: 13px;
   color: rgba(255, 255, 255, 0.62);
 }
+
+/* Встроенный поиск в fullscreen top bar */
+.map-search-control--topbar {
+  position: relative;
+  top: auto;
+  left: auto;
+  z-index: auto;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.map-search-control--topbar.map-search-control--expanded {
+  width: min(320px, 42vw);
+}
+
+.map-search-control--topbar .map-search-control__toggle {
+  background: #fefefe;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+  width: 34px;
+  height: 34px;
+}
+
+.map-search-control--topbar .map-search-control__toggle:hover {
+  background: #f0f8ff;
+  border-color: #cbd5e1;
+}
+
+.map-search-control--topbar .map-search-control__input {
+  height: 34px;
+  background: #fefefe;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-left: none;
+  box-shadow: none;
+}
+
+.map-search-control--topbar .map-search-control__input::placeholder {
+  color: #94a3b8;
+}
+
+.map-search-control--topbar .map-search-control__input:focus {
+  background: #fff;
+  border-color: #008dd2;
+}
+
+.map-search-control--topbar .map-search-control__dropdown {
+  z-index: 1200;
+}

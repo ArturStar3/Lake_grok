@@ -26,6 +26,7 @@ export default function MapFullscreenTopBar({
   onOpenReports,
   canOpenDataExchange = false,
   onOpenDataExchange,
+  searchControl = null,
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -99,6 +100,7 @@ export default function MapFullscreenTopBar({
       </div>
       <span className="map-fs-topbar__title">InfoLake</span>
       <span className="map-fs-topbar__subtitle">Карта · Полный экран</span>
+      {searchControl}
       <div className="map-fs-topbar__spacer" />
       {canEditTargets && onOpenAddTarget && (
         <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenAddTarget}>
