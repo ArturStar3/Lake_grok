@@ -1,37 +1,36 @@
-﻿InfoLake offline package manifest (DEV mode)
-Generated: 2026-07-27 16:48:48
-Git branch: develop_report
-
-Mode: DEV (docker-compose.yml, bind-mount frontend/backend/tileserver from disk)
+﻿InfoLake offline package manifest
+Generated: 2026-07-28 19:01:56
+Git branch: develop_functionality
+Mode: PRODUCTION (docker-compose.server.yml)
 
 Docker images in infolake_full_offline.tar:
-  - maptiler/tileserver-gl:latest
   - infolake-backend:latest
-  - infolake-frontend:latest
+  - infolake-nginx:latest
+  - maptiler/tileserver-gl:latest
 
 Archive:
   Stable:    .\infolake_full_offline.tar
-  Timestamp: .\infolake_full_offline_20260727_164848.tar
-  Size:      2757.6 MB
+  Timestamp: .\infolake_full_offline_20260728_190045.tar
+  Size:      2492.1 MB
 
-Copy to offline server (ALL required):
-  1. infolake_full_offline.tar
-  2. docker-compose.yml
-  3. backend/ (with .env)
-  4. frontend/ (source code — layers in tiles.js)
-  5. tileserver/ (styles/, config.json — REQUIRED for map layers)
-  6. tileserver/data/map.mbtiles (separate, large file)
+Copy to offline server:
+  1. infolake_full_offline.tar (this archive)
+  2. Full project folder (git clone / zip), EXCLUDING:
+     - node_modules, __pycache__, .git (optional)
+     - frontend/dist (production only - built into image)
+  3. tileserver/data/map.mbtiles (NOT in git, copy separately)
+  4. backend/.env (create from .env.example on target)
 
-On offline server (DEV):
-  docker load -i infolake_full_offline.tar
-  docker compose up -d --no-build --pull never
+
+On offline server:
+  .\import-and-start.ps1
+  (uses docker-compose.yml + docker-compose.server.yml, nginx :80, static frontend)
+  See OFFLINE_MIGRATION.md
+  Marker color palettes: OFFLINE_MIGRATION_MARKER_PALETTES.md
+    scripts\offline\post-update-offline.ps1
 
 NEVER on offline machine:
-  docker compose up --build
   docker compose build
   docker compose pull
   docker pull
-
-Verify layers:
-  dir tileserver\styles\overlay-roads.json
-  curl.exe -s http://localhost:8080/styles/infolake-unified/style.json | findstr roads
+  docker compose up --build
