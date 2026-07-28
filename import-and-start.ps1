@@ -39,8 +39,15 @@ Write-Host "`nStatus:" -ForegroundColor Green
 docker compose -f docker-compose.yml -f docker-compose.server.yml ps
 
 Write-Host "`nURLs (on this machine):"
-Write-Host "  Frontend:   http://localhost:5173"
-Write-Host "  Backend:    http://localhost:8000"
-Write-Host "  TileServer: http://localhost:8080"
+$nginxPort = if ($env:NGINX_HTTP_PORT) { $env:NGINX_HTTP_PORT } else { "80" }
+if (Test-Path (Join-Path $PSScriptRoot ".env")) {
+    $envLine = Get-Content (Join-Path $PSScriptRoot ".env") | Where-Object { $_ -match '^\s*NGINX_HTTP_PORT\s*=' } | Select-Object -First 1
+    if ($envLine -match '=\s*(\d+)') { $nginxPort = $Matches[1] }
+}
+$baseUrl = if ($nginxPort -eq "80") { "http://localhost" } else { "http://localhost:$nginxPort" }
+Write-Host "  App (nginx): $baseUrl/"
+Write-Host "  API:         $baseUrl/api/v1/"
+Write-Host "  Admin:       $baseUrl/admin/"
+Write-Host "  Tiles:       $baseUrl/tiles/"
 Write-Host "`nSee OFFLINE_MIGRATION.md for DB setup and verification."
 Write-Host "Marker palettes (0052): OFFLINE_MIGRATION_MARKER_PALETTES.md"

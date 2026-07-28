@@ -12,14 +12,19 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 function Get-ComposeImages {
-    $lines = Get-Content (Join-Path $PSScriptRoot "docker-compose.yml")
-    $images = @()
-    foreach ($line in $lines) {
-        if ($line -match '^\s+image:\s+(\S+)') {
-            $images += $Matches[1]
-        }
+    param(
+        [switch]$Dev
+    )
+    $composeArgs = if ($Dev) {
+        @("compose", "config", "--images")
+    } else {
+        @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "config", "--images")
     }
-    return $images | Select-Object -Unique
+    $output = docker @composeArgs 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose config --images failed"
+    }
+    return $output | Where-Object { $_ -and $_.Trim() -ne "" } | Select-Object -Unique
 }
 
 function Test-DockerImage {
@@ -53,7 +58,7 @@ if (-not $SkipBuild) {
     Write-Host "`n=== Skip build (--SkipBuild) ===" -ForegroundColor DarkGray
 }
 
-$images = Get-ComposeImages
+$images = Get-ComposeImages -Dev:$Dev
 if (-not $images -or $images.Count -eq 0) {
     Write-Host "No images found in docker-compose.yml" -ForegroundColor Red
     exit 1
@@ -101,9 +106,9 @@ try { $gitBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch { }
 
 $modeLabel = if ($Dev) { "DEV (bind-mount required)" } else { "PRODUCTION (docker-compose.server.yml)" }
 $startCmd = if ($Dev) {
-    "  docker compose up -d --no-build --pull never"
+    "  docker compose --profile dev up -d --no-build --pull never"
 } else {
-    "  .\import-and-start.ps1`n  (uses docker-compose.yml + docker-compose.server.yml — static frontend, no Vite bind-mount)"
+    "  .\import-and-start.ps1`n  (uses docker-compose.yml + docker-compose.server.yml — nginx :80, static frontend)"
 }
 
 $manifest = @"

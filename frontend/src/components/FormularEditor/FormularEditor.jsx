@@ -5,6 +5,7 @@ import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './FormularEditor.css';
 
 import { API_URL as API_ROOT } from '../../config/api';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 
 export default function FormularEditor({ targetId, targetTitle, isOpen, onClose, onSaved }) {
     const [sections, setSections] = useState([]);
@@ -263,7 +264,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                                                 className="formular-editor__attachment-thumb"
                                                 onClick={() => setPreviewImage(item)}
                                             >
-                                                <img src={item.image} alt={item.title} />
+                                                <img src={resolveMediaUrl(item.image)} alt={item.title} />
                                             </button>
                                             <div className="formular-editor__attachment-info">
                                                 <strong>{item.title}</strong>
@@ -418,7 +419,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                         >
                             ×
                         </button>
-                        <img src={previewImage.image} alt={previewImage.title} />
+                        <img src={resolveMediaUrl(previewImage.image)} alt={previewImage.title} />
                         <div className="formular-editor__image-preview-caption">
                             <strong>{previewImage.title}</strong>
                             {previewImage.description && (

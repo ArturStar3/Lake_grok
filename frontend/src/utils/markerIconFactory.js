@@ -3,6 +3,7 @@ import { enrichSvg, getViewBoxSize, wrapMarkerSvg } from './svgUtils';
 import { getCountryMarkerPalette, markerPaletteCacheKey } from './markerPalette';
 import { MAP_CONSTANTS } from '../constants/mapConstants';
 import { getOrCreateDivIcon, buildIconCacheKey } from './markerIconCache';
+import { resolveMediaUrl } from './mediaUrl';
 
 const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 
@@ -36,7 +37,7 @@ export function createCachedDivIcon(cacheKey, params) {
 }
 
 export function createNonFlagDivIcon(obj, svgCache) {
-  const path = obj.marker?.path;
+  const path = resolveMediaUrl(obj.marker?.path);
   if (path && !svgCache?.has(path)) {
     // SVG ещё грузится — не кэшируем placeholder-круг
     return null;

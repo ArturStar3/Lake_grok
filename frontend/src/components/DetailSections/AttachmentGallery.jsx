@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import './DetailSections.css';
 
 export default function AttachmentGallery({ attachments = [], classPrefix = 'detail-sections' }) {
@@ -10,14 +11,16 @@ export default function AttachmentGallery({ attachments = [], classPrefix = 'det
   return (
     <>
       <div className={`${classPrefix}__attachments`}>
-        {attachments.map((item) => (
+        {attachments.map((item) => {
+          const imageSrc = resolveMediaUrl(item.image);
+          return (
           <div key={item.id} className={`${classPrefix}__attachment-card`}>
             <button
               type="button"
               className={`${classPrefix}__attachment-thumb`}
-              onClick={() => setPreviewImage(item)}
+              onClick={() => setPreviewImage({ ...item, image: imageSrc })}
             >
-              <img src={item.image} alt={item.title} />
+              {imageSrc ? <img src={imageSrc} alt={item.title} /> : null}
             </button>
             <div className={`${classPrefix}__attachment-info`}>
               <strong>{item.title}</strong>
@@ -26,7 +29,8 @@ export default function AttachmentGallery({ attachments = [], classPrefix = 'det
               )}
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
 
       {previewImage && (

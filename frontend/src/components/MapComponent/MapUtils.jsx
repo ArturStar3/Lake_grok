@@ -9,11 +9,12 @@ import { getCountryMarkerPalette, markerPaletteCacheKey } from "../../utils/mark
 import { MAP_CONSTANTS } from "../../constants/mapConstants";
 import { filterFlagMarkers } from "../../utils/markerFilters";
 import { buildIconCacheKey, getOrCreateDivIcon } from "../../utils/markerIconCache";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 
 // Функция для обогащения объектов реальными размерами из viewBox SVG
 function enrichMarkersWithSvgSize(objects, svgCache) {
   return objects.map(o => {
-    const path = o.marker?.path;
+    const path = resolveMediaUrl(o.marker?.path);
     const svg = path ? svgCache.get(path) ?? "" : "";
     const markerScale = parseFloat(o.marker?.scale) || 1;
     let iconWidth = ICON_WIDTH * markerScale;
@@ -128,7 +129,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     
     const selectedFlagObjects = filterFlagMarkers(objects, selectedIds);
     
-    const uniquePaths = Array.from(new Set(selectedFlagObjects.map(o => o.marker?.path).filter(Boolean)));
+    const uniquePaths = Array.from(new Set(selectedFlagObjects.map(o => resolveMediaUrl(o.marker?.path)).filter(Boolean)));
     return uniquePaths.sort().join('|');
   }, [objects, selectedIds]);
 
@@ -213,7 +214,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     const map = {};
 
     clusteredObjects.forEach((o) => {
-        const path = o.marker?.path;
+        const path = resolveMediaUrl(o.marker?.path);
         if (path && !svgCache.has(path)) {
           return;
         }

@@ -62,10 +62,10 @@ function Wait-ServicesHealthy {
     param([int]$Attempts = 30, [int]$DelaySec = 5)
     Write-Log "Проверка сервисов (до $($Attempts * $DelaySec) с)..." "Cyan"
     for ($i = 1; $i -le $Attempts; $i++) {
-        $fe = Test-HttpOk "http://localhost:5173/"
-        $be = Test-HttpOk "http://localhost:8000/api/v1/"
-        $ts = Test-HttpOk "http://localhost:8080/"
-        Write-Log ("  попытка {0}/{1}: frontend={2} backend={3} tileserver={4}" -f $i, $Attempts, $fe, $be, $ts) "DarkGray"
+        $fe = Test-HttpOk "http://localhost/"
+        $be = Test-HttpOk "http://localhost/api/v1/"
+        $ts = Test-HttpOk "http://localhost/tiles/"
+        Write-Log ("  попытка {0}/{1}: nginx={2} api={3} tiles={4}" -f $i, $Attempts, $fe, $be, $ts) "DarkGray"
         if ($fe -and $be -and $ts) { return $true }
         Start-Sleep -Seconds $DelaySec
     }
@@ -269,9 +269,10 @@ try {
 
     Write-Banner "ОБНОВЛЕНИЕ ЗАВЕРШЕНО" "Green"
     Write-Log "Версия $oldVersion → $newVersion" "Green"
-    Write-Log "Frontend:   http://localhost:5173"
-    Write-Log "Backend:    http://localhost:8000"
-    Write-Log "TileServer: http://localhost:8080"
+    Write-Log "App:        http://localhost/"
+    Write-Log "API:        http://localhost/api/v1/"
+    Write-Log "Admin:      http://localhost/admin/"
+    Write-Log "Tiles:      http://localhost/tiles/"
     Write-Log "Журнал: $($script:LogFile)"
     Write-Host ""
     Write-Host "Можно пользоваться системой как обычно." -ForegroundColor Green

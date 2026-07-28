@@ -6,6 +6,7 @@ import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import '../FormularEditor/FormularEditor.css';
 import './PersonEditor.css';
 import { API_URL } from '../../config/api';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 
 const API_ROOT = API_URL;
 
@@ -339,7 +340,7 @@ export default function PersonEditor({
                   {attachments.map((item) => (
                     <div key={item.id} className="formular-editor__attachment-card">
                       <button type="button" className="formular-editor__attachment-thumb" onClick={() => setPreviewImage(item)}>
-                        <img src={item.image} alt={item.title} />
+                        <img src={resolveMediaUrl(item.image)} alt={item.title} />
                       </button>
                       <div className="formular-editor__attachment-info">
                         <strong>{item.title}</strong>
@@ -491,7 +492,7 @@ export default function PersonEditor({
                               className="person-editor__photo-thumb"
                               onClick={() => setPreviewImage(photo)}
                             >
-                              <img src={photo.image} alt={photo.title || 'Фото'} />
+                              <img src={resolveMediaUrl(photo.image)} alt={photo.title || 'Фото'} />
                             </button>
                             {photo.title && (
                               <div className="person-editor__photo-title">{photo.title}</div>
@@ -705,7 +706,7 @@ export default function PersonEditor({
       {previewImage && (
         <div className="formular-editor__image-preview" onClick={() => setPreviewImage(null)}>
           <div className="formular-editor__image-preview-content" onClick={(e) => e.stopPropagation()}>
-            <img src={previewImage.image} alt={previewImage.title} />
+            <img src={resolveMediaUrl(previewImage.image)} alt={previewImage.title} />
           </div>
         </div>
       )}

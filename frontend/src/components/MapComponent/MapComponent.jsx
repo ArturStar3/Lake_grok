@@ -44,6 +44,7 @@ import { clearMarkerIconCache } from "../../utils/markerIconCache";
 import { clearEnrichSvgCache } from "../../utils/svgUtils";
 import { getCountryMarkerPalette } from "../../utils/markerPalette";
 import { ensureNonFlagIconsForObjects } from "../../utils/markerIconFactory";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 import MapFullscreenTopBar from "./MapFullscreenTopBar";
 import MapFullscreenDock from "./MapFullscreenDock";
 import MapFullscreenPanel from "./MapFullscreenPanel";
@@ -1139,7 +1140,7 @@ function MapComponent({
             const marker = eventItem?.marker;
             if (!marker?.id || !marker.path) return;
             if (eventMarkerFetchRef.current.has(marker.id)) return;
-            markersToFetch.set(marker.id, marker.path);
+            markersToFetch.set(marker.id, resolveMediaUrl(marker.path));
             eventMarkerFetchRef.current.add(marker.id);
         });
 
@@ -1686,7 +1687,7 @@ function MapComponent({
         const countryTitle = eventItem.country?.title || "—";
         const objectName = eventItem.object_name || "—";
         const description = eventItem.description?.trim() || "";
-        const markerPath = eventItem.marker?.path;
+        const markerPath = resolveMediaUrl(eventItem.marker?.path);
         const markerSvg = eventItem.marker?.id ? eventMarkerSvgs.get(eventItem.marker.id) : null;
         const eventColor = eventItem.color || "#2f80ed";
         const popupContent = (

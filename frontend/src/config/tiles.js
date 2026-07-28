@@ -3,11 +3,109 @@
 
 import unifiedMapping from './unifiedLayerMapping.json';
 
-// Базовый URL TileServer GL.
-// По умолчанию — локальный dev-сервер: http://localhost:8080
-// Можно переопределить через переменную окружения VITE_TILESERVER_URL
-export const TILESERVER_BASE_URL =
-  import.meta.env.VITE_TILESERVER_URL || 'http://localhost:8080';
+/** Абсолютный базовый URL TileServer (MapLibre требует абсолютные URL). */
+export function getTileserverBaseUrl() {
+  const fromEnv = import.meta.env.VITE_TILESERVER_URL;
+  const raw = (fromEnv !== undefined && fromEnv !== '' ? fromEnv : '/tiles').replace(/\/$/, '');
+
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return raw;
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${raw.startsWith('/') ? raw : `/${raw}`}`;
+  }
+
+  return `http://localhost${raw.startsWith('/') ? raw : `/${raw}`}`;
+}
+
+/** Префикс пути для Leaflet TileLayer (same-origin relative). */
+export function getTilesPathPrefix() {
+  const fromEnv = import.meta.env.VITE_TILESERVER_URL;
+  if (fromEnv && (fromEnv.startsWith('http://') || fromEnv.startsWith('https://'))) {
+    return fromEnv.replace(/\/$/, '');
+  }
+  const path = (fromEnv !== undefined && fromEnv !== '' ? fromEnv : '/tiles').replace(/\/$/, '');
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
+/** Origin приложения (без /tiles). */
+function getAppOrigin() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  try {
+    return new URL(getTileserverBaseUrl()).origin;
+  } catch {
+    return 'http://localhost:8080';
+  }
+}
+
+/** Нормализует URL тайлов на текущий origin (localhost vs LAN IP, порт nginx). */
+export function normalizeTileserverUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+
+  const origin = getAppOrigin();
+  const prefix = getTilesPathPrefix();
+  const base = getTileserverBaseUrl();
+
+  let pathname = url;
+  let search = '';
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      pathname = parsed.pathname;
+      search = parsed.search;
+    } catch {
+      return url;
+    }
+  } else {
+    const queryIndex = url.indexOf('?');
+    const pathPart = queryIndex >= 0 ? url.slice(0, queryIndex) : url;
+    search = queryIndex >= 0 ? url.slice(queryIndex) : '';
+    pathname = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+  }
+
+  if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+    return `${origin}${pathname}${search}`;
+  }
+
+  return `${base}${pathname}${search}`;
+}
+
+export function createMaplibreTransformRequest() {
+  return (url, resourceType) => ({
+    url: normalizeTileserverUrl(url),
+    ...(resourceType === 'Tile' ? { credentials: 'same-origin' } : {}),
+  });
+}
+
+export async function fetchUnifiedMapStyle() {
+  const styleUrl = `${getTileserverBaseUrl()}/styles/${UNIFIED_STYLE}/style.json`;
+  const res = await fetch(styleUrl);
+  if (!res.ok) {
+    throw new Error(`style.json HTTP ${res.status} (${styleUrl})`);
+  }
+
+  const style = await res.json();
+
+  if (style.sprite) style.sprite = normalizeTileserverUrl(style.sprite);
+  if (style.glyphs) style.glyphs = normalizeTileserverUrl(style.glyphs);
+
+  if (style.sources) {
+    Object.values(style.sources).forEach((source) => {
+      if (source.url) source.url = normalizeTileserverUrl(source.url);
+      if (source.tiles) source.tiles = source.tiles.map(normalizeTileserverUrl);
+    });
+  }
+
+  return style;
+}
+
+// Базовый URL TileServer GL (абсолютный, вычисляется при импорте в браузере).
+export const TILESERVER_BASE_URL = getTileserverBaseUrl();
 
 // Векторный режим (единый стиль + клиентский рендер). VITE_MAP_VECTOR=false — откат на PNG.
 export const USE_VECTOR_MAP = import.meta.env.VITE_MAP_VECTOR !== 'false';
@@ -18,15 +116,15 @@ export const UNIFIED_STYLE_URL = `${TILESERVER_BASE_URL}/styles/${UNIFIED_STYLE}
 
 // Legacy PNG (откат / отладка)
 export const BORDERS_LABELS_STYLE = 'borders-labels';
-export const TILE_RASTER_URL = `${TILESERVER_BASE_URL}/styles/${BORDERS_LABELS_STYLE}/{z}/{x}/{y}.png`;
+export const TILE_RASTER_URL = `${getTilesPathPrefix()}/styles/${BORDERS_LABELS_STYLE}/{z}/{x}/{y}.png`;
 export const BASIC_STYLE = 'basic';
-export const TILE_RASTER_BASIC_URL = `${TILESERVER_BASE_URL}/styles/${BASIC_STYLE}/{z}/{x}/{y}.png`;
+export const TILE_RASTER_BASIC_URL = `${getTilesPathPrefix()}/styles/${BASIC_STYLE}/{z}/{x}/{y}.png`;
 
-export const TILESERVER_TILEJSON = `${TILESERVER_BASE_URL}/data/openmaptiles.json`;
-export const TILESERVER_STYLE_JSON = `${TILESERVER_BASE_URL}/styles/${BORDERS_LABELS_STYLE}/style.json`;
+export const TILESERVER_TILEJSON = `${getTileserverBaseUrl()}/data/openmaptiles.json`;
+export const TILESERVER_STYLE_JSON = `${getTileserverBaseUrl()}/styles/${BORDERS_LABELS_STYLE}/style.json`;
 
 export const overlayTileUrl = (style) =>
-  `${TILESERVER_BASE_URL}/styles/${style}/{z}/{x}/{y}.png`;
+  `${getTilesPathPrefix()}/styles/${style}/{z}/{x}/{y}.png`;
 
 const { layerMapping } = unifiedMapping;
 

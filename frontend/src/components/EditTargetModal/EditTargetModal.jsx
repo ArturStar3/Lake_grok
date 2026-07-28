@@ -21,6 +21,7 @@ import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCo
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
+import { resolveImagePreviewUrl, resolveMediaUrl } from '../../utils/mediaUrl';
 import {
     geoJsonPolygonToDrawPoints,
     isInundationAction,
@@ -1013,7 +1014,7 @@ export default function EditTargetModal({
                                                 className="edit-target-modal__attachment-thumb"
                                                 onClick={() => setPreviewImage(item)}
                                             >
-                                                <img src={item.image} alt={item.title} />
+                                                <img src={resolveMediaUrl(item.image)} alt={item.title} />
                                             </button>
                                             <div className="edit-target-modal__attachment-info">
                                                 <strong>{item.title}</strong>
@@ -1794,14 +1795,9 @@ export default function EditTargetModal({
                                                                 className="edit-target-modal__vuln-file"
                                                                 onChange={(e) => handleVulnerabilityFieldChange(index, 'imageFile', e.target.files?.[0] || null)}
                                                             />
-                                                            {row.imageFile ? (
-                                                                <span className="edit-target-modal__vuln-file-name">
-                                                                    {row.imageFile.name}
-                                                                </span>
-                                                            ) : null}
-                                                            {row.image && !row.imageFile ? (
+                                                            {row.imageFile || row.image ? (
                                                                 <img
-                                                                    src={row.image}
+                                                                    src={resolveImagePreviewUrl(row.image, row.imageFile)}
                                                                     alt=""
                                                                     className="edit-target-modal__vuln-preview"
                                                                 />
@@ -1931,7 +1927,7 @@ export default function EditTargetModal({
                         >
                             ×
                         </button>
-                        <img src={previewImage.image} alt={previewImage.title} />
+                        <img src={resolveMediaUrl(previewImage.image)} alt={previewImage.title} />
                         <div className="edit-target-modal__image-preview-caption">
                             <strong>{previewImage.title}</strong>
                             {previewImage.description && (

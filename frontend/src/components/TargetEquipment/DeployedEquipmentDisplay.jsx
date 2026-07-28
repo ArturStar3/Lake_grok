@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import EquipmentDetailModal from './EquipmentDetailModal';
 import './DeployedEquipmentDisplay.css';
 
 function getPrimaryImage(row) {
   const images = row.equipment?.images;
   if (!images?.length) return null;
-  return images[0].image;
+  return resolveMediaUrl(images[0].image);
 }
 
 const UNCATEGORIZED_KEY = '__none__';

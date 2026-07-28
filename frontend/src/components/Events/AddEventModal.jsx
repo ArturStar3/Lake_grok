@@ -7,6 +7,7 @@ import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoin
 import "./AddEventModal.css";
 
 import { API_URL as API_ROOT } from '../../config/api';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 
 const EVENT_COLORS = [
 	"#2f80ed",
@@ -111,7 +112,7 @@ export default function AddEventModal({
 				markersRes.data?.forEach(async (marker) => {
 					if (marker.path) {
 						try {
-							const res = await axios.get(marker.path, { responseType: "text" });
+							const res = await axios.get(resolveMediaUrl(marker.path), { responseType: "text" });
 							setMarkerSvgs((prev) => new Map(prev).set(marker.id, res.data));
 						} catch (err) {
 							console.warn("Не удалось загрузить SVG маркера:", marker.path, err);

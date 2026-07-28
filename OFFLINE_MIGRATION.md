@@ -63,7 +63,7 @@ git pull
 Скрипт выполняет:
 
 1. `npm run build:map-style` — сборка `infolake-unified.json` и маппинга слоёв
-2. `docker compose -f docker-compose.yml -f docker-compose.server.yml build` — backend и **production frontend** (`Dockerfile.server`: `npm run build` + `vite preview`, без bind-mount и HMR)
+2. `docker compose -f docker-compose.yml -f docker-compose.server.yml build` — backend и **production nginx** (`Dockerfile.server`: `npm run build` + nginx, без bind-mount)
 3. Проверку наличия всех образов локально
 4. `docker save` → **`infolake_full_offline.tar`**
 5. Копию с датой: `infolake_full_offline_YYYYMMDD_HHMMSS.tar`
@@ -72,7 +72,7 @@ git pull
 Образы в архиве:
 
 - `infolake-backend:latest`
-- `infolake-frontend:latest`
+- `infolake-nginx:latest`
 - `maptiler/tileserver-gl:latest`
 
 Опции:
@@ -113,7 +113,7 @@ Lake_grok/
 ├── import-and-start.ps1               # запуск на offline
 ├── export-offline.ps1                 # только для следующих online-сборок
 ├── docker-compose.yml
-├── docker-compose.server.yml          # production frontend (без Vite bind-mount)
+├── docker-compose.server.yml          # production nginx (статика + reverse-proxy)
 ├── OFFLINE_MIGRATION.md
 ├── OFFLINE_MIGRATION_MARKER_PALETTES.md
 ├── scripts/offline/                   # post-update, backup, migrate helpers
@@ -128,8 +128,8 @@ Lake_grok/
 
 **Не копировать:**
 
-- `node_modules/`, `frontend/node_modules/` — есть в образе frontend
-- `frontend/dist/` — уже внутри production-образа (`Dockerfile.server`); bind-mount исходников на оффлайн не используется
+- `node_modules/`, `frontend/node_modules/` — есть в образе frontend (dev) / nginx (prod)
+- `frontend/dist/` — уже внутри production-образа nginx (`Dockerfile.server`); bind-mount исходников на оффлайн не используется
 - `**/__pycache__/`
 - старые `infolake_full_offline_*.tar` (кроме одного датированного бэкапа по желанию)
 - `.git/` — по желанию
@@ -177,7 +177,7 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-bui
 docker compose -f docker-compose.yml -f docker-compose.server.yml ps
 ```
 
-> **Важно:** оффлайн всегда запускайте с `docker-compose.server.yml`. Базовый `docker-compose.yml` один (с bind-mount `./frontend:/app` и `npm run dev`) предназначен для разработки; на сервере он со временем раздувает память WSL2/Docker Desktop.
+> **Важно:** оффлайн всегда запускайте с `docker-compose.server.yml`. Базовый `docker-compose.yml` + профиль `dev` — для разработки (`docker compose --profile dev up`); на сервере используйте production override без профиля.
 
 ### 5.5. Миграции Django (первый запуск)
 
@@ -203,11 +203,13 @@ docker compose exec backend python manage.py rebuild_target_hierarchy
 
 | Сервис | URL | Ожидание |
 |--------|-----|----------|
-| Frontend | http://localhost:5173 | карта, объекты |
-| Backend API | http://localhost:8000/api/v1/ | JSON |
-| TileServer | http://localhost:8080/ | список стилей |
-| Unified style | http://localhost:8080/styles/infolake-unified/style.json | JSON 200 |
-| Vector tiles | http://localhost:8080/data/openmaptiles/4/9/5.pbf | бинарный 200 |
+| App (nginx) | http://localhost/ | карта, объекты |
+| Backend API | http://localhost/api/v1/ | JSON |
+| Admin | http://localhost/admin/ | Django admin |
+| TileServer | http://localhost/tiles/ | список стилей |
+| Unified style | http://localhost/tiles/styles/infolake-unified/style.json | JSON 200 |
+| Vector tiles | http://localhost/tiles/data/openmaptiles/4/9/5.pbf | бинарный 200 |
+| Media | http://localhost/media/markers/ | SVG/файлы 200 |
 
 Проверка векторного режима карты:
 
@@ -271,12 +273,12 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend p
 | `style.json 404` | Перезапуск tileserver; проверьте `infolake-unified` в `config.json` |
 | Backend не подключается к БД | `DB_HOST`, firewall, PostgreSQL `listen_addresses` |
 | Карта «зависла» после создания user в admin | Старый образ с `runserver --nothreading` — пересобрать backend с Gunicorn; см. [backend/docs/ADMIN_USER_STABILITY.md](backend/docs/ADMIN_USER_STABILITY.md) |
-| Ошибка векторной карты | TileServer :8080 доступен; `VITE_TILESERVER_URL` в compose |
+| Ошибка векторной карты | nginx `/tiles/` доступен; `VITE_TILESERVER_URL=/tiles` в compose |
 | PDF-отчёт: `timeout of 15000ms` / `ECONNABORTED` | Нужен код с таймаутом генерации 360 с и `GUNICORN_TIMEOUT=300` в compose; обновите проект + перезапустите контейнеры (образы из свежего `export-offline.ps1`) |
 | PDF/DOCX долго формируется | Нормально на слабом ПК; не прерывайте запрос до ~5 мин; уменьшите число разделов/стран в шаблоне |
 | Frontend «завис», `docker kill` / `compose down` не помогают, только reboot | Скорее WSL2/Docker Desktop thrashing (память), не баг React. См. раздел **8.1** ниже |
 | Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
-| Неясная версия кода на офлайн | В папке проекта: `git log -1` (ожидается актуальный коммит рабочей ветки, напр. `develop_report`) |
+| `bind: ... 0.0.0.0:80` / nginx не стартует (Windows) | Порт 80 занят HTTP.sys/IIS. В корне проекта создайте `.env` из `.env.example`: `NGINX_HTTP_PORT=8080`, затем `docker compose --profile dev up` → http://localhost:8080/ |
 
 ### 8.1. Зависание контейнера frontend (unkillable)
 
@@ -286,8 +288,8 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend p
 
 **Что уже сделано в проекте:**
 
-- Оффлайн-скрипты поднимают frontend через `docker-compose.server.yml` (статика + `vite preview`, **без** bind-mount исходников).
-- У `frontend` / `backend` заданы `mem_limit` / `cpus` и healthcheck у frontend — при утечке Docker OOM-kill'ит контейнер вместо всей VM.
+- Оффлайн-скрипты поднимают nginx через `docker-compose.server.yml` (статика + reverse-proxy, **без** bind-mount исходников).
+- У `nginx` / `backend` / `tileserver` заданы `mem_limit` / `cpus` и healthcheck — при утечке Docker OOM-kill'ит контейнер вместо всей VM.
 - HMR и polling в Docker отключены (`VITE_ENABLE_HMR=false`).
 
 **Если зависание повторится:**
@@ -326,7 +328,7 @@ swap=2GB
 - [ ] `.\import-and-start.ps1` — контейнеры `Up`
 - [ ] `createsuperuser` выполнен (migrate уже в entrypoint)
 - [ ] Опционально: `seed_security_groups`
-- [ ] Frontend :5173, API :8000, карта отображается
+- [ ] http://localhost/ открывается, API `/api/v1/`, карта отображается
 
 ---
 

@@ -6,6 +6,7 @@ import {
   useEquipmentCatalogAdmin,
 } from '../../hooks/referenceData/useEquipmentCatalogAdmin';
 import { filterEquipmentCatalog, formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import './EquipmentCatalogPanel.css';
 
 export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = null, schemaVersion = 0 }) {
@@ -342,7 +343,7 @@ export default function EquipmentCatalogPanel({ isActive, initialEquipmentId = n
                     {images.map((img) => (
                       <li key={img.id} className="equipment-catalog-panel__gallery-item">
                         <img
-                          src={img.image}
+                          src={resolveMediaUrl(img.image)}
                           alt={img.title || form.title || 'Изображение техники'}
                           className="equipment-catalog-panel__gallery-thumb"
                         />

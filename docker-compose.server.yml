@@ -1,21 +1,18 @@
-# Production-frontend для оффлайн-сервера (статика + vite preview, без HMR/bind-mount).
+# Production nginx для оффлайн-сервера (статика из dist + reverse-proxy).
 # Сборка на машине с интернетом:
-#   docker compose -f docker-compose.yml -f docker-compose.server.yml build frontend
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml build nginx
 # Запуск (оффлайн / production):
 #   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
 #
-# Важно: volumes: [] переопределяет bind-mount ./frontend:/app из базового compose,
-# иначе исходники с хоста затеняют собранный dist внутри образа.
+# Важно: volumes: !reset — убирает dev.conf bind-mount из базового compose.
 
 services:
-  frontend:
+  nginx:
     build:
       context: ./frontend
       dockerfile: Dockerfile.server
-    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
-    # !reset обязателен: иначе Compose дописывает bind-mount из docker-compose.yml,
-    # и старый ./frontend/dist с хоста затеняет свежий dist внутри образа.
-    volumes: !reset []
-    environment:
-      VITE_ENABLE_HMR: "false"
-      CHOKIDAR_USEPOLLING: "false"
+    image: infolake-nginx:latest
+    pull_policy: never
+    volumes: !reset
+      - ./backend/media:/var/www/media:ro
+      - ./backend/staticfiles:/var/www/static:ro

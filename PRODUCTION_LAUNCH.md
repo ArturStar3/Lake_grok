@@ -112,12 +112,12 @@ SECRET_KEY=длинная-случайная-строка
 DEBUG=False
 ALLOWED_HOSTS=localhost,127.0.0.1,172.16.80.207
 
-# CORS: origin для frontend-браузера (укажите ваш URL/hostname + порт)
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://172.16.80.207:5173
+# CORS: при доступе через nginx (единый origin :80) обычно не требуется.
+CORS_ALLOWED_ORIGINS=http://localhost,http://127.0.0.1,http://172.16.80.207
 CORS_ALLOW_ALL_ORIGINS=False
 
-# URL фронтенда, который Django использует в admin (ссылка "Открыть сайт")
-FRONTEND_URL=http://172.16.80.207:5173
+# URL фронтенда для ссылки «Открыть сайт» в Django admin (через nginx, без порта).
+FRONTEND_URL=http://172.16.80.207
 ```
 
 > **Важно:** в production всегда `DEBUG=False`. Иначе страницы ошибок 404/500 не покажутся, а на экран могут попасть технические детали.
@@ -168,10 +168,10 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend p
 
 | Адрес | Ожидание |
 |-------|----------|
-| http://localhost:5173 | Открывается карта / форма входа |
-| http://localhost:8000/admin/ | Админка Django |
-| http://localhost:8000/api/v1/ | JSON API |
-| http://localhost:8080/ | TileServer |
+| http://localhost/ | Открывается карта / форма входа |
+| http://localhost/admin/ | Админка Django |
+| http://localhost/api/v1/ | JSON API |
+| http://localhost/tiles/ | TileServer (через nginx) |
 
 Войдите пользователем, созданным на шаге 7.
 
@@ -194,8 +194,8 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend p
 | | Development | Production (этот компьютер) |
 |--|-------------|------------------------------|
 | Ветка | `develop_report` и др. | только `production` |
-| Frontend | `npm run dev`, bind-mount | собранная статика (`vite preview`) |
-| Compose | `docker compose up` | `docker-compose.yml` **+** `docker-compose.server.yml` |
+| Frontend | `npm run dev`, bind-mount, nginx :80 | собранная статика в образе nginx |
+| Compose | `docker compose --profile dev up` | `docker-compose.yml` **+** `docker-compose.server.yml` |
 | `DEBUG` | `True` | `False` |
 | Обновления | git pull / правка кода | `apply-update.bat` |
 

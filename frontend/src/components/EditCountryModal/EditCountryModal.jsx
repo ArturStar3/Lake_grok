@@ -4,6 +4,7 @@ import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './EditCountryModal.css';
 import { API_URL } from '../../config/api';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 
 const API_ROOT = API_URL;
 
@@ -542,7 +543,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                                                                                         className="edit-country-modal__attachment-thumb"
                                                                                         onClick={() => setPreviewImage(item)}
                                                                                     >
-                                                                                        <img src={item.image} alt={item.title} />
+                                                                                        <img src={resolveMediaUrl(item.image)} alt={item.title} />
                                                                                     </button>
                                                                                     <div className="edit-country-modal__attachment-info">
                                                                                         <strong>{item.title}</strong>
@@ -682,7 +683,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                         >
                             ×
                         </button>
-                        <img src={previewImage.image} alt={previewImage.title} />
+                        <img src={resolveMediaUrl(previewImage.image)} alt={previewImage.title} />
                         <div className="edit-country-modal__image-preview-caption">
                             <strong>{previewImage.title}</strong>
                             {previewImage.description && (

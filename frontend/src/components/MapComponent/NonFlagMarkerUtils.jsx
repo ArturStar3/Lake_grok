@@ -9,6 +9,7 @@ import {
   createNonFlagDivIcon,
   createGroupCountDivIcon,
 } from "../../utils/markerIconFactory";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 
 const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 
@@ -42,7 +43,7 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
 
     const selectedNonFlagObjects = filterNonFlagMarkers(objects, selectedIds);
 
-    const uniquePaths = Array.from(new Set(selectedNonFlagObjects.map(o => o.marker?.path).filter(Boolean)));
+    const uniquePaths = Array.from(new Set(selectedNonFlagObjects.map(o => resolveMediaUrl(o.marker?.path)).filter(Boolean)));
     return uniquePaths.sort().join('|');
   }, [objects, selectedIds]);
 

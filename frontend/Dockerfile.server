@@ -1,4 +1,4 @@
-# Production-сборка фронта для сервера (статика + vite preview, без dev/HMR).
+# Production-сборка: frontend dist + nginx (единая точка входа).
 # Собирается на машине с интернетом, на оффлайн-машине: docker load + up --no-build.
 
 FROM node:20-alpine AS build
@@ -10,24 +10,17 @@ RUN npm install
 
 COPY . .
 
-ARG VITE_API_URL=http://localhost:8000
-ARG VITE_TILESERVER_URL=http://localhost:8080
+ARG VITE_API_URL=
+ARG VITE_TILESERVER_URL=/tiles
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_TILESERVER_URL=$VITE_TILESERVER_URL
 ENV VITE_ENABLE_HMR=false
 
 RUN npm run build
 
-FROM node:20-alpine
+FROM nginx:1.27-alpine
 
-WORKDIR /app
+COPY deploy/nginx.prod.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 
-COPY package.json package-lock.json* ./
-RUN npm install
-
-COPY --from=build /app/dist ./dist
-COPY vite.config.js ./vite.config.js
-
-EXPOSE 5173
-
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
+EXPOSE 80

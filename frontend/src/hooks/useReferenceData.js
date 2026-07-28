@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config/api';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -15,7 +16,8 @@ async function loadMarkerSvgs(markers, signal) {
       .filter((m) => m.path)
       .map(async (marker) => {
         try {
-          const res = await axios.get(marker.path, { responseType: 'text', signal });
+          const mediaUrl = resolveMediaUrl(marker.path);
+          const res = await axios.get(mediaUrl, { responseType: 'text', signal });
           return [marker.id, res.data];
         } catch (err) {
           if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') throw err;

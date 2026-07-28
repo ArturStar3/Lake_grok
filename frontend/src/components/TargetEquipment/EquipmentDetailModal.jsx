@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './EquipmentDetailModal.css';
 
@@ -118,7 +119,7 @@ export default function EquipmentDetailModal({
                       title="Открыть изображение"
                     >
                       <img
-                        src={img.image}
+                        src={resolveMediaUrl(img.image)}
                         alt={img.title || label}
                         className="equipment-detail-modal__gallery-img"
                       />
@@ -183,7 +184,7 @@ export default function EquipmentDetailModal({
             >
               ×
             </button>
-            <img src={previewImage.image} alt={previewImage.title || label} />
+            <img src={resolveMediaUrl(previewImage.image)} alt={previewImage.title || label} />
           </div>
         </div>
       )}
