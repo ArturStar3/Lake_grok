@@ -8,19 +8,28 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 if (-not $TarFile) {
-    if (Test-Path "infolake_full_offline.tar") {
+    if (Test-Path "infolake_full_offline_prod.tar") {
+        $TarFile = (Resolve-Path "infolake_full_offline_prod.tar").Path
+    } elseif (Test-Path "infolake_full_offline.tar") {
         $TarFile = (Resolve-Path "infolake_full_offline.tar").Path
     } else {
-        $TarFile = Get-ChildItem -Filter "infolake_full_offline_*.tar" |
+        $TarFile = Get-ChildItem -Filter "infolake_full_offline_prod_*.tar" |
                    Sort-Object LastWriteTime -Descending |
                    Select-Object -First 1 |
                    Select-Object -ExpandProperty FullName
+        if (-not $TarFile) {
+            $TarFile = Get-ChildItem -Filter "infolake_full_offline_*.tar" |
+                       Where-Object { $_.Name -notmatch '_dev' } |
+                       Sort-Object LastWriteTime -Descending |
+                       Select-Object -First 1 |
+                       Select-Object -ExpandProperty FullName
+        }
     }
 }
 
 if (-not $TarFile -or -not (Test-Path $TarFile)) {
-    Write-Host "Archive not found (infolake_full_offline.tar)" -ForegroundColor Red
-    Write-Host "Copy infolake_full_offline.tar from the online build machine." -ForegroundColor Yellow
+    Write-Host "Archive not found (infolake_full_offline_prod.tar)" -ForegroundColor Red
+    Write-Host "Copy infolake_full_offline_prod.tar from the online build machine." -ForegroundColor Yellow
     exit 1
 }
 

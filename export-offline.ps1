@@ -16,7 +16,7 @@ function Get-ComposeImages {
         [switch]$Dev
     )
     $composeArgs = if ($Dev) {
-        @("compose", "config", "--images")
+        @("compose", "--profile", "dev", "config", "--images")
     } else {
         @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "config", "--images")
     }
@@ -46,7 +46,7 @@ if (-not $SkipMapStyle) {
 if (-not $SkipBuild) {
     if ($Dev) {
         Write-Host "`n=== Building Docker images (DEV: bind-mount frontend/backend/tileserver) ===" -ForegroundColor Cyan
-        $buildArgs = @("compose", "build")
+        $buildArgs = @("compose", "--profile", "dev", "build")
     } else {
         Write-Host "`n=== Building Docker images (production frontend) ===" -ForegroundColor Cyan
         $buildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "build")
@@ -87,11 +87,12 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
+$modeSuffix = if ($Dev) { "dev" } else { "prod" }
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$tarName = "infolake_full_offline_$timestamp.tar"
+$tarName = "infolake_full_offline_${modeSuffix}_$timestamp.tar"
 $fullPath = Join-Path $OutputDir $tarName
-$stablePath = Join-Path $OutputDir "infolake_full_offline.tar"
-$manifestPath = Join-Path $OutputDir "offline-package-manifest.txt"
+$stablePath = Join-Path $OutputDir "infolake_full_offline_$modeSuffix.tar"
+$manifestPath = Join-Path $OutputDir "offline-package-manifest-$modeSuffix.txt"
 
 Write-Host "`n=== Saving images ===" -ForegroundColor Yellow
 Write-Host "Images: $($images -join ', ')" -ForegroundColor DarkGray
@@ -123,7 +124,7 @@ Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Git branch: $gitBranch
 Mode: $modeLabel
 
-Docker images in infolake_full_offline.tar:
+Docker images in infolake_full_offline_$modeSuffix.tar:
 $(($images | ForEach-Object { "  - $_" }) -join "`n")
 
 Archive:
@@ -132,7 +133,7 @@ Archive:
   Size:      $([math]::Round($sizeMb, 1)) MB
 
 Copy to offline server:
-  1. infolake_full_offline.tar (this archive)
+  1. infolake_full_offline_$modeSuffix.tar (this archive)
   2. Full project folder (git clone / zip), EXCLUDING:
      - node_modules, __pycache__, .git (optional)
      - frontend/dist (production only - built into image)
@@ -160,5 +161,5 @@ Write-Host "  Stable:    $stablePath"
 Write-Host "  Timestamp: $fullPath"
 Write-Host ("  Size: {0:N1} MB" -f $sizeMb)
 Write-Host "  Manifest:  $manifestPath"
-Write-Host "`nNext: copy infolake_full_offline.tar + project + map.mbtiles to offline server."
-Write-Host "Guide: OFFLINE_MIGRATION.md"
+Write-Host "`nNext: copy infolake_full_offline_$modeSuffix.tar + project + map.mbtiles to offline server."
+Write-Host "Guide: OFFLINE_DEPLOY_$(if ($Dev) { 'DEV' } else { 'PROD' }).md"

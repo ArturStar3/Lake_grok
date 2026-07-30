@@ -7,6 +7,8 @@
 - [docker_instruction.md](docker_instruction.md) — детали `docker save` / `docker load`
 - [tileserver_start_guide.md](tileserver_start_guide.md) — карта и `map.mbtiles`
 - [map_layers_plan.md](map_layers_plan.md) — векторные слои карты (`infolake-unified`)
+- [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md) — диагностика зависаний nginx/Docker на офлайн-ПК
+- [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) / [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск prod/dev
 
 ---
 
@@ -277,6 +279,7 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend p
 | PDF-отчёт: `timeout of 15000ms` / `ECONNABORTED` | Нужен код с таймаутом генерации 360 с и `GUNICORN_TIMEOUT=300` в compose; обновите проект + перезапустите контейнеры (образы из свежего `export-offline.ps1`) |
 | PDF/DOCX долго формируется | Нормально на слабом ПК; не прерывайте запрос до ~5 мин; уменьшите число разделов/стран в шаблоне |
 | Frontend «завис», `docker kill` / `compose down` не помогают, только reboot | Скорее WSL2/Docker Desktop thrashing (память), не баг React. См. раздел **8.1** ниже |
+| nginx «завис», `docker kill` не отвечает (Docker без WSL2 / Hyper-V) | Диск/логи/память VM. См. раздел **8.2** ниже |
 | Страна не в «Зоны действия» (только ТТХ) | `docker compose exec backend python manage.py audit_equipment_zones`; в admin → «Параметры техники» заполните «Тип зоны действия» (км); во вкладке «Зоны действия» смотрите жёлтый блок диагностики; в DevTools проверьте `deployed_equipment[].zones` и `zone_issues` в `GET /api/v1/targets/` |
 | `bind: ... 0.0.0.0:80` / nginx не стартует (Windows) | Порт 80 занят HTTP.sys/IIS. В корне проекта создайте `.env` из `.env.example`: `NGINX_HTTP_PORT=8080`, затем `docker compose --profile dev up` → http://localhost:8080/ |
 
@@ -308,6 +311,55 @@ swap=2GB
 
 3. Перед зависанием смотрите диспетчер задач (`vmmem` / Docker) и `docker stats` — рост памяти frontend/tileserver без отката указывает на источник давления.
 4. Убедитесь, что на оффлайн-сервере **не** запущен чистый `docker compose up` без `-f docker-compose.server.yml`.
+
+### 8.2. Зависание nginx на Docker Desktop без WSL2 (Hyper-V / Windows containers backend)
+
+Симптом: после нескольких часов работы с картой (prod) `infolake-nginx` перестаёт отвечать; позже `docker compose ... down` / `docker kill` зависают («cannot kill container»). Перезапуск браузера иногда временно помогает, полный reboot — всегда.
+
+**Типичные причины:**
+
+1. **Неограниченный рост логов** (`json-file` без `max-size`) — `/tiles/` генерирует сотни access-записей при pan/zoom и забивает диск Docker.
+2. **Исчерпание памяти VM Docker Desktop** (Hyper-V) — лимиты задаются в GUI, не через `.wslconfig`.
+3. **`worker_processes auto`** в stock nginx — на многоядерном хосте число воркеров растёт сверх `mem_limit` / `cpus`.
+
+**Что уже сделано в проекте (после фикса):**
+
+- У всех сервисов `logging: json-file` с `max-size: 10m`, `max-file: 3`.
+- В prod/dev nginx: `access_log off` для `location /tiles/`.
+- `mem_limit` nginx = `512m`; в образе `infolake-nginx` — `worker_processes 2`.
+
+**Ограничить память Docker Desktop (без WSL2):**
+
+1. Docker Desktop → **Settings** → **Resources** → **Advanced**.
+2. Memory: рекомендуемо **6–8 GB** (не оставляйте «весь RAM»).
+3. CPU: 2–4 ядра; Swap: 1–2 GB.
+4. Apply & Restart.
+
+**Если `docker kill` / `compose down` уже не отвечают (до reboot):**
+
+1. PowerShell **от администратора:**
+
+```powershell
+Restart-Service com.docker.service -Force
+```
+
+Или Services.msc → перезапуск **Docker Desktop Service** / `com.docker.service`.
+
+2. Если служба не поднимается — перезагрузка ПК.
+
+**Чек-лист диагностики (пока ещё отвечает, до полного зависания):**
+
+```powershell
+docker stats --no-stream
+docker system df
+Get-PSDrive C,D
+docker inspect infolake-nginx --format "{{.LogPath}}"
+# затем размер файла лога в проводнике / Get-Item
+docker inspect infolake-nginx --format "OOM={{.State.OOMKilled}} Restarts={{.RestartCount}}"
+docker inspect infolake-nginx --format "{{json .HostConfig.LogConfig}}"
+```
+
+Ожидается: в LogConfig видны `max-size` / `max-file`; размер лога не уходит в гигабайты; `OOMKilled=false`.
 
 ---
 

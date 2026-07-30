@@ -4,7 +4,7 @@
 # Запуск (оффлайн / production):
 #   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
 #
-# Важно: volumes: !reset — убирает dev.conf bind-mount из базового compose.
+# Важно: volumes: !override — заменяет dev.conf bind-mount из базового compose (только media/static).
 
 services:
   nginx:
@@ -13,6 +13,6 @@ services:
       dockerfile: Dockerfile.server
     image: infolake-nginx:latest
     pull_policy: never
-    volumes: !reset
+    volumes: !override
       - ./backend/media:/var/www/media:ro
       - ./backend/staticfiles:/var/www/static:ro

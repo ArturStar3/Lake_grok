@@ -24,17 +24,22 @@ if (-not $OutputDir) {
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-$tarStable = Join-Path $ProjectRoot "infolake_full_offline.tar"
+$tarStable = Join-Path $ProjectRoot "infolake_full_offline_prod.tar"
 if (-not (Test-Path $tarStable)) {
-    throw "Не найден infolake_full_offline.tar. Сначала выполните .\export-offline.ps1"
+    $legacy = Join-Path $ProjectRoot "infolake_full_offline.tar"
+    if (Test-Path $legacy) { $tarStable = $legacy } else {
+        throw "Не найден infolake_full_offline_prod.tar. Сначала выполните .\export-offline.ps1"
+    }
 }
 
 Write-Host "=== InfoLake transfer package ===" -ForegroundColor Cyan
 Write-Host "Output: $OutputDir"
 
 # Docker archive + manifest
-Copy-Item -Force $tarStable (Join-Path $OutputDir "infolake_full_offline.tar")
-if (Test-Path "offline-package-manifest.txt") {
+Copy-Item -Force $tarStable (Join-Path $OutputDir "infolake_full_offline_prod.tar")
+if (Test-Path "offline-package-manifest-prod.txt") {
+    Copy-Item -Force "offline-package-manifest-prod.txt" $OutputDir
+} elseif (Test-Path "offline-package-manifest.txt") {
     Copy-Item -Force "offline-package-manifest.txt" $OutputDir
 }
 
@@ -113,7 +118,7 @@ Set-Location $projectDir
 
 # 2. Скопировать tar, .env, media/map если лежат рядом
 $parent = Split-Path $projectDir -Parent
-foreach ($name in @("infolake_full_offline.tar", ".env", "offline-package-manifest.txt")) {
+foreach ($name in @("infolake_full_offline_prod.tar", "infolake_full_offline.tar", ".env", "offline-package-manifest-prod.txt", "offline-package-manifest.txt")) {
     $src = Join-Path $parent $name
     if (Test-Path $src) { Copy-Item -Force $src (Join-Path $projectDir $name) }
 }
@@ -152,11 +157,11 @@ Server IP: $ServerIp
 Nginx port: $NginxPort
 
 Содержимое:
-  infolake_full_offline.tar   - Docker-образы (~2.5 GB)
-  Lake_grok_code.zip          - код проекта (ветка $branch)
-  backend/.env                - настройки для целевого сервера
-  .env                        - NGINX_HTTP_PORT=$NginxPort
-  DEPLOY_ON_TARGET.ps1        - скрипт развёртывания на офлайн-машине
+  infolake_full_offline_prod.tar - Docker-образы (~2.5 GB)
+  Lake_grok_code.zip             - код проекта (ветка $branch)
+  backend/.env                   - настройки для целевого сервера
+  .env                           - NGINX_HTTP_PORT=$NginxPort
+  DEPLOY_ON_TARGET.ps1           - скрипт развёртывания на офлайн-машине
 
 Если map.mbtiles не включён в пакет - скопируйте вручную:
   tileserver/data/map.mbtiles -> на офлайн-сервер
@@ -170,7 +175,9 @@ Nginx port: $NginxPort
 "@
 Write-Utf8File (Join-Path $OutputDir "README_TRANSFER.txt") $readme
 
-$tarSize = [math]::Round((Get-Item (Join-Path $OutputDir "infolake_full_offline.tar")).Length / 1GB, 2)
+$tarOut = Join-Path $OutputDir "infolake_full_offline_prod.tar"
+if (-not (Test-Path $tarOut)) { $tarOut = Join-Path $OutputDir "infolake_full_offline.tar" }
+$tarSize = [math]::Round((Get-Item $tarOut).Length / 1GB, 2)
 Write-Host "`nDone!" -ForegroundColor Green
 Write-Host "  Folder: $OutputDir"
 Write-Host "  Tar:    ${tarSize} GB"

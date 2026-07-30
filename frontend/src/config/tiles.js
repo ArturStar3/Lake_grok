@@ -41,6 +41,11 @@ function getAppOrigin() {
   }
 }
 
+/** new URL() кодирует {z}/{fontstack}/{range} → %7B…%7D; MapLibre требует сырые токены. */
+function preserveMaplibreTokens(path) {
+  return path.replace(/%7B/gi, '{').replace(/%7D/gi, '}');
+}
+
 /** Нормализует URL тайлов на текущий origin (localhost vs LAN IP, порт nginx). */
 export function normalizeTileserverUrl(url) {
   if (!url || typeof url !== 'string') return url;
@@ -56,8 +61,8 @@ export function normalizeTileserverUrl(url) {
   if (url.startsWith('http://') || url.startsWith('https://')) {
     try {
       const parsed = new URL(url);
-      pathname = parsed.pathname;
-      search = parsed.search;
+      pathname = preserveMaplibreTokens(parsed.pathname);
+      search = preserveMaplibreTokens(parsed.search);
     } catch {
       return url;
     }
@@ -66,6 +71,13 @@ export function normalizeTileserverUrl(url) {
     const pathPart = queryIndex >= 0 ? url.slice(0, queryIndex) : url;
     search = queryIndex >= 0 ? url.slice(queryIndex) : '';
     pathname = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+
+    // Сырой шаблон глифов из style.json без префикса fonts/
+    if (pathname === '/{fontstack}/{range}.pbf' || pathname.endsWith('/{fontstack}/{range}.pbf')) {
+      if (!pathname.includes('/fonts/')) {
+        pathname = `/fonts/{fontstack}/{range}.pbf`;
+      }
+    }
   }
 
   if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
