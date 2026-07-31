@@ -79,12 +79,15 @@
   text-align: center;
 }
 
-.map__event-toolbar-error {
+.map__event-toolbar-error.dismissible-banner {
+  max-width: none;
+  width: 100%;
   margin: 0;
+  padding: 4px 6px 4px 8px;
+  box-shadow: none;
   font-size: 10px;
   line-height: 1.35;
-  color: #b91c1c;
-  text-align: center;
+  text-align: left;
 }
 
 .map__event-toolbar-actions {

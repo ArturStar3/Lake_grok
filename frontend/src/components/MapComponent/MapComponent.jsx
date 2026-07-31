@@ -17,6 +17,7 @@ import { createZoneHoverController } from "../../utils/zoneHoverController";
 import CountryModal from "../CountryModal/CountryModal";
 import AddEventModal from "../Events/AddEventModal";
 import MarkdownContent from "../common/MarkdownEditor/MarkdownContent";
+import DismissibleBanner from "../common/DismissibleBanner/DismissibleBanner";
 import EventDrawingToolbar from "./EventDrawingToolbar";
 import SituationDrawingToolbar from "./SituationDrawingToolbar";
 import OperationalSituationLayer from "./OperationalSituationLayer";
@@ -2011,9 +2012,11 @@ function MapComponent({
             ref={containerRef}
         >
             {vectorMapError && USE_VECTOR_MAP && (
-                <div className="map__vector-error" role="alert">
-                    Ошибка загрузки векторной карты: {vectorMapError}
-                </div>
+                <DismissibleBanner
+                    className="map__vector-error"
+                    message={`Ошибка загрузки векторной карты: ${vectorMapError}`}
+                    onDismiss={() => setVectorMapError(null)}
+                />
             )}
             {isFullscreen && (
                 <>
@@ -2469,21 +2472,19 @@ function MapComponent({
                 />
             )}
             {isSituationDrawingActive && isSituationModalOpen && (
-                <div className="situation-map-edit-hint" role="status">
-                    {situationCompletedPolygons.length > 0 ? (
-                        <>
-                            Редактируется территория{' '}
-                            {Math.min(
-                                situationDrawTerritoryIndex + 1,
-                                situationCompletedPolygons.length,
-                            )}
-                            {' '}из {situationCompletedPolygons.length}: перетаскивайте вершины,
-                            кликайте по ребру для новой точки
-                        </>
-                    ) : (
-                        'Редактируйте контур на карте: перетаскивайте вершины, кликайте по ребру для новой точки'
-                    )}
-                </div>
+                <DismissibleBanner
+                    className="situation-map-edit-hint"
+                    variant="info"
+                    role="status"
+                    message={
+                        situationCompletedPolygons.length > 0
+                            ? `Редактируется территория ${Math.min(
+                                  situationDrawTerritoryIndex + 1,
+                                  situationCompletedPolygons.length,
+                              )} из ${situationCompletedPolygons.length}: перетаскивайте вершины, кликайте по ребру для новой точки`
+                            : 'Редактируйте контур на карте: перетаскивайте вершины, кликайте по ребру для новой точки'
+                    }
+                />
             )}
             {isSituationDrawingActive && !isSituationModalOpen && (
                 <SituationDrawingToolbar

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
+import DismissibleBanner from '../common/DismissibleBanner/DismissibleBanner';
 import './EventDrawingToolbar.css';
 
 const TOOLS = [
@@ -118,7 +119,11 @@ export default function EventDrawingToolbar({
       <p className="map__event-toolbar-hint">{hint}</p>
 
       {validationError && (
-        <p className="map__event-toolbar-error" role="alert">{validationError}</p>
+        <DismissibleBanner
+          className="map__event-toolbar-error"
+          variant="error"
+          message={validationError}
+        />
       )}
 
       {showPolygonCoords && (

@@ -12,18 +12,21 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host "=== InfoLake: export PROD + DEV offline archives ===" -ForegroundColor Cyan
 
-$commonArgs = @("-OutputDir", $OutputDir)
-if ($NoCache) { $commonArgs += "-NoCache" }
-if ($SkipBuild) { $commonArgs += "-SkipBuild" }
-if ($SkipMapStyle) { $commonArgs += "-SkipMapStyle" }
-
 Write-Host "`n--- PRODUCTION ---" -ForegroundColor Yellow
-& (Join-Path $scriptDir "export-offline.ps1") @commonArgs
+& (Join-Path $scriptDir "export-offline.ps1") `
+    -OutputDir $OutputDir `
+    -NoCache:$NoCache `
+    -SkipBuild:$SkipBuild `
+    -SkipMapStyle:$SkipMapStyle
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n--- DEV ---" -ForegroundColor Yellow
-$devArgs = $commonArgs + @("-Dev")
-& (Join-Path $scriptDir "export-offline.ps1") @devArgs
+& (Join-Path $scriptDir "export-offline.ps1") `
+    -OutputDir $OutputDir `
+    -NoCache:$NoCache `
+    -SkipBuild:$SkipBuild `
+    -SkipMapStyle:$SkipMapStyle `
+    -Dev
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n=== Done ===" -ForegroundColor Green

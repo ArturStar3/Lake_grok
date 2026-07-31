@@ -17,6 +17,7 @@
 | Симптом | Что делать дальше |
 |---------|-------------------|
 | UI «отвалился», помогает **перезапуск браузера** | §2 (лёгкая деградация) → §3–5 |
+| **Статика/HTML грузится, но /tiles и /api отвалились** | **§2.1 (stale DNS upstream)** |
 | nginx не отвечает, браузер не помогает | §3–6 |
 | `docker kill` / `compose down` зависают | §7 (аварийное восстановление) |
 | После фикса всё равно повторяется | §3–6 + сохраните вывод команд |
@@ -46,7 +47,7 @@ docker stats --no-stream
 
 - контейнеры `infolake-nginx`, `infolake-backend`, `tileserver-gl` — **Up**
 - у nginx память заметно **ниже** лимита (сейчас `512m`)
-- у tileserver — не упирается постоянно в `4g`
+- у tileserver — не упирается постоянно в `6g`
 
 Проверка HTTP (подставьте IP и порт):
 
@@ -60,6 +61,55 @@ curl.exe -s -o NUL -w "admin_css:%{http_code}`n" "http://172.16.80.207/static/ad
 Ожидание: коды **200** (или 401/403 для API без токена — тоже «живой» ответ, не timeout).
 
 Если `curl` висит без ответа — проблема уже на стороне Docker/nginx, не браузера.
+
+---
+
+## 2.1. Статика работает, /api и /tiles не отвечают (stale DNS)
+
+Типичная последовательность:
+
+1. После старта всё работает.
+2. Через время при обновлении страницы — нет тайлов / ошибка glyphs.
+3. Позже не приходят данные backend (`/api/`).
+4. Вкладка браузера крутится бесконечно; `docker stats` / `docker ps` выглядят нормально.
+5. `docker compose ... down` падает с ошибкой kill / «did not return kill event».
+6. После reboot ПК снова работает.
+
+**Причина:** nginx без `resolver` кеширует IP `backend` / `tileserver` **один раз при старте**. Если tileserver или backend упали по OOM (`restart: unless-stopped`) и получили **новый IP** в docker-сети, nginx продолжает стучаться в старый адрес. Запросы висят по ~60 с, заполняют `worker_connections`, nginx перестаёт завершаться за grace period.
+
+Healthcheck, который проверяет только `http://127.0.0.1/` (статический `index.html`), остаётся green — поэтому в `docker ps` всё «здорово».
+
+**Доказательства (выполнить при симптоме или сразу после):**
+
+```powershell
+docker inspect tileserver-gl infolake-backend infolake-nginx --format "{{.Name}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} started={{.State.StartedAt}}"
+docker exec infolake-nginx getent hosts backend tileserver
+docker inspect -f "{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" tileserver-gl infolake-backend
+docker logs --tail 50 infolake-nginx 2>&1 | findstr /i "upstream-watchdog timed out connect"
+```
+
+Подтверждение гипотезы:
+
+- `StartedAt` у tileserver/backend **позже**, чем у nginx, и/или `restarts > 0`, `oom=true`
+- IP из `getent hosts` внутри nginx **не совпадает** с актуальным IP контейнера (на старых образах без `resolver`)
+
+**Что уже исправлено в актуальном пакете:**
+
+- `resolver 127.0.0.11 valid=10s` + `proxy_pass` через переменные (DNS перечитывается)
+- короткие `proxy_connect_timeout` (fail-fast)
+- healthcheck nginx проверяет `/tiles/...` и `/api/v1/`
+- watchdog: `nginx -s reload`, затем restart контейнера при длительном отказе upstream
+- `mem_limit` tileserver `6g`, backend `3g`; `stop_grace_period: 20s`
+
+**Временное восстановление без reboot (если ещё отвечает Docker):**
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.server.yml restart nginx
+# если не помогает:
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --force-recreate nginx --no-build --pull never
+```
+
+После обновления пакета (новый `infolake-nginx` + compose) рестарт tileserver/backend должен сам «залечиваться» за 10–15 с.
 
 ---
 
@@ -140,14 +190,15 @@ docker inspect infolake-backend --format "OOM={{.State.OOMKilled}} Restarts={{.R
 
 | Наблюдение | Вывод |
 |------------|--------|
-| `OOM=true` или высокий `Restarts` | Контейнер убивался по лимиту памяти |
+| `OOM=true` или высокий `Restarts` у **tileserver/backend** | Upstream убивался по лимиту памяти → новый IP → на старых образах nginx «залипал» (см. §2.1) |
+| `OOM=true` у nginx | Малый `mem_limit` / слишком много worker'ов |
 | nginx RSS близко к 512 MiB | Нехватка лимита / слишком много worker'ов (старый образ) |
-| tileserver стабильно ~4 GiB | Узкое место — карта/mbtiles, снизить нагрузку или поднять RAM Docker |
+| tileserver стабильно ~6 GiB | Узкое место — карта/mbtiles; поднять RAM Docker Desktop |
 
 ### Лимиты самой VM Docker Desktop (без WSL2)
 
 1. Docker Desktop → **Settings** → **Resources** → **Advanced**
-2. Memory: рекомендуется **6–8 GB** (не «весь RAM»)
+2. Memory: рекомендуется **12–16 GB** (сумма лимитов: tileserver 6g + backend 3g + nginx 0.5g + frontend/dev ≈ 2g)
 3. CPU: 2–4; Swap: 1–2 GB
 4. Apply & Restart
 
@@ -166,6 +217,8 @@ docker exec infolake-nginx nginx -T 2>&1 | findstr /i "worker_processes access_l
 
 - `worker_processes 2;`
 - `access_log off;` внутри `location /tiles/`
+- `resolver 127.0.0.11` и `set $backend_upstream` / `$tileserver_upstream`
+- в логах при старте: `upstream-watchdog: started`
 
 Если видите `worker_processes auto;` и нет `access_log off` у tiles — образ/конфиг старые. Перенесите свежий `infolake_full_offline_prod.tar` и обновлённый код:
 
@@ -247,9 +300,12 @@ docker stats --no-stream 2>&1 | Out-File $report -Append -Encoding utf8
 docker system df 2>&1 | Out-File $report -Append -Encoding utf8
 Get-PSDrive C,D 2>&1 | Out-File $report -Append -Encoding utf8
 docker inspect infolake-nginx --format "LogConfig={{json .HostConfig.LogConfig}} OOM={{.State.OOMKilled}} Restarts={{.RestartCount}}" 2>&1 | Out-File $report -Append -Encoding utf8
-docker inspect tileserver-gl --format "OOM={{.State.OOMKilled}} Restarts={{.RestartCount}}" 2>&1 | Out-File $report -Append -Encoding utf8
+docker inspect tileserver-gl --format "OOM={{.State.OOMKilled}} Restarts={{.RestartCount}} Started={{.State.StartedAt}}" 2>&1 | Out-File $report -Append -Encoding utf8
+docker inspect infolake-backend --format "OOM={{.State.OOMKilled}} Restarts={{.RestartCount}} Started={{.State.StartedAt}}" 2>&1 | Out-File $report -Append -Encoding utf8
+docker exec infolake-nginx getent hosts backend tileserver 2>&1 | Out-File $report -Append -Encoding utf8
+docker inspect -f "{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" tileserver-gl infolake-backend 2>&1 | Out-File $report -Append -Encoding utf8
 docker logs --tail 80 infolake-nginx 2>&1 | Out-File $report -Append -Encoding utf8
-docker exec infolake-nginx nginx -T 2>&1 | Select-String -Pattern "worker_processes|access_log" | Out-File $report -Append -Encoding utf8
+docker exec infolake-nginx nginx -T 2>&1 | Select-String -Pattern "worker_processes|access_log|resolver|backend_upstream|tileserver_upstream" | Out-File $report -Append -Encoding utf8
 
 Write-Host "Report: $report"
 ```
@@ -260,6 +316,7 @@ Write-Host "Report: $report"
 
 | Набор фактов | Вероятная причина |
 |--------------|-------------------|
+| HTML/статика 200, `/tiles` и `/api` timeout; Restarts у tileserver/backend | Stale DNS в nginx после OOM upstream — см. **§2.1** |
 | Лог nginx гигабайты, нет `max-size` | Рост json-file логов + `/tiles/` access_log |
 | Диск почти полный | Давление на IO → зависание Docker |
 | `OOM=true` / частые Restarts у nginx | Малый `mem_limit` или `worker_processes auto` |
@@ -267,4 +324,4 @@ Write-Host "Report: $report"
 | Помогает только reboot / Restart-Service | Демон Docker уже в thrashing — смотреть §3–5 после подъёма |
 | Помогает только Ctrl+F5 / новый браузер | Клиентские соединения / кэш; проверить, нет ли деградации nginx по `curl` |
 
-Фиксы в актуальном пакете: ротация логов, `access_log off` для `/tiles/`, `mem_limit: 512m`, `worker_processes 2` — см. [OFFLINE_MIGRATION.md §8.2](OFFLINE_MIGRATION.md).
+Фиксы в актуальном пакете: ротация логов, `access_log off` для `/tiles/`, `resolver` + переменные в `proxy_pass`, fail-fast таймауты, upstream-watchdog, healthcheck по `/tiles`+`/api`, `mem_limit` tileserver `6g` / backend `3g`, `stop_grace_period: 20s` — см. [OFFLINE_MIGRATION.md §8.2](OFFLINE_MIGRATION.md) и §2.1 выше.

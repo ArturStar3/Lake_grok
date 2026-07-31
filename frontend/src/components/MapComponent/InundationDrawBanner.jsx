@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
+import DismissibleBanner from '../common/DismissibleBanner/DismissibleBanner';
 import './InundationDrawBanner.css';
 
 export default function InundationDrawBanner({
@@ -27,7 +28,11 @@ export default function InundationDrawBanner({
           <span className="inundation-draw-banner__title">{title}</span>
           <span className="inundation-draw-banner__hint">{hint}</span>
           {validationError && (
-            <span className="inundation-draw-banner__error">{validationError}</span>
+            <DismissibleBanner
+              className="inundation-draw-banner__error"
+              variant="dark"
+              message={validationError}
+            />
           )}
         </div>
         <div className="inundation-draw-banner__actions">

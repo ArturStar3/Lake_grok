@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
+import DismissibleBanner from '../common/DismissibleBanner/DismissibleBanner';
 import './SituationDrawingToolbar.css';
 
 export default function SituationDrawingToolbar({
@@ -69,7 +70,13 @@ export default function SituationDrawingToolbar({
         </div>
       </div>
       {hint && <p className="situation-draw-toolbar__hint">{hint}</p>}
-      {validationError && <p className="situation-draw-toolbar__error">{validationError}</p>}
+      {validationError && (
+        <DismissibleBanner
+          className="situation-draw-toolbar__error"
+          variant="error"
+          message={validationError}
+        />
+      )}
       <div className="situation-draw-toolbar__coords">
         <button
           type="button"
