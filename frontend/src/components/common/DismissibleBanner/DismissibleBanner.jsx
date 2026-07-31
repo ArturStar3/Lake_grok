@@ -36,10 +36,15 @@ export default function DismissibleBanner({
       <button
         type="button"
         className="dismissible-banner__close"
-        onClick={handleDismiss}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleDismiss();
+        }}
         aria-label="Закрыть"
+        title="Закрыть"
       >
-        ✕
+        ×
       </button>
     </div>
   );

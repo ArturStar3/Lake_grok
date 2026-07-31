@@ -23,7 +23,36 @@
     top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 1000;
+    /* Выше map-fs-topbar (1100) и тулбаров рисования — иначе header перекрывает крестик */
+    z-index: 1300;
+    width: min(92%, 560px);
+    max-width: min(92%, 560px);
+}
+
+.map--fullscreen .map__vector-error {
+    top: calc(var(--fs-top-h, 50px) + 12px);
+}
+
+.map__vector-error .dismissible-banner__close {
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    background: #fff;
+    color: #991b1b;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    opacity: 1;
+}
+
+.map__vector-error .dismissible-banner__close:hover {
+    background: #fecaca;
 }
 
 .map--fullscreen {

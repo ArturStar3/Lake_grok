@@ -2011,13 +2011,6 @@ function MapComponent({
             className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
             ref={containerRef}
         >
-            {vectorMapError && USE_VECTOR_MAP && (
-                <DismissibleBanner
-                    className="map__vector-error"
-                    message={`Ошибка загрузки векторной карты: ${vectorMapError}`}
-                    onDismiss={() => setVectorMapError(null)}
-                />
-            )}
             {isFullscreen && (
                 <>
                     <MapFullscreenTopBar
@@ -2553,6 +2546,13 @@ function MapComponent({
                 радио "Считывание координат" в контексте инструмента "Зона действия".
                 Ранее при активном showActionRadius координаты скрывались, если не был выбран специальный режим "coords". */}
             <div ref={cursorCoordsRef} className="map__cursor-coords" style={{ display: 'none' }} />
+            {vectorMapError && USE_VECTOR_MAP && (
+                <DismissibleBanner
+                    className="map__vector-error"
+                    message={`Ошибка загрузки векторной карты: ${vectorMapError}`}
+                    onDismiss={() => setVectorMapError(null)}
+                />
+            )}
         </div>
     );
 }
