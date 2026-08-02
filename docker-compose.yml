@@ -26,12 +26,18 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# init: true — Docker подставляет tini как PID 1 (reap зомби + форвард сигналов).
+# Без этого maptiler/tileserver-gl (node = PID 1) копит зомби-процессы рендера
+# и со временем docker stop/down падает с «PID ... is zombie and cannot be killed»
+# (см. maptiler/tileserver-gl#1236, OFFLINE_DIAGNOSTICS.md §7.1).
+
 services:
   nginx:
     image: nginx:1.27-alpine
     container_name: infolake-nginx
     restart: unless-stopped
     stop_grace_period: 20s
+    init: true
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
     volumes:
@@ -65,6 +71,7 @@ services:
     image: maptiler/tileserver-gl:latest
     container_name: tileserver-gl
     restart: unless-stopped
+    init: true
     expose:
       - "8080"
     volumes:
@@ -94,6 +101,7 @@ services:
     container_name: infolake-backend
     pull_policy: never
     restart: unless-stopped
+    init: true
     expose:
       - "8000"
     volumes:
@@ -126,6 +134,7 @@ services:
     container_name: infolake-frontend
     pull_policy: never
     restart: unless-stopped
+    init: true
     expose:
       - "5173"
     volumes:

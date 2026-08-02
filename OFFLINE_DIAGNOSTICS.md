@@ -19,7 +19,8 @@
 | UI «отвалился», помогает **перезапуск браузера** | §2 (лёгкая деградация) → §3–5 |
 | **Статика/HTML грузится, но /tiles и /api отвалились** | **§2.1 (stale DNS upstream)** |
 | nginx не отвечает, браузер не помогает | §3–6 |
-| `docker kill` / `compose down` зависают | §7 (аварийное восстановление) |
+| `compose down`: **PID ... is zombie and cannot be killed** | **§7.1 (zombie PID 1, чаще tileserver)** |
+| `docker kill` / `compose down` зависают (без слова zombie) | §7 (аварийное восстановление) |
 | После фикса всё равно повторяется | §3–6 + сохраните вывод команд |
 
 Все команды — из корня проекта на офлайн-машине, например:
@@ -211,14 +212,16 @@ docker inspect infolake-backend --format "OOM={{.State.OOMKilled}} Restarts={{.R
 ```powershell
 docker images --format "{{.Repository}}:{{.Tag}}  {{.ID}}  {{.CreatedSince}}" | findstr "infolake nginx maptiler"
 docker exec infolake-nginx nginx -T 2>&1 | findstr /i "worker_processes access_log"
+docker inspect tileserver-gl --format "Init={{.HostConfig.Init}}"
 ```
 
-Ожидание в актуальном образе:
+Ожидание в актуальном образе / compose:
 
 - `worker_processes 2;`
 - `access_log off;` внутри `location /tiles/`
 - `resolver 127.0.0.11` и `set $backend_upstream` / `$tileserver_upstream`
 - в логах при старте: `upstream-watchdog: started`
+- `Init=true` у tileserver (и остальных сервисов)
 
 Если видите `worker_processes auto;` и нет `access_log off` у tiles — образ/конфиг старые. Перенесите свежий `infolake_full_offline_prod.tar` и обновлённый код:
 
@@ -264,8 +267,68 @@ wsl --shutdown
 ### После восстановления
 
 1. Проверьте диск (§3) и логи (§4).
-2. Убедитесь в актуальном образе (§6).
+2. Убедитесь в актуальном образе (§6) и что в compose есть `init: true` (§7.1).
 3. Ограничьте Resources Docker (§5).
+
+---
+
+## 7.1. Zombie PID 1 / «cannot kill container» (tileserver)
+
+Типичное сообщение при `docker compose ... down`:
+
+```text
+Error response from daemon: cannot stop container: ... PID 1104 is zombie and cannot be killed.
+Use the --init option when creating containers to run an init inside the container that forwards signals and reaps processes.
+```
+
+Чаще всего контейнер — **`tileserver-gl`**.
+
+### Причина
+
+Образ `maptiler/tileserver-gl` запускает `node` как PID 1 **без** init-системы. Node не делает `wait()` за дочерними процессами рендера → они остаются зомби (`Z` / `<defunct>`). Со временем страдает и сам PID 1 — тогда Docker не может остановить контейнер. Известный баг: [maptiler/tileserver-gl#1236](https://github.com/maptiler/tileserver-gl/issues/1236).
+
+**Docker Desktop 4.43** сам по себе это не вызывает: флаг `init` в Compose есть давно. Старая версия Docker может ухудшать общую стабильность, но корень — отсутствие `init: true` в compose. В актуальном [`docker-compose.yml`](docker-compose.yml) у `tileserver` / `nginx` / `backend` / `frontend` задано `init: true` (Docker подставляет `tini` как PID 1).
+
+### Как подтвердить (пока Docker ещё отвечает)
+
+```powershell
+docker inspect tileserver-gl --format "Init={{.HostConfig.Init}} Pid={{.State.Pid}} Status={{.State.Status}}"
+docker exec tileserver-gl ps -o pid,ppid,stat,cmd 2>&1
+```
+
+Признаки проблемы на **старом** compose (`Init=` пусто / `false`): в `ps` много строк со `STAT=Z` или `<defunct>`, PID 1 — `node` без `tini`/`docker-init`.
+
+После фикса: `Init=true`, PID 1 — `tini` / `docker-init`, `node` — дочерний процесс.
+
+### Немедленное восстановление (зомби нельзя убить через docker stop)
+
+Обычный `docker kill` / `stop` **не помогает** — нужен сброс VM/демона Docker:
+
+1. Запомните (по возможности): `docker inspect tileserver-gl --format "{{.State.Pid}}"`.
+2. **WSL2-бэкенд Docker Desktop** (предпочтительно, если WSL уже стоит):
+
+```powershell
+wsl --shutdown
+```
+
+Затем снова запустите Docker Desktop из меню Пуск.
+
+3. **Hyper-V / без WSL2** — PowerShell **от администратора**:
+
+```powershell
+Restart-Service com.docker.service -Force
+```
+
+Или перезапуск Docker Desktop из трея. Если не помогает — **перезагрузка ПК**.
+
+4. После восстановления Docker подтяните обновлённый `docker-compose.yml` (с `init: true`) и пересоздайте контейнеры (**образы пересобирать не нужно**):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never --force-recreate tileserver nginx backend
+docker inspect tileserver-gl --format "Init={{.HostConfig.Init}}"
+```
+
+Ожидание: `Init=true`.
 
 ---
 
@@ -317,6 +380,7 @@ Write-Host "Report: $report"
 | Набор фактов | Вероятная причина |
 |--------------|-------------------|
 | HTML/статика 200, `/tiles` и `/api` timeout; Restarts у tileserver/backend | Stale DNS в nginx после OOM upstream — см. **§2.1** |
+| `compose down`: **PID is zombie** / tileserver не убивается | Нет `init: true` у tileserver — см. **§7.1** |
 | Лог nginx гигабайты, нет `max-size` | Рост json-file логов + `/tiles/` access_log |
 | Диск почти полный | Давление на IO → зависание Docker |
 | `OOM=true` / частые Restarts у nginx | Малый `mem_limit` или `worker_processes auto` |
@@ -324,4 +388,6 @@ Write-Host "Report: $report"
 | Помогает только reboot / Restart-Service | Демон Docker уже в thrashing — смотреть §3–5 после подъёма |
 | Помогает только Ctrl+F5 / новый браузер | Клиентские соединения / кэш; проверить, нет ли деградации nginx по `curl` |
 
-Фиксы в актуальном пакете: ротация логов, `access_log off` для `/tiles/`, `resolver` + переменные в `proxy_pass`, fail-fast таймауты, upstream-watchdog, healthcheck по `/tiles`+`/api`, `mem_limit` tileserver `6g` / backend `3g`, `stop_grace_period: 20s` — см. [OFFLINE_MIGRATION.md §8.2](OFFLINE_MIGRATION.md) и §2.1 выше.
+Фиксы в актуальном пакете: ротация логов, `access_log off` для `/tiles/`, `resolver` + переменные в `proxy_pass`, fail-fast таймауты, upstream-watchdog, healthcheck по `/tiles`+`/api`, `mem_limit` tileserver `6g` / backend `3g`, `stop_grace_period: 20s`, **`init: true`** (tini) у всех сервисов — см. [OFFLINE_MIGRATION.md §8.2](OFFLINE_MIGRATION.md), §2.1 и §7.1 выше.
+
+**Про Docker Desktop 4.43:** обновление желательно для общей стабильности, но ошибку «PID is zombie» устраняет не апгрейд движка, а `init: true` в compose + пересоздание контейнеров.

@@ -319,9 +319,10 @@ swap=2GB
 **Типичные причины:**
 
 1. **Stale DNS upstream (главная):** nginx без `resolver` кеширует IP `backend`/`tileserver` при старте; после OOM-рестарта upstream получает новый IP — прокси «залипает». Подробно: [OFFLINE_DIAGNOSTICS.md §2.1](OFFLINE_DIAGNOSTICS.md).
-2. **Неограниченный рост логов** (`json-file` без `max-size`) — `/tiles/` генерирует сотни access-записей при pan/zoom и забивает диск Docker.
-3. **Исчерпание памяти VM Docker Desktop** (Hyper-V) — лимиты задаются в GUI, не через `.wslconfig`.
-4. **`worker_processes auto`** в stock nginx — на многоядерном хосте число воркеров растёт сверх `mem_limit` / `cpus`.
+2. **Зомби-процесс в tileserver-gl** (`node` как PID 1 без init) — `docker compose down` пишет «PID ... is zombie and cannot be killed». Подробно: [OFFLINE_DIAGNOSTICS.md §7.1](OFFLINE_DIAGNOSTICS.md).
+3. **Неограниченный рост логов** (`json-file` без `max-size`) — `/tiles/` генерирует сотни access-записей при pan/zoom и забивает диск Docker.
+4. **Исчерпание памяти VM Docker Desktop** (Hyper-V) — лимиты задаются в GUI, не через `.wslconfig`.
+5. **`worker_processes auto`** в stock nginx — на многоядерном хосте число воркеров растёт сверх `mem_limit` / `cpus`.
 
 **Что уже сделано в проекте (после фикса):**
 
@@ -332,6 +333,7 @@ swap=2GB
 - Upstream-watchdog (`nginx -s reload` → restart контейнера при длительном отказе).
 - Healthcheck nginx проверяет `/tiles/...` и `/api/v1/` (не только статику).
 - `mem_limit` tileserver `6g`, backend `3g`; `stop_grace_period: 20s` у nginx.
+- **`init: true`** у `tileserver` / `nginx` / `backend` / `frontend` — tini как PID 1, reap зомби (maptiler/tileserver-gl#1236).
 
 **Ограничить память Docker Desktop (без WSL2):**
 
