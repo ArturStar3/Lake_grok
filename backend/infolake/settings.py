@@ -182,6 +182,7 @@ FORM_RENDERER = 'django.forms.renderers.TemplatesSetting'
 _cors_origins = env('CORS_ALLOWED_ORIGINS', default='http://localhost:5173')
 CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
 CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

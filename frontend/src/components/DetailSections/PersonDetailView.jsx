@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import noUserIcon from '../../assets/images/no_user.png';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import PersonReadContent from './PersonReadContent';
 import PersonReadModal from './PersonReadModal';
 import './DetailSections.css';
@@ -13,7 +14,7 @@ function PersonSummaryCard({ person, onClick }) {
     >
       <img
         className="person-detail-view__summary-avatar"
-        src={person.avatar || noUserIcon}
+        src={resolveMediaUrl(person.avatar) || noUserIcon}
         alt=""
       />
       <div className="person-detail-view__summary-text">

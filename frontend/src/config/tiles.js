@@ -2,15 +2,21 @@
 // Меняйте только здесь!
 
 import unifiedMapping from './unifiedLayerMapping.json';
+import { getDirectTileserverOrigin, isDirectMode } from './directMode';
 
 /** Абсолютный базовый URL TileServer (MapLibre требует абсолютные URL). */
 export function getTileserverBaseUrl() {
   const fromEnv = import.meta.env.VITE_TILESERVER_URL;
-  const raw = (fromEnv !== undefined && fromEnv !== '' ? fromEnv : '/tiles').replace(/\/$/, '');
 
-  if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    return raw;
+  if (fromEnv && (fromEnv.startsWith('http://') || fromEnv.startsWith('https://'))) {
+    return fromEnv.replace(/\/$/, '');
   }
+
+  if (isDirectMode()) {
+    return getDirectTileserverOrigin();
+  }
+
+  const raw = (fromEnv !== undefined && fromEnv !== '' ? fromEnv : '/tiles').replace(/\/$/, '');
 
   if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}${raw.startsWith('/') ? raw : `/${raw}`}`;
@@ -19,11 +25,14 @@ export function getTileserverBaseUrl() {
   return `http://localhost${raw.startsWith('/') ? raw : `/${raw}`}`;
 }
 
-/** Префикс пути для Leaflet TileLayer (same-origin relative). */
+/** Префикс пути для Leaflet TileLayer (same-origin relative или origin tileserver). */
 export function getTilesPathPrefix() {
   const fromEnv = import.meta.env.VITE_TILESERVER_URL;
   if (fromEnv && (fromEnv.startsWith('http://') || fromEnv.startsWith('https://'))) {
     return fromEnv.replace(/\/$/, '');
+  }
+  if (isDirectMode()) {
+    return getDirectTileserverOrigin();
   }
   const path = (fromEnv !== undefined && fromEnv !== '' ? fromEnv : '/tiles').replace(/\/$/, '');
   return path.startsWith('/') ? path : `/${path}`;
@@ -80,6 +89,11 @@ export function normalizeTileserverUrl(url) {
     }
   }
 
+  // nginx отдаёт тайлы с префиксом /tiles/; прямой tileserver слушает корень.
+  if (isDirectMode() && (pathname === '/tiles' || pathname.startsWith('/tiles/'))) {
+    pathname = pathname.slice('/tiles'.length) || '/';
+  }
+
   if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
     return `${origin}${pathname}${search}`;
   }
@@ -94,9 +108,25 @@ export function createMaplibreTransformRequest() {
   });
 }
 
+// Единый стиль InfoLake (база + все оверлеи) — до fetchUnifiedMapStyle для ясности порядка.
+export const UNIFIED_STYLE = 'infolake-unified';
+
 export async function fetchUnifiedMapStyle() {
   const styleUrl = `${getTileserverBaseUrl()}/styles/${UNIFIED_STYLE}/style.json`;
-  const res = await fetch(styleUrl);
+  const controller = new AbortController();
+  const timeoutMs = 15_000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(styleUrl, { signal: controller.signal });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Тайлсервер не ответил за ${timeoutMs / 1000} с (${styleUrl})`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     throw new Error(`style.json HTTP ${res.status} (${styleUrl})`);
   }
@@ -116,15 +146,8 @@ export async function fetchUnifiedMapStyle() {
   return style;
 }
 
-// Базовый URL TileServer GL (абсолютный, вычисляется при импорте в браузере).
-export const TILESERVER_BASE_URL = getTileserverBaseUrl();
-
 // Векторный режим (единый стиль + клиентский рендер). VITE_MAP_VECTOR=false — откат на PNG.
 export const USE_VECTOR_MAP = import.meta.env.VITE_MAP_VECTOR !== 'false';
-
-// Единый стиль InfoLake (база + все оверлеи)
-export const UNIFIED_STYLE = 'infolake-unified';
-export const UNIFIED_STYLE_URL = `${TILESERVER_BASE_URL}/styles/${UNIFIED_STYLE}/style.json`;
 
 // Legacy PNG (откат / отладка)
 export const BORDERS_LABELS_STYLE = 'borders-labels';

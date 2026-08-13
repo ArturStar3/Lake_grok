@@ -1,0 +1,74 @@
+# Запуск InfoLake БЕЗ nginx: браузер ходит на три порта напрямую.
+#
+# Production (статика Vite + serve):
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml --profile direct-prod up -d --no-build --pull never
+#
+# Dev (Vite HMR, bind-mount frontend/):
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml --profile dev up -d --no-build --pull never
+#
+# Перед переключением с nginx-стека: docker compose down (и --profile dev, если был).
+# Порты по умолчанию: UI 5173, API 8000, tiles 8080 (см. .env.example).
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  nginx:
+    profiles: ["with-nginx"]
+    ports: !reset []
+    depends_on: !reset {}
+
+  backend:
+    ports:
+      - "${BACKEND_HTTP_PORT:-8000}:8000"
+    environment:
+      FRONTEND_URL: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+
+  tileserver:
+    ports:
+      - "${TILESERVER_HTTP_PORT:-8080}:8080"
+    environment:
+      # Host: <LAN-IP>:8080 из браузера, не только localhost.
+      TILESERVER_GL_ALLOWED_HOSTS: "*"
+
+  frontend:
+    ports:
+      - "${FRONTEND_HTTP_PORT:-5173}:5173"
+    environment:
+      VITE_DIRECT_MODE: "true"
+      VITE_API_URL: ""
+      VITE_TILESERVER_URL: ""
+      VITE_BACKEND_PORT: "${BACKEND_HTTP_PORT:-8000}"
+      VITE_TILESERVER_PORT: "${TILESERVER_HTTP_PORT:-8080}"
+
+  frontend-static:
+    profiles:
+      - direct-prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.direct
+    image: infolake-frontend-static:latest
+    container_name: infolake-frontend-static
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${FRONTEND_HTTP_PORT:-5173}:5173"
+    environment:
+      BACKEND_HTTP_PORT: "${BACKEND_HTTP_PORT:-8000}"
+      TILESERVER_HTTP_PORT: "${TILESERVER_HTTP_PORT:-8080}"
+    depends_on:
+      - backend
+      - tileserver
+    mem_limit: 512m
+    cpus: "0.5"
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:5173/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

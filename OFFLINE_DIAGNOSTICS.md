@@ -6,6 +6,7 @@
 
 - [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) — запуск production
 - [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск dev
+- [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) — запуск без nginx (если nginx зависает)
 - [OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md) §8.1 / §8.2 — краткий справочник
 
 **Важно:** собирайте данные **пока Docker ещё отвечает**. После полного зависания демона останется только перезапуск службы Docker или reboot.

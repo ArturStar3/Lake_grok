@@ -21,7 +21,8 @@ import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCo
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
 import { API_URL } from '../../config/api';
-import { resolveImagePreviewUrl, resolveMediaUrl } from '../../utils/mediaUrl';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { useObjectUrl } from '../../hooks/useObjectUrl';
 import {
     geoJsonPolygonToDrawPoints,
     isInundationAction,
@@ -38,6 +39,13 @@ import {
     parseLatLngPoints,
     validateEditablePolygonPoints,
 } from '../../utils/polygonDrawUtils';
+
+function VulnerabilityImagePreview({ image, imageFile }) {
+    const objectUrl = useObjectUrl(imageFile instanceof File ? imageFile : null);
+    const src = objectUrl || resolveMediaUrl(image);
+    if (!src) return null;
+    return <img src={src} alt="" className="edit-target-modal__vuln-preview" />;
+}
 
 function ActionPolygonCoordinateField({ zoneGeometry, onGeometryChange, error }) {
     const [editable, setEditable] = useState([]);
@@ -1796,10 +1804,9 @@ export default function EditTargetModal({
                                                                 onChange={(e) => handleVulnerabilityFieldChange(index, 'imageFile', e.target.files?.[0] || null)}
                                                             />
                                                             {row.imageFile || row.image ? (
-                                                                <img
-                                                                    src={resolveImagePreviewUrl(row.image, row.imageFile)}
-                                                                    alt=""
-                                                                    className="edit-target-modal__vuln-preview"
+                                                                <VulnerabilityImagePreview
+                                                                    image={row.image}
+                                                                    imageFile={row.imageFile}
                                                                 />
                                                             ) : null}
                                                         </div>
@@ -1855,7 +1862,7 @@ export default function EditTargetModal({
                                                     </div>
                                                     <img
                                                         className="edit-target-modal__persons-avatar"
-                                                        src={person.avatar || noUserIcon}
+                                                        src={resolveMediaUrl(person.avatar) || noUserIcon}
                                                         alt=""
                                                     />
                                                     <div className="edit-target-modal__persons-info">

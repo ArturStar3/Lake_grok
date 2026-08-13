@@ -5,17 +5,25 @@ param(
     [switch]$NoCache,
     [switch]$SkipBuild,
     [switch]$SkipMapStyle,
-    [switch]$Dev
+    [switch]$Dev,
+    [switch]$Direct
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
+if ($Dev -and $Direct) {
+    throw "Use either -Dev or -Direct, not both."
+}
+
 function Get-ComposeImages {
     param(
-        [switch]$Dev
+        [switch]$Dev,
+        [switch]$Direct
     )
-    $composeArgs = if ($Dev) {
+    $composeArgs = if ($Direct) {
+        @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.direct.yml", "--profile", "direct-prod", "config", "--images")
+    } elseif ($Dev) {
         @("compose", "--profile", "dev", "config", "--images")
     } else {
         @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "config", "--images")
@@ -44,7 +52,10 @@ if (-not $SkipMapStyle) {
 }
 
 if (-not $SkipBuild) {
-    if ($Dev) {
+    if ($Direct) {
+        Write-Host "`n=== Building Docker images (DIRECT: no nginx, static frontend on :5173) ===" -ForegroundColor Cyan
+        $buildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.direct.yml", "--profile", "direct-prod", "build")
+    } elseif ($Dev) {
         Write-Host "`n=== Building Docker images (DEV: bind-mount frontend/backend/tileserver) ===" -ForegroundColor Cyan
         $buildArgs = @("compose", "--profile", "dev", "build")
     } else {
@@ -58,7 +69,7 @@ if (-not $SkipBuild) {
     Write-Host "`n=== Skip build (--SkipBuild) ===" -ForegroundColor DarkGray
 }
 
-$images = Get-ComposeImages -Dev:$Dev
+$images = Get-ComposeImages -Dev:$Dev -Direct:$Direct
 if (-not $images -or $images.Count -eq 0) {
     Write-Host "No images found in docker-compose.yml" -ForegroundColor Red
     exit 1
@@ -87,7 +98,7 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
-$modeSuffix = if ($Dev) { "dev" } else { "prod" }
+$modeSuffix = if ($Direct) { "direct" } elseif ($Dev) { "dev" } else { "prod" }
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $tarName = "infolake_full_offline_${modeSuffix}_$timestamp.tar"
 $fullPath = Join-Path $OutputDir $tarName
@@ -105,8 +116,16 @@ $sizeMb = (Get-Item $stablePath).Length / 1MB
 $gitBranch = ""
 try { $gitBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch { }
 
-$modeLabel = if ($Dev) { "DEV (bind-mount required)" } else { "PRODUCTION (docker-compose.server.yml)" }
-$startCmd = if ($Dev) {
+$modeLabel = if ($Direct) {
+    "DIRECT (no nginx: UI :5173, API :8000, tiles :8080)"
+} elseif ($Dev) {
+    "DEV (bind-mount required)"
+} else {
+    "PRODUCTION (docker-compose.server.yml)"
+}
+$startCmd = if ($Direct) {
+    "  .\import-and-start-direct.ps1`n  (docker-compose.yml + docker-compose.direct.yml --profile direct-prod)"
+} elseif ($Dev) {
     "  docker compose --profile dev up -d --no-build --pull never"
 } else {
     "  .\import-and-start.ps1`n  (uses docker-compose.yml + docker-compose.server.yml, nginx :80, static frontend)"
@@ -162,4 +181,4 @@ Write-Host "  Timestamp: $fullPath"
 Write-Host ("  Size: {0:N1} MB" -f $sizeMb)
 Write-Host "  Manifest:  $manifestPath"
 Write-Host "`nNext: copy infolake_full_offline_$modeSuffix.tar + project + map.mbtiles to offline server."
-Write-Host "Guide: OFFLINE_DEPLOY_$(if ($Dev) { 'DEV' } else { 'PROD' }).md"
+Write-Host "Guide: OFFLINE_DEPLOY_$(if ($Direct) { 'DIRECT' } elseif ($Dev) { 'DEV' } else { 'PROD' }).md"

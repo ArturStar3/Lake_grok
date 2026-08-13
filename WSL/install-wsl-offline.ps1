@@ -119,6 +119,28 @@ try {
 }
 
 if (-not $SkipUbuntu) {
+    Write-Step "Зависимость VCLibs (Microsoft.VCLibs.140.00.UWPDesktop)"
+    # Без этого рантайма appx Ubuntu ставится, но ярлык/exe молча не запускается
+    # (или падает с ошибкой файловой системы 12007 / "не найдена зависимость").
+    $vclibs = Get-ChildItem $PackagesDir -Filter "Microsoft.VCLibs*x64*.appx" -File -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($vclibs) {
+        $already = Get-AppxPackage -Name "Microsoft.VCLibs.140.00.UWPDesktop" -ErrorAction SilentlyContinue
+        if ($already) {
+            Write-Host "VCLibs уже установлен: $($already.Version)" -ForegroundColor DarkGray
+        } else {
+            Write-Host "Add-AppxPackage $($vclibs.Name) ..."
+            try {
+                Add-AppxPackage -Path $vclibs.FullName
+                Write-Host "VCLibs installed." -ForegroundColor Green
+            } catch {
+                Write-Warning "Add-AppxPackage (VCLibs) failed: $_"
+            }
+        }
+    } else {
+        Write-Warning "Microsoft.VCLibs*x64*.appx не найден в $PackagesDir - Ubuntu может не запуститься (см. §7 в OFFLINE_WSL_INSTALL.md)"
+    }
+
     Write-Step "Установка Ubuntu 22.04"
     # Предпочтительно x64 .appx; иначе полный AppxBundle
     $ubuntu = $null

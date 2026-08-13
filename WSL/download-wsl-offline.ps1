@@ -26,6 +26,12 @@ $downloads = @(
     @{
         Name = "Ubuntu2204.AppxBundle"
         Uri  = "https://aka.ms/wslubuntu2204"
+    },
+    @{
+        # Требуется пакетом Ubuntu (PackageDependency Microsoft.VCLibs.140.00.UWPDesktop),
+        # без него appx устанавливается, но ярлык/exe молча не запускается.
+        Name = "Microsoft.VCLibs.x64.14.00.Desktop.appx"
+        Uri  = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
     }
 )
 

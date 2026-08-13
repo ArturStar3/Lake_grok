@@ -1,11 +1,20 @@
 import { API_URL } from '../config/api';
 
+function mediaOrigin() {
+  if (API_URL) return API_URL.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return '';
+}
+
 function rewriteMediaOrigin(url) {
-  if (typeof window === 'undefined') return url;
+  const origin = mediaOrigin();
+  if (!origin) return url;
   try {
-    const parsed = new URL(url, window.location.origin);
+    const parsed = new URL(url, origin);
     if (parsed.pathname.startsWith('/media/') || parsed.pathname.startsWith('/static/')) {
-      return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+      return `${origin}${parsed.pathname}${parsed.search}`;
     }
   } catch {
     // fall through
@@ -36,7 +45,10 @@ export function resolveMediaUrl(url) {
   return base ? `${base}/${url}` : `/${url}`;
 }
 
-/** Превью: локальный File или URL с сервера. */
+/** Превью: локальный File или URL с сервера.
+ * Если передан File — создаётся ObjectURL БЕЗ revoke.
+ * Для React UI предпочитайте useObjectUrl(file) + resolveMediaUrl(url).
+ */
 export function resolveImagePreviewUrl(url, file) {
   if (file instanceof File) {
     return URL.createObjectURL(file);

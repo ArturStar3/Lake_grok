@@ -2,6 +2,8 @@
 
 Dev-режим: Vite dev server в контейнере `infolake-frontend`, nginx проксирует на порт 5173. Для HMR и правок frontend без пересборки образа.
 
+Запуск **без nginx** (Vite сразу на `:5173`): [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md).
+
 **Важно:** production-архив (`export-offline.ps1` без `-Dev`) **не подходит** для dev — в нём нет `infolake-frontend:latest`.
 
 Связанные документы: [OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md), [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md)

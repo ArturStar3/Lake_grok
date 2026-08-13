@@ -1,23 +1,35 @@
 import axios from 'axios';
-import { API_URL } from './api';
+import { API_URL, getApiUrl } from './api';
 
 const ACCESS_KEY = 'infolake_access_token';
 const REFRESH_KEY = 'infolake_refresh_token';
 const USER_KEY = 'infolake_user';
 const REQUEST_TIMEOUT_MS = 15000;
 
+function apiBaseUrl() {
+  return `${getApiUrl()}/api/v1`;
+}
+
 /** Клиент без interceptors — для refresh, чтобы не было deadlock при 401 */
 const plainClient = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: apiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
   timeout: REQUEST_TIMEOUT_MS,
 });
 
 export const apiClient = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: apiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
   timeout: REQUEST_TIMEOUT_MS,
 });
+
+function attachDynamicBaseUrl(config) {
+  config.baseURL = apiBaseUrl();
+  return config;
+}
+
+plainClient.interceptors.request.use(attachDynamicBaseUrl);
+apiClient.interceptors.request.use(attachDynamicBaseUrl);
 
 export function getAccessToken() {
   return sessionStorage.getItem(ACCESS_KEY);

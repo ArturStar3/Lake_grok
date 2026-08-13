@@ -12,6 +12,10 @@
 # Локальная разработка (Vite + HMR через nginx):
 #   docker compose --profile dev up
 #
+# Без nginx (прямые порты UI:5173 API:8000 tiles:8080) — см. OFFLINE_DEPLOY_DIRECT.md:
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml --profile direct-prod up
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml --profile dev up
+#
 # ЗАПРЕЩЕНО на оффлайн-машине:
 #   docker compose build | docker compose pull | docker pull
 #

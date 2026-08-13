@@ -137,7 +137,13 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml ps
 
 Production всегда через **`docker-compose.server.yml`**.
 
-Если nginx через несколько часов «зависает» и `docker kill` не отвечает — см. [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md) и [OFFLINE_MIGRATION.md §8.2](OFFLINE_MIGRATION.md).
+Если nginx через несколько часов «зависает» и `docker kill` не отвечает — см. [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md) и [OFFLINE_MIGRATION.md §8.2](OFFLINE_MIGRATION.md). Альтернатива без nginx: [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md).
+
+На хосте **~8 ГБ RAM** добавьте override:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.resources-8gb.yml up -d --no-build --pull never
+```
 
 ---
 

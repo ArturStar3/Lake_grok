@@ -8,7 +8,8 @@
 - [tileserver_start_guide.md](tileserver_start_guide.md) — карта и `map.mbtiles`
 - [map_layers_plan.md](map_layers_plan.md) — векторные слои карты (`infolake-unified`)
 - [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md) — диагностика зависаний nginx/Docker на офлайн-ПК
-- [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) / [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск prod/dev
+- [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) / [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск prod/dev через nginx
+- [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) — запуск **без nginx** (порты 5173 / 8000 / 8080)
 
 ---
 
@@ -16,11 +17,19 @@
 
 | Компонент | Что переносится | Как |
 |-----------|-----------------|-----|
-| **Docker-образы** | backend, frontend, tileserver | `infolake_full_offline.tar` |
+| **Docker-образы** | backend, frontend/nginx/static, tileserver | `infolake_full_offline_{prod,dev,direct}.tar` |
 | **Код проекта** | репозиторий | USB / сеть / zip |
 | **Карта** | `tileserver/data/map.mbtiles` | отдельно (не в git, 1–90+ ГБ) |
 | **База данных** | PostgreSQL на хосте | dump или создание на месте |
 | **Настройки** | `backend/.env` | вручную (не коммитить секреты) |
+
+Режимы запуска на офлайн-ПК:
+
+| Режим | Архив | Точка входа | Документ |
+|-------|--------|-------------|----------|
+| Production + nginx | `infolake_full_offline_prod.tar` | `:80` / `:8080` | [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) |
+| Dev + nginx | `infolake_full_offline_dev.tar` | `:80` / `:8080` | [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) |
+| **Без nginx** | `infolake_full_offline_direct.tar` | UI `:5173`, API `:8000`, tiles `:8080` | [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) |
 
 > **На оффлайн-машине никогда не запускайте:** `docker compose build`, `docker compose pull`, `docker pull`, `npm install` внутри контейнера без кэша.
 

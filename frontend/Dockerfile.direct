@@ -1,0 +1,39 @@
+# Production-сборка frontend БЕЗ nginx: dist + `serve` на :5173.
+# Собирается на машине с интернетом. Офлайн: docker load + docker-compose.direct.yml.
+# Порты API/tiles задаются runtime-config.js при старте контейнера (не в бандле).
+
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm install
+
+COPY . .
+
+ARG VITE_DIRECT_MODE=true
+ARG VITE_API_URL=
+ARG VITE_TILESERVER_URL=
+ENV VITE_DIRECT_MODE=$VITE_DIRECT_MODE
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_TILESERVER_URL=$VITE_TILESERVER_URL
+ENV VITE_ENABLE_HMR=false
+
+RUN npm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN npm install -g serve@14.2.4
+
+COPY --from=build /app/dist ./dist
+COPY deploy/direct-entrypoint.sh /direct-entrypoint.sh
+RUN sed -i 's/\r$//' /direct-entrypoint.sh && chmod +x /direct-entrypoint.sh
+
+EXPOSE 5173
+
+ENV BACKEND_HTTP_PORT=8000
+ENV TILESERVER_HTTP_PORT=8080
+
+ENTRYPOINT ["/direct-entrypoint.sh"]

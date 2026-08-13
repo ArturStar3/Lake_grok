@@ -34,12 +34,14 @@ services:
 
 ```env
 SECRET_KEY=your-secret-key
-FRONTEND_URL=http://localhost
-CORS_ALLOWED_ORIGINS=http://localhost,http://172.16.80.207
+FRONTEND_URL=http://localhost:5173
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://172.16.80.207:5173
 CORS_ALLOW_ALL_ORIGINS=False
 ```
 
-При доступе через nginx (единый origin `:80`) CORS для основного сценария не требуется. Настройки выше — для отладки прямого доступа к backend.
+При доступе через nginx (единый origin `:80` / `:8080`) CORS для основного сценария не требуется.
+
+Режим **без nginx** ([OFFLINE_DEPLOY_DIRECT.md](../../OFFLINE_DEPLOY_DIRECT.md)): UI на `:5173`, API на `:8000` — в `CORS_ALLOWED_ORIGINS` обязателен origin фронта с портом, например `http://172.16.80.207:5173`.
 
 Для разработки можно оставить `CORS_ALLOW_ALL_ORIGINS=True` (по умолчанию при `DEBUG=True`).
 
