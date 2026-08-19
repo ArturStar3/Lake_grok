@@ -65,6 +65,7 @@ NGINX_HTTP_PORT=8080
 POSTGRES_DB=infolake_db
 POSTGRES_USER=infolake
 POSTGRES_PASSWORD=change_me
+POSTGRES_HOST_PORT=5431
 ```
 
 Смените `change_me` на рабочий пароль **до первого** `up`: volume уже инициализированного Postgres пароль из env не меняет.
@@ -128,17 +129,44 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-comp
 
 ## Данные Postgres
 
-Живут в Docker volume **`infolake_pgdata`**.
+По умолчанию живут в Docker volume **`infolake_pgdata`** (диск виртуальной машины Docker Desktop).
 
 ```powershell
 # Остановить стек, данные сохранить:
 docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.postgres.yml down
 
-# Удалить и БД тоже (необратимо):
+# Удалить named volume (необратимо). Папку bind mount на диске это не трогает:
 docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.postgres.yml down -v
 ```
 
-Порт 5432 на хост **не публикуется** — можно оставить Windows PostgreSQL установленным, он этому стеку не мешает (и не используется).
+Порт **5431** на хосте проброшен в контейнер на 5432 (не пересекается с Windows PostgreSQL на 5432). Подключение с хоста: `localhost:5431`, пользователь `infolake`, БД `infolake_db`. Другой порт хоста: `POSTGRES_HOST_PORT` в корневом `.env`.
+
+### Каталог на выбранном диске (bind mount)
+
+Чтобы файлы кластера лежали, например, на `D:`, а не внутри Docker:
+
+1. Остановите стек (`down` **без** `-v`, если named volume ещё нужен).
+2. Создайте **пустую** папку:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "D:\InfoLake\postgres-data"
+```
+
+3. В **корневом** `.env` проекта (рядом с `docker-compose.yml`):
+
+```env
+POSTGRES_DATA_DIR=D:/InfoLake/postgres-data
+```
+
+На Windows для Docker указывайте **прямые слэши** (`D:/...`), не `D:\...`.
+
+4. Папка на первом старте должна быть пустой либо уже содержать валидный PGDATA. Посторонние файлы — ошибка инициализации Postgres.
+5. Запустите стек тем же набором compose-файлов (`import-and-start-postgres.ps1` или `up` вручную).
+6. Проверка: в папке появятся `PG_VERSION`, `base`, `pg_wal`. Подключение с хоста по-прежнему `localhost:5431`.
+
+Не используйте каталог данных установленного Windows PostgreSQL.
+
+Если раньше данные были в `infolake_pgdata` и их нужно сохранить: не копируйте файлы volume вручную на NTFS. Либо начните с пустой папки (migrate + `createsuperuser` заново), либо пока volume ещё смонтирован сделайте `pg_dump` на `localhost:5431` и после смены пути — restore.
 
 ---
 
@@ -147,8 +175,9 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-comp
 | Симптом | Решение |
 |---------|---------|
 | `No such image: postgres:17` | Загружен обычный prod tar. Нужен `infolake_full_offline_prod_postgres.tar` |
-| Backend: password authentication failed | `DB_PASSWORD` ≠ `POSTGRES_PASSWORD`, или volume создан со старым паролем (`down -v` только если данные не нужны) |
+| Backend: password authentication failed | `DB_PASSWORD` ≠ `POSTGRES_PASSWORD`, или volume/папка созданы со старым паролем |
 | Backend не дожидается БД | Дождитесь `healthy` у `infolake-postgres`, затем `compose ... logs backend` |
+| Postgres не стартует, «directory exists but is not empty» | Папка `POSTGRES_DATA_DIR` не пустая и это не PGDATA — очистите или укажите другую |
 | Смешали со стеком на хостовой БД | Сначала `down` одного варианта, потом `up` другого |
 
 ---

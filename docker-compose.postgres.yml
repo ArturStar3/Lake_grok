@@ -4,7 +4,8 @@
 #
 # DB_HOST у backend переопределяется на имя сервиса `postgres`.
 # Пароль/имя БД должны совпадать с backend/.env (DB_NAME, DB_USER, DB_PASSWORD).
-# Порт 5432 на хост не публикуется — нет конфликта с установленным Windows PostgreSQL.
+# Порт 5431 на хосте → 5432 в контейнере (не конфликтует с Windows PostgreSQL на 5432).
+# Переопределение: POSTGRES_HOST_PORT, POSTGRES_DATA_DIR в корневом .env.
 
 services:
   postgres:
@@ -13,6 +14,8 @@ services:
     restart: unless-stopped
     init: true
     pull_policy: never
+    ports:
+      - "${POSTGRES_HOST_PORT:-5431}:5432"
     expose:
       - "5432"
     environment:
@@ -20,7 +23,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-infolake}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
     volumes:
-      - infolake_pgdata:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR:-infolake_pgdata}:/var/lib/postgresql/data
     mem_limit: 1g
     cpus: "1.0"
     logging:
