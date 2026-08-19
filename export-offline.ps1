@@ -6,22 +6,27 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipMapStyle,
     [switch]$Dev,
-    [switch]$Direct
+    [switch]$Direct,
+    [switch]$Postgres
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-if ($Dev -and $Direct) {
-    throw "Use either -Dev or -Direct, not both."
+$modeCount = @($Dev, $Direct, $Postgres) | Where-Object { $_ } | Measure-Object | Select-Object -ExpandProperty Count
+if ($modeCount -gt 1) {
+    throw "Use only one of -Dev, -Direct, -Postgres."
 }
 
 function Get-ComposeImages {
     param(
         [switch]$Dev,
-        [switch]$Direct
+        [switch]$Direct,
+        [switch]$Postgres
     )
-    $composeArgs = if ($Direct) {
+    $composeArgs = if ($Postgres) {
+        @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "-f", "docker-compose.postgres.yml", "config", "--images")
+    } elseif ($Direct) {
         @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.direct.yml", "--profile", "direct-prod", "config", "--images")
     } elseif ($Dev) {
         @("compose", "--profile", "dev", "config", "--images")
@@ -37,8 +42,14 @@ function Get-ComposeImages {
 
 function Test-DockerImage {
     param([string]$Image)
-    docker image inspect $Image 2>$null | Out-Null
-    return $LASTEXITCODE -eq 0
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        docker image inspect $Image 2>$null | Out-Null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $prev
+    }
 }
 
 if (-not $SkipMapStyle) {
@@ -69,7 +80,18 @@ if (-not $SkipBuild) {
     Write-Host "`n=== Skip build (--SkipBuild) ===" -ForegroundColor DarkGray
 }
 
-$images = Get-ComposeImages -Dev:$Dev -Direct:$Direct
+if ($Postgres) {
+    Write-Host "`n=== Ensuring postgres:17 image ===" -ForegroundColor Cyan
+    if (-not (Test-DockerImage "postgres:17")) {
+        Write-Host "Pulling postgres:17 (online machine only)..." -ForegroundColor Yellow
+        docker pull postgres:17
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } else {
+        Write-Host "  OK  postgres:17" -ForegroundColor Green
+    }
+}
+
+$images = Get-ComposeImages -Dev:$Dev -Direct:$Direct -Postgres:$Postgres
 if (-not $images -or $images.Count -eq 0) {
     Write-Host "No images found in docker-compose.yml" -ForegroundColor Red
     exit 1
@@ -89,7 +111,7 @@ foreach ($img in $images) {
 if ($missing.Count -gt 0) {
     Write-Host "`nMissing images. On online machine run:" -ForegroundColor Yellow
     foreach ($img in $missing) {
-        if ($img -match '^maptiler/') {
+        if ($img -match '^(maptiler/|postgres:)') {
             Write-Host "  docker pull $img"
         } else {
             Write-Host "  docker compose build"
@@ -98,7 +120,7 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
-$modeSuffix = if ($Direct) { "direct" } elseif ($Dev) { "dev" } else { "prod" }
+$modeSuffix = if ($Postgres) { "prod_postgres" } elseif ($Direct) { "direct" } elseif ($Dev) { "dev" } else { "prod" }
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $tarName = "infolake_full_offline_${modeSuffix}_$timestamp.tar"
 $fullPath = Join-Path $OutputDir $tarName
@@ -116,14 +138,18 @@ $sizeMb = (Get-Item $stablePath).Length / 1MB
 $gitBranch = ""
 try { $gitBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch { }
 
-$modeLabel = if ($Direct) {
+$modeLabel = if ($Postgres) {
+    "PRODUCTION + PostgreSQL 17 in Docker (docker-compose.postgres.yml)"
+} elseif ($Direct) {
     "DIRECT (no nginx: UI :5173, API :8000, tiles :8080)"
 } elseif ($Dev) {
     "DEV (bind-mount required)"
 } else {
     "PRODUCTION (docker-compose.server.yml)"
 }
-$startCmd = if ($Direct) {
+$startCmd = if ($Postgres) {
+    "  .\import-and-start-postgres.ps1`n  (docker-compose.yml + docker-compose.server.yml + docker-compose.postgres.yml)"
+} elseif ($Direct) {
     "  .\import-and-start-direct.ps1`n  (docker-compose.yml + docker-compose.direct.yml --profile direct-prod)"
 } elseif ($Dev) {
     "  docker compose --profile dev up -d --no-build --pull never"
@@ -181,4 +207,4 @@ Write-Host "  Timestamp: $fullPath"
 Write-Host ("  Size: {0:N1} MB" -f $sizeMb)
 Write-Host "  Manifest:  $manifestPath"
 Write-Host "`nNext: copy infolake_full_offline_$modeSuffix.tar + project + map.mbtiles to offline server."
-Write-Host "Guide: OFFLINE_DEPLOY_$(if ($Direct) { 'DIRECT' } elseif ($Dev) { 'DEV' } else { 'PROD' }).md"
+Write-Host "Guide: OFFLINE_DEPLOY_$(if ($Postgres) { 'PROD_POSTGRES' } elseif ($Direct) { 'DIRECT' } elseif ($Dev) { 'DEV' } else { 'PROD' }).md"

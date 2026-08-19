@@ -2,7 +2,7 @@
 
 Production-режим: frontend собран в Docker-образе `infolake-nginx`, nginx раздаёт статику и проксирует API, tiles и media.
 
-Связанные документы: [OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md), [import-and-start.ps1](import-and-start.ps1), [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md)
+Связанные документы: [OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md), [import-and-start.ps1](import-and-start.ps1), [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md). Вариант **без PostgreSQL на хосте**: [OFFLINE_DEPLOY_PROD_POSTGRES.md](OFFLINE_DEPLOY_PROD_POSTGRES.md).
 
 ---
 

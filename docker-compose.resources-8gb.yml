@@ -20,3 +20,6 @@ services:
 
   frontend-static:
     mem_limit: 256m
+
+  postgres:
+    mem_limit: 512m

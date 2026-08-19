@@ -12,16 +12,16 @@
 # Локальная разработка (Vite + HMR через nginx):
 #   docker compose --profile dev up
 #
-# Без nginx (прямые порты UI:5173 API:8000 tiles:8080) — см. OFFLINE_DEPLOY_DIRECT.md:
-#   docker compose -f docker-compose.yml -f docker-compose.direct.yml --profile direct-prod up
-#   docker compose -f docker-compose.yml -f docker-compose.direct.yml --profile dev up
+# Production + PostgreSQL 17 в Docker (без Postgres на хосте) — см. OFFLINE_DEPLOY_PROD_POSTGRES.md:
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.postgres.yml up -d --no-build --pull never
 #
 # ЗАПРЕЩЕНО на оффлайн-машине:
 #   docker compose build | docker compose pull | docker pull
 #
 # Образы (pull_policy: never — не тянуть из сети):
 #   infolake-backend:latest, infolake-nginx:latest (production),
-#   infolake-frontend:latest (dev profile), maptiler/tileserver-gl:latest
+#   infolake-frontend:latest (dev profile), maptiler/tileserver-gl:latest,
+#   postgres:17 (только docker-compose.postgres.yml)
 # =============================================================================
 
 x-logging: &default-logging

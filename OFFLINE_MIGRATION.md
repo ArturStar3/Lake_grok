@@ -9,6 +9,7 @@
 - [map_layers_plan.md](map_layers_plan.md) — векторные слои карты (`infolake-unified`)
 - [OFFLINE_DIAGNOSTICS.md](OFFLINE_DIAGNOSTICS.md) — диагностика зависаний nginx/Docker на офлайн-ПК
 - [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) / [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск prod/dev через nginx
+- [OFFLINE_DEPLOY_PROD_POSTGRES.md](OFFLINE_DEPLOY_PROD_POSTGRES.md) — production + **PostgreSQL 17 в Docker**
 - [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) — запуск **без nginx** (порты 5173 / 8000 / 8080)
 
 ---
@@ -17,10 +18,10 @@
 
 | Компонент | Что переносится | Как |
 |-----------|-----------------|-----|
-| **Docker-образы** | backend, frontend/nginx/static, tileserver | `infolake_full_offline_{prod,dev,direct}.tar` |
+| **Docker-образы** | backend, frontend/nginx/static, tileserver, postgres:17 | `infolake_full_offline_{prod,dev,direct,prod_postgres}.tar` |
 | **Код проекта** | репозиторий | USB / сеть / zip |
 | **Карта** | `tileserver/data/map.mbtiles` | отдельно (не в git, 1–90+ ГБ) |
-| **База данных** | PostgreSQL на хосте | dump или создание на месте |
+| **База данных** | PostgreSQL на хосте **или** контейнер `postgres:17` | dump / создание на месте / пустой volume |
 | **Настройки** | `backend/.env` | вручную (не коммитить секреты) |
 
 Режимы запуска на офлайн-ПК:
@@ -28,6 +29,7 @@
 | Режим | Архив | Точка входа | Документ |
 |-------|--------|-------------|----------|
 | Production + nginx | `infolake_full_offline_prod.tar` | `:80` / `:8080` | [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) |
+| Production + nginx + Postgres в Docker | `infolake_full_offline_prod_postgres.tar` | `:80` / `:8080` | [OFFLINE_DEPLOY_PROD_POSTGRES.md](OFFLINE_DEPLOY_PROD_POSTGRES.md) |
 | Dev + nginx | `infolake_full_offline_dev.tar` | `:80` / `:8080` | [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) |
 | **Без nginx** | `infolake_full_offline_direct.tar` | UI `:5173`, API `:8000`, tiles `:8080` | [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) |
 
