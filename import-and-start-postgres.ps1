@@ -29,6 +29,28 @@ if (-not $TarFile -or -not (Test-Path $TarFile)) {
     exit 1
 }
 
+# Bind mount PGDATA on Windows NTFS/drvfs breaks postgres initdb (chown/chmod 0700).
+$rootEnvPath = Join-Path $PSScriptRoot ".env"
+if (Test-Path $rootEnvPath) {
+    $pgDataLine = Get-Content $rootEnvPath |
+        Where-Object { $_ -match '^\s*POSTGRES_DATA_DIR\s*=' } |
+        Select-Object -First 1
+    if ($pgDataLine -and $pgDataLine -match '^\s*POSTGRES_DATA_DIR\s*=\s*(.+)\s*$') {
+        $pgDataDir = $Matches[1].Trim().Trim('"').Trim("'")
+        if ($pgDataDir -and (
+                $pgDataDir -match '^[A-Za-z]:' -or
+                $pgDataDir.StartsWith('\\') -or
+                $pgDataDir.StartsWith('//')
+            )) {
+            Write-Host "POSTGRES_DATA_DIR=$pgDataDir is a Windows path." -ForegroundColor Red
+            Write-Host "Bind-mounting PGDATA on NTFS/drvfs fails: postgres needs chown/chmod 0700 (initdb: Operation not permitted / invalid permissions)." -ForegroundColor Red
+            Write-Host "Comment out POSTGRES_DATA_DIR in .env (use named volume infolake_pgdata)." -ForegroundColor Yellow
+            Write-Host "To put data on another drive (e.g. VeraCrypt Q:), move Docker Desktop Disk image location — see OFFLINE_DEPLOY_PROD_POSTGRES.md." -ForegroundColor Yellow
+            exit 1
+        }
+    }
+}
+
 Write-Host "Stopping other InfoLake stacks (shared nginx/backend containers)..." -ForegroundColor DarkGray
 docker compose -f docker-compose.yml -f docker-compose.server.yml down 2>$null | Out-Null
 docker compose --profile dev down 2>$null | Out-Null
@@ -61,4 +83,5 @@ Write-Host "  API:         $baseUrl/api/v1/"
 Write-Host "  Admin:       $baseUrl/admin/"
 Write-Host "  Tiles:       $baseUrl/tiles/"
 Write-Host "`nPostgres is inside Docker (volume infolake_pgdata). Host PostgreSQL is not used."
+Write-Host "To store Docker/Postgres data on another disk (e.g. Q:), set Docker Desktop Disk image location — see OFFLINE_DEPLOY_PROD_POSTGRES.md."
 Write-Host "See OFFLINE_DEPLOY_PROD_POSTGRES.md"

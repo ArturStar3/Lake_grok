@@ -129,44 +129,155 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-comp
 
 ## Данные Postgres
 
-По умолчанию живут в Docker volume **`infolake_pgdata`** (диск виртуальной машины Docker Desktop).
+По умолчанию живут в Docker volume **`infolake_pgdata`** (внутри disk image Docker Desktop — файл `.vhdx` с ext4).
 
 ```powershell
 # Остановить стек, данные сохранить:
 docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.postgres.yml down
 
-# Удалить named volume (необратимо). Папку bind mount на диске это не трогает:
+# Удалить named volume (необратимо):
 docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.postgres.yml down -v
 ```
 
 Порт **5431** на хосте проброшен в контейнер на 5432 (не пересекается с Windows PostgreSQL на 5432). Подключение с хоста: `localhost:5431`, пользователь `infolake`, БД `infolake_db`. Другой порт хоста: `POSTGRES_HOST_PORT` в корневом `.env`.
 
-### Каталог на выбранном диске (bind mount)
+### Почему нельзя `POSTGRES_DATA_DIR=Q:/db` на Windows
 
-Чтобы файлы кластера лежали, например, на `D:`, а не внутри Docker:
+`postgres:17` при инициализации делает `chown` / `chmod 0700` для каталога данных. Bind mount папки Windows (`Q:/db`, `D:/InfoLake/postgres-data` и т.п.) внутри Docker Desktop — это **drvfs/9p** (WSL2) или **SMB** (Hyper-V): Linux-владелец и режимы файлов **не поддерживаются**. Типичные ошибки в логах:
 
-1. Остановите стек (`down` **без** `-v`, если named volume ещё нужен).
-2. Создайте **пустую** папку:
+```text
+initdb: error: could not change permissions of directory "/var/lib/postgresql/data": Operation not permitted
+FATAL:  data directory "/var/lib/postgresql/data" has invalid permissions
+DETAIL:  Permissions should be u=rwx (0700) or more restrictive.
+```
+
+На Windows/Docker Desktop **не задавайте** `POSTGRES_DATA_DIR` в `.env` (скрипт `import-and-start-postgres.ps1` остановится с предупреждением). Кластер остаётся в named volume `infolake_pgdata`. Чтобы физически хранить данные на другом диске (в т.ч. VeraCrypt-том `Q:`), перенесите **Disk image** Docker Desktop.
+
+### Данные Postgres на отдельном диске (VeraCrypt-том)
+
+Цель: volume `infolake_pgdata` живёт внутри `docker_data.vhdx` (ext4), а сам `.vhdx` лежит на `Q:\Docker`.
+
+#### Подготовка
+
+1. Смонтируйте том в VeraCrypt как **обычный локальный диск** (не включайте «Mount volume as removable medium»).
+2. Создайте каталог:
 
 ```powershell
-New-Item -ItemType Directory -Force -Path "D:\InfoLake\postgres-data"
+New-Item -ItemType Directory -Force -Path "Q:\Docker"
 ```
 
-3. В **корневом** `.env` проекта (рядом с `docker-compose.yml`):
+3. Остановите стек (**без** `-v`):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.postgres.yml down
+```
+
+4. **Quit Docker Desktop**. Для backend WSL2:
+
+```powershell
+wsl --shutdown
+```
+
+#### Основной способ (GUI)
+
+1. Запустите Docker Desktop.
+2. **Settings → Resources → Advanced → Disk image location** → укажите `Q:\Docker` → **Apply & restart**.
+3. Проверка:
+
+```powershell
+docker info
+# Docker Root Dir / данные должны относиться к новому расположению
+
+Get-ChildItem -Recurse "Q:\Docker" -Filter "*.vhdx" | Select-Object FullName, Length
+```
+
+Ожидание (имена зависят от версии Docker Desktop):
+
+- WSL2: `Q:\Docker\...\disk\docker_data.vhdx` (часто `DockerDesktopWSL\disk\`)
+- Hyper-V: `Q:\Docker\DockerDesktop.vhdx` или похожий путь
+
+#### Если GUI отвечает «Failed to apply settings»
+
+**Вариант A — старая раскладка WSL2** (`wsl -l -v` показывает `docker-desktop-data`):
+
+```powershell
+wsl --shutdown
+wsl --manage docker-desktop-data --move "Q:\Docker\data"
+```
+
+Если `--manage ... --move` недоступен:
+
+```powershell
+wsl --shutdown
+wsl --export docker-desktop-data "Q:\Docker\docker-desktop-data.tar"
+wsl --unregister docker-desktop-data
+New-Item -ItemType Directory -Force -Path "Q:\Docker\data"
+wsl --import docker-desktop-data "Q:\Docker\data" "Q:\Docker\docker-desktop-data.tar" --version 2
+```
+
+После успешного импорта исходный `.tar` можно удалить.
+
+**Вариант B — новая раскладка** (есть distro `docker-desktop`, файл `%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`):
+
+1. Quit Docker Desktop, `wsl --shutdown`.
+2. **Перенесите** (cut/move, не только правку настроек) `docker_data.vhdx` и при наличии `main\ext4.vhdx` в каталог на `Q:\Docker` (сохраните структуру подпапок, которую ожидает ваша версия Docker, либо перенесите содержимое `...\Docker\wsl\` целиком).
+3. В `%APPDATA%\Docker\settings-store.json` задайте `"DataFolder": "Q:\\Docker"` (в старых версиях — ключ `customWslDistroDir` в `settings.json`).
+4. Запустите Docker Desktop.
+
+**Важно:** если поменять только `DataFolder` **без** переноса `.vhdx`, Docker создаст **пустой** диск — образы и volume «пропадут» (старые файлы останутся на `C:`).
+
+**Вариант C — переустановка с флагом** (крайний случай; существующие данные на старом диске не переносятся автоматически):
+
+```powershell
+# WSL2 backend:
+Start-Process -Wait -FilePath "Docker Desktop Installer.exe" -ArgumentList "install --accept-license --wsl-default-data-root=Q:\Docker"
+
+# Hyper-V backend:
+# Start-Process -Wait -FilePath "Docker Desktop Installer.exe" -ArgumentList "install --accept-license --hyper-v-default-data-root=Q:\Docker"
+```
+
+#### После переноса
+
+Если disk image создан заново (пустой):
+
+```powershell
+docker load -i infolake_full_offline_prod_postgres.tar
+.\import-and-start-postgres.ps1
+```
+
+Проверка:
+
+```powershell
+docker volume inspect infolake_pgdata
+Get-ChildItem -Recurse "Q:\Docker" -Filter "*.vhdx" | Select-Object FullName, Length
+```
+
+Размер `.vhdx` должен расти после работы со стеком.
+
+#### Эксплуатация с VeraCrypt
+
+- В Docker Desktop: **Settings → General** — отключите автозапуск при входе в Windows.
+- **Включение:** смонтировать `Q:` → запустить Docker Desktop → `.\import-and-start-postgres.ps1` (или `compose ... up`).
+- **Выключение:** `compose ... down` → Quit Docker Desktop → `wsl --shutdown` (если WSL2) → размонтировать том в VeraCrypt.
+- **Никогда** не делайте Force Dismount при работающем Docker.
+- Регулярно делайте `pg_dump` через `localhost:5431` и храните дамп **вне** зашифрованного тома (отдельный носитель / другой диск).
+
+### Linux-хост (bind mount допустим)
+
+Только если Docker Engine работает на Linux (не Docker Desktop на Windows):
+
+```bash
+sudo mkdir -p /srv/infolake/pgdata
+sudo chown -R 999:999 /srv/infolake/pgdata
+```
+
+В корневом `.env`:
 
 ```env
-POSTGRES_DATA_DIR=D:/InfoLake/postgres-data
+POSTGRES_DATA_DIR=/srv/infolake/pgdata
 ```
 
-На Windows для Docker указывайте **прямые слэши** (`D:/...`), не `D:\...`.
-
-4. Папка на первом старте должна быть пустой либо уже содержать валидный PGDATA. Посторонние файлы — ошибка инициализации Postgres.
-5. Запустите стек тем же набором compose-файлов (`import-and-start-postgres.ps1` или `up` вручную).
-6. Проверка: в папке появятся `PG_VERSION`, `base`, `pg_wal`. Подключение с хоста по-прежнему `localhost:5431`.
-
-Не используйте каталог данных установленного Windows PostgreSQL.
-
-Если раньше данные были в `infolake_pgdata` и их нужно сохранить: не копируйте файлы volume вручную на NTFS. Либо начните с пустой папки (migrate + `createsuperuser` заново), либо пока volume ещё смонтирован сделайте `pg_dump` на `localhost:5431` и после смены пути — restore.
+Папка должна быть пустой или уже содержать валидный PGDATA. Не используйте каталог данных хостового PostgreSQL.
 
 ---
 
@@ -175,9 +286,11 @@ POSTGRES_DATA_DIR=D:/InfoLake/postgres-data
 | Симптом | Решение |
 |---------|---------|
 | `No such image: postgres:17` | Загружен обычный prod tar. Нужен `infolake_full_offline_prod_postgres.tar` |
-| Backend: password authentication failed | `DB_PASSWORD` ≠ `POSTGRES_PASSWORD`, или volume/папка созданы со старым паролем |
+| Backend: password authentication failed | `DB_PASSWORD` ≠ `POSTGRES_PASSWORD`, или volume создан со старым паролем |
 | Backend не дожидается БД | Дождитесь `healthy` у `infolake-postgres`, затем `compose ... logs backend` |
-| Postgres не стартует, «directory exists but is not empty» | Папка `POSTGRES_DATA_DIR` не пустая и это не PGDATA — очистите или укажите другую |
+| `initdb: could not change permissions` / `Operation not permitted` / `invalid permissions` | `POSTGRES_DATA_DIR` указывает на диск Windows — закомментируйте переменную; данные в `infolake_pgdata`, диск — через Disk image location (раздел выше) |
+| Postgres не стартует, «directory exists but is not empty» | На **Linux**-хосте папка `POSTGRES_DATA_DIR` не пустая и это не PGDATA — очистите или укажите другую |
+| Docker стартовал без смонтированного `Q:` («пропали» образы/БД) | Не делайте `down -v`. Quit Docker → смонтируйте том → проверьте `DataFolder` / Disk image location → запустите Docker снова |
 | Смешали со стеком на хостовой БД | Сначала `down` одного варианта, потом `up` другого |
 
 ---

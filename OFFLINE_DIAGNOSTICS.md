@@ -5,6 +5,7 @@
 Связанные документы:
 
 - [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) — запуск production
+- [OFFLINE_DEPLOY_PROD_POSTGRES.md](OFFLINE_DEPLOY_PROD_POSTGRES.md) — production + Postgres в Docker (в т.ч. данные на отдельном диске / VeraCrypt)
 - [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск dev
 - [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) — запуск без nginx (если nginx зависает)
 - [OFFLINE_MIGRATION.md](OFFLINE_MIGRATION.md) §8.1 / §8.2 — краткий справочник
@@ -22,6 +23,7 @@
 | nginx не отвечает, браузер не помогает | §3–6 |
 | `compose down`: **PID ... is zombie and cannot be killed** | **§7.1 (zombie PID 1, чаще tileserver)** |
 | `docker kill` / `compose down` зависают (без слова zombie) | §7 (аварийное восстановление) |
+| Postgres: **permissions** / `POSTGRES_DATA_DIR` на `Q:`/`D:` | [OFFLINE_DEPLOY_PROD_POSTGRES.md](OFFLINE_DEPLOY_PROD_POSTGRES.md) — Disk image location, не bind mount |
 | После фикса всё равно повторяется | §3–6 + сохраните вывод команд |
 
 Все команды — из корня проекта на офлайн-машине, например:

@@ -5,7 +5,11 @@
 # DB_HOST у backend переопределяется на имя сервиса `postgres`.
 # Пароль/имя БД должны совпадать с backend/.env (DB_NAME, DB_USER, DB_PASSWORD).
 # Порт 5431 на хосте → 5432 в контейнере (не конфликтует с Windows PostgreSQL на 5432).
-# Переопределение: POSTGRES_HOST_PORT, POSTGRES_DATA_DIR в корневом .env.
+# Переопределение: POSTGRES_HOST_PORT в корневом .env.
+# POSTGRES_DATA_DIR — только Linux-хост (пустая папка + chown 999:999).
+# На Windows/Docker Desktop не задавать: bind mount NTFS ломает initdb (permissions).
+# Данные на отдельном диске (VeraCrypt и т.п.) — Disk image location Docker Desktop
+# (см. OFFLINE_DEPLOY_PROD_POSTGRES.md).
 
 services:
   postgres:
