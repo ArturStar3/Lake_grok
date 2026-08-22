@@ -15,10 +15,10 @@ const SITUATION_FALLBACK_ZOOM = 6;
 /** Отложенный flyTo на карте (не блокирует обработку клика). */
 export function useMapFlyTo(mapRef, zoom = 8) {
   const flyTo = useCallback(
-    (lat, lng, customZoom = zoom) => {
+    (lat, lng, customZoom = zoom, options = {}) => {
       if (lat == null || lng == null || !mapRef.current) return;
       requestAnimationFrame(() => {
-        mapRef.current?.flyTo([lat, lng], customZoom, FLY_TO_OPTIONS);
+        mapRef.current?.flyTo([lat, lng], customZoom, { ...FLY_TO_OPTIONS, ...options });
       });
     },
     [mapRef, zoom],

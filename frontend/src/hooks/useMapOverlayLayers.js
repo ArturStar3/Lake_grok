@@ -84,10 +84,22 @@ export function useMapOverlayLayers(maplibreMapRef = null, maplibreReady = false
     });
   }, []);
 
+  /** Включает ровно перечисленные слои, остальные выключает (используется демонстрацией). */
+  const setOnlyLayers = useCallback((layerIds) => {
+    const wanted = new Set((layerIds || []).map(String));
+    setEnabledById(() => {
+      const next = {};
+      MAP_OVERLAY_LAYERS.forEach((layer) => {
+        next[layer.id] = wanted.has(String(layer.id));
+      });
+      return next;
+    });
+  }, []);
+
   const activeLayers = useMemo(
     () => MAP_OVERLAY_LAYERS.filter((layer) => enabledById[layer.id]),
     [enabledById],
   );
 
-  return { enabledById, toggleLayer, setAllLayers, activeLayers };
+  return { enabledById, toggleLayer, setAllLayers, setOnlyLayers, activeLayers };
 }

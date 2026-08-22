@@ -35,6 +35,7 @@ class SecurityGroupSerializer(serializers.ModelSerializer):
             'equipment',
             'reports',
             'data_exchange',
+            'demo_scenarios',
             'can_manage_reference',
             'can_manage_users',
             'can_approve_registrations',

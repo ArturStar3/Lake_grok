@@ -7,6 +7,7 @@ from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from formular.enums import ActionLineTypes
 from formular.models import (
     ActionType,
     Country,
@@ -153,6 +154,15 @@ def _random_coord(lat_min, lat_max, lng_min, lng_max, rng):
     )
 
 
+LEGACY_COLOR_TO_PALETTE_TITLE = {
+    "blue": "Синий",
+    "green": "Зелёный",
+    "red": "Красный",
+    "yellow": "Жёлтый",
+    "marine": "Морской",
+}
+
+
 class Command(BaseCommand):
     help = (
         "Заполняет Target тестовыми данными на основе "
@@ -219,15 +229,6 @@ class Command(BaseCommand):
                 f"({len(countries)} стран, {len(marker_records)} типов маркеров)"
             )
         )
-
-LEGACY_COLOR_TO_PALETTE_TITLE = {
-    'blue': 'Синий',
-    'green': 'Зелёный',
-    'red': 'Красный',
-    'yellow': 'Жёлтый',
-    'marine': 'Морской',
-}
-
 
     def _palette_for_legacy_color(self, color_key):
         title = LEGACY_COLOR_TO_PALETTE_TITLE.get(color_key, 'Синий')

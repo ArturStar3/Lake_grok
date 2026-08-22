@@ -38,6 +38,11 @@ import { buildVisibleZones } from "../../utils/buildVisibleZones";
 import { getActionFilterDimensions } from "../../utils/inundationZone";
 import { useMapDisplaySettings } from "../../hooks/map/useMapDisplaySettings";
 import { isLosRadarZoneMode } from "../../utils/computeLosZone";
+import { MAP_OVERLAY_LAYERS } from "../../config/tiles";
+import { collectEnabledZoneLeaves } from "../../utils/demoScenario";
+import { useDemoScenarios } from "../../hooks/demo/useDemoScenarios";
+import { useDemoPlayer } from "../../hooks/demo/useDemoPlayer";
+import DemoStudioModal from "../DemoMode/DemoStudioModal";
 
 const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
 const ReferenceDataModal = lazy(() => import("../ReferenceData/ReferenceDataModal"));
@@ -56,12 +61,16 @@ export default function Formular({ onMapFullscreenChange }) {
     const canOpenReference = canManageReference(user);
     const canOpenReports = canReadModule(user, 'reports');
     const canOpenDataExchange = canReadModule(user, 'data_exchange');
+    const canReadDemo = canReadModule(user, 'demo_scenarios');
+    const canWriteDemo = canWriteModule(user, 'demo_scenarios');
+    const canDeleteDemo = canDeleteModule(user, 'demo_scenarios');
     const [usersAdminOpen, setUsersAdminOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("objects");
     const [selectedObj, setSelectedObj] = useState([]);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [actionRadiusMode, setActionRadiusMode] = useState("animation");
     const [selectedTargetId, setSelectedTargetId] = useState(null);
+    const [selectedCountryIso, setSelectedCountryIso] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [isAddTargetModalOpen, setIsAddTargetModalOpen] = useState(false);
     const [addTargetDraft, setAddTargetDraft] = useState(null);
@@ -101,10 +110,13 @@ export default function Formular({ onMapFullscreenChange }) {
     const [timelineRevisionId, setTimelineRevisionId] = useState(null);
     const [highlightedSituationId, setHighlightedSituationId] = useState(null);
     const [mapUiResetToken, setMapUiResetToken] = useState(0);
+    const [demoStudioOpen, setDemoStudioOpen] = useState(false);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
     const revisionsLoadSeqRef = useRef(0);
+    const overlayLayersApiRef = useRef(null);
+    const countryBoundsApiRef = useRef(null);
 
     useEffect(() => {
         situationDrawTerritoryIndexRef.current = situationDrawTerritoryIndex;
@@ -128,7 +140,7 @@ export default function Formular({ onMapFullscreenChange }) {
         events, loading: eventsLoading, error: eventsError,
         filters: eventsFilters, setFilters: setEventsFilters,
         selectedEvents, setSelectedEvents,
-        saveEvent, updateEvent, deleteEvent,
+        fetchEvents, saveEvent, updateEvent, deleteEvent,
     } = useEventsList(activeTab);
     const {
         situations,
@@ -138,6 +150,7 @@ export default function Formular({ onMapFullscreenChange }) {
         setFilters: setSituationsFilters,
         selectedSituations,
         setSelectedSituations,
+        fetchSituations,
         fetchRevisions,
         createSituation,
         correctSituation,
@@ -267,7 +280,99 @@ export default function Formular({ onMapFullscreenChange }) {
         addMeasurePoint, removeMeasurePoint,
     } = useMeasurePoints();
 
-    const { flyTo, flyToSituation } = useMapFlyTo(mapRef);
+    const { flyTo, flyToBounds, flyToSituation } = useMapFlyTo(mapRef);
+
+    const {
+        scenarios: demoScenarios,
+        defaultScenario,
+        loading: demoScenariosLoading,
+        error: demoScenariosError,
+        refresh: refreshDemoScenarios,
+        saveScenario,
+        removeScenario,
+    } = useDemoScenarios(canReadDemo);
+
+    const enabledZoneLeaves = useMemo(
+        () => collectEnabledZoneLeaves(actionZoneFilters),
+        [actionZoneFilters],
+    );
+
+    const demoPlayer = useDemoPlayer({
+        actions: {
+            setSelectedObj,
+            setSelectedEvents,
+            setSelectedSituations,
+            setTimelineRevisionId,
+            setFocusedSituationId,
+            resetZoneFilters,
+            setZoneLeavesBatch,
+            flyTo,
+            flyToBounds,
+            fetchEvents,
+            fetchSituations,
+            loadSituationRevisions,
+            setOverlayLayers: (ids) => overlayLayersApiRef.current?.setOverlayLayers?.(ids),
+            setSelectedTargetId,
+            setSelectedCountryIso,
+        },
+        data: {
+            objects,
+            events,
+            situations,
+            selectedObj,
+            selectedEvents,
+            selectedSituations,
+            selectedTargetId,
+            selectedCountryIso,
+            countriesList,
+            timelineRevisionId,
+            enabledZoneLeaves,
+            mapRef,
+            getEnabledOverlayLayerIds: () => overlayLayersApiRef.current?.getEnabledIds?.() ?? null,
+            getCountryBounds: (iso) => countryBoundsApiRef.current?.(iso) ?? null,
+        },
+    });
+
+    const handleOpenDemoStudio = useCallback(() => {
+        demoPlayer.stop({ restore: true });
+        setDemoStudioOpen(true);
+        refreshDemoScenarios();
+        fetchEvents?.();
+        if (canReadSituations) fetchSituations?.();
+    }, [canReadSituations, demoPlayer, fetchEvents, fetchSituations, refreshDemoScenarios]);
+
+    const handlePlayDemo = useCallback(async (scenario) => {
+        setDemoStudioOpen(false);
+        let next = scenario;
+        if (!next) {
+            next = defaultScenario;
+            if (!next) {
+                let list = demoScenarios;
+                if (!list.length) {
+                    list = await refreshDemoScenarios();
+                }
+                next = list.find((item) => item.is_default) || list[0] || null;
+            }
+        }
+        if (!next?.steps?.length) {
+            setDemoStudioOpen(true);
+            return;
+        }
+        demoPlayer.start(next);
+    }, [defaultScenario, demoPlayer, demoScenarios, refreshDemoScenarios]);
+
+    const handlePreviewDemoStep = useCallback((step) => {
+        setDemoStudioOpen(false);
+        demoPlayer.previewStep(step);
+    }, [demoPlayer]);
+
+    const demoMenu = useMemo(() => ({
+        canPlayDemo: canReadDemo,
+        canConfigureDemo: canReadDemo,
+        hasDemoScenario: true,
+        onPlayDemo: () => { handlePlayDemo(); },
+        onOpenDemoStudio: handleOpenDemoStudio,
+    }), [canReadDemo, handleOpenDemoStudio, handlePlayDemo]);
 
     const handleMarkerHoverFromMap = useCallback((targetId) => {
         setHoveredTargetId((prev) => (prev === targetId ? prev : targetId));
@@ -826,6 +931,7 @@ export default function Formular({ onMapFullscreenChange }) {
         setSituationRevisions([]);
         setDetailSituation(null);
         setSelectedTargetId(null);
+        setSelectedCountryIso(null);
         setHoveredTargetId(null);
         setIsMeasureMode(false);
         setMeasurePoints([]);
@@ -1026,9 +1132,13 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handleFormularModalClose = useCallback(() => {
         setSelectedTargetId(null);
-        // Зоны и уязвимости с карточки объекта оставляем на карте,
-        // пока пользователь не снимет выбор / не откроет другой объект.
-    }, []);
+        if (demoPlayer.playback?.isPlaying) demoPlayer.pause();
+    }, [demoPlayer]);
+
+    const handleCountryModalClose = useCallback(() => {
+        setSelectedCountryIso(null);
+        if (demoPlayer.playback?.isPlaying) demoPlayer.pause();
+    }, [demoPlayer]);
 
     const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
 
@@ -1513,10 +1623,14 @@ export default function Formular({ onMapFullscreenChange }) {
                                 onTableTabChange={handleTabChange}
                                 onMarkerHover={handleMarkerHoverFromMap}
                                 onMarkerClick={setSelectedTargetId}
+                                countryIso={selectedCountryIso}
+                                onCountryIsoChange={setSelectedCountryIso}
+                                onCountryModalClose={handleCountryModalClose}
+                                onDemoCountryBoundsRef={countryBoundsApiRef}
                                 onAltClickAddTarget={handleMapAltClickAddTarget}
                                 onEditClick={handleEditClick}
                                 onTargetOpenDetails={handleSubordinateOpenDetails}
-                                canEditCountry={canEditCountryDossier}
+                                canEditCountry={demoPlayer.isActive ? false : canEditCountryDossier}
                                 onDeleteClick={handleDeleteClick}
                                 onEventSave={handleEventSave}
                                 filterCountry={filterCountry}
@@ -1624,6 +1738,14 @@ export default function Formular({ onMapFullscreenChange }) {
                                 canReadSituations={canReadSituations}
                                 isSituationModalOpen={situationModalOpen}
                                 editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
+                                demoAnimation={demoPlayer.demoAnimation}
+                                demoPlayback={demoPlayer.playback}
+                                demoMenu={demoMenu}
+                                onDemoToggle={demoPlayer.toggle}
+                                onDemoNext={demoPlayer.next}
+                                onDemoPrev={demoPlayer.prev}
+                                onDemoStop={() => demoPlayer.stop({ restore: true })}
+                                onDemoOverlayLayersRef={overlayLayersApiRef}
                             />
                         </div>
                         {!isFullscreen && isMeasureMode && (
@@ -1643,7 +1765,7 @@ export default function Formular({ onMapFullscreenChange }) {
                 <FormularModal
                     targetId={selectedTargetId}
                     onClose={handleFormularModalClose}
-                    onEdit={canEditTargets ? handleEditClick : undefined}
+                    onEdit={demoPlayer.isActive ? undefined : (canEditTargets ? handleEditClick : undefined)}
                     onSubordinateFlyTo={handleSubordinateFlyTo}
                     onSubordinateOpenDetails={handleSubordinateOpenDetails}
                     onEditEquipmentInCatalog={canOpenReference ? handleOpenEquipmentInCatalog : undefined}
@@ -1756,6 +1878,33 @@ export default function Formular({ onMapFullscreenChange }) {
                 onActiveTerritoryIndexChange={handleActiveTerritoryIndexChange}
                 countries={countriesList}
                 onSave={handleSituationSave}
+            />
+
+            <DemoStudioModal
+                isOpen={demoStudioOpen}
+                onClose={() => setDemoStudioOpen(false)}
+                scenarios={demoScenarios}
+                loading={demoScenariosLoading}
+                error={demoScenariosError}
+                onRefresh={refreshDemoScenarios}
+                onSave={saveScenario}
+                onDelete={removeScenario}
+                onPlay={handlePlayDemo}
+                onPreviewStep={handlePreviewDemoStep}
+                canWrite={canWriteDemo}
+                canDelete={canDeleteDemo}
+                objects={objects}
+                events={events}
+                situations={situations}
+                zoneCatalogByCountry={actionZoneAvailableByCountry}
+                overlayLayers={MAP_OVERLAY_LAYERS}
+                countriesList={countriesList}
+                getMapView={() => {
+                    const map = mapRef.current;
+                    if (!map?.getCenter) return null;
+                    const center = map.getCenter();
+                    return { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+                }}
             />
         </section>
     );

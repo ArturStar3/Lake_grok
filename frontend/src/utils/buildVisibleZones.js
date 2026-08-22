@@ -106,6 +106,7 @@ function ensureCatalogActionType(catalog, actionTypeId, actionType) {
       actionTypeTitle: actionType.title || 'Зона действия',
       color: getActionTypeColor(actionType),
       lineType: getActionTypeLineType(actionType),
+      isInundation: isInundationZoneType(actionType),
       hasManual: false,
       ttxParameters: new Map(),
     };
@@ -181,6 +182,7 @@ export function buildGlobalActionTypeCatalog(byCountry) {
           actionTypeTitle: group.actionTypeTitle,
           color: group.color,
           lineType: group.lineType,
+          isInundation: group.isInundation,
           hasManual: false,
           ttxParameters: new Map(),
         });

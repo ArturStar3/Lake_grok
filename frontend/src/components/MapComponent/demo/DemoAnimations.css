@@ -1,0 +1,69 @@
+/* Анимации режима демонстрации возможностей карты. */
+
+@keyframes demoBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+}
+
+@keyframes demoBlinkPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.25;
+        transform: scale(1.18);
+    }
+}
+
+@keyframes demoFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Мигание маркера события: divIcon получает класс, анимируем внутреннюю обёртку,
+   чтобы transform не конфликтовал с позиционированием Leaflet. */
+.leaflet-marker-icon.event-marker-icon--demo-blink .event-marker-icon__wrap,
+.leaflet-marker-icon.event-marker-icon--demo-blink .event-marker-icon__fallback {
+    animation: demoBlinkPulse var(--demo-blink-duration, 1.1s) ease-in-out infinite;
+    transform-origin: center bottom;
+    will-change: opacity, transform;
+}
+
+.leaflet-marker-icon.event-marker-icon--demo-blink.demo-anim--once .event-marker-icon__wrap,
+.leaflet-marker-icon.event-marker-icon--demo-blink.demo-anim--once .event-marker-icon__fallback {
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+/* Мигание фигур событий (круг / область) — SVG path в overlay-пейне. */
+.leaflet-overlay-pane path.demo-blink {
+    animation: demoBlink var(--demo-blink-duration, 1.1s) ease-in-out infinite;
+    will-change: opacity;
+}
+
+.leaflet-overlay-pane path.demo-blink.demo-anim--once {
+    animation-iteration-count: 1;
+    animation-fill-mode: both;
+}
+
+.leaflet-marker-icon.demo-fade-in,
+.leaflet-overlay-pane path.demo-fade-in {
+    animation: demoFadeIn var(--demo-fade-duration, 900ms) ease-out both;
+}
+
+.leaflet-marker-icon.demo-fade-in.demo-anim--continuous,
+.leaflet-overlay-pane path.demo-fade-in.demo-anim--continuous {
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+    animation-fill-mode: none;
+}
+
+/* Уважение системной настройки «уменьшить движение». */
+@media (prefers-reduced-motion: reduce) {
+    .leaflet-marker-icon.event-marker-icon--demo-blink .event-marker-icon__wrap,
+    .leaflet-marker-icon.event-marker-icon--demo-blink .event-marker-icon__fallback,
+    .leaflet-overlay-pane path.demo-blink {
+        animation-duration: 2.4s;
+    }
+}

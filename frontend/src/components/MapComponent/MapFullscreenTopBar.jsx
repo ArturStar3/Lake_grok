@@ -27,6 +27,7 @@ export default function MapFullscreenTopBar({
   canOpenDataExchange = false,
   onOpenDataExchange,
   searchControl = null,
+  demoMenu = null,
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -142,6 +143,7 @@ export default function MapFullscreenTopBar({
             onClusterLegacy={onClusterLegacy}
             onClusterBubble={onClusterBubble}
             onResetAll={onResetAll}
+            {...(demoMenu || {})}
           />
         )}
       </div>

@@ -13,6 +13,7 @@ from formular.viewshed import compute_los_polygon
 
 from accounts.permissions import (
     CountryScopedQuerysetMixin,
+    DemoScenariosPermission,
     EquipmentPermission,
     EventsPermission,
     OperationalSituationsPermission,
@@ -81,6 +82,8 @@ from .serializers import (
     MapDisplaySettingsSerializer,
     MarkerColorPaletteSerializer,
     TargetVulnerabilitySerializer,
+    DemoScenarioSerializer,
+    DemoScenarioWriteSerializer,
 )
 from formular.models import (
     Target,
@@ -111,6 +114,8 @@ from formular.models import (
     MapDisplaySettings,
     MarkerColorPalette,
     TargetVulnerability,
+    DemoScenario,
+    DemoScenarioStep,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -1465,6 +1470,27 @@ class MapDisplaySettingsView(APIView):
     def get(self, request):
         settings_obj = MapDisplaySettings.load()
         return Response(MapDisplaySettingsSerializer(settings_obj).data)
+
+
+class DemoScenarioViewSet(viewsets.ModelViewSet):
+    """Сценарии автоматической демонстрации возможностей карты."""
+
+    permission_classes = [DemoScenariosPermission]
+    queryset = DemoScenario.objects.prefetch_related(
+        Prefetch('steps', queryset=DemoScenarioStep.objects.order_by('order')),
+    ).order_by('title')
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return DemoScenarioWriteSerializer
+        return DemoScenarioSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user, 'demo_scenarios')
+        return super().destroy(request, *args, **kwargs)
 
 
 class TargetVulnerabilityViewSet(viewsets.ModelViewSet):

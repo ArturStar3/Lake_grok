@@ -2,7 +2,10 @@ import React, { useMemo, memo } from 'react';
 import { Polygon } from 'react-leaflet';
 import { getZonePolygonStrokeStyle } from '../../utils/actionZoneStyle';
 import { getZonePolygonPositionsList } from '../../utils/inundationZone';
-import { resolveSituationMapRevision } from '../../utils/situationUtils';
+import { filterRevisionsForSituation, resolveSituationMapRevision } from '../../utils/situationUtils';
+import { DEMO_EFFECT } from '../../utils/demoScenario';
+import { applyDemoEffectCssVars, resolveSituationDemoEffect } from './demo/eventDemoAnimations';
+import SituationStateCycleLayer from './demo/SituationStateCycleLayer';
 
 function geometryKey(geometry) {
   if (!geometry) return 'empty';
@@ -13,7 +16,7 @@ function geometryKey(geometry) {
   }
 }
 
-const SituationPolygon = memo(function SituationPolygon({ revision, situationId, onClick }) {
+const SituationPolygon = memo(function SituationPolygon({ revision, situationId, onClick, extraClassName = '', demoEffect = null }) {
   const revisionGeometryKey = geometryKey(revision?.geometry);
   const rings = useMemo(
     () => getZonePolygonPositionsList(revision?.geometry),
@@ -29,16 +32,17 @@ const SituationPolygon = memo(function SituationPolygon({ revision, situationId,
       dashArray: style.dashArray,
       fillColor: style.fillColor,
       fillOpacity: style.fillOpacity,
-      className: 'situation-polygon',
+      className: extraClassName ? `situation-polygon ${extraClassName}` : 'situation-polygon',
     };
-  }, [revision?.id, revision?.color]);
+  }, [revision?.id, revision?.color, extraClassName]);
 
   const eventHandlers = useMemo(() => ({
+    add: (e) => applyDemoEffectCssVars(e.target, demoEffect),
     click: (e) => {
       e.originalEvent?.stopPropagation();
       onClick?.(situationId, revision);
     },
-  }), [situationId, revision, onClick]);
+  }), [situationId, revision, onClick, demoEffect]);
 
   if (!rings?.length || revision?.id == null) return null;
 
@@ -66,6 +70,7 @@ export default memo(function OperationalSituationLayer({
   situationRevisions = [],
   editingSituationId = null,
   onSituationClick,
+  demoAnimation = null,
 }) {
   const selectedSet = useMemo(
     () => new Set(selectedSituationIds.map(String)),
@@ -82,6 +87,26 @@ export default memo(function OperationalSituationLayer({
       {visibleSituations.map((item) => {
         if (editingSituationId && String(item.id) === String(editingSituationId)) return null;
 
+        const demoEffect = resolveSituationDemoEffect(item.id, demoAnimation);
+        if (demoEffect?.effect === DEMO_EFFECT.STATE_CYCLE) {
+          const cycleRevisions = filterRevisionsForSituation(situationRevisions, item.id);
+          if (cycleRevisions.length > 1) {
+            return (
+              <SituationStateCycleLayer
+                key={`${item.id}-cycle-${demoEffect.runId}`}
+                situationId={item.id}
+                revisions={cycleRevisions}
+                perStateMs={demoEffect.perStateMs}
+                crossFadeMs={demoEffect.crossFadeMs}
+                order={demoEffect.order}
+                continuous={demoEffect.continuous}
+                runId={demoEffect.runId}
+                onSituationClick={onSituationClick}
+              />
+            );
+          }
+        }
+
         const rev = resolveSituationMapRevision(item, {
           activeSituationId,
           timelineRevisionId,
@@ -95,6 +120,13 @@ export default memo(function OperationalSituationLayer({
             situationId={item.id}
             revision={rev}
             onClick={onSituationClick}
+            extraClassName={[
+              demoEffect?.effect === DEMO_EFFECT.FADE_IN ? 'demo-fade-in' : '',
+              demoEffect?.effect === DEMO_EFFECT.FADE_IN
+                ? (demoEffect.continuous ? 'demo-anim--continuous' : 'demo-anim--once')
+                : '',
+            ].filter(Boolean).join(' ')}
+            demoEffect={demoEffect}
           />
         );
       })}

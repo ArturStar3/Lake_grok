@@ -40,6 +40,7 @@ class Command(BaseCommand):
                 'equipment': ModuleLevel.READ,
                 'reports': ModuleLevel.WRITE,
                 'data_exchange': ModuleLevel.WRITE,
+                'demo_scenarios': ModuleLevel.WRITE,
             },
         )
         if not created:
@@ -47,6 +48,7 @@ class Command(BaseCommand):
             _ensure_module(group, 'operational_situations', ModuleLevel.WRITE, update_fields)
             _ensure_module(group, 'reports', ModuleLevel.WRITE, update_fields)
             _ensure_module(group, 'data_exchange', ModuleLevel.WRITE, update_fields)
+            _ensure_module(group, 'demo_scenarios', ModuleLevel.WRITE, update_fields)
             if update_fields:
                 group.save(update_fields=update_fields)
         if me_countries.exists():
@@ -68,6 +70,7 @@ class Command(BaseCommand):
                 'equipment': ModuleLevel.READ,
                 'reports': ModuleLevel.READ,
                 'data_exchange': ModuleLevel.READ,
+                'demo_scenarios': ModuleLevel.READ,
             },
         )
         if not created:
@@ -75,6 +78,7 @@ class Command(BaseCommand):
             _ensure_module(operators, 'operational_situations', ModuleLevel.READ, update_fields)
             _ensure_module(operators, 'reports', ModuleLevel.READ, update_fields)
             _ensure_module(operators, 'data_exchange', ModuleLevel.READ, update_fields)
+            _ensure_module(operators, 'demo_scenarios', ModuleLevel.READ, update_fields)
             if update_fields:
                 operators.save(update_fields=update_fields)
         self.stdout.write(self.style.SUCCESS(
@@ -94,6 +98,7 @@ class Command(BaseCommand):
                 'equipment': ModuleLevel.WRITE,
                 'reports': ModuleLevel.WRITE_DELETE,
                 'data_exchange': ModuleLevel.WRITE_DELETE,
+                'demo_scenarios': ModuleLevel.WRITE_DELETE,
                 'can_manage_reference': True,
                 'can_manage_users': True,
                 'can_approve_registrations': True,
@@ -104,6 +109,7 @@ class Command(BaseCommand):
             _ensure_module(admins, 'operational_situations', ModuleLevel.WRITE, update_fields)
             _ensure_module(admins, 'reports', ModuleLevel.WRITE_DELETE, update_fields, upgrade_only=True)
             _ensure_module(admins, 'data_exchange', ModuleLevel.WRITE_DELETE, update_fields, upgrade_only=True)
+            _ensure_module(admins, 'demo_scenarios', ModuleLevel.WRITE_DELETE, update_fields, upgrade_only=True)
             if update_fields:
                 admins.save(update_fields=update_fields)
         if created:

@@ -11,6 +11,16 @@ import {
 } from '../../utils/actionZoneStyle';
 import { getZonePolygonPositions, isInundationZone, isPolygonZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
 import { isPointInPolygon } from '../../utils/inundationZone';
+import { DEMO_EFFECT } from '../../utils/demoScenario';
+import {
+  demoFadeClassName,
+  resolveZoneDemoEffect,
+  useCircleRevealAnimation,
+  useDemoEffectCssVars,
+  useDirectionalWipeAnimation,
+  usePolygonRevealAnimation,
+} from './demo/zoneDemoAnimations';
+import './demo/DemoAnimations.css';
 
 const VIEWPORT_DEBOUNCE_MS = 150;
 
@@ -100,6 +110,7 @@ function ZoneCircleLayer({
   onZonePointer,
   onZonePointerEnd,
   onZoneClick,
+  demoEffect = null,
 }) {
   const circleRef = useRef(null);
   const { obj, centerLat, centerLng, radiusMeters, color, lineType } = zone;
@@ -116,11 +127,25 @@ function ZoneCircleLayer({
     return () => hoverController.unregister(entryId);
   }, [entryId, obj.id, hoverController, baseStyle]);
 
+  useCircleRevealAnimation(circleRef, {
+    enabled: demoEffect?.effect === DEMO_EFFECT.REVEAL_FROM_CENTER,
+    runId: demoEffect?.runId ?? 0,
+    radiusMeters,
+    durationMs: demoEffect?.durationMs ?? 0,
+    delayMs: demoEffect?.delayMs ?? 0,
+    easing: demoEffect?.easing,
+    continuous: Boolean(demoEffect?.continuous),
+    animationKey: entryId,
+  });
+  useDemoEffectCssVars(circleRef, demoEffect);
+
   const pointerHandlers = useMemo(() => ({
     mouseover: (e) => onZonePointer?.(e),
     mouseout: () => onZonePointerEnd?.(),
     click: onZoneClick,
   }), [onZonePointer, onZonePointerEnd, onZoneClick]);
+
+  const className = demoFadeClassName('action-radius-circle', demoEffect);
 
   return (
     <Circle
@@ -134,7 +159,7 @@ function ZoneCircleLayer({
         weight: ZONE_STROKE_WEIGHT,
         opacity: baseStyle.opacity,
         dashArray: baseStyle.dashArray,
-        className: 'action-radius-circle',
+        className,
         interactive: true,
       }}
       eventHandlers={pointerHandlers}
@@ -152,13 +177,15 @@ function ZonePolygonLayer({
   onZoneClick,
   polygonClassName = 'action-radius-polygon action-radius-polygon--los',
   inundation = false,
+  demoEffect = null,
 }) {
   const polygonRef = useRef(null);
-  const { obj, color, lineType } = zone;
+  const { obj, color, lineType, centerLat, centerLng } = zone;
   const baseStyle = useMemo(
     () => getZonePolygonStrokeStyle(color, lineType, { inundation }),
     [color, lineType, inundation],
   );
+  const centroid = useMemo(() => ({ lat: centerLat, lng: centerLng }), [centerLat, centerLng]);
 
   useEffect(() => {
     const layer = polygonRef.current;
@@ -171,6 +198,31 @@ function ZonePolygonLayer({
     return () => hoverController.unregister(entryId);
   }, [entryId, obj.id, hoverController, baseStyle]);
 
+  usePolygonRevealAnimation(polygonRef, {
+    enabled: demoEffect?.effect === DEMO_EFFECT.REVEAL_FROM_CENTER,
+    runId: demoEffect?.runId ?? 0,
+    positions,
+    centroid,
+    durationMs: demoEffect?.durationMs ?? 0,
+    delayMs: demoEffect?.delayMs ?? 0,
+    easing: demoEffect?.easing,
+    continuous: Boolean(demoEffect?.continuous),
+    animationKey: entryId,
+  });
+
+  useDirectionalWipeAnimation(polygonRef, {
+    enabled: demoEffect?.effect === DEMO_EFFECT.DIRECTIONAL_WIPE,
+    runId: demoEffect?.runId ?? 0,
+    positions,
+    direction: demoEffect?.direction,
+    durationMs: demoEffect?.durationMs ?? 0,
+    delayMs: demoEffect?.delayMs ?? 0,
+    easing: demoEffect?.easing,
+    continuous: Boolean(demoEffect?.continuous),
+    animationKey: entryId,
+  });
+  useDemoEffectCssVars(polygonRef, demoEffect);
+
   const pointerHandlers = useMemo(() => ({
     mouseover: (e) => onZonePointer?.(e),
     mouseout: () => onZonePointerEnd?.(),
@@ -178,6 +230,8 @@ function ZonePolygonLayer({
   }), [onZonePointer, onZonePointerEnd, onZoneClick]);
 
   if (!positions?.length) return null;
+
+  const className = demoFadeClassName(polygonClassName, demoEffect);
 
   return (
     <Polygon
@@ -190,7 +244,7 @@ function ZonePolygonLayer({
         weight: ZONE_STROKE_WEIGHT,
         opacity: baseStyle.opacity,
         dashArray: baseStyle.dashArray,
-        className: polygonClassName,
+        className,
         interactive: true,
       }}
       eventHandlers={pointerHandlers}
@@ -209,6 +263,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   onZoneHoverChange,
   considerTerrain,
   losGeometryByZoneKey = {},
+  demoAnimation = null,
 }) {
   const visibleZones = useMemo(
     () => visibleZonesProp ?? buildVisibleZones(zoneObjects, actionZoneFilters),
@@ -260,6 +315,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         const useTerrainLos = isTerrainZoneEnabled(zone, considerTerrain);
         const usePolygon = isPolygonZone(zone);
         const useInundationStyle = isInundationZone(zone);
+        const demoEffect = resolveZoneDemoEffect(zone, demoAnimation);
         const geometry = useTerrainLos
           ? (losGeometryByZoneKey[zone.zoneKey] || zone.zoneGeometry)
           : null;
@@ -285,6 +341,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
                 ? 'action-radius-polygon action-radius-polygon--inundation'
                 : 'action-radius-polygon action-radius-polygon--polygon'}
               inundation={useInundationStyle}
+              demoEffect={demoEffect}
             />
           );
         }
@@ -300,6 +357,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
               onZonePointer={applyZoneHover}
               onZonePointerEnd={clearZoneHover}
               onZoneClick={handleZoneClick}
+              demoEffect={demoEffect}
             />
           );
         }
@@ -330,6 +388,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
             onZonePointer={applyZoneHover}
             onZonePointerEnd={clearZoneHover}
             onZoneClick={handleZoneClick}
+            demoEffect={demoEffect}
           />
         );
       })}

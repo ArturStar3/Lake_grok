@@ -28,6 +28,7 @@ export default function MapSplitHud({
   onClusterLegacy,
   onClusterBubble,
   onResetAll,
+  demoMenu = null,
 }) {
   const wrapRef = useRef(null);
   const [localOpen, setLocalOpen] = useState(false);
@@ -75,6 +76,7 @@ export default function MapSplitHud({
             onClusterLegacy={onClusterLegacy}
             onClusterBubble={onClusterBubble}
             onResetAll={onResetAll}
+            {...(demoMenu || {})}
           />
         )}
       </div>

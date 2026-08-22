@@ -31,6 +31,10 @@ from formular.models import (
     PersonRelation,
     MapDisplaySettings,
     TargetVulnerability,
+    DemoScenario,
+    DemoScenarioStep,
+    DemoStepStartMode,
+    DemoStepTool,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -41,7 +45,18 @@ from equipment.models import (
     EquipmentImage,
 )
 from .target_utils import create_target_actions, replace_target_equipment, serialize_deployed_equipment
+from .demo_scenario_utils import (
+    MAX_STEP_DURATION_MS,
+    MIN_STEP_DURATION_MS,
+    clear_other_default_scenarios,
+    normalize_animation,
+    normalize_camera,
+    normalize_selection,
+    normalize_step_duration,
+    replace_demo_scenario_steps,
+)
 from formular.map_display_utils import normalize_map_display_zoom_rules
+from formular.models import DEFAULT_DEMO_STEP_DURATION_MS
 from formular.zone_geometry_validation import validate_zone_geometry
 
 
@@ -1475,3 +1490,121 @@ class OperationalSituationTimelineRevisionSerializer(OperationalSituationRevisio
         fields = OperationalSituationRevisionSerializer.Meta.fields + (
             'situation_created_at',
         )
+
+
+class DemoScenarioStepSerializer(serializers.ModelSerializer):
+    """Шаг сценария демонстрации (чтение)."""
+
+    class Meta:
+        model = DemoScenarioStep
+        fields = (
+            'id',
+            'order',
+            'title',
+            'tool',
+            'duration_ms',
+            'start_mode',
+            'hold_previous',
+            'camera',
+            'selection',
+            'animation',
+        )
+
+
+class DemoScenarioStepWriteSerializer(serializers.Serializer):
+    """Шаг сценария демонстрации (запись, порядок задаётся позицией в массиве)."""
+
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    tool = serializers.ChoiceField(choices=DemoStepTool.choices, default=DemoStepTool.CAMERA)
+    duration_ms = serializers.IntegerField(
+        required=False,
+        min_value=MIN_STEP_DURATION_MS,
+        max_value=MAX_STEP_DURATION_MS,
+        default=DEFAULT_DEMO_STEP_DURATION_MS,
+    )
+    start_mode = serializers.ChoiceField(
+        choices=DemoStepStartMode.choices,
+        default=DemoStepStartMode.AFTER_PREVIOUS,
+    )
+    hold_previous = serializers.BooleanField(required=False, default=False)
+    camera = serializers.JSONField(required=False, default=dict)
+    selection = serializers.JSONField(required=False, default=dict)
+    animation = serializers.JSONField(required=False, default=dict)
+
+    def validate_camera(self, value):
+        return normalize_camera(value)
+
+    def validate_selection(self, value):
+        return normalize_selection(value)
+
+    def validate_animation(self, value):
+        return normalize_animation(value)
+
+
+class DemoScenarioSerializer(serializers.ModelSerializer):
+    """Сценарий демонстрации со вложенными шагами (чтение)."""
+
+    steps = DemoScenarioStepSerializer(many=True, read_only=True)
+    step_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DemoScenario
+        fields = (
+            'id',
+            'title',
+            'description',
+            'is_default',
+            'loop',
+            'default_step_duration_ms',
+            'created_at',
+            'updated_at',
+            'steps',
+            'step_count',
+        )
+
+    def get_step_count(self, obj):
+        return len(obj.steps.all())
+
+
+class DemoScenarioWriteSerializer(serializers.ModelSerializer):
+    """Создание/обновление сценария демонстрации вместе с шагами."""
+
+    steps = DemoScenarioStepWriteSerializer(many=True, required=False)
+
+    class Meta:
+        model = DemoScenario
+        fields = (
+            'id',
+            'title',
+            'description',
+            'is_default',
+            'loop',
+            'default_step_duration_ms',
+            'steps',
+        )
+        read_only_fields = ('id',)
+
+    def validate_default_step_duration_ms(self, value):
+        return normalize_step_duration(value)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        steps_data = validated_data.pop('steps', None)
+        scenario = DemoScenario.objects.create(**validated_data)
+        replace_demo_scenario_steps(scenario, steps_data if steps_data is not None else [])
+        clear_other_default_scenarios(scenario)
+        return scenario
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        steps_data = validated_data.pop('steps', serializers.empty)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if steps_data is not serializers.empty:
+            replace_demo_scenario_steps(instance, steps_data or [])
+        clear_other_default_scenarios(instance)
+        return instance
+
+    def to_representation(self, instance):
+        return DemoScenarioSerializer(instance, context=self.context).data

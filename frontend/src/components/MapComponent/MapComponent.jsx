@@ -52,9 +52,14 @@ import MapFullscreenPanel from "./MapFullscreenPanel";
 import MapFullscreenPanelBody, { MapFullscreenPanelFeatures } from "./MapFullscreenPanelBody";
 import MapSplitHud from "./MapSplitHud";
 import MapSearchControl from "./MapSearchControl";
+import { findCountryFeature } from "../../utils/mapSearchUtils";
 import { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
 import "./MapComponent.css";
 import "./MapFullscreen.css";
+import { applyDemoEffectCssVars, demoEffectClassName, demoEffectCssVars, demoMarkerIconClass, resolveEventDemoEffect } from "./demo/eventDemoAnimations";
+import { setDemoAnimationMap } from "./demo/demoRafDriver";
+import DemoPlaybackBar from "../DemoMode/DemoPlaybackBar";
+import "./demo/DemoAnimations.css";
 
 // delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -64,6 +69,37 @@ L.Icon.Default.mergeOptions({
 });
 
 const MemoGeoJSON = React.memo(GeoJSON);
+
+/**
+ * Иконки событий кэшируются по маркеру и активному эффекту демонстрации:
+ * пересоздание divIcon на каждом рендере сбрасывало бы CSS-анимацию мигания.
+ */
+const eventMarkerIconCache = new Map();
+
+function getEventMarkerIconCached({ markerId, path, svg, demoEffect }) {
+    const demoClass = demoMarkerIconClass(demoEffect);
+    const durationKey = demoEffect
+        ? `${demoEffect.durationMs ?? ""}|${demoEffect.continuous ? "1" : "0"}|${demoEffect.runId ?? ""}`
+        : "";
+    const cacheKey = `${markerId ?? path ?? "fallback"}|${svg ? "svg" : "img"}|${demoClass}|${durationKey}`;
+    const cached = eventMarkerIconCache.get(cacheKey);
+    if (cached) return cached;
+
+    const cssVars = demoEffect ? demoEffectCssVars(demoEffect) : "";
+    const content = svg
+        ? `<div class="event-marker-icon__wrap event-marker-icon__svg" style="${cssVars}">${svg}</div>`
+        : path
+            ? `<div class="event-marker-icon__wrap" style="${cssVars}"><img src="${path}" alt="event-marker" /></div>`
+            : `<div class="event-marker-icon__fallback" style="${cssVars}"></div>`;
+    const icon = L.divIcon({
+        className: `event-marker-icon${demoClass}`,
+        html: content,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+    });
+    eventMarkerIconCache.set(cacheKey, icon);
+    return icon;
+}
 
 function FullscreenControl({ isFullscreen, onToggle, sidebarOpen = false }) {
     return (
@@ -638,6 +674,31 @@ function MapEventBridge({ apiRef }) {
     return null;
 }
 
+/** Связывает Leaflet-карту с rAF-анимациями демонстрации и отдаёт API слоёв наружу. */
+function DemoMapBridge({ onOverlayLayersRef, setOnlyOverlayLayers, overlayEnabledById }) {
+    const map = useMap();
+
+    useEffect(() => {
+        setDemoAnimationMap(map);
+        return () => setDemoAnimationMap(null);
+    }, [map]);
+
+    useEffect(() => {
+        if (!onOverlayLayersRef) return undefined;
+        onOverlayLayersRef.current = {
+            setOverlayLayers: setOnlyOverlayLayers,
+            getEnabledIds: () => Object.entries(overlayEnabledById || {})
+                .filter(([, enabled]) => enabled)
+                .map(([id]) => id),
+        };
+        return () => {
+            onOverlayLayersRef.current = null;
+        };
+    }, [onOverlayLayersRef, setOnlyOverlayLayers, overlayEnabledById]);
+
+    return null;
+}
+
 function MapComponent({
     // ...existing code...
     objects,
@@ -778,6 +839,18 @@ function MapComponent({
     canOpenReports = false,
     onOpenReports,
     eventDrawRequest = 0,
+    demoAnimation = null,
+    demoPlayback = null,
+    demoMenu = null,
+    onDemoToggle,
+    onDemoNext,
+    onDemoPrev,
+    onDemoStop,
+    onDemoOverlayLayersRef,
+    countryIso,
+    onCountryIsoChange,
+    onCountryModalClose,
+    onDemoCountryBoundsRef,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
 
@@ -788,7 +861,7 @@ function MapComponent({
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
     const [vectorMapError, setVectorMapError] = useState(null);
-    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers(maplibreMapRef, maplibreReady);
+    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, setOnlyLayers: setOnlyOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers(maplibreMapRef, maplibreReady);
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
@@ -806,7 +879,13 @@ function MapComponent({
     const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
-    const [selectedCountryIso, setSelectedCountryIso] = useState(null);
+    const [internalCountryIso, setInternalCountryIso] = useState(null);
+    const countryControlled = countryIso !== undefined;
+    const selectedCountryIso = countryControlled ? countryIso : internalCountryIso;
+    const setSelectedCountryIso = useCallback((iso) => {
+        if (onCountryIsoChange) onCountryIsoChange(iso);
+        if (!countryControlled) setInternalCountryIso(iso);
+    }, [countryControlled, onCountryIsoChange]);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [markerVersion, setMarkerVersion] = useState(0);
@@ -1261,7 +1340,20 @@ function MapComponent({
         if (isMapDrawingActive) {
             setSelectedCountryIso(null);
         }
-    }, [isMapDrawingActive]);
+    }, [isMapDrawingActive, setSelectedCountryIso]);
+
+    useEffect(() => {
+        if (!onDemoCountryBoundsRef) return undefined;
+        onDemoCountryBoundsRef.current = (iso) => {
+            const feature = findCountryFeature(geoData, iso);
+            if (!feature) return null;
+            const bounds = L.geoJSON(feature).getBounds();
+            return bounds?.isValid?.() ? bounds : null;
+        };
+        return () => {
+            onDemoCountryBoundsRef.current = null;
+        };
+    }, [geoData, onDemoCountryBoundsRef]);
 
     // Cleanup zone panel when the "Зона действия" tool is turned off
     useEffect(() => {
@@ -1490,6 +1582,9 @@ function MapComponent({
     // их срабатывания — каждый блок изолирован своим замыканием, чтобы `return`
     // прерывал только свою секцию, как это было у отдельных useMapEvents.
     mapEventApiRef.current.onClick = (e, map) => {
+        if (demoPlayback?.isPlaying) {
+            onDemoToggle?.();
+        }
         // 1) Клик по карте: закрытие меню группы / панели зон
         (() => {
             if (suppressNextMapClickRef.current) {
@@ -1691,6 +1786,11 @@ function MapComponent({
         const markerPath = resolveMediaUrl(eventItem.marker?.path);
         const markerSvg = eventItem.marker?.id ? eventMarkerSvgs.get(eventItem.marker.id) : null;
         const eventColor = eventItem.color || "#2f80ed";
+        const demoEventEffect = resolveEventDemoEffect(eventItem, demoAnimation);
+        const shapeClassName = demoEffectClassName(demoEventEffect) || undefined;
+        const demoShapeHandlers = demoEventEffect
+            ? { add: (e) => applyDemoEffectCssVars(e.target, demoEventEffect) }
+            : undefined;
         const popupContent = (
             <Popup
                 autoPan={false}
@@ -1725,19 +1825,12 @@ function MapComponent({
             </Popup>
         );
 
-        const getEventMarkerIcon = (path, svg) => {
-            const content = svg
-                ? `<div class="event-marker-icon__wrap event-marker-icon__svg">${svg}</div>`
-                : path
-                    ? `<div class="event-marker-icon__wrap"><img src="${path}" alt="event-marker" /></div>`
-                    : `<div class="event-marker-icon__fallback"></div>`;
-            return L.divIcon({
-                className: "event-marker-icon",
-                html: content,
-                iconSize: [28, 28],
-                iconAnchor: [14, 28]
-            });
-        };
+        const getEventMarkerIcon = (path, svg) => getEventMarkerIconCached({
+            markerId: eventItem.marker?.id,
+            path,
+            svg,
+            demoEffect: demoEventEffect,
+        });
 
         const getEventMarkerPosition = () => {
             if (shape.type === "point" && shape.geometry) {
@@ -1778,7 +1871,8 @@ function MapComponent({
                     <Circle
                         center={[shape.geometry.lat, shape.geometry.lng]}
                         radius={shape.geometry.radius || 0}
-                        pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1 }}
+                        pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1, className: shapeClassName }}
+                        eventHandlers={demoShapeHandlers}
                         {...layerInteraction}
                     >
                         {popupContent}
@@ -1802,7 +1896,8 @@ function MapComponent({
                 <React.Fragment key={`event-area-${eventItem.id}`}>
                     <Polygon
                         positions={shape.geometry.points.map((p) => [p.lat, p.lng])}
-                        pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1 }}
+                        pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1, className: shapeClassName }}
+                        eventHandlers={demoShapeHandlers}
                         {...layerInteraction}
                     >
                         {popupContent}
@@ -2008,7 +2103,7 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}`}
+            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${demoPlayback?.isActive ? " map--demo" : ""}`}
             ref={containerRef}
         >
             {isFullscreen && (
@@ -2025,6 +2120,7 @@ function MapComponent({
                         onClusterLegacy={handleFsClusterLegacy}
                         onClusterBubble={handleFsClusterBubble}
                         onResetAll={handleFsResetAll}
+                        demoMenu={demoMenu}
                         onExitFullscreen={toggleFullscreen}
                         canEditTargets={canEditTargets}
                         onOpenAddTarget={onOpenAddTarget}
@@ -2129,8 +2225,14 @@ function MapComponent({
                         onClusterLegacy={() => setClusterMode('legacy')}
                         onClusterBubble={() => setClusterMode('bubble')}
                         onResetAll={() => onResetAllMapState?.()}
+                        demoMenu={demoMenu}
                     />
                 )}
+                <DemoMapBridge
+                    onOverlayLayersRef={onDemoOverlayLayersRef}
+                    setOnlyOverlayLayers={setOnlyOverlayLayers}
+                    overlayEnabledById={overlayEnabledById}
+                />
                 {USE_VECTOR_MAP ? (
                     <MapVectorBaseLayer
                         onMapReady={handleMaplibreReady}
@@ -2285,6 +2387,7 @@ function MapComponent({
                     situationRevisions={situationRevisions}
                     editingSituationId={editingSituationId}
                     onSituationClick={onSituationClick}
+                    demoAnimation={demoAnimation}
                 />
                 {clusterMode === 'legacy' && (
                 <>
@@ -2388,6 +2491,7 @@ function MapComponent({
                         onZoneHoverChange={handleZoneHoverChange}
                         considerTerrain={considerTerrain}
                         losGeometryByZoneKey={losGeometryByZoneKey}
+                        demoAnimation={demoAnimation}
                     />
                 )}
 
@@ -2520,7 +2624,10 @@ function MapComponent({
             {selectedCountryIso && (
                 <CountryModal 
                     countryIso={selectedCountryIso}
-                    onClose={() => setSelectedCountryIso(null)}
+                    onClose={() => {
+                        if (onCountryModalClose) onCountryModalClose();
+                        else setSelectedCountryIso(null);
+                    }}
                     onTargetEdit={(targetId) => {
                         setSelectedCountryIso(null);
                         onEditClick?.(targetId);
@@ -2529,6 +2636,13 @@ function MapComponent({
                     canEditCountry={canEditCountry}
                 />
             )}
+            <DemoPlaybackBar
+                playback={demoPlayback}
+                onToggle={onDemoToggle}
+                onNext={onDemoNext}
+                onPrev={onDemoPrev}
+                onStop={onDemoStop}
+            />
             {isEventModalOpen && (
                 <AddEventModal
                     isOpen={isEventModalOpen}

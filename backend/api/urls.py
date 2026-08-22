@@ -35,6 +35,7 @@ from .views import (
     UnitOfMeasureViewSet,
     EquipmentViewSet,
     EquipmentImageViewSet,
+    DemoScenarioViewSet,
 )
 from reports.views import ReportTemplateViewSet
 from data_exchange.views import DataExchangeExportView, ImportSessionViewSet
@@ -213,6 +214,12 @@ router.register(
     r'data-exchange/sessions',
     ImportSessionViewSet,
     basename='data-exchange-sessions',
+)
+
+router.register(
+    r'demo-scenarios',
+    DemoScenarioViewSet,
+    basename='demo-scenarios',
 )
 
 urlpatterns = [

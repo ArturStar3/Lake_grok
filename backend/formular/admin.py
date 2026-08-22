@@ -38,6 +38,8 @@ from .models import (
     PersonRelation,
     MapDisplaySettings,
     TargetVulnerability,
+    DemoScenario,
+    DemoScenarioStep,
 )
 from .admin_inlines import (
     TargetInlineAdmin,
@@ -531,3 +533,39 @@ class MapDisplaySettingsAdmin(ModelAdmin):
 
         obj.zoom_rules = validate_map_display_zoom_rules(obj.zoom_rules)
         super().save_model(request, obj, form, change)
+
+
+class DemoScenarioStepInline(admin.TabularInline):
+    model = DemoScenarioStep
+    extra = 0
+    fields = ('order', 'title', 'tool', 'duration_ms', 'start_mode', 'hold_previous')
+    ordering = ('order',)
+    show_change_link = True
+
+
+@admin.register(DemoScenario)
+class DemoScenarioAdmin(ModelAdmin):
+    list_display = ('title', 'step_count', 'is_default', 'loop', 'updated_at', 'created_by')
+    list_filter = ('is_default', 'loop')
+    search_fields = ('title', 'description')
+    list_select_related = ('created_by',)
+    autocomplete_fields = ('created_by',)
+    inlines = [DemoScenarioStepInline]
+    list_per_page = 50
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_step_count=Count('steps'))
+
+    @admin.display(description='Шагов', ordering='_step_count')
+    def step_count(self, obj):
+        return obj._step_count
+
+
+@admin.register(DemoScenarioStep)
+class DemoScenarioStepAdmin(ModelAdmin):
+    list_display = ('__str__', 'scenario', 'tool', 'duration_ms', 'start_mode')
+    list_filter = ('tool', 'start_mode')
+    search_fields = ('title', 'scenario__title')
+    list_select_related = ('scenario',)
+    autocomplete_fields = ('scenario',)
+    list_per_page = 50

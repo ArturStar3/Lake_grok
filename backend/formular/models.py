@@ -1391,3 +1391,155 @@ class TargetVulnerability(models.Model):
     def __str__(self):
         return f'{self.target.title} — {self.title}'
 
+
+class DemoStepTool(models.TextChoices):
+    CAMERA = 'camera', 'Камера'
+    OBJECTS = 'objects', 'Объекты'
+    EVENTS = 'events', 'События'
+    ZONES = 'zones', 'Зоны действия'
+    INUNDATION = 'inundation', 'Зоны затопления'
+    SITUATIONS = 'situations', 'Оперативная обстановка'
+    LAYERS = 'layers', 'Слои карты'
+    FORMULAR = 'formular', 'Формуляр объекта'
+    COUNTRY = 'country', 'Справка по стране'
+
+
+class DemoStepStartMode(models.TextChoices):
+    AFTER_PREVIOUS = 'after_previous', 'После предыдущего'
+    WITH_PREVIOUS = 'with_previous', 'Вместе с предыдущим'
+
+
+class DemoStepEffect(models.TextChoices):
+    NONE = 'none', 'Без анимации'
+    FADE_IN = 'fade_in', 'Проявление'
+    REVEAL_FROM_CENTER = 'reveal_from_center', 'Раскрытие от центра'
+    BLINK = 'blink', 'Мигание'
+    STATE_CYCLE = 'state_cycle', 'Смена состояний'
+    DIRECTIONAL_WIPE = 'directional_wipe', 'Направленное появление'
+
+
+class DemoStepDirection(models.TextChoices):
+    LEFT = 'left', 'Слева'
+    RIGHT = 'right', 'Справа'
+    TOP = 'top', 'Сверху'
+    BOTTOM = 'bottom', 'Снизу'
+
+
+DEFAULT_DEMO_STEP_DURATION_MS = 6000
+
+
+class DemoScenario(models.Model):
+    """Сценарий автоматической демонстрации возможностей карты."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    title = models.CharField(max_length=255, verbose_name='Название')
+    description = models.TextField(blank=True, default='', verbose_name='Описание')
+    is_default = models.BooleanField(
+        default=False,
+        verbose_name='Сценарий по умолчанию',
+        help_text='Запускается кнопкой быстрого старта демонстрации',
+    )
+    loop = models.BooleanField(default=True, verbose_name='Зацикливать показ')
+    default_step_duration_ms = models.PositiveIntegerField(
+        default=DEFAULT_DEMO_STEP_DURATION_MS,
+        verbose_name='Длительность шага по умолчанию, мс',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата изменения')
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demo_scenarios_created',
+        verbose_name='Автор',
+    )
+
+    class Meta:
+        verbose_name = 'Сценарий демонстрации'
+        verbose_name_plural = 'Сценарии демонстрации'
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title
+
+
+class DemoScenarioStep(models.Model):
+    """Шаг сценария демонстрации: что показать, как долго и с какой анимацией."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    scenario = models.ForeignKey(
+        DemoScenario,
+        on_delete=models.CASCADE,
+        related_name='steps',
+        verbose_name='Сценарий',
+    )
+    order = models.PositiveIntegerField(default=0, verbose_name='Порядок')
+    title = models.CharField(max_length=255, blank=True, default='', verbose_name='Название шага')
+    tool = models.CharField(
+        max_length=20,
+        choices=DemoStepTool.choices,
+        default=DemoStepTool.CAMERA,
+        verbose_name='Инструмент',
+    )
+    duration_ms = models.PositiveIntegerField(
+        default=DEFAULT_DEMO_STEP_DURATION_MS,
+        verbose_name='Длительность, мс',
+    )
+    start_mode = models.CharField(
+        max_length=20,
+        choices=DemoStepStartMode.choices,
+        default=DemoStepStartMode.AFTER_PREVIOUS,
+        verbose_name='Начало',
+    )
+    hold_previous = models.BooleanField(
+        default=False,
+        verbose_name='Сохранять содержимое предыдущего шага',
+    )
+    camera = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Камера (JSON)',
+        help_text='mode, lat, lng, zoom, duration_ms, ease_linearity, padding',
+    )
+    selection = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Выбранные элементы (JSON)',
+        help_text='target_ids, event_ids, situation_ids, zone_leaves, overlay_layer_ids, country_isos',
+    )
+    animation = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Анимация (JSON)',
+        help_text='effect, direction, duration_ms, delay_ms, easing, repeat, continuous, state_cycle',
+    )
+
+    class Meta:
+        verbose_name = 'Шаг сценария демонстрации'
+        verbose_name_plural = 'Шаги сценария демонстрации'
+        ordering = ['scenario_id', 'order']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('scenario', 'order'),
+                name='uniq_demo_scenario_step_order',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('scenario', 'order')),
+        ]
+
+    def __str__(self):
+        label = self.title or self.get_tool_display()
+        return f'{self.order + 1}. {label}'
+

@@ -1,0 +1,155 @@
+.demo-playbar {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 10050;
+    min-width: 620px;
+    max-width: min(920px, calc(100% - 32px));
+    background: rgba(17, 24, 39, 0.9);
+    color: #f8fafc;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.demo-playbar--hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+    pointer-events: none;
+}
+
+.demo-playbar__progress {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.demo-playbar__progress-fill {
+    height: 100%;
+    background: #4b9bff;
+    transition: width 120ms linear;
+}
+
+.demo-playbar__row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 12px;
+}
+
+.demo-playbar__controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.demo-playbar__controls button {
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: #f8fafc;
+    border-radius: 6px;
+    width: 32px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.demo-playbar__controls button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.demo-playbar__play {
+    width: 40px !important;
+    background: #2f80ed !important;
+    font-size: 0.9rem !important;
+}
+
+.demo-playbar__play:hover {
+    background: #1d6fd8 !important;
+}
+
+.demo-playbar__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.demo-playbar__scenario {
+    font-size: 0.74rem;
+    color: rgba(248, 250, 252, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.demo-playbar__step {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.demo-playbar__counter {
+    font-size: 0.78rem;
+    color: rgba(248, 250, 252, 0.7);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.demo-playbar__step-progress {
+    width: 120px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.16);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.demo-playbar__step-progress-fill {
+    height: 100%;
+    background: #7dd3fc;
+    transition: width 120ms linear;
+}
+
+.demo-playbar__exit {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    background: transparent;
+    color: #f8fafc;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.demo-playbar__exit:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Во время показа прячем операторские элементы карты. */
+.map--demo .map-fs-dock,
+.map--demo .map-fs-panel,
+.map--demo .map-fs-topbar,
+.map--demo .map-fs-dock-reveal,
+.map--demo .map-split-hud__zoom,
+.map--demo .map-split-hud__tools,
+.map--demo .action-radius-legend-button {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+}
+
+@media (max-width: 900px) {
+    .demo-playbar {
+        min-width: 0;
+        width: calc(100% - 24px);
+    }
+
+    .demo-playbar__step-progress {
+        display: none;
+    }
+}

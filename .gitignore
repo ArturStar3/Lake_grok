@@ -153,6 +153,15 @@ SynologyDrive/
 Значки событий/
 
 # ----------------------------------------
+# Тестовые данные карты и локальная инструкция сида
+# (код команд seed_qa_data / qa_seed_data.py — в git)
+# ----------------------------------------
+svg_markers/
+backend/formular/seed_assets/
+SEED_QA_DATA.md
+backend/SEED_QA_DATA.md
+
+# ----------------------------------------
 # TileServer GL (tileserver/)
 # ----------------------------------------
 # Весь полезный контент tileserver/ публикуется в git:

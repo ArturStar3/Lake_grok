@@ -24,6 +24,7 @@ MODULE_FIELDS = (
     'equipment',
     'reports',
     'data_exchange',
+    'demo_scenarios',
 )
 
 LEVEL_RANK = {
@@ -40,4 +41,5 @@ DELETE_CAPABLE_MODULES = (
     'operational_situations',
     'persons',
     'reports',
+    'demo_scenarios',
 )

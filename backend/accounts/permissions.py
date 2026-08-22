@@ -89,6 +89,10 @@ class DataExchangePermission(ModulePermission):
     module = 'data_exchange'
 
 
+class DemoScenariosPermission(ModulePermission):
+    module = 'demo_scenarios'
+
+
 class CountryScopedQuerysetMixin:
     """Фильтрация queryset по разрешённым странам."""
 
