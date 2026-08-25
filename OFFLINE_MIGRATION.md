@@ -11,6 +11,7 @@
 - [OFFLINE_DEPLOY_PROD.md](OFFLINE_DEPLOY_PROD.md) / [OFFLINE_DEPLOY_DEV.md](OFFLINE_DEPLOY_DEV.md) — запуск prod/dev через nginx
 - [OFFLINE_DEPLOY_PROD_POSTGRES.md](OFFLINE_DEPLOY_PROD_POSTGRES.md) — production + **PostgreSQL 17 в Docker**
 - [OFFLINE_DEPLOY_DIRECT.md](OFFLINE_DEPLOY_DIRECT.md) — запуск **без nginx** (порты 5173 / 8000 / 8080)
+- [DEMO_MODE.md](DEMO_MODE.md) — создание и запуск демонстрации возможностей карты
 
 ---
 
@@ -78,9 +79,9 @@ git pull
 1. `npm run build:map-style` — сборка `infolake-unified.json` и маппинга слоёв
 2. `docker compose -f docker-compose.yml -f docker-compose.server.yml build` — backend и **production nginx** (`Dockerfile.server`: `npm run build` + nginx, без bind-mount)
 3. Проверку наличия всех образов локально
-4. `docker save` → **`infolake_full_offline.tar`**
-5. Копию с датой: `infolake_full_offline_YYYYMMDD_HHMMSS.tar`
-6. **`offline-package-manifest.txt`** — список образов и чек-лист
+4. `docker save` → **`infolake_full_offline_prod.tar`** и копия **`infolake_full_offline.tar`** (то же содержимое)
+5. Копию с датой: `infolake_full_offline_prod_YYYYMMDD_HHMMSS.tar`
+6. **`offline-package-manifest-prod.txt`** и **`offline-package-manifest.txt`** — список образов и чек-лист
 
 Образы в архиве:
 
@@ -257,7 +258,7 @@ git pull
 .\export-offline.ps1
 ```
 
-Перенесите новый `infolake_full_offline.tar` и обновлённые файлы проекта (код, `tileserver/styles/`, `infolake-unified.json`).
+Перенесите новый `infolake_full_offline.tar` (или `infolake_full_offline_prod.tar`) и обновлённые файлы проекта (код, `tileserver/styles/`, `infolake-unified.json`). Обязательно скопируйте миграции `0054`/`0055` и `accounts/0012`/`0013` — без них демонстрация карты не заработает.
 
 На **оффлайн-сервере:**
 
@@ -265,7 +266,14 @@ git pull
 docker compose -f docker-compose.yml -f docker-compose.server.yml down
 docker load -i infolake_full_offline.tar
 docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never
-docker compose -f docker-compose.yml -f docker-compose.server.yml exec backend python manage.py migrate
+docker compose -f docker-compose.yml -f docker-compose.server.yml exec -T backend python manage.py migrate --noinput
+docker compose -f docker-compose.yml -f docker-compose.server.yml exec -T backend python manage.py ensure_demo_scenario_permissions
+```
+
+Опционально — тестовый сценарий на 60 с (см. [DEMO_MODE.md](DEMO_MODE.md)):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.server.yml exec -T backend python manage.py seed_sample_demo_scenario --replace
 ```
 
 Для релиза с палитрами маркеров (migrate + проверка):

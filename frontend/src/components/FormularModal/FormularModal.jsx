@@ -18,6 +18,7 @@ const FormularModal = ({
   actionZoneFilters = {},
   onVulnerabilityPreviewChange,
   initialShowVulnerabilitiesOnMap = false,
+  initialCardId = null,
 }) => {
   const [data, setData] = useState([]);
   const [subordinates, setSubordinates] = useState([]);
@@ -331,6 +332,7 @@ const FormularModal = ({
               cards={sectionCards}
               attachmentsBySection={attachmentsBySection}
               resetKey={targetId}
+              initialCardId={initialCardId}
               autoExpandSingle
               onSubordinateFlyTo={onSubordinateFlyTo}
               onSubordinateOpenDetails={onSubordinateOpenDetails}

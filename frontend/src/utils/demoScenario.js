@@ -224,6 +224,7 @@ export function normalizeSelection(raw) {
     zone_leaves: toZoneLeaves(data.zone_leaves),
     overlay_layer_ids: toIdList(data.overlay_layer_ids),
     country_isos: toIsoList(data.country_isos),
+    card_ids: toIdList(data.card_ids),
   };
 }
 
@@ -285,7 +286,13 @@ export function normalizeStep(raw, index = 0) {
     ),
     hold_previous: Boolean(data.hold_previous),
     camera: normalizeCamera(data.camera),
-    selection: normalizeSelection(data.selection),
+    selection: (() => {
+      const selection = normalizeSelection(data.selection);
+      if (tool === DEMO_TOOL.SITUATIONS) {
+        selection.situation_ids = selection.situation_ids.slice(0, 1);
+      }
+      return selection;
+    })(),
     animation,
   };
 }

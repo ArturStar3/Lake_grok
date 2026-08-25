@@ -50,6 +50,7 @@ DEFAULT_SELECTION = {
     'zone_leaves': [],
     'overlay_layer_ids': [],
     'country_isos': [],
+    'card_ids': [],
 }
 
 
@@ -175,6 +176,7 @@ def normalize_selection(raw):
         'zone_leaves': _normalize_zone_leaves(data.get('zone_leaves')),
         'overlay_layer_ids': _normalize_id_list(data.get('overlay_layer_ids')),
         'country_isos': _normalize_country_isos(data.get('country_isos')),
+        'card_ids': _normalize_id_list(data.get('card_ids')),
     }
 
 

@@ -14,6 +14,8 @@ import { isPointInPolygon } from '../../utils/inundationZone';
 import { DEMO_EFFECT } from '../../utils/demoScenario';
 import {
   demoFadeClassName,
+  collapsePositionsToCentroid,
+  MIN_REVEAL_RADIUS_M,
   resolveZoneDemoEffect,
   useCircleRevealAnimation,
   useDemoEffectCssVars,
@@ -127,8 +129,10 @@ function ZoneCircleLayer({
     return () => hoverController.unregister(entryId);
   }, [entryId, obj.id, hoverController, baseStyle]);
 
+  const revealEnabled = demoEffect?.effect === DEMO_EFFECT.REVEAL_FROM_CENTER;
+
   useCircleRevealAnimation(circleRef, {
-    enabled: demoEffect?.effect === DEMO_EFFECT.REVEAL_FROM_CENTER,
+    enabled: revealEnabled,
     runId: demoEffect?.runId ?? 0,
     radiusMeters,
     durationMs: demoEffect?.durationMs ?? 0,
@@ -151,7 +155,7 @@ function ZoneCircleLayer({
     <Circle
       ref={circleRef}
       center={[centerLat, centerLng]}
-      radius={radiusMeters}
+      radius={revealEnabled ? MIN_REVEAL_RADIUS_M : radiusMeters}
       pathOptions={{
         color,
         fillColor: color,
@@ -186,6 +190,12 @@ function ZonePolygonLayer({
     [color, lineType, inundation],
   );
   const centroid = useMemo(() => ({ lat: centerLat, lng: centerLng }), [centerLat, centerLng]);
+  const revealEnabled = demoEffect?.effect === DEMO_EFFECT.REVEAL_FROM_CENTER;
+  const wipeEnabled = demoEffect?.effect === DEMO_EFFECT.DIRECTIONAL_WIPE;
+  const renderPositions = useMemo(
+    () => (revealEnabled ? collapsePositionsToCentroid(positions, centroid) : positions),
+    [revealEnabled, demoEffect?.runId, entryId, centroid, positions?.length],
+  );
 
   useEffect(() => {
     const layer = polygonRef.current;
@@ -199,7 +209,7 @@ function ZonePolygonLayer({
   }, [entryId, obj.id, hoverController, baseStyle]);
 
   usePolygonRevealAnimation(polygonRef, {
-    enabled: demoEffect?.effect === DEMO_EFFECT.REVEAL_FROM_CENTER,
+    enabled: revealEnabled,
     runId: demoEffect?.runId ?? 0,
     positions,
     centroid,
@@ -211,7 +221,7 @@ function ZonePolygonLayer({
   });
 
   useDirectionalWipeAnimation(polygonRef, {
-    enabled: demoEffect?.effect === DEMO_EFFECT.DIRECTIONAL_WIPE,
+    enabled: wipeEnabled,
     runId: demoEffect?.runId ?? 0,
     positions,
     direction: demoEffect?.direction,
@@ -236,7 +246,7 @@ function ZonePolygonLayer({
   return (
     <Polygon
       ref={polygonRef}
-      positions={positions}
+      positions={renderPositions}
       pathOptions={{
         color,
         fillColor: color,

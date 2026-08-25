@@ -111,6 +111,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const [highlightedSituationId, setHighlightedSituationId] = useState(null);
     const [mapUiResetToken, setMapUiResetToken] = useState(0);
     const [demoStudioOpen, setDemoStudioOpen] = useState(false);
+    const [demoContentCardId, setDemoContentCardId] = useState(null);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
@@ -258,21 +259,6 @@ export default function Formular({ onMapFullscreenChange }) {
         return vulnerabilityMapPreview.points || [];
     }, [vulnerabilityMapPreview]);
 
-    const terrainZones = useMemo(() => {
-        if (!zonesLayerActive || !considerTerrain) return [];
-        return visibleZones.filter((zone) => isLosRadarZoneMode(zone.zoneMode));
-    }, [visibleZones, zonesLayerActive, considerTerrain]);
-
-    const {
-        geometryByZoneKey: losGeometryByZoneKey,
-        computingCount: losComputingCount,
-        losZonesCount,
-    } = useAutoLosZoneGeometries({
-        terrainZones,
-        considerTerrain,
-        enabled: zonesLayerActive,
-    });
-
     const {
         isMeasureMode, setIsMeasureMode,
         setMeasurePoints,
@@ -314,6 +300,8 @@ export default function Formular({ onMapFullscreenChange }) {
             setOverlayLayers: (ids) => overlayLayersApiRef.current?.setOverlayLayers?.(ids),
             setSelectedTargetId,
             setSelectedCountryIso,
+            setDetailSituation,
+            setDemoContentCardId,
         },
         data: {
             objects,
@@ -324,6 +312,7 @@ export default function Formular({ onMapFullscreenChange }) {
             selectedSituations,
             selectedTargetId,
             selectedCountryIso,
+            detailSituation,
             countriesList,
             timelineRevisionId,
             enabledZoneLeaves,
@@ -331,6 +320,23 @@ export default function Formular({ onMapFullscreenChange }) {
             getEnabledOverlayLayerIds: () => overlayLayersApiRef.current?.getEnabledIds?.() ?? null,
             getCountryBounds: (iso) => countryBoundsApiRef.current?.(iso) ?? null,
         },
+    });
+
+    const mapConsiderTerrain = considerTerrain && !demoPlayer.isActive;
+
+    const terrainZones = useMemo(() => {
+        if (!zonesLayerActive || !mapConsiderTerrain) return [];
+        return visibleZones.filter((zone) => isLosRadarZoneMode(zone.zoneMode));
+    }, [visibleZones, zonesLayerActive, mapConsiderTerrain]);
+
+    const {
+        geometryByZoneKey: losGeometryByZoneKey,
+        computingCount: losComputingCount,
+        losZonesCount,
+    } = useAutoLosZoneGeometries({
+        terrainZones,
+        considerTerrain: mapConsiderTerrain,
+        enabled: zonesLayerActive && mapConsiderTerrain,
     });
 
     const handleOpenDemoStudio = useCallback(() => {
@@ -881,6 +887,10 @@ export default function Formular({ onMapFullscreenChange }) {
     const handleCloseSituationDetail = useCallback(() => {
         setDetailSituation(null);
         setTimelineRevisionId(null);
+    }, []);
+
+    const handleSituationDemoRevisionChange = useCallback((_situationId, revisionId) => {
+        setTimelineRevisionId(revisionId ?? null);
     }, []);
 
     const handleDetailRevisionSelect = useCallback((revision) => {
@@ -1702,6 +1712,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 selectedSituationIds={selectedSituations}
                                 activeSituationId={activeSituationId}
                                 timelineRevisionId={timelineRevisionId}
+                                onSituationDemoRevisionChange={handleSituationDemoRevisionChange}
                                 situationRevisions={situationRevisions}
                                 onSituationClick={handleSituationMapClick}
                                 isSituationDrawActive={isSituationDrawActive}
@@ -1740,6 +1751,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
                                 demoAnimation={demoPlayer.demoAnimation}
                                 demoPlayback={demoPlayer.playback}
+                                demoContentCardId={demoContentCardId}
                                 demoMenu={demoMenu}
                                 onDemoToggle={demoPlayer.toggle}
                                 onDemoNext={demoPlayer.next}
@@ -1774,6 +1786,7 @@ export default function Formular({ onMapFullscreenChange }) {
                     onHideAllTargetZones={handleHideAllTargetZones}
                     actionZoneFilters={actionZoneFilters}
                     onVulnerabilityPreviewChange={handleVulnerabilityPreviewChange}
+                    initialCardId={demoPlayer.isActive ? demoContentCardId : null}
                     initialShowVulnerabilitiesOnMap={
                         Boolean(
                             vulnerabilityMapPreview?.visible

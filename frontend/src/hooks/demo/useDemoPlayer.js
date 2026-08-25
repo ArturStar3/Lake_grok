@@ -58,6 +58,20 @@ function contentIdsForStep(step) {
   return [];
 }
 
+function contentPlaybackSlots(step) {
+  const ids = contentIdsForStep(step);
+  if (!ids.length) return [];
+  const cardIds = (step.selection?.card_ids || []).map(String).filter(Boolean);
+  if (!cardIds.length) {
+    return ids.map((entityId) => ({ entityId, cardId: null }));
+  }
+  const slots = [];
+  ids.forEach((entityId) => {
+    cardIds.forEach((cardId) => slots.push({ entityId, cardId }));
+  });
+  return slots;
+}
+
 /**
  * Плеер режима демонстрации.
  *
@@ -96,6 +110,8 @@ export function useDemoPlayer({ actions, data }) {
     api.setSelectedSituations?.([]);
     api.setTimelineRevisionId?.(null);
     api.setFocusedSituationId?.(null);
+    api.setDetailSituation?.(null);
+    api.setDemoContentCardId?.(null);
     api.resetZoneFilters?.(false);
   }, []);
 
@@ -108,6 +124,7 @@ export function useDemoPlayer({ actions, data }) {
       selectedSituations: [...(current.selectedSituations || [])],
       selectedTargetId: current.selectedTargetId ?? null,
       selectedCountryIso: current.selectedCountryIso ?? null,
+      detailSituation: current.detailSituation ?? null,
       timelineRevisionId: current.timelineRevisionId ?? null,
       zoneLeaves: current.enabledZoneLeaves ? [...current.enabledZoneLeaves] : [],
       overlayLayerIds: typeof current.getEnabledOverlayLayerIds === 'function'
@@ -133,6 +150,7 @@ export function useDemoPlayer({ actions, data }) {
     api.setSelectedSituations?.(snapshot.selectedSituations);
     api.setSelectedTargetId?.(snapshot.selectedTargetId ?? null);
     api.setSelectedCountryIso?.(snapshot.selectedCountryIso ?? null);
+    api.setDetailSituation?.(snapshot.detailSituation ?? null);
     api.setTimelineRevisionId?.(snapshot.timelineRevisionId);
     if (Array.isArray(snapshot.overlayLayerIds)) {
       api.setOverlayLayers?.(snapshot.overlayLayerIds);
@@ -236,10 +254,14 @@ export function useDemoPlayer({ actions, data }) {
         break;
       }
       case DEMO_TOOL.SITUATIONS: {
-        const ids = resolveIdsAgainst(current.situations, selection.situation_ids);
+        const ids = resolveIdsAgainst(current.situations, selection.situation_ids).slice(0, 1);
         if (ids.length) {
-          api.setSelectedSituations?.((prev) => Array.from(new Set([...prev, ...ids])));
+          api.setSelectedSituations?.(ids);
           api.setFocusedSituationId?.(ids[0]);
+          const situation = (current.situations || []).find(
+            (item) => String(item.id) === String(ids[0]),
+          );
+          api.setDetailSituation?.(situation || null);
         }
         break;
       }
@@ -303,11 +325,11 @@ export function useDemoPlayer({ actions, data }) {
       if (!(current.situations || []).length) {
         tasks.push(api.fetchSituations?.());
       }
-      const cycleIds = situationSteps
-        .filter((step) => step.animation?.effect === DEMO_EFFECT.STATE_CYCLE)
-        .flatMap((step) => step.selection?.situation_ids || []);
-      if (cycleIds.length) {
-        tasks.push(api.loadSituationRevisions?.(cycleIds));
+      const situationIds = situationSteps.flatMap(
+        (step) => (step.selection?.situation_ids || []).slice(0, 1),
+      );
+      if (situationIds.length) {
+        tasks.push(api.loadSituationRevisions?.(situationIds));
       }
     }
 
@@ -323,6 +345,7 @@ export function useDemoPlayer({ actions, data }) {
       const api = actionsRef.current;
       api.setSelectedTargetId?.(null);
       api.setSelectedCountryIso?.(null);
+      api.setDemoContentCardId?.(null);
     }
     await prefetchForCue(cue);
     if (!cue.steps.some((step) => step.hold_previous)) {
@@ -405,27 +428,29 @@ export function useDemoPlayer({ actions, data }) {
     if (!isActive || !currentCue) return undefined;
     const api = actionsRef.current;
     const contentStep = resolveContentStep(currentCue);
-    const ids = contentIdsForStep(contentStep);
-    if (!contentStep || !ids.length) {
+    const slots = contentPlaybackSlots(contentStep);
+    if (!contentStep || !slots.length) {
       if (lastContentKeyRef.current) {
         lastContentKeyRef.current = null;
         api.setSelectedTargetId?.(null);
         api.setSelectedCountryIso?.(null);
+        api.setDemoContentCardId?.(null);
       }
       return undefined;
     }
-    const slice = Math.max(500, Math.floor(currentCue.durationMs / ids.length));
-    const index = Math.min(ids.length - 1, Math.floor(cueElapsedMs / slice));
-    const value = ids[index];
-    const key = `${contentStep.tool}:${value}`;
+    const slice = Math.max(500, Math.floor(currentCue.durationMs / slots.length));
+    const index = Math.min(slots.length - 1, Math.floor(cueElapsedMs / slice));
+    const slot = slots[index];
+    const key = `${contentStep.tool}:${slot.entityId}:${slot.cardId || ''}`;
     if (lastContentKeyRef.current === key) return undefined;
     lastContentKeyRef.current = key;
+    api.setDemoContentCardId?.(slot.cardId);
     if (contentStep.tool === DEMO_TOOL.FORMULAR) {
       api.setSelectedCountryIso?.(null);
-      api.setSelectedTargetId?.(value);
+      api.setSelectedTargetId?.(slot.entityId);
     } else {
       api.setSelectedTargetId?.(null);
-      api.setSelectedCountryIso?.(value);
+      api.setSelectedCountryIso?.(slot.entityId);
     }
     return undefined;
   }, [cueElapsedMs, currentCue, isActive, status]);
@@ -463,6 +488,8 @@ export function useDemoPlayer({ actions, data }) {
       const api = actionsRef.current;
       api.setSelectedTargetId?.(null);
       api.setSelectedCountryIso?.(null);
+      api.setDetailSituation?.(null);
+      api.setDemoContentCardId?.(null);
     }
   }, [restoreSnapshot, stopFrameLoop]);
 
@@ -547,7 +574,10 @@ export function useDemoPlayer({ actions, data }) {
           effects.inundation = { ...entry, zoneLeaves: step.selection?.zone_leaves || [] };
           break;
         case DEMO_TOOL.SITUATIONS:
-          effects.situations = { ...entry, situationIds: step.selection?.situation_ids || [] };
+          effects.situations = {
+            ...entry,
+            situationIds: (step.selection?.situation_ids || []).slice(0, 1),
+          };
           break;
         case DEMO_TOOL.OBJECTS:
           effects.objects = { ...entry, targetIds: step.selection?.target_ids || [] };

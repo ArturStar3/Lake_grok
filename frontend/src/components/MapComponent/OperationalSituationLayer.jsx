@@ -70,6 +70,7 @@ export default memo(function OperationalSituationLayer({
   situationRevisions = [],
   editingSituationId = null,
   onSituationClick,
+  onDemoRevisionChange,
   demoAnimation = null,
 }) {
   const selectedSet = useMemo(
@@ -102,6 +103,7 @@ export default memo(function OperationalSituationLayer({
                 continuous={demoEffect.continuous}
                 runId={demoEffect.runId}
                 onSituationClick={onSituationClick}
+                onRevisionChange={onDemoRevisionChange}
               />
             );
           }

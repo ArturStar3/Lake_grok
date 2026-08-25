@@ -3,6 +3,7 @@ import CountriesMultiAutocomplete from '../common/CountriesMultiAutocomplete/Cou
 import { ZONE_LEAF_MANUAL, makeParamLeaf } from '../../utils/inundationZone';
 import { getSituationDisplayRevision, getSituationTitle } from '../../utils/situationUtils';
 import { DEMO_TOOL } from '../../utils/demoScenario';
+import { useDemoContentCards } from '../../hooks/demo/useDemoContentCards';
 
 function matchesQuery(text, query) {
   if (!query) return true;
@@ -53,6 +54,60 @@ function CountryFilter({ countries, value, onChange }) {
   );
 }
 
+function ContentCardPicker({ tool, selection, onChange }) {
+  const { cards, loading } = useDemoContentCards(tool, selection);
+  const selected = useMemo(
+    () => new Set((selection.card_ids || []).map(String)),
+    [selection.card_ids],
+  );
+  const hasEntity = tool === DEMO_TOOL.FORMULAR
+    ? Boolean((selection.target_ids || []).length)
+    : Boolean((selection.country_isos || []).length);
+
+  if (!hasEntity) {
+    return (
+      <p className="demo-field__hint">
+        Сначала выберите {tool === DEMO_TOOL.FORMULAR ? 'объект' : 'страну'}, затем пункты для проваливания.
+      </p>
+    );
+  }
+
+  const toggle = (id) => {
+    const key = String(id);
+    const current = selection.card_ids || [];
+    onChange(
+      current.map(String).includes(key)
+        ? current.filter((item) => String(item) !== key)
+        : [...current, key],
+    );
+  };
+
+  return (
+    <div className="demo-picker demo-picker--cards">
+      <p className="demo-picker__country-label">Пункты для проваливания</p>
+      {loading && <p className="demo-picker__empty">Загрузка пунктов…</p>}
+      {!loading && !cards.length && (
+        <p className="demo-picker__empty">Пункты не найдены.</p>
+      )}
+      {!loading && cards.length > 0 && (
+        <div className="demo-picker__list">
+          {cards.map((card) => (
+            <CheckboxRow
+              key={card.id}
+              checked={selected.has(String(card.id))}
+              onChange={() => toggle(card.id)}
+              label={card.title}
+            />
+          ))}
+        </div>
+      )}
+      <p className="demo-field__hint">
+        Пустой список — обзорная сетка. Несколько пунктов показываются по очереди.
+      </p>
+    </div>
+  );
+}
+
 function CheckboxRow({ checked, onChange, label, hint }) {
   return (
     <label className="demo-picker__row">
@@ -65,12 +120,13 @@ function CheckboxRow({ checked, onChange, label, hint }) {
 
 function ListPicker({
   items,
-  selectedIds,
+  selectedIds = [],
   onToggle,
   onSetAll,
   emptyText,
   searchPlaceholder,
   showCountryFilter = true,
+  single = false,
 }) {
   const [query, setQuery] = useState('');
   const [countryFilter, setCountryFilter] = useState([]);
@@ -116,26 +172,38 @@ function ListPicker({
           placeholder={searchPlaceholder}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button type="button" className="demo-btn demo-btn--ghost" onClick={selectVisible}>
-          Все
-        </button>
-        <button type="button" className="demo-btn demo-btn--ghost" onClick={clearVisible}>
-          Ничего
-        </button>
+        {!single && (
+          <>
+            <button type="button" className="demo-btn demo-btn--ghost" onClick={selectVisible}>
+              Все
+            </button>
+            <button type="button" className="demo-btn demo-btn--ghost" onClick={clearVisible}>
+              Ничего
+            </button>
+          </>
+        )}
       </div>
       <div className="demo-picker__list">
         {filtered.map((item) => (
           <CheckboxRow
             key={item.id}
             checked={selected.has(String(item.id))}
-            onChange={() => onToggle(item.id)}
+            onChange={() => {
+              if (single) {
+                onSetAll(selected.has(String(item.id)) ? [] : [item.id]);
+                return;
+              }
+              onToggle(item.id);
+            }}
             label={item.label}
             hint={item.hint}
           />
         ))}
         {!filtered.length && <p className="demo-picker__empty">Ничего не найдено</p>}
       </div>
-      <p className="demo-picker__counter">Выбрано: {selected.size}</p>
+      <p className="demo-picker__counter">
+        {single ? (selected.size ? 'Выбрано' : 'Не выбрано') : `Выбрано: ${selected.size}`}
+      </p>
     </div>
   );
 }
@@ -347,7 +415,6 @@ export default function DemoEntityPicker({
 
   switch (tool) {
     case DEMO_TOOL.OBJECTS:
-    case DEMO_TOOL.FORMULAR:
       return (
         <ListPicker
           items={objects.map((obj) => ({
@@ -362,6 +429,29 @@ export default function DemoEntityPicker({
           emptyText="Объекты не загружены."
           searchPlaceholder="Поиск объекта"
         />
+      );
+    case DEMO_TOOL.FORMULAR:
+      return (
+        <>
+          <ListPicker
+            items={objects.map((obj) => ({
+              id: obj.id,
+              label: obj.title || obj.label || '—',
+              hint: obj.country?.title || '',
+              countryTitle: obj.country?.title || '',
+            }))}
+            selectedIds={selection.target_ids || []}
+            onToggle={toggleId('target_ids')}
+            onSetAll={setAllIds('target_ids')}
+            emptyText="Объекты не загружены."
+            searchPlaceholder="Поиск объекта"
+          />
+          <ContentCardPicker
+            tool={tool}
+            selection={selection}
+            onChange={(card_ids) => patch({ card_ids })}
+          />
+        </>
       );
     case DEMO_TOOL.EVENTS:
       return (
@@ -394,11 +484,12 @@ export default function DemoEntityPicker({
               countryTitles,
             };
           })}
-          selectedIds={selection.situation_ids || []}
+          selectedIds={(selection.situation_ids || []).slice(0, 1)}
           onToggle={toggleId('situation_ids')}
           onSetAll={setAllIds('situation_ids')}
           emptyText="Обстановки не загружены. Откройте вкладку «Оперативная обстановка»."
           searchPlaceholder="Поиск обстановки"
+          single
         />
       );
     case DEMO_TOOL.ZONES:
@@ -437,21 +528,28 @@ export default function DemoEntityPicker({
       );
     case DEMO_TOOL.COUNTRY:
       return (
-        <ListPicker
-          items={countriesList
-            .map((country) => ({
-              id: String(country.iso_code || '').toUpperCase(),
-              label: country.title || country.iso_code || '—',
-              hint: country.iso_code || '',
-            }))
-            .filter((item) => item.id)}
-          selectedIds={selection.country_isos || []}
-          onToggle={toggleId('country_isos')}
-          onSetAll={setAllIds('country_isos')}
-          emptyText="Страны не загружены."
-          searchPlaceholder="Поиск страны"
-          showCountryFilter={false}
-        />
+        <>
+          <ListPicker
+            items={countriesList
+              .map((country) => ({
+                id: String(country.iso_code || '').toUpperCase(),
+                label: country.title || country.iso_code || '—',
+                hint: country.iso_code || '',
+              }))
+              .filter((item) => item.id)}
+            selectedIds={selection.country_isos || []}
+            onToggle={toggleId('country_isos')}
+            onSetAll={setAllIds('country_isos')}
+            emptyText="Страны не загружены."
+            searchPlaceholder="Поиск страны"
+            showCountryFilter={false}
+          />
+          <ContentCardPicker
+            tool={tool}
+            selection={selection}
+            onChange={(card_ids) => patch({ card_ids })}
+          />
+        </>
       );
     default:
       return (

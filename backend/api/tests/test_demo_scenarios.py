@@ -136,12 +136,12 @@ class DemoScenarioApiTests(APITestCase):
                 build_step(
                     title='Формуляр',
                     tool='formular',
-                    selection={'target_ids': ['11', 11, '22']},
+                    selection={'target_ids': ['11', 11, '22'], 'card_ids': ['section-12', 'equipment', 'section-12']},
                 ),
                 build_step(
                     title='Страна',
                     tool='country',
-                    selection={'country_isos': ['am', 'AM', 'kz']},
+                    selection={'country_isos': ['am', 'AM', 'kz'], 'card_ids': ['formular-completion']},
                 ),
             ],
         )
@@ -149,7 +149,9 @@ class DemoScenarioApiTests(APITestCase):
         steps = response.data['steps']
         self.assertEqual([step['tool'] for step in steps], ['formular', 'country'])
         self.assertEqual(steps[0]['selection']['target_ids'], ['11', '22'])
+        self.assertEqual(steps[0]['selection']['card_ids'], ['section-12', 'equipment'])
         self.assertEqual(steps[1]['selection']['country_isos'], ['AM', 'KZ'])
+        self.assertEqual(steps[1]['selection']['card_ids'], ['formular-completion'])
         self.assertEqual(steps[0]['animation']['effect'], 'none')
 
         scenario_id = response.data['id']

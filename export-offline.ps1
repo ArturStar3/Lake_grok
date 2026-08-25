@@ -134,6 +134,11 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Copy-Item -Force $stablePath $fullPath
 
+# Совместимость с прежним именем архива (import-and-start.ps1 и офлайн-инструкции).
+if ($modeSuffix -eq "prod") {
+    Copy-Item -Force $stablePath (Join-Path $OutputDir "infolake_full_offline.tar")
+}
+
 $sizeMb = (Get-Item $stablePath).Length / 1MB
 $gitBranch = ""
 try { $gitBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch { }
@@ -200,11 +205,17 @@ NEVER on offline machine:
 "@
 
 Set-Content -Path $manifestPath -Value $manifest -Encoding UTF8
+if ($modeSuffix -eq "prod") {
+    Copy-Item -Force $manifestPath (Join-Path $OutputDir "offline-package-manifest.txt")
+}
 
 Write-Host "`nDone!" -ForegroundColor Green
 Write-Host "  Stable:    $stablePath"
 Write-Host "  Timestamp: $fullPath"
 Write-Host ("  Size: {0:N1} MB" -f $sizeMb)
 Write-Host "  Manifest:  $manifestPath"
+if ($modeSuffix -eq "prod") {
+    Write-Host "  Legacy:    $(Join-Path $OutputDir 'infolake_full_offline.tar')"
+}
 Write-Host "`nNext: copy infolake_full_offline_$modeSuffix.tar + project + map.mbtiles to offline server."
 Write-Host "Guide: OFFLINE_DEPLOY_$(if ($Postgres) { 'PROD_POSTGRES' } elseif ($Direct) { 'DIRECT' } elseif ($Dev) { 'DEV' } else { 'PROD' }).md"

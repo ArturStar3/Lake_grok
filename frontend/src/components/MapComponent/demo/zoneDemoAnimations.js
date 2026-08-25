@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import { ZONE_LEAF_MANUAL, makeParamLeaf } from '../../../utils/inundationZone';
 import { applyEasing, DEMO_EFFECT } from '../../../utils/demoScenario';
@@ -6,6 +6,8 @@ import { registerDemoAnimation, unregisterDemoAnimation } from './demoRafDriver'
 import { applyDemoEffectCssVars } from './eventDemoAnimations';
 
 const MIN_REVEAL_RADIUS_M = 1;
+
+export { MIN_REVEAL_RADIUS_M };
 
 function zoneLeafKey(zone) {
   return zone.isEquipmentZone && zone.parameterId != null
@@ -79,9 +81,19 @@ function timedProgress(elapsed, delayMs, durationMs, continuous) {
   return { waiting: false, progress: t / durationMs, done: false };
 }
 
+function positionsSignature(positions) {
+  if (!positions?.length) return 'empty';
+  const first = positions[0];
+  const last = positions[positions.length - 1];
+  const a = Array.isArray(first) ? first : [first?.lat, first?.lng];
+  const b = Array.isArray(last) ? last : [last?.lat, last?.lng];
+  return `${positions.length}:${a[0]}:${a[1]}:${b[0]}:${b[1]}`;
+}
+
 /**
  * Раскрытие круговой зоны от центра: радиус растёт от нуля до заданного.
- * Восстанавливает исходный радиус при размонтировании и при смене шага.
+ * Cleanup не возвращает полный радиус — иначе Strict Mode и смена deps
+ * дают кадр «полной» зоны (мигание) перед новым стартом.
  */
 export function useCircleRevealAnimation(circleRef, {
   enabled,
@@ -98,7 +110,7 @@ export function useCircleRevealAnimation(circleRef, {
     if (!layer) return undefined;
 
     if (!enabled || !durationMs || !radiusMeters) {
-      layer.setRadius(radiusMeters);
+      if (radiusMeters) layer.setRadius(radiusMeters);
       return undefined;
     }
 
@@ -125,8 +137,6 @@ export function useCircleRevealAnimation(circleRef, {
 
     return () => {
       unregisterDemoAnimation(key);
-      // Layer может быть уже удалён из карты — setRadius на снятом слое безопасен.
-      layer.setRadius(radiusMeters);
     };
   }, [circleRef, enabled, runId, radiusMeters, durationMs, delayMs, easing, continuous, animationKey]);
 }
@@ -136,6 +146,11 @@ function scalePositionsFromCentroid(positions, centroid, factor) {
     centroid.lat + (lat - centroid.lat) * factor,
     centroid.lng + (lng - centroid.lng) * factor,
   ]);
+}
+
+export function collapsePositionsToCentroid(positions, centroid, factor = 0.001) {
+  if (!positions?.length || !centroid) return positions;
+  return scalePositionsFromCentroid(positions, centroid, factor);
 }
 
 /**
@@ -152,17 +167,22 @@ export function usePolygonRevealAnimation(polygonRef, {
   continuous = false,
   animationKey,
 }) {
+  const positionsRef = useRef(positions);
+  positionsRef.current = positions;
+  const signature = positionsSignature(positions);
+
   useEffect(() => {
     const layer = polygonRef.current;
-    if (!layer || !positions?.length || !centroid) return undefined;
+    const pts = positionsRef.current;
+    if (!layer || !pts?.length || !centroid) return undefined;
 
     if (!enabled || !durationMs) {
-      layer.setLatLngs(positions);
+      layer.setLatLngs(pts);
       return undefined;
     }
 
     const key = `polygon-reveal:${animationKey}:${runId}`;
-    const collapsed = scalePositionsFromCentroid(positions, centroid, 0.001);
+    const collapsed = scalePositionsFromCentroid(pts, centroid, 0.001);
     layer.setLatLngs(collapsed);
 
     let finished = false;
@@ -170,24 +190,25 @@ export function usePolygonRevealAnimation(polygonRef, {
       center: { lat: centroid.lat, lng: centroid.lng },
       update: (elapsed) => {
         if (finished) return;
+        const current = positionsRef.current;
+        if (!current?.length) return;
         const { waiting, progress, done } = timedProgress(elapsed, delayMs, durationMs, continuous);
         if (waiting) return;
         if (done) {
           finished = true;
-          layer.setLatLngs(positions);
+          layer.setLatLngs(current);
           unregisterDemoAnimation(key);
           return;
         }
         const eased = Math.max(0.001, applyEasing(easing, progress));
-        layer.setLatLngs(scalePositionsFromCentroid(positions, centroid, eased));
+        layer.setLatLngs(scalePositionsFromCentroid(current, centroid, eased));
       },
     });
 
     return () => {
       unregisterDemoAnimation(key);
-      layer.setLatLngs(positions);
     };
-  }, [polygonRef, enabled, runId, positions, centroid, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [polygonRef, enabled, runId, signature, centroid, durationMs, delayMs, easing, continuous, animationKey]);
 }
 
 const WIPE_ID_PREFIX = 'demo-wipe-';
@@ -211,6 +232,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
   animationKey,
 }) {
   const map = useMap();
+  const signature = positionsSignature(positions);
 
   useEffect(() => {
     if (!enabled || !durationMs) return undefined;
@@ -219,6 +241,9 @@ export function useDirectionalWipeAnimation(polygonRef, {
     let started = false;
     let retryId = 0;
     let retries = 0;
+    const layerAtStart = polygonRef.current;
+    const pathAtStart = layerAtStart?._path;
+    if (pathAtStart) pathAtStart.style.visibility = 'hidden';
 
     const cleanupFns = [];
 
@@ -307,6 +332,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
 
       path.setAttribute('clip-path', `url(#${clipId})`);
       paint();
+      path.style.visibility = '';
 
       const handleViewReset = () => {
         box = measure();
@@ -338,6 +364,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
         map.off('zoomend', handleViewReset);
         map.off('moveend', handleViewReset);
         path.removeAttribute('clip-path');
+        path.style.visibility = '';
         clipPath.remove();
       });
     };
@@ -349,5 +376,5 @@ export function useDirectionalWipeAnimation(polygonRef, {
       if (retryId) window.clearTimeout(retryId);
       cleanupFns.forEach((fn) => fn());
     };
-  }, [polygonRef, map, enabled, runId, positions, direction, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [polygonRef, map, enabled, runId, signature, direction, durationMs, delayMs, easing, continuous, animationKey]);
 }

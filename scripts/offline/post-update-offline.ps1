@@ -24,4 +24,8 @@ Write-Host "=== Seed report templates ===" -ForegroundColor Cyan
 docker compose -f docker-compose.yml -f docker-compose.server.yml exec -T backend python manage.py seed_report_templates
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+Write-Host "=== Demo scenario permissions ===" -ForegroundColor Cyan
+docker compose -f docker-compose.yml -f docker-compose.server.yml exec -T backend python manage.py ensure_demo_scenario_permissions
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 exit 0

@@ -110,6 +110,7 @@ export default function SituationStateCycleLayer({
   continuous = true,
   runId = 0,
   onSituationClick,
+  onRevisionChange,
 }) {
   const ordered = useMemo(() => {
     const sorted = [...revisions].sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
@@ -144,6 +145,11 @@ export default function SituationStateCycleLayer({
     }, perStateMs);
     return () => clearInterval(timer);
   }, [continuous, ordered.length, perStateMs]);
+
+  useEffect(() => {
+    const current = ordered[index];
+    if (current?.id != null) onRevisionChange?.(situationId, current.id);
+  }, [index, ordered, situationId, onRevisionChange]);
 
   const handleFadeOutDone = useCallback(() => setOutgoing(null), []);
 

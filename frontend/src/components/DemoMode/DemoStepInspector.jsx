@@ -146,7 +146,12 @@ export default function DemoStepInspector({
           />
           {(step.tool === DEMO_TOOL.FORMULAR || step.tool === DEMO_TOOL.COUNTRY) ? (
             <p className="demo-field__hint">
-              Несколько выбранных элементов показываются по очереди в рамках шага.
+              Несколько объектов или стран показываются по очереди. Отмеченные пункты открываются сразу (тоже по очереди).
+            </p>
+          ) : null}
+          {step.tool === DEMO_TOOL.SITUATIONS ? (
+            <p className="demo-field__hint">
+              На шаге показывается одна обстановка: карта и карточка подробностей. Смена состояний синхронизирована с карточкой.
             </p>
           ) : null}
         </div>

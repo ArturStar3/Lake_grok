@@ -15,6 +15,23 @@ export default function MapFullscreenToolsMenu({
 }) {
   return (
     <div className="map-fs-tools-menu" role="menu">
+      {canPlayDemo && (
+        <button
+          type="button"
+          className="map-fs-tools-menu__item"
+          role="menuitem"
+          onClick={onPlayDemo}
+          disabled={!hasDemoScenario}
+          title={hasDemoScenario ? undefined : 'Сценарии демонстрации ещё не созданы'}
+        >
+          Демонстрация: воспроизвести
+        </button>
+      )}
+      {canConfigureDemo && (
+        <button type="button" className="map-fs-tools-menu__item" role="menuitem" onClick={onOpenDemoStudio}>
+          Настроить демонстрацию…
+        </button>
+      )}
       <button type="button" className="map-fs-tools-menu__item" role="menuitem" onClick={onToggleMeasure}>
         {effectiveMeasureMode ? '✓ ' : ''}Режим измерения
       </button>
@@ -44,23 +61,6 @@ export default function MapFullscreenToolsMenu({
       <button type="button" className="map-fs-tools-menu__item" role="menuitem" onClick={onResetAll}>
         Сбросить все
       </button>
-      {canPlayDemo && (
-        <button
-          type="button"
-          className="map-fs-tools-menu__item"
-          role="menuitem"
-          onClick={onPlayDemo}
-          disabled={!hasDemoScenario}
-          title={hasDemoScenario ? undefined : 'Сценарии демонстрации ещё не созданы'}
-        >
-          Демонстрация: воспроизвести
-        </button>
-      )}
-      {canConfigureDemo && (
-        <button type="button" className="map-fs-tools-menu__item" role="menuitem" onClick={onOpenDemoStudio}>
-          Настроить демонстрацию…
-        </button>
-      )}
     </div>
   );
 }

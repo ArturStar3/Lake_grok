@@ -1,5 +1,5 @@
 """
-Создаёт тестовый сценарий демонстрации карты длительностью 60 секунд.
+Создаёт тестовый сценарий демонстрации карты (шаг = 4 с).
 
 Использование:
   python manage.py seed_sample_demo_scenario
@@ -14,29 +14,37 @@ from api.demo_scenario_utils import (
     clear_other_default_scenarios,
     replace_demo_scenario_steps,
 )
+from formular.enums import ZoneGeometryModes
 from formular.models import (
     ActionType,
     Country,
+    CountryInfo,
     DemoScenario,
     DemoStepStartMode,
     DemoStepTool,
     Event,
+    Formular,
     OperationalSituation,
     Target,
 )
 
 
-SCENARIO_TITLE = 'Обзор возможностей карты (1 мин)'
-LEGACY_TITLE = 'Обзор возможностей карты (1,5 мин)'
-STEP_MS = 3000
-CAM_MS = 2000
+SCENARIO_TITLE = 'Обзор возможностей карты (тест)'
+LEGACY_TITLES = (
+    'Обзор возможностей карты (1 мин)',
+    'Обзор возможностей карты (1,5 мин)',
+)
+STEP_MS = 4000
+CAM_MS = 2500
 CAUCASUS = (40.45, 46.40)
 ASIA = (41.20, 70.80)
 OVERVIEW = (42.50, 55.00)
 
 DESCRIPTION = (
-    'Тестовый сценарий на 60 секунд: масштабирование, объекты, формуляры, '
-    'справки по странам, события, зоны, оперативная обстановка и слои карты.'
+    'Тестовый сценарий: каждый шаг 4 секунды. Проверяет камеру, объекты, '
+    'формуляр с проваливанием в пункты, справку по стране, зоны (в т.ч. РЛС '
+    'без рельефа и непрерывное раскрытие), затопление, одну обстановку '
+    'с карточкой и сменой состояний, слои карты.'
 )
 
 
@@ -62,7 +70,7 @@ def _fit(zoom=7, padding=80):
     return {
         'mode': 'fit_selection',
         'zoom': zoom,
-        'duration_ms': 1800,
+        'duration_ms': CAM_MS,
         'padding': padding,
     }
 
@@ -94,8 +102,73 @@ def _situation_ids(*needles):
     return ids
 
 
+def _unique(items):
+    seen = set()
+    result = []
+    for item in items:
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
+
+
+def _formular_card_ids(target_ids, extra=None):
+    cards = list(extra or [])
+    if target_ids:
+        rows = (
+            Formular.objects.filter(target_id=target_ids[0])
+            .exclude(content__isnull=True)
+            .exclude(content='')
+            .select_related('section')
+            .order_by('section__order', 'section__title')[:3]
+        )
+        for row in rows:
+            section = row.section
+            if not section:
+                continue
+            cards.append(
+                f'group-{section.parent_id}' if section.parent_id else f'section-{section.id}'
+            )
+    return _unique(cards + ['zones', 'equipment'])[:4]
+
+
+def _country_card_ids(iso_code):
+    cards = ['formular-completion']
+    country = Country.objects.filter(iso_code=iso_code).first()
+    if country:
+        rows = (
+            CountryInfo.objects.filter(country=country)
+            .exclude(content__isnull=True)
+            .exclude(content='')
+            .select_related('section')
+            .order_by('section__order', 'section__title')[:2]
+        )
+        for row in rows:
+            section = row.section
+            if not section:
+                continue
+            cards.append(
+                f'group-{section.parent_id}' if section.parent_id else f'section-{section.id}'
+            )
+    return _unique(cards)[:3]
+
+
+def _zone_leaves(action_type, country_titles):
+    if not action_type:
+        return []
+    return [
+        {
+            'country': title,
+            'action_type_id': str(action_type.id),
+            'leaf': 'manual',
+        }
+        for title in _unique(country_titles)
+    ]
+
+
 class Command(BaseCommand):
-    help = 'Создаёт тестовый сценарий демонстрации длительностью 60 секунд'
+    help = 'Создаёт тестовый сценарий демонстрации (4 с на шаг)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -106,10 +179,9 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        existing = (
-            DemoScenario.objects.filter(title=SCENARIO_TITLE).first()
-            or DemoScenario.objects.filter(title=LEGACY_TITLE).first()
-        )
+        existing = DemoScenario.objects.filter(title=SCENARIO_TITLE).first()
+        if not existing:
+            existing = DemoScenario.objects.filter(title__in=LEGACY_TITLES).first()
         if existing and not options['replace']:
             self.stdout.write(self.style.WARNING(
                 f'Сценарий «{existing.title}» уже есть (id={existing.id}). '
@@ -149,8 +221,8 @@ class Command(BaseCommand):
             | Q(title__icontains='ГЭС')
         ).distinct()
 
-        caucasus_formular_ids = _ids(caucasus_objects, 2)
-        rls_formular_ids = _ids(rls_objects, 2)
+        caucasus_formular_ids = _ids(caucasus_objects, 1)
+        rls_formular_ids = _ids(rls_objects, 1)
 
         caucasus_events = Event.objects.filter(title='Учения ПВО на Кавказе')
         asia_events = Event.objects.filter(title__in=[
@@ -160,9 +232,9 @@ class Command(BaseCommand):
             'Модернизация позиции РЛС',
         ])
 
-        caucasus_situation_ids = _situation_ids('Кавказ')
-        asia_situation_ids = _situation_ids('Центральная Азия')
-        europe_situation_ids = _situation_ids('европейская часть')
+        caucasus_situation_ids = _situation_ids('Кавказ')[:1]
+        asia_situation_ids = _situation_ids('Центральная Азия')[:1]
+        europe_situation_ids = _situation_ids('европейская часть')[:1]
         if not asia_situation_ids:
             fallback = OperationalSituation.objects.order_by('-created_at').first()
             if fallback:
@@ -170,6 +242,10 @@ class Command(BaseCommand):
 
         fire_type = ActionType.objects.filter(title='Огневая поддержка').first()
         recon_type = ActionType.objects.filter(title='Разведка').first()
+        rls_type = (
+            ActionType.objects.filter(title='РЛС').first()
+            or ActionType.objects.filter(zone_mode=ZoneGeometryModes.LOS_RADAR).first()
+        )
         inund_type = ActionType.objects.filter(
             title='Затопление — нормальный уровень',
             is_inundation_zone=True,
@@ -177,30 +253,37 @@ class Command(BaseCommand):
 
         armenia_zone_leaves = []
         for action_type in (recon_type, fire_type):
-            if action_type:
-                armenia_zone_leaves.append({
-                    'country': 'Армения',
-                    'action_type_id': str(action_type.id),
-                    'leaf': 'manual',
-                })
+            armenia_zone_leaves.extend(_zone_leaves(action_type, ['Армения']))
+
+        rls_country_titles = list(
+            rls_objects.exclude(country__isnull=True).values_list('country__title', flat=True)
+        )
+        if not rls_country_titles:
+            kz = Country.objects.filter(iso_code='KZ').first()
+            if kz:
+                rls_country_titles = [kz.title]
+        rls_zone_leaves = _zone_leaves(rls_type, rls_country_titles)
 
         inundation_leaves = []
         if inund_type:
-            for country in ('Таджикистан', 'Кыргызстан', 'Казахстан', 'Азербайджан', 'Узбекистан'):
-                inundation_leaves.append({
-                    'country': country,
-                    'action_type_id': str(inund_type.id),
-                    'leaf': 'manual',
-                })
+            inundation_leaves = _zone_leaves(inund_type, [
+                'Таджикистан', 'Кыргызстан', 'Казахстан', 'Азербайджан', 'Узбекистан',
+            ])
 
         state_cycle = {
             'effect': 'state_cycle',
             'continuous': True,
             'state_cycle': {
-                'per_state_ms': 1200,
+                'per_state_ms': 1400,
                 'cross_fade_ms': 400,
                 'order': 'old_to_new',
             },
+        }
+        reveal_loop = {
+            'effect': 'reveal_from_center',
+            'duration_ms': 2000,
+            'easing': 'ease_out',
+            'continuous': True,
         }
 
         steps = [
@@ -227,16 +310,22 @@ class Command(BaseCommand):
                 animation={'effect': 'fade_in', 'duration_ms': 1400, 'easing': 'ease_out'},
             ),
             _step(
-                title='Формуляр объекта',
+                title='Формуляр: пункты объекта',
                 tool=DemoStepTool.FORMULAR,
                 camera=_fit(zoom=9, padding=72),
-                selection={'target_ids': caucasus_formular_ids},
+                selection={
+                    'target_ids': caucasus_formular_ids,
+                    'card_ids': _formular_card_ids(caucasus_formular_ids),
+                },
             ),
             _step(
-                title='Справка: Армения и Азербайджан',
+                title='Справка: Армения',
                 tool=DemoStepTool.COUNTRY,
                 camera=_fit(zoom=7, padding=80),
-                selection={'country_isos': ['AM', 'AZ']},
+                selection={
+                    'country_isos': ['AM'],
+                    'card_ids': _country_card_ids('AM'),
+                },
             ),
             _step(
                 title='Зоны действия',
@@ -244,11 +333,7 @@ class Command(BaseCommand):
                 hold_previous=True,
                 camera=_fit(zoom=7, padding=64),
                 selection={'zone_leaves': armenia_zone_leaves},
-                animation={
-                    'effect': 'reveal_from_center',
-                    'duration_ms': 2200,
-                    'easing': 'ease_out',
-                },
+                animation=reveal_loop,
             ),
             _step(
                 title='События на Кавказе',
@@ -270,16 +355,30 @@ class Command(BaseCommand):
                 animation={'effect': 'fade_in', 'duration_ms': 1200, 'easing': 'ease_in_out'},
             ),
             _step(
-                title='Формуляр РЛС',
+                title='Зоны РЛС без рельефа',
+                tool=DemoStepTool.ZONES,
+                hold_previous=True,
+                camera=_fit(zoom=6, padding=72),
+                selection={'zone_leaves': rls_zone_leaves},
+                animation=reveal_loop,
+            ),
+            _step(
+                title='Формуляр РЛС: пункты',
                 tool=DemoStepTool.FORMULAR,
                 camera=_fit(zoom=9, padding=72),
-                selection={'target_ids': rls_formular_ids},
+                selection={
+                    'target_ids': rls_formular_ids,
+                    'card_ids': _formular_card_ids(rls_formular_ids, extra=['zones']),
+                },
             ),
             _step(
                 title='Справка: Казахстан',
                 tool=DemoStepTool.COUNTRY,
                 camera=_fit(zoom=6, padding=88),
-                selection={'country_isos': ['KZ']},
+                selection={
+                    'country_isos': ['KZ'],
+                    'card_ids': _country_card_ids('KZ'),
+                },
             ),
             _step(
                 title='События Центральной Азии',
@@ -299,8 +398,9 @@ class Command(BaseCommand):
                 animation={
                     'effect': 'directional_wipe',
                     'direction': 'bottom',
-                    'duration_ms': 2400,
+                    'duration_ms': 1800,
                     'easing': 'ease_in_out',
+                    'continuous': True,
                 },
             ),
             _step(

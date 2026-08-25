@@ -792,6 +792,7 @@ function MapComponent({
     selectedSituationIds = [],
     activeSituationId = null,
     timelineRevisionId = null,
+    onSituationDemoRevisionChange,
     situationRevisions = [],
     onSituationClick = () => {},
     isSituationDrawActive = false,
@@ -842,6 +843,7 @@ function MapComponent({
     demoAnimation = null,
     demoPlayback = null,
     demoMenu = null,
+    demoContentCardId = null,
     onDemoToggle,
     onDemoNext,
     onDemoPrev,
@@ -853,6 +855,7 @@ function MapComponent({
     onDemoCountryBoundsRef,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
+    const mapConsiderTerrain = Boolean(considerTerrain) && !demoPlayback?.isActive;
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [dockTab, setDockTab] = useState(null);
@@ -2387,6 +2390,7 @@ function MapComponent({
                     situationRevisions={situationRevisions}
                     editingSituationId={editingSituationId}
                     onSituationClick={onSituationClick}
+                    onDemoRevisionChange={onSituationDemoRevisionChange}
                     demoAnimation={demoAnimation}
                 />
                 {clusterMode === 'legacy' && (
@@ -2489,7 +2493,7 @@ function MapComponent({
                         isZonePanelPinned={Boolean(pinnedZonePanel)}
                         onZoneClickAt={handleZoneClickAt}
                         onZoneHoverChange={handleZoneHoverChange}
-                        considerTerrain={considerTerrain}
+                        considerTerrain={mapConsiderTerrain}
                         losGeometryByZoneKey={losGeometryByZoneKey}
                         demoAnimation={demoAnimation}
                     />
@@ -2511,7 +2515,7 @@ function MapComponent({
                     selectedEntryId={selectedZoneEntryId}
                     onSelectZone={handleZonePanelSelect}
                     onClose={handleZonePanelClose}
-                    considerTerrain={considerTerrain}
+                    considerTerrain={mapConsiderTerrain}
                 />
             )}
 
@@ -2634,6 +2638,7 @@ function MapComponent({
                     }}
                     onTargetOpenDetails={onTargetOpenDetails}
                     canEditCountry={canEditCountry}
+                    initialCardId={demoPlayback?.isActive ? demoContentCardId : undefined}
                 />
             )}
             <DemoPlaybackBar

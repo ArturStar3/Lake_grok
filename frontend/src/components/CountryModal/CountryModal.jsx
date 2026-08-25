@@ -18,6 +18,7 @@ export default function CountryModal({
     onTargetEdit,
     onTargetOpenDetails,
     canEditCountry = false,
+    initialCardId,
 }) {
     const { user } = useAuth();
     const [data, setData] = useState(null);
@@ -233,7 +234,9 @@ export default function CountryModal({
                                 attachmentsBySection={attachmentsBySection}
                                 resetKey={countryIso}
                                 initialCardId={
-                                    completionTargets.length > 0 ? 'formular-completion' : null
+                                    initialCardId !== undefined
+                                      ? initialCardId
+                                      : (completionTargets.length > 0 ? 'formular-completion' : null)
                                 }
                                 autoExpandSingle
                                 onTargetOpenDetails={effectiveOnTargetOpenDetails}
