@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -34,6 +35,7 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ThemeProvider>
       <AuthProvider>
         <ErrorBoundary>
           <Routes>
@@ -51,6 +53,7 @@ export default function App() {
           </Routes>
         </ErrorBoundary>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

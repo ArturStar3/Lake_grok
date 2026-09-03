@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
+import AuthPage from './auth/AuthPage';
 import logo from '../assets/images/logo.png';
 import './auth/AuthPages.css';
 
 export default function NotFoundPage() {
   return (
-    <div className="auth-page">
+    <AuthPage>
       <div className="auth-card" style={{ textAlign: 'center' }}>
         <div className="auth-card__logo" style={{ justifyContent: 'center' }}>
           <img src={logo} alt="InfoLake" />
@@ -20,6 +21,6 @@ export default function NotFoundPage() {
           На главную
         </Link>
       </div>
-    </div>
+    </AuthPage>
   );
 }

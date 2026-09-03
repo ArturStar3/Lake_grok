@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import AuthPage from './AuthPage';
 import logo from '../../assets/images/logo.png';
 import './AuthPages.css';
 
@@ -7,7 +8,7 @@ export default function PendingApprovalPage() {
   const { logout, user } = useAuth();
 
   return (
-    <div className="auth-page">
+    <AuthPage>
       <div className="auth-card">
         <div className="auth-card__logo">
           <img src={logo} alt="" />
@@ -28,6 +29,6 @@ export default function PendingApprovalPage() {
           <Link to="/login">Попробовать войти снова</Link>
         </div>
       </div>
-    </div>
+    </AuthPage>
   );
 }

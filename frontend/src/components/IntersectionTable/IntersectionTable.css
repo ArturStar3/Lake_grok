@@ -19,7 +19,7 @@
 .intersection-table__content th {
     text-align: left;
     padding: 8px 6px;
-    color: #475569;
+    color: var(--il-text-sec);
     font-weight: 600;
     font-size: 14px;
     line-height: 16px;
@@ -38,7 +38,7 @@
 }
 
 .intersection-table__content tbody tr:hover td {
-    background-color: #f8fafc;
+    background-color: var(--il-surface-2);
 }
 
 .intersection-table__objects {
@@ -50,7 +50,7 @@
 .intersection-table__object-name {
     display: inline-block;
     padding: 2px 6px;
-    background-color: #e8f4ff;
+    background-color: var(--il-primary-light);
     border-radius: 4px;
     font-size: 12px;
     color: #0b5073;
@@ -60,6 +60,6 @@
     margin-top: 12px;
     padding: 12px 4px;
     font-size: 13px;
-    color: #64748b;
+    color: var(--il-text-muted);
     font-style: italic;
 }

@@ -1,7 +1,7 @@
 .event-modal__overlay {
 	position: fixed;
 	inset: 0;
-	background: rgba(0, 0, 0, 0.45);
+	background: var(--il-overlay);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -19,7 +19,7 @@
 }
 
 .event-modal {
-	background: #fff;
+	background: var(--il-surface);
 	border-radius: 14px;
 	width: 100%;
 	max-width: 520px;
@@ -50,7 +50,7 @@
 	background: none;
 	font-size: 28px;
 	cursor: pointer;
-	color: #666;
+	color: var(--il-text-muted);
 	width: 32px;
 	height: 32px;
 	border-radius: 6px;
@@ -75,8 +75,8 @@
 }
 
 .event-modal__geo-details {
-	background: #f8fafc;
-	border: 1px solid #e2e8f0;
+	background: var(--il-surface-2);
+	border: 1px solid var(--il-border);
 	border-radius: 10px;
 	padding: 12px 14px;
 	display: flex;
@@ -116,7 +116,7 @@
 
 .event-modal__geo-point-label {
 	font-size: 0.85rem;
-	color: #334155;
+	color: var(--il-text-sec);
 }
 
 .event-modal__geo-point-inputs {
@@ -129,12 +129,12 @@
 	display: flex;
 	justify-content: space-between;
 	gap: 12px;
-	color: #334155;
+	color: var(--il-text-sec);
 }
 
 .event-modal__hint {
 	font-size: 0.9rem;
-	color: #666;
+	color: var(--il-text-muted);
 }
 
 .event-modal__form {
@@ -160,7 +160,7 @@
 .event-modal__label {
 	font-size: 0.9rem;
 	font-weight: 500;
-	color: #333;
+	color: var(--il-text);
 }
 
 .event-modal__input,
@@ -229,7 +229,7 @@
 	align-items: center;
 	justify-content: space-between;
 	padding: 10px 12px;
-	background: white;
+	background: var(--il-surface);
 	border: 1px solid #d8d8d8;
 	border-radius: 8px;
 	font-size: 0.95rem;
@@ -257,8 +257,8 @@
 	top: calc(100% + 4px);
 	left: 0;
 	right: 0;
-	background: white;
-	border: 1px solid #ddd;
+	background: var(--il-surface);
+	border: 1px solid var(--il-border);
 	border-radius: 8px;
 	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 	z-index: 1000;
@@ -275,7 +275,7 @@
 .event-modal__search-input {
 	width: 100%;
 	padding: 8px 12px;
-	border: 1px solid #ddd;
+	border: 1px solid var(--il-border);
 	border-radius: 6px;
 	font-size: 0.9rem;
 	font-family: inherit;
@@ -304,11 +304,11 @@
 }
 
 .event-modal__dropdown-option:hover {
-	background-color: #f5f5f5;
+	background-color: var(--il-hover);
 }
 
 .event-modal__dropdown-option--selected {
-	background-color: #e8f4ff;
+	background-color: var(--il-primary-light);
 	color: #008dd2;
 	font-weight: 500;
 }
@@ -365,12 +365,12 @@
 }
 
 .event-modal__btn--ghost {
-	background: #f1f5f9;
-	color: #334155;
+	background: var(--il-surface-2);
+	color: var(--il-text-sec);
 }
 
 .event-modal__btn--ghost:hover {
-	background: #e2e8f0;
+	background: var(--il-border);
 }
 
 @media (max-width: 768px) {

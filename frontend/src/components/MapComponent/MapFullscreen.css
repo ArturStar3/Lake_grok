@@ -15,9 +15,9 @@
   align-items: center;
   gap: 10px;
   padding: 0 14px;
-  background: rgba(254, 254, 254, 0.93);
+  background: var(--il-surface-translucent);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  border-bottom: 1px solid var(--il-border);
   pointer-events: auto;
 }
 
@@ -41,7 +41,7 @@
 }
 
 .map-fs-topbar__brand:hover {
-  background: #f1f5f9;
+  background: var(--il-surface-2);
 }
 
 .map-fs-topbar__logo {
@@ -57,8 +57,8 @@
   left: 0;
   top: calc(100% + 8px);
   min-width: 220px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--il-surface);
+  border: 1px solid var(--il-border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   padding: 8px 0;
@@ -68,8 +68,8 @@
 .map-fs-topbar__account-user {
   padding: 8px 14px 10px;
   font-size: 0.82rem;
-  color: #64748b;
-  border-bottom: 1px solid #f1f5f9;
+  color: var(--il-text-muted);
+  border-bottom: 1px solid var(--il-border);
   margin-bottom: 4px;
 }
 
@@ -81,13 +81,13 @@
   background: transparent;
   padding: 10px 14px;
   font-size: 0.9rem;
-  color: #334155;
+  color: var(--il-text-sec);
   cursor: pointer;
   font-family: inherit;
 }
 
 .map-fs-topbar__account-item:hover {
-  background: #f8fafc;
+  background: var(--il-surface-2);
 }
 
 .map-fs-topbar__account-item--danger {
@@ -97,13 +97,13 @@
 .map-fs-topbar__title {
   font-weight: 700;
   font-size: 13px;
-  color: #2b2a29;
+  color: var(--il-text);
 }
 
 .map-fs-topbar__subtitle {
   font-size: 11px;
-  color: #64748b;
-  border-left: 1px solid #e2e8f0;
+  color: var(--il-text-muted);
+  border-left: 1px solid var(--il-border);
   padding-left: 10px;
 }
 
@@ -116,11 +116,11 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #fefefe;
-  border: 1px solid #e2e8f0;
+  background: var(--il-surface);
+  border: 1px solid var(--il-border);
   border-radius: 9px;
   cursor: pointer;
-  color: #334155;
+  color: var(--il-text-sec);
   font-size: 12px;
   font-weight: 500;
   transition: background 0.15s, border-color 0.15s;
@@ -128,12 +128,12 @@
 }
 
 .map-fs-topbar__btn:hover {
-  background: #f0f8ff;
+  background: var(--il-primary-tint);
 }
 
 .map-fs-topbar__btn--tools-open,
 .map-fs-topbar__btn--active {
-  background: #e8f4ff;
+  background: var(--il-primary-light);
   border-color: #008dd2;
 }
 
@@ -157,8 +157,8 @@
   min-width: 240px;
   max-height: min(70vh, 420px);
   overflow-y: auto;
-  background: #fefefe;
-  border: 1px solid #e2e8f0;
+  background: var(--il-surface);
+  border: 1px solid var(--il-border);
   border-radius: 10px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
   z-index: 700;
@@ -174,12 +174,12 @@
   background: transparent;
   cursor: pointer;
   font-size: 13px;
-  color: #334155;
+  color: var(--il-text-sec);
   font-family: inherit;
 }
 
 .map-fs-tools-menu__item:hover:not(:disabled) {
-  background: #f0f8ff;
+  background: var(--il-primary-tint);
 }
 
 .map-fs-tools-menu__item:disabled {
@@ -194,9 +194,9 @@
   bottom: 0;
   width: var(--fs-dock-w);
   z-index: 550;
-  background: rgba(254, 254, 254, 0.97);
+  background: var(--il-surface-translucent);
   backdrop-filter: blur(12px);
-  border-left: 1px solid rgba(226, 232, 240, 0.9);
+  border-left: 1px solid var(--il-border);
   box-shadow: -2px 0 12px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
@@ -224,14 +224,14 @@
   justify-content: center;
   gap: 4px;
   background: transparent;
-  color: #334155;
+  color: var(--il-text-sec);
   transition: background 0.15s, color 0.15s;
   padding: 8px 4px;
   font-family: inherit;
 }
 
 .map-fs-dock__tab:hover:not(.map-fs-dock__tab--active) {
-  background: #f0f8ff;
+  background: var(--il-primary-tint);
   color: #008dd2;
 }
 
@@ -268,12 +268,12 @@
 }
 
 .map-fs-dock__tab:not(.map-fs-dock__tab--active) .map-fs-dock__badge {
-  background: #e8f4ff;
+  background: var(--il-primary-light);
   color: #008dd2;
 }
 
 .map-fs-dock__collapse {
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--il-border);
   margin: 0 10px;
   padding: 4px 0 6px;
 }
@@ -289,7 +289,7 @@
   justify-content: center;
   gap: 2px;
   background: transparent;
-  color: #64748b;
+  color: var(--il-text-muted);
   font-size: 11px;
   font-weight: 600;
   font-family: inherit;
@@ -297,7 +297,7 @@
 }
 
 .map-fs-dock__hide:hover {
-  background: #f0f8ff;
+  background: var(--il-primary-tint);
   color: #008dd2;
 }
 
@@ -323,13 +323,13 @@
   width: 28px;
   min-height: 72px;
   padding: 8px 0;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--il-border);
   border-right: none;
   border-radius: 8px 0 0 8px;
-  background: rgba(254, 254, 254, 0.97);
+  background: var(--il-surface-translucent);
   backdrop-filter: blur(10px);
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
-  color: #64748b;
+  color: var(--il-text-muted);
   cursor: pointer;
   font-size: 9px;
   font-weight: 600;
@@ -338,7 +338,7 @@
 }
 
 .map-fs-dock-reveal:hover {
-  background: #f0f8ff;
+  background: var(--il-primary-tint);
   color: #008dd2;
 }
 
@@ -350,11 +350,11 @@
   width: 100%;
   margin-bottom: 10px;
   padding: 8px 12px;
-  background: #fefefe;
-  border: 1px solid #e2e8f0;
+  background: var(--il-surface);
+  border: 1px solid var(--il-border);
   border-radius: 9px;
   cursor: pointer;
-  color: #334155;
+  color: var(--il-text-sec);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -362,7 +362,7 @@
 }
 
 .map-fs-panel__add-btn:hover {
-  background: #f0f8ff;
+  background: var(--il-primary-tint);
   border-color: #008dd2;
   color: #008dd2;
 }
@@ -374,9 +374,9 @@
   right: var(--fs-dock-w);
   width: var(--fs-panel-w);
   z-index: 540;
-  background: rgba(254, 254, 254, 0.95);
+  background: var(--il-surface-translucent);
   backdrop-filter: blur(14px);
-  border-left: 1px solid rgba(226, 232, 240, 0.9);
+  border-left: 1px solid var(--il-border);
   box-shadow: -5px 0 24px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
@@ -395,7 +395,7 @@
   align-items: center;
   gap: 4px;
   padding: 10px 12px 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--il-border);
   flex-shrink: 0;
 }
 
@@ -411,12 +411,12 @@
   flex-shrink: 0;
   padding: 6px 12px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--il-border);
+  background: var(--il-surface-2);
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: #334155;
+  color: var(--il-text-sec);
   font-family: inherit;
 }
 
@@ -430,10 +430,10 @@
   width: 30px;
   height: 30px;
   border-radius: 7px;
-  border: 1px solid #e2e8f0;
-  background: #fefefe;
+  border: 1px solid var(--il-border);
+  background: var(--il-surface);
   cursor: pointer;
-  color: #64748b;
+  color: var(--il-text-muted);
   flex-shrink: 0;
 }
 
@@ -499,7 +499,7 @@
 
 .map-fs-panel__features {
   flex-shrink: 0;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--il-border);
   padding: 8px 12px;
   max-height: 40%;
   overflow: auto;
@@ -508,10 +508,10 @@
 .map-fs-panel__swipe-hint {
   flex-shrink: 0;
   padding: 5px 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--il-border);
   text-align: center;
   font-size: 10px;
-  color: #64748b;
+  color: var(--il-text-muted);
 }
 
 /* Leaflet zoom — слева на карте, ниже fullscreen top bar */

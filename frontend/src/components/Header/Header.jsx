@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canManageUsers, canManageReference, canReadModule } from '../../utils/permissions';
+import ThemeToggle from '../common/ThemeToggle/ThemeToggle';
 import './Header.css';
 import logo from '../../assets/images/logo.png';
 
@@ -41,6 +42,7 @@ function Header() {
         </div>
       </div>
       <div className="header__spacer" />
+      <ThemeToggle />
       <div className="header__user-menu" ref={menuRef}>
         <button
           type="button"

@@ -17,7 +17,7 @@
     left: 15px;
     top: 0;
     transform: translateY(-50%);
-    background-color: #FEFEFE;
+    background-color: var(--il-surface);
     padding: 0 5px;
     color: var(--border-color);
 }

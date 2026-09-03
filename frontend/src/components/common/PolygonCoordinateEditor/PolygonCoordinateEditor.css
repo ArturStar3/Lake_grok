@@ -7,12 +7,12 @@
 .polygon-coord-editor__title {
 	font-size: 0.85rem;
 	font-weight: 600;
-	color: #334155;
+	color: var(--il-text-sec);
 }
 
 .polygon-coord-editor__hint {
 	font-size: 0.8rem;
-	color: #64748b;
+	color: var(--il-text-muted);
 }
 
 .polygon-coord-editor__error {
@@ -43,7 +43,7 @@
 
 .polygon-coord-editor__point-label {
 	font-size: 0.85rem;
-	color: #334155;
+	color: var(--il-text-sec);
 }
 
 .polygon-coord-editor__point-inputs {
@@ -55,13 +55,13 @@
 .polygon-coord-editor__input {
 	width: 100%;
 	padding: 6px 8px;
-	border: 1px solid #cbd5e1;
+	border: 1px solid var(--il-border);
 	border-radius: 4px;
 	font-size: 0.85rem;
 }
 
 .polygon-coord-editor__input:disabled {
-	background: #f1f5f9;
+	background: var(--il-surface-2);
 	cursor: not-allowed;
 }
 
@@ -77,7 +77,7 @@
 	border: none;
 	border-radius: 4px;
 	background: transparent;
-	color: #94a3b8;
+	color: var(--il-text-muted);
 	font-size: 1.1rem;
 	line-height: 1;
 	cursor: pointer;
@@ -85,7 +85,7 @@
 
 .polygon-coord-editor__remove-btn:hover:not(:disabled) {
 	color: #dc2626;
-	background: #fef2f2;
+	background: var(--il-danger-bg);
 }
 
 .polygon-coord-editor__remove-btn:disabled {
@@ -98,15 +98,15 @@
 	padding: 6px 12px;
 	border: 1px dashed #94a3b8;
 	border-radius: 4px;
-	background: #f8fafc;
-	color: #475569;
+	background: var(--il-surface-2);
+	color: var(--il-text-sec);
 	font-size: 0.85rem;
 	cursor: pointer;
 }
 
 .polygon-coord-editor__add-btn:hover:not(:disabled) {
-	border-color: #64748b;
-	background: #f1f5f9;
+	border-color: var(--il-text-muted);
+	background: var(--il-surface-2);
 }
 
 .polygon-coord-editor__add-btn:disabled {

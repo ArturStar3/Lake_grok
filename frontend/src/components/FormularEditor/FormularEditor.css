@@ -4,7 +4,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--il-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -13,7 +13,7 @@
 }
 
 .formular-editor__content {
-    background: white;
+    background: var(--il-surface);
     border-radius: 12px;
     width: 100%;
     max-width: 900px;
@@ -33,13 +33,13 @@
     margin: 0 40px 0 0;
     font-size: 1.4rem;
     font-weight: 600;
-    color: #333;
+    color: var(--il-text);
 }
 
 .formular-editor__subtitle {
     margin: 6px 40px 0 0;
     font-size: 0.95rem;
-    color: #666;
+    color: var(--il-text-muted);
 }
 
 .formular-editor__close {
@@ -50,7 +50,7 @@
     border: none;
     font-size: 2rem;
     line-height: 1;
-    color: #666;
+    color: var(--il-text-muted);
     cursor: pointer;
     padding: 0;
     width: 32px;
@@ -63,8 +63,8 @@
 }
 
 .formular-editor__close:hover {
-    background-color: #f5f5f5;
-    color: #333;
+    background-color: var(--il-hover);
+    color: var(--il-text);
 }
 
 .formular-editor__error {
@@ -111,7 +111,7 @@
 .formular-editor__section-title {
     margin: 0 0 16px 0;
     font-weight: 600;
-    color: #333;
+    color: var(--il-text);
 }
 
 .formular-editor__section-title--level-0 {
@@ -127,7 +127,7 @@
 
 .formular-editor__section-title--level-2 {
     font-size: 1rem;
-    color: #555;
+    color: var(--il-text-muted);
 }
 
 .formular-editor__subsections {
@@ -153,17 +153,17 @@
     margin-bottom: 8px;
     font-size: 0.95rem;
     font-weight: 500;
-    color: #333;
+    color: var(--il-text);
 }
 
 .formular-editor__input {
     width: 100%;
     padding: 10px 14px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     font-size: 0.95rem;
     font-family: inherit;
-    color: #333;
+    color: var(--il-text);
     transition: border-color 0.2s;
     box-sizing: border-box;
 }
@@ -177,10 +177,10 @@
 .formular-editor__textarea {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--il-text);
     font-family: inherit;
     resize: vertical;
     min-height: 60px;
@@ -190,8 +190,8 @@
 .formular-editor__attachments {
     margin-top: 12px;
     padding: 12px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface-2);
+    border: 1px solid var(--il-border);
     border-radius: 10px;
 }
 
@@ -205,7 +205,7 @@
 .formular-editor__attachments-hint {
     margin: 0;
     font-size: 0.85rem;
-    color: #64748b;
+    color: var(--il-text-muted);
     font-style: italic;
 }
 
@@ -218,7 +218,7 @@
 
 .formular-editor__attachment-toggle {
     border: 1px dashed #94a3b8;
-    background: #fff;
+    background: var(--il-surface);
     color: #1f2937;
     padding: 8px 12px;
     border-radius: 8px;
@@ -237,8 +237,8 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 8px;
     padding: 10px 34px 10px 10px;
     width: 160px;
@@ -254,7 +254,7 @@
 
 .formular-editor__attachment-info {
     font-size: 0.85rem;
-    color: #475569;
+    color: var(--il-text-sec);
     width: 100%;
 }
 
@@ -309,13 +309,13 @@
 }
 
 .formular-editor__button--cancel {
-    background-color: #f5f5f5;
-    color: #666;
+    background-color: var(--il-hover);
+    color: var(--il-text-muted);
 }
 
 .formular-editor__button--cancel:hover:not(:disabled) {
     background-color: #e8e8e8;
-    color: #333;
+    color: var(--il-text);
 }
 
 .formular-editor__button--save {

@@ -47,14 +47,14 @@
 }
 
 .equipment-autocomplete__clear:hover {
-  color: #333;
+  color: var(--il-text);
 }
 
 .equipment-autocomplete__list {
   margin: 0;
   padding: 4px 0;
   list-style: none;
-  background: #fff;
+  background: var(--il-surface);
   border: 1px solid #ccd6e0;
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
@@ -89,18 +89,18 @@
 }
 
 .equipment-autocomplete__option-title {
-  color: #1f2a38;
+  color: var(--il-text);
 }
 
 .equipment-autocomplete__option-meta {
-  color: #666;
+  color: var(--il-text-muted);
   font-size: 0.78rem;
 }
 
 .equipment-autocomplete__empty,
 .equipment-autocomplete__hint {
   padding: 10px 12px;
-  color: #666;
+  color: var(--il-text-muted);
   font-size: 0.85rem;
 }
 

@@ -1,0 +1,76 @@
+/* Shared theme surfaces: native controls, Leaflet chrome, map basemap. */
+
+[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+    background-color: var(--il-input-bg);
+    color: var(--il-text);
+    border-color: var(--il-border);
+    color-scheme: dark;
+}
+
+[data-theme="dark"] option {
+    background-color: var(--il-surface);
+    color: var(--il-text);
+}
+
+[data-theme="dark"] ::placeholder {
+    color: var(--il-text-muted);
+    opacity: 1;
+}
+
+/* --- Map basemap: invert vector canvas only; markers/zones stay in Leaflet panes --- */
+
+[data-theme="dark"] .leaflet-container {
+    background: var(--il-map-bg);
+}
+
+[data-theme="dark"] .maplibregl-map {
+    filter: invert(1) hue-rotate(180deg) brightness(1.18) contrast(0.82);
+}
+
+/* Undo invert on MapLibre's own chrome (nested filter cancels parent). */
+[data-theme="dark"] .maplibregl-control-container {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+[data-theme="dark"] .leaflet-container:not(:has(.maplibregl-map)) .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(1.18) contrast(0.82);
+}
+
+[data-theme="dark"] .leaflet-overlay-pane,
+[data-theme="dark"] .leaflet-marker-pane,
+[data-theme="dark"] .leaflet-shadow-pane,
+[data-theme="dark"] .leaflet-tooltip-pane,
+[data-theme="dark"] .leaflet-popup-pane,
+[data-theme="dark"] .leaflet-control-container {
+    filter: none;
+}
+
+[data-theme="dark"] .leaflet-control-zoom a,
+[data-theme="dark"] .leaflet-control-attribution,
+[data-theme="dark"] .leaflet-control-layers,
+[data-theme="dark"] .leaflet-control-scale-line {
+    background: var(--il-surface) !important;
+    color: var(--il-text-sec) !important;
+    border-color: var(--il-border) !important;
+}
+
+[data-theme="dark"] .leaflet-control-zoom a:hover {
+    background: var(--il-surface-2) !important;
+    color: var(--il-text) !important;
+}
+
+[data-theme="dark"] .leaflet-popup-content-wrapper,
+[data-theme="dark"] .leaflet-popup-tip {
+    background: var(--il-surface);
+    color: var(--il-text);
+}
+
+[data-theme="dark"] .leaflet-bar {
+    border-color: var(--il-border) !important;
+}
+
+[data-theme="dark"] .leaflet-control-attribution a {
+    color: var(--il-primary);
+}

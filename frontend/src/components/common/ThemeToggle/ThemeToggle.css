@@ -1,0 +1,37 @@
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--il-border);
+    background: var(--il-surface);
+    color: var(--il-text-sec);
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.theme-toggle:hover {
+    background: var(--il-primary-tint);
+    border-color: var(--il-primary);
+    color: var(--il-text);
+}
+
+.theme-toggle--compact {
+    padding: 6px;
+    width: 34px;
+    height: 34px;
+    justify-content: center;
+}
+
+.theme-toggle--auth {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 2;
+}

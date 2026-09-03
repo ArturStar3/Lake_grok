@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import AuthPage from './AuthPage';
 import { useAuth } from '../../context/AuthContext';
 import { formatAuthError } from '../../utils/formatAuthError';
 import logo from '../../assets/images/logo.png';
@@ -46,7 +47,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="auth-page">
+    <AuthPage>
       <div className="auth-card">
         <div className="auth-card__logo">
           <img src={logo} alt="" />
@@ -97,6 +98,6 @@ export default function LoginPage() {
           </div>
         </form>
       </div>
-    </div>
+    </AuthPage>
   );
 }

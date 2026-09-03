@@ -30,8 +30,8 @@
     padding: 8px 12px;
     border-radius: 10px;
     border: 1px solid #008dd2;
-    background: #f2f8fc;
-    color: #0b5073;
+    background: var(--il-primary-tint);
+    color: var(--il-primary);
     cursor: pointer;
     transition: background 0.2s, color 0.2s, border-color 0.2s;
     font-weight: 600;
@@ -57,7 +57,7 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #e8f4ff;
+    background: var(--il-primary-light);
     color: #008dd2;
     font-weight: 700;
     font-size: 12px;
@@ -79,9 +79,9 @@
     align-items: center;
     gap: 12px;
     padding: 8px 10px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--il-border);
     border-radius: 10px;
-    background: #f8fafc;
+    background: var(--il-surface-2);
     margin-bottom: 6px;
 }
 
@@ -97,7 +97,7 @@
     overflow: auto;
     flex: 1;
     min-height: 0;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--il-border);
     border-radius: 12px;
 }
 

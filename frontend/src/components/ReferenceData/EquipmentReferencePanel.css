@@ -33,7 +33,7 @@
 .equipment-reference-panel__subtab--active {
   background: #eef2f7;
   border-color: #3d5a80;
-  color: #1f2a38;
+  color: var(--il-text);
   font-weight: 600;
 }
 
@@ -80,7 +80,7 @@
 .equipment-catalog-panel__checkbox-clear {
   flex-shrink: 0;
   border: 1px solid #d1d5db;
-  background: #fff;
+  background: var(--il-surface);
   color: #4b5563;
   padding: 2px 8px;
   border-radius: 4px;

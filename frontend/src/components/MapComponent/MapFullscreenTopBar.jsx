@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { canManageUsers } from '../../utils/permissions';
 import logo from '../../assets/images/logo.png';
 import MapFullscreenToolsMenu from './MapFullscreenToolsMenu';
+import ThemeToggle from '../common/ThemeToggle/ThemeToggle';
 
 export default function MapFullscreenTopBar({
   toolsMenuRef,
@@ -103,6 +104,7 @@ export default function MapFullscreenTopBar({
       <span className="map-fs-topbar__subtitle">Карта · Полный экран</span>
       {searchControl}
       <div className="map-fs-topbar__spacer" />
+      <ThemeToggle compact />
       {canEditTargets && onOpenAddTarget && (
         <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenAddTarget}>
           + Объект

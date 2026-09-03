@@ -136,7 +136,7 @@
     padding: 6px 12px;
     border-radius: 10px;
     border: 1px solid var(--il-border, #e2e8f0);
-    background: #f8fafc;
+    background: var(--il-surface-2);
     cursor: pointer;
     font-size: 12px;
     font-weight: 500;
@@ -257,14 +257,14 @@
     flex-wrap: wrap;
     gap: 8px;
     padding: 0 15px 10px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--il-border);
     margin-bottom: 12px;
 }
 
 .formular__tab {
-    border: 1px solid #d8e2f0;
-    background: #f8fafc;
-    color: #0b5073;
+    border: 1px solid var(--il-border);
+    background: var(--il-surface-2);
+    color: var(--il-primary);
     border-radius: 10px;
     padding: 6px 12px;
     cursor: pointer;
@@ -290,7 +290,7 @@
 .events__head-cell {
     text-align: left;
     padding: 8px 6px;
-    color: #475569;
+    color: var(--il-text-sec);
     font-weight: 600;
 }
 
@@ -327,7 +327,7 @@
 
 .events__flyto-btn:hover {
     color: #005b95;
-    background-color: #f0f8ff;
+    background-color: var(--il-primary-tint);
     transform: scale(1.1);
 }
 
@@ -414,7 +414,7 @@
 }
 
 .formular__table-row--hovered {
-    background-color: #e8f4ff;
+    background-color: var(--il-primary-light);
 }
 
 .formular__table-row--hovered .formular__table-data {
@@ -444,8 +444,8 @@
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    background: #fff;
-    border: 1px solid #e0e0e0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 10px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
     min-width: 180px;
@@ -472,7 +472,7 @@
 }
 
 .tools-menu__item--active {
-    background: #e8f4ff;
+    background: var(--il-primary-light);
     color: #005b95;
 }
 
@@ -517,7 +517,7 @@
 
 .formular__flyto-btn:hover {
     color: #005b95;
-    background-color: #f0f8ff;
+    background-color: var(--il-primary-tint);
     transform: scale(1.1);
 }
 
@@ -553,7 +553,7 @@
 
 .formular__action-btn--edit:hover {
     color: #005b95;
-    background-color: #f0f8ff;
+    background-color: var(--il-primary-tint);
     transform: scale(1.1);
 }
 
@@ -584,7 +584,7 @@
     padding: 6px 4px;
     margin-bottom: 8px;
     font-size: 13px;
-    color: #334155;
+    color: var(--il-text-sec);
 }
 
 .select-all-label {
@@ -598,9 +598,9 @@
 }
 
 .country-group {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--il-border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--il-surface);
     overflow: hidden;
 }
 
@@ -618,7 +618,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    background: #f8fafc;
+    background: var(--il-surface-2);
     cursor: pointer;
     user-select: none;
     font-weight: 600;
@@ -632,7 +632,7 @@
     content: '▸';
     flex-shrink: 0;
     width: 12px;
-    color: #64748b;
+    color: var(--il-text-muted);
     font-size: 12px;
     transition: transform 0.15s ease;
 }
@@ -642,7 +642,7 @@
 }
 
 .country-header:hover {
-    background: #f1f5f9;
+    background: var(--il-surface-2);
 }
 
 .country-name {
@@ -654,7 +654,7 @@
 }
 
 .country-count {
-    color: #64748b;
+    color: var(--il-text-muted);
     font-weight: 500;
     font-size: 12px;
     white-space: nowrap;
@@ -669,7 +669,7 @@
 
 .country-objects {
     padding: 2px 0 4px;
-    background: #fff;
+    background: var(--il-surface);
 }
 
 .object-row {
@@ -677,7 +677,7 @@
     align-items: center;
     gap: 4px;
     padding: 4px 10px 4px 30px; /* небольшой отступ под чекбокс группы */
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid var(--il-border);
     font-size: 14px;
 }
 
@@ -695,11 +695,11 @@
 
 /* Небольшая адаптация hover для новых строк */
 .object-row:hover {
-    background-color: #f8fafc;
+    background-color: var(--il-surface-2);
 }
 
 .object-row.formular__table-row--hovered {
-    background-color: #e8f4ff;
+    background-color: var(--il-primary-light);
 }
 
 /* Кнопки Развернуть все / Свернуть все */
@@ -713,9 +713,9 @@
 .expand-btn {
     padding: 4px 10px;
     font-size: 12px;
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #334155;
+    border: 1px solid var(--il-border);
+    background: var(--il-surface-2);
+    color: var(--il-text-sec);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -723,7 +723,7 @@
 
 .expand-btn:hover {
     background: #e0e7ff;
-    border-color: #64748b;
+    border-color: var(--il-text-muted);
     color: #1e2937;
 }
 
@@ -734,9 +734,9 @@
 /* === Группировка по Видам и родам войск (внутри стран) === */
 .branch-group {
     margin: 4px 8px 2px 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
-    background: #fff;
+    background: var(--il-surface);
     overflow: hidden;
 }
 
@@ -750,7 +750,7 @@
 }
 
 .branch-group--nested .branch-header {
-    background: #f8fafc;
+    background: var(--il-surface-2);
 }
 
 .branch-header {
@@ -758,12 +758,12 @@
     align-items: center;
     gap: 6px;
     padding: 6px 10px;
-    background: #f1f5f9;
+    background: var(--il-surface-2);
     cursor: pointer;
     user-select: none;
     font-weight: 500;
     font-size: 13px;
-    color: #334155;
+    color: var(--il-text-sec);
     transition: background-color 0.15s ease;
     list-style: none;
 }
@@ -772,7 +772,7 @@
     content: '▸';
     flex-shrink: 0;
     width: 10px;
-    color: #64748b;
+    color: var(--il-text-muted);
     font-size: 11px;
 }
 
@@ -793,7 +793,7 @@
 }
 
 .branch-count {
-    color: #64748b;
+    color: var(--il-text-muted);
     font-weight: 500;
     font-size: 11px;
     white-space: nowrap;
@@ -808,7 +808,7 @@
 
 .branch-objects {
     padding: 1px 0 2px;
-    background: #fff;
+    background: var(--il-surface);
 }
 
 .formular__status {
@@ -817,7 +817,7 @@
 }
 
 .formular__status--loading {
-    color: #64748b;
+    color: var(--il-text-muted);
 }
 
 .formular__status--error {

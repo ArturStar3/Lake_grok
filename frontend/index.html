@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>infolake</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('infolake-theme');
+          if (t === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <!-- Direct-prod entrypoint may overwrite this with ports; stub is empty object. -->
     <script src="/runtime-config.js"></script>
   </head>

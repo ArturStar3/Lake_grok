@@ -4,7 +4,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--il-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -13,7 +13,7 @@
 }
 
 .add-target-modal__content {
-    background: white;
+    background: var(--il-surface);
     border-radius: 12px;
     width: 100%;
     max-width: 600px;
@@ -34,7 +34,7 @@
     margin: 0;
     font-size: 1.4rem;
     font-weight: 600;
-    color: #333;
+    color: var(--il-text);
 }
 
 .add-target-modal__close {
@@ -42,7 +42,7 @@
     border: none;
     font-size: 2rem;
     line-height: 1;
-    color: #666;
+    color: var(--il-text-muted);
     cursor: pointer;
     padding: 0;
     width: 32px;
@@ -55,8 +55,8 @@
 }
 
 .add-target-modal__close:hover {
-    background-color: #f5f5f5;
-    color: #333;
+    background-color: var(--il-hover);
+    color: var(--il-text);
 }
 
 .add-target-modal__error-general {
@@ -80,7 +80,7 @@
 .add-target-modal__section {
     margin-bottom: 24px;
     padding: 16px;
-    background-color: #f8f9fa;
+    background-color: var(--il-surface-2);
     border-radius: 8px;
 }
 
@@ -113,8 +113,8 @@
     display: flex;
     gap: 12px;
     padding: 12px;
-    background-color: white;
-    border: 1px solid #d0d0d0;
+    background-color: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
 }
 
@@ -134,7 +134,7 @@
     margin-bottom: 6px;
     font-size: 0.85rem;
     font-weight: 500;
-    color: #555;
+    color: var(--il-text-muted);
 }
 
 .add-target-modal__button--remove-action {
@@ -165,7 +165,7 @@
     margin-bottom: 8px;
     font-size: 0.9rem;
     font-weight: 500;
-    color: #333;
+    color: var(--il-text);
 }
 
 .add-target-modal__required {
@@ -176,10 +176,10 @@
 .add-target-modal__select {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--il-text);
     transition: border-color 0.2s;
     font-family: inherit;
 }
@@ -209,10 +209,10 @@
 .add-target-modal__country-trigger {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
-    background-color: white;
-    color: #333;
+    background-color: var(--il-surface);
+    color: var(--il-text);
     font-size: 0.95rem;
     cursor: pointer;
     transition: border-color 0.2s;
@@ -234,7 +234,7 @@
 }
 
 .add-target-modal__country-arrow {
-    color: #666;
+    color: var(--il-text-muted);
     transition: transform 0.2s ease;
     flex-shrink: 0;
 }
@@ -248,8 +248,8 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #d0d0d0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
@@ -266,10 +266,10 @@
 .add-target-modal__search-input {
     width: 100%;
     padding: 8px 10px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid var(--il-border);
     border-radius: 4px;
     font-size: 0.9rem;
-    color: #333;
+    color: var(--il-text);
     font-family: inherit;
     transition: border-color 0.2s;
 }
@@ -293,13 +293,13 @@
     cursor: pointer;
     text-align: left;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--il-text);
     transition: background-color 0.2s;
     font-family: inherit;
 }
 
 .add-target-modal__country-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--il-hover);
 }
 
 .add-target-modal__country-option--selected {
@@ -324,10 +324,10 @@
 .add-target-modal__marker-trigger {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #d0d0d0;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
-    background-color: white;
-    color: #333;
+    background-color: var(--il-surface);
+    color: var(--il-text);
     font-size: 0.95rem;
     cursor: pointer;
     transition: border-color 0.2s;
@@ -370,7 +370,7 @@
 }
 
 .add-target-modal__marker-arrow {
-    color: #666;
+    color: var(--il-text-muted);
     transition: transform 0.2s ease;
     flex-shrink: 0;
 }
@@ -384,8 +384,8 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #d0d0d0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
@@ -410,13 +410,13 @@
     gap: 10px;
     text-align: left;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--il-text);
     transition: background-color 0.2s;
     font-family: inherit;
 }
 
 .add-target-modal__marker-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--il-hover);
 }
 
 .add-target-modal__marker-option--selected {
@@ -456,13 +456,13 @@
 }
 
 .add-target-modal__button--cancel {
-    background-color: #f5f5f5;
-    color: #666;
+    background-color: var(--il-hover);
+    color: var(--il-text-muted);
 }
 
 .add-target-modal__button--cancel:hover {
     background-color: #e8e8e8;
-    color: #333;
+    color: var(--il-text);
 }
 
 .add-target-modal__button--submit {

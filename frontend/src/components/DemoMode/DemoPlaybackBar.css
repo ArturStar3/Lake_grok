@@ -222,7 +222,7 @@
 }
 
 .demo-blackout--white {
-    background: #fff;
+    background: var(--il-surface);
 }
 
 .demo-blackout__hint {

@@ -10,7 +10,7 @@
     box-sizing: border-box;
     width: min(720px, calc(100% - 24px));
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.97);
+    background: var(--il-surface-translucent);
     border: 1px solid #d1d5db;
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
@@ -27,7 +27,7 @@
     font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: #64748b;
+    color: var(--il-text-muted);
     text-align: center;
     cursor: grab;
     user-select: none;
@@ -69,7 +69,7 @@
     flex-direction: column;
     gap: 2px;
     font-size: 0.72rem;
-    color: #64748b;
+    color: var(--il-text-muted);
     min-width: 0;
     flex: 1 1 120px;
 }
@@ -86,7 +86,7 @@
     padding: 0 6px;
     font-size: 0.82rem;
     color: #1f2937;
-    background: #fff;
+    background: var(--il-surface);
 }
 
 .demo-text-map-editor__color {
@@ -113,7 +113,7 @@
     align-items: center;
     gap: 6px;
     font-size: 0.82rem;
-    color: #334155;
+    color: var(--il-text-sec);
     padding-bottom: 6px;
     white-space: nowrap;
 }
@@ -134,8 +134,8 @@
 
 .demo-text-map-editor__cancel {
     border: 1px solid #d1d5db;
-    background: #fff;
-    color: #334155;
+    background: var(--il-surface);
+    color: var(--il-text-sec);
 }
 
 .demo-text-map-editor__done {

@@ -39,7 +39,7 @@
 }
 
 .dismissible-banner--error {
-  background: #fef2f2;
+  background: var(--il-danger-bg);
   border: 1px solid #fecaca;
   color: #991b1b;
 }
@@ -49,7 +49,7 @@
 }
 
 .dismissible-banner--info {
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--il-surface-translucent);
   border: 1px solid #dbe3ea;
   color: #374151;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);

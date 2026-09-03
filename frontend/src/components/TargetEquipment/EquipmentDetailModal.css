@@ -1,7 +1,7 @@
 .equipment-detail-modal__overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--il-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,7 +9,7 @@
 }
 
 .equipment-detail-modal {
-  background: #fff;
+  background: var(--il-surface);
   border-radius: 8px;
   width: min(560px, 92vw);
   max-height: 88vh;
@@ -30,7 +30,7 @@
 .equipment-detail-modal__header h2 {
   margin: 0;
   font-size: 1.15rem;
-  color: #1f2a38;
+  color: var(--il-text);
   line-height: 1.35;
 }
 
@@ -39,14 +39,14 @@
   border: none;
   font-size: 1.75rem;
   line-height: 1;
-  color: #666;
+  color: var(--il-text-muted);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
 }
 
 .equipment-detail-modal__close:hover {
-  color: #333;
+  color: var(--il-text);
 }
 
 .equipment-detail-modal__body {
@@ -61,12 +61,12 @@
   gap: 8px 16px;
   margin-bottom: 14px;
   font-size: 0.88rem;
-  color: #555;
+  color: var(--il-text-muted);
 }
 
 .equipment-detail-modal__qty {
   font-weight: 600;
-  color: #333;
+  color: var(--il-text);
 }
 
 .equipment-detail-modal__gallery {
@@ -94,7 +94,7 @@
   width: 120px;
   height: 90px;
   object-fit: cover;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--il-border);
   border-radius: 6px;
   background: #f7f9fc;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -115,7 +115,7 @@
   position: relative;
   max-width: 90vw;
   max-height: 90vh;
-  background: #fff;
+  background: var(--il-surface);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -152,12 +152,12 @@
 .equipment-detail-modal__section h3 {
   margin: 0 0 8px;
   font-size: 0.95rem;
-  color: #1f2a38;
+  color: var(--il-text);
 }
 
 .equipment-detail-modal__section p {
   margin: 0;
-  color: #333;
+  color: var(--il-text);
   font-size: 0.92rem;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -166,7 +166,7 @@
 .equipment-detail-modal__list {
   margin: 0;
   padding-left: 18px;
-  color: #333;
+  color: var(--il-text);
   font-size: 0.9rem;
 }
 

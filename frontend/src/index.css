@@ -7,6 +7,7 @@
 /* Blocks */
 @import "assets/css/blocks/btn.css";
 @import "assets/css/blocks/custom-input.css";
+@import "assets/css/theme.css";
 
 .map {
     flex: 1;

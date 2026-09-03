@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../../config/axios';
 import { formatAuthError } from '../../utils/formatAuthError';
+import AuthPage from './AuthPage';
 import logo from '../../assets/images/logo.png';
 import './AuthPages.css';
 
@@ -33,7 +34,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="auth-page">
+    <AuthPage>
       <div className="auth-card">
         <div className="auth-card__logo">
           <img src={logo} alt="" />
@@ -83,6 +84,6 @@ export default function ForgotPasswordPage() {
           </div>
         </form>
       </div>
-    </div>
+    </AuthPage>
   );
 }

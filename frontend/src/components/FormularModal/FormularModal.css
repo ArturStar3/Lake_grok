@@ -12,7 +12,7 @@
 }
 
 .formular-modal {
-  background: white;
+  background: var(--il-surface);
   border-radius: 8px;
   width: 92%;
   max-width: 1100px;
@@ -46,13 +46,13 @@
 .formular-modal-header h2 {
   margin: 0;
   font-size: 1.3rem;
-  color: #333;
+  color: var(--il-text);
 }
 
 .formular-modal-meta {
   margin: 6px 0 0;
   font-size: 0.82rem;
-  color: #64748b;
+  color: var(--il-text-muted);
   line-height: 1.4;
 }
 
@@ -62,7 +62,7 @@
   padding: 4px;
   margin: 0;
   cursor: pointer;
-  color: #555;
+  color: var(--il-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -75,11 +75,11 @@
 
 .formular-modal-edit-icon:hover {
   background-color: #f0f0f0;
-  color: #1f2a38;
+  color: var(--il-text);
 }
 
 .formular-modal-edit-icon:focus-visible {
-  outline: 2px solid #1f2a38;
+  outline: 2px solid var(--il-text);
   outline-offset: 2px;
 }
 
@@ -87,7 +87,7 @@
   background: none;
   border: none;
   font-size: 2rem;
-  color: #666;
+  color: var(--il-text-muted);
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -100,7 +100,7 @@
 }
 
 .formular-modal-close:hover {
-  color: #333;
+  color: var(--il-text);
 }
 
 .formular-modal-content {
@@ -116,6 +116,6 @@
 
 .formular-modal-content > p {
   text-align: center;
-  color: #666;
+  color: var(--il-text-muted);
   margin: 40px 0;
 }

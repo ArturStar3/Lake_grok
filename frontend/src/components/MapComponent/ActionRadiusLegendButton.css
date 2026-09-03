@@ -37,9 +37,9 @@
   bottom: 40px;
   min-width: 220px;
   max-width: 300px;
-  background: rgba(255, 255, 255, 0.98);
+  background: var(--il-surface-translucent);
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--il-border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   padding: 10px 12px;
   opacity: 0;
@@ -57,13 +57,13 @@
 .action-radius-legend__title {
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--il-text);
   margin-bottom: 8px;
 }
 
 .action-radius-legend__empty {
   font-size: 12px;
-  color: #666;
+  color: var(--il-text-muted);
 }
 
 .action-radius-legend__list {
@@ -100,12 +100,12 @@
 
 .action-radius-legend__text strong {
   font-size: 12px;
-  color: #1a1a1a;
+  color: var(--il-text);
 }
 
 .action-radius-legend__desc {
   font-size: 11px;
-  color: #666;
+  color: var(--il-text-muted);
 }
 
 /* Тире-крест: пунктирное кольцо + символ × в центре превью */

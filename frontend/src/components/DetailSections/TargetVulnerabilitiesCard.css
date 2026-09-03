@@ -10,11 +10,11 @@
   gap: 10px;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--il-border);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--il-surface-2);
   font-weight: 500;
-  color: #1f2a38;
+  color: var(--il-text);
   cursor: pointer;
 }
 
@@ -30,7 +30,7 @@
   padding: 0 2px;
   font-size: 0.85rem;
   line-height: 1.4;
-  color: #64748b;
+  color: var(--il-text-muted);
 }
 
 .target-vulnerabilities-card__empty {
@@ -38,7 +38,7 @@
   padding: 20px 14px;
   text-align: center;
   color: #6b7280;
-  background: #f8fafc;
+  background: var(--il-surface-2);
   border: 1px dashed #d0d5dd;
   border-radius: 8px;
 }
@@ -95,7 +95,7 @@
 .target-vulnerabilities-card__desc {
   margin: 0;
   line-height: 1.5;
-  color: #555;
+  color: var(--il-text-muted);
 }
 
 .target-vulnerabilities-card__desc p {
@@ -114,5 +114,5 @@
   border-radius: 6px;
   border: 1px solid #e7e0d0;
   object-fit: cover;
-  background: #f8fafc;
+  background: var(--il-surface-2);
 }

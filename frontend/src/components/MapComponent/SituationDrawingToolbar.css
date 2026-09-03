@@ -4,7 +4,7 @@
   bottom: 16px;
   transform: translateX(-50%);
   z-index: 1000;
-  background: #fff;
+  background: var(--il-surface);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   padding: 10px 14px;
@@ -40,7 +40,7 @@
   padding: 6px 10px;
   border: 1px solid #d1d5db;
   border-radius: 4px;
-  background: #fff;
+  background: var(--il-surface);
   cursor: pointer;
   font-size: 12px;
 }

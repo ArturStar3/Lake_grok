@@ -13,7 +13,7 @@
 
 .demo-text-align__label {
     font-size: 0.72rem;
-    color: #64748b;
+    color: var(--il-text-muted);
 }
 
 .demo-text-align__buttons {
@@ -25,9 +25,9 @@
 .demo-text-align__btn {
     flex: 1 1 0;
     min-width: 0;
-    border: 1px solid #cbd5e1;
-    background: #fff;
-    color: #334155;
+    border: 1px solid var(--il-border);
+    background: var(--il-surface);
+    color: var(--il-text-sec);
     border-radius: 6px;
     padding: 5px 8px;
     font-size: 0.78rem;
@@ -35,7 +35,7 @@
 }
 
 .demo-text-align__btn:hover:not(:disabled) {
-    background: #f1f5f9;
+    background: var(--il-surface-2);
 }
 
 .demo-text-align__btn:disabled {
@@ -46,5 +46,5 @@
 .demo-text-align__hint {
     margin: 0;
     font-size: 0.72rem;
-    color: #64748b;
+    color: var(--il-text-muted);
 }

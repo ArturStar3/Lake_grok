@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { passwordStrength, isPasswordValid } from '../../utils/passwordPolicy';
 import { formatAuthError } from '../../utils/formatAuthError';
 import PasswordRequirements from '../../components/auth/PasswordRequirements';
+import AuthPage from './AuthPage';
 import logo from '../../assets/images/logo.png';
 import './AuthPages.css';
 
@@ -41,7 +42,7 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="auth-page">
+    <AuthPage>
       <div className="auth-card">
         <div className="auth-card__logo">
           <img src={logo} alt="" />
@@ -114,6 +115,6 @@ export default function ChangePasswordPage() {
           )}
         </form>
       </div>
-    </div>
+    </AuthPage>
   );
 }

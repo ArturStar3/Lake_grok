@@ -1,8 +1,8 @@
 .events-filter {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--il-border);
     border-radius: 12px;
     padding: 12px;
-    background: #f8fafc;
+    background: var(--il-surface-2);
 }
 
 .events-filter__header {
@@ -45,8 +45,8 @@
 
 .events-filter__reset {
     border: none;
-    background: #e2e8f0;
-    color: #334155;
+    background: var(--il-border);
+    color: var(--il-text-sec);
     border-radius: 8px;
     padding: 6px 10px;
     cursor: pointer;
@@ -67,7 +67,7 @@
 
 .events-filter__label {
     font-size: 0.85rem;
-    color: #475569;
+    color: var(--il-text-sec);
 }
 
 .events-filter__range {
@@ -78,7 +78,7 @@
 }
 
 .events-filter__range-sep {
-    color: #64748b;
+    color: var(--il-text-muted);
 }
 
 .events-filter__input {
@@ -98,7 +98,7 @@
     border: 1px solid #cbd5f5;
     border-radius: 8px;
     padding: 8px 10px;
-    background: #fff;
+    background: var(--il-surface);
     display: flex;
     justify-content: space-between;
     cursor: pointer;
@@ -118,8 +118,8 @@
     top: calc(100% + 6px);
     left: 0;
     right: 0;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 8px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
     z-index: 20;
@@ -127,7 +127,7 @@
 
 .events-filter__dropdown-header {
     padding: 8px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--il-border);
 }
 
 .events-filter__select-all {
@@ -145,7 +145,7 @@
 
 .events-filter__dropdown-search {
     padding: 8px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--il-border);
 }
 
 .events-filter__search-input {

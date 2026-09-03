@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import AuthPage from '../pages/auth/AuthPage';
 import logo from '../assets/images/logo.png';
 import '../pages/auth/AuthPages.css';
 
@@ -30,7 +31,7 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="auth-page">
+        <AuthPage>
           <div className="auth-card" style={{ textAlign: 'center' }}>
             <div className="auth-card__logo" style={{ justifyContent: 'center' }}>
               <img src={logo} alt="InfoLake" />
@@ -47,7 +48,7 @@ export default class ErrorBoundary extends Component {
               Обновить страницу
             </button>
           </div>
-        </div>
+        </AuthPage>
       );
     }
 

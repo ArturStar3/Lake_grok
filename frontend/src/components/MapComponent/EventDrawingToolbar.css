@@ -11,8 +11,8 @@
   width: fit-content;
   max-width: min(420px, calc(100% - 24px));
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #d1d5db;
+  background: var(--il-surface-translucent);
+  border: 1px solid var(--il-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
@@ -101,7 +101,7 @@
   font-size: 12px;
   font-weight: 500;
   color: #374151;
-  background: #fff;
+  background: var(--il-surface);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   cursor: pointer;

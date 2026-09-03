@@ -5,7 +5,7 @@
 .target-equipment-editor__label {
   display: block;
   font-weight: 600;
-  color: #1f2a38;
+  color: var(--il-text);
   margin-bottom: 12px;
 }
 
@@ -13,13 +13,13 @@
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   padding: 14px;
-  background: #f8fafc;
+  background: var(--il-surface-2);
   margin-bottom: 16px;
 }
 
 .target-equipment-editor__add-hint {
   margin: 0 0 12px;
-  color: #555;
+  color: var(--il-text-muted);
   font-size: 0.85rem;
   line-height: 1.4;
 }
@@ -52,14 +52,14 @@
 
 .target-equipment-editor__empty {
   margin: 0;
-  color: #666;
+  color: var(--il-text-muted);
   font-size: 0.9rem;
 }
 
 .target-equipment-editor__list-title {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #555;
+  color: var(--il-text-muted);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -73,10 +73,10 @@
 
 .target-equipment-editor__row {
   position: relative;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--il-border);
   border-radius: 6px;
   padding: 12px 40px 12px 12px;
-  background: #fff;
+  background: var(--il-surface);
 }
 
 .target-equipment-editor__row-main {
@@ -94,20 +94,20 @@
 }
 
 .target-equipment-editor__name {
-  color: #1f2a38;
+  color: var(--il-text);
   font-size: 0.95rem;
   word-break: break-word;
 }
 
 .target-equipment-editor__category {
-  color: #666;
+  color: var(--il-text-muted);
   font-size: 0.8rem;
 }
 
 .target-equipment-editor__field-label {
   display: block;
   font-size: 0.8rem;
-  color: #555;
+  color: var(--il-text-muted);
   margin-bottom: 4px;
 }
 

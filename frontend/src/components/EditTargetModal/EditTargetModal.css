@@ -4,7 +4,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--il-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -13,7 +13,7 @@
 }
 
 .edit-target-modal__content {
-    background: white;
+    background: var(--il-surface);
     border-radius: 12px;
     width: 100%;
     max-width: 1000px;
@@ -33,7 +33,7 @@
     margin: 0 40px 0 0;
     font-size: 1.4rem;
     font-weight: 600;
-    color: #333;
+    color: var(--il-text);
 }
 
 .edit-target-modal__close {
@@ -44,7 +44,7 @@
     border: none;
     font-size: 2rem;
     line-height: 1;
-    color: #666;
+    color: var(--il-text-muted);
     cursor: pointer;
     padding: 0;
     width: 32px;
@@ -57,8 +57,8 @@
 }
 
 .edit-target-modal__close:hover {
-    background-color: #f5f5f5;
-    color: #333;
+    background-color: var(--il-hover);
+    color: var(--il-text);
 }
 
 .edit-target-modal__error-general {
@@ -82,7 +82,7 @@
     background: none;
     border: none;
     border-bottom: 3px solid transparent;
-    color: #666;
+    color: var(--il-text-muted);
     font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
@@ -136,13 +136,13 @@
 }
 
 .edit-target-modal__button--cancel {
-    background-color: #f5f5f5;
-    color: #666;
+    background-color: var(--il-hover);
+    color: var(--il-text-muted);
 }
 
 .edit-target-modal__button--cancel:hover:not(:disabled) {
     background-color: #e8e8e8;
-    color: #333;
+    color: var(--il-text);
 }
 
 .edit-target-modal__button--save {
@@ -175,13 +175,13 @@
 .edit-target-modal__label {
     font-size: 0.95rem;
     font-weight: 500;
-    color: #333;
+    color: var(--il-text);
 }
 
 .edit-target-modal__label--small {
     font-size: 0.85rem;
     font-weight: 500;
-    color: #555;
+    color: var(--il-text-muted);
 }
 
 .edit-target-modal__required {
@@ -192,7 +192,7 @@
 .edit-target-modal__select,
 .edit-target-modal__textarea {
     padding: 10px 14px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     font-size: 0.95rem;
     font-family: inherit;
@@ -239,8 +239,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 14px;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     font-size: 0.95rem;
     cursor: pointer;
@@ -267,8 +267,8 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
@@ -285,7 +285,7 @@
 .edit-target-modal__search-input {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--il-border);
     border-radius: 4px;
     font-size: 0.9rem;
     font-family: inherit;
@@ -314,11 +314,11 @@
 }
 
 .edit-target-modal__country-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--il-hover);
 }
 
 .edit-target-modal__country-option--selected {
-    background-color: #e8f4ff;
+    background-color: var(--il-primary-light);
     color: #008dd2;
     font-weight: 500;
 }
@@ -341,8 +341,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 14px;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     font-size: 0.95rem;
     cursor: pointer;
@@ -389,8 +389,8 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #ddd;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
@@ -420,18 +420,18 @@
 }
 
 .edit-target-modal__marker-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--il-hover);
 }
 
 .edit-target-modal__marker-option--selected {
-    background-color: #e8f4ff;
+    background-color: var(--il-primary-light);
     color: #008dd2;
     font-weight: 500;
 }
 
 /* Секция действий */
 .edit-target-modal__section {
-    background-color: #f8f9fa;
+    background-color: var(--il-surface-2);
     border-radius: 8px;
     padding: 16px;
 }
@@ -467,7 +467,7 @@
 }
 
 .edit-target-modal__action-item {
-    background-color: white;
+    background-color: var(--il-surface);
     border-radius: 8px;
     padding: 12px;
     display: flex;
@@ -517,7 +517,7 @@
 
 .edit-target-modal__section-title {
     font-weight: 600;
-    color: #333;
+    color: var(--il-text);
     margin: 0 0 12px 0;
 }
 
@@ -539,19 +539,19 @@
 
 .edit-target-modal__section-title--level-1 {
     font-size: 1rem;
-    color: #555;
+    color: var(--il-text-muted);
 }
 
 .edit-target-modal__section-title--level-2 {
     font-size: 0.9rem;
-    color: #666;
+    color: var(--il-text-muted);
 }
 
 .edit-target-modal__attachments {
     margin-top: 10px;
     padding: 12px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface-2);
+    border: 1px solid var(--il-border);
     border-radius: 10px;
 }
 
@@ -571,7 +571,7 @@
 
 .edit-target-modal__attachment-toggle {
     border: 1px dashed #94a3b8;
-    background: #fff;
+    background: var(--il-surface);
     color: #1f2937;
     padding: 8px 12px;
     border-radius: 8px;
@@ -590,8 +590,8 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 8px;
     padding: 10px 34px 10px 10px;
     width: 160px;
@@ -607,7 +607,7 @@
 
 .edit-target-modal__attachment-info {
     font-size: 0.85rem;
-    color: #475569;
+    color: var(--il-text-sec);
     width: 100%;
 }
 
@@ -708,7 +708,7 @@
     text-align: center;
     color: #888;
     font-size: 0.95rem;
-    background: #f8f9fa;
+    background: var(--il-surface-2);
     border-radius: 8px;
     border: 1px dashed #d0d5dd;
 }
@@ -728,8 +728,8 @@
     align-items: center;
     gap: 12px;
     padding: 14px 16px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 8px;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -747,7 +747,7 @@
     padding: 0;
     border: 1px solid #d0d7de;
     border-radius: 4px;
-    background: #fff;
+    background: var(--il-surface);
     color: #3d5a80;
     font-size: 0.85rem;
     line-height: 1;
@@ -756,7 +756,7 @@
 }
 
 .edit-target-modal__persons-order-btn:hover:not(:disabled) {
-    background: #e8f4ff;
+    background: var(--il-primary-light);
     border-color: #008dd2;
 }
 
@@ -771,12 +771,12 @@
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
-    border: 2px solid #e2e8f0;
-    background: #f1f5f9;
+    border: 2px solid var(--il-border);
+    background: var(--il-surface-2);
 }
 
 .edit-target-modal__persons-item:hover {
-    border-color: #cbd5e1;
+    border-color: var(--il-border);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
@@ -788,14 +788,14 @@
 .edit-target-modal__persons-name {
     font-weight: 600;
     font-size: 0.95rem;
-    color: #333;
+    color: var(--il-text);
     line-height: 1.3;
 }
 
 .edit-target-modal__persons-position {
     margin-top: 4px;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--il-text-muted);
 }
 
 .edit-target-modal__persons-actions {
@@ -816,7 +816,7 @@
 }
 
 .edit-target-modal__persons-action--edit {
-    background: #e8f4ff;
+    background: var(--il-primary-light);
     color: #008dd2;
     border-color: #b8dff5;
 }
@@ -827,7 +827,7 @@
 }
 
 .edit-target-modal__persons-action--delete {
-    background: #fff;
+    background: var(--il-surface);
     color: #c62828;
     border-color: #f5c6c6;
 }
@@ -858,7 +858,7 @@
 }
 
 .edit-target-modal__button-secondary {
-    background-color: #fff;
+    background-color: var(--il-surface);
     color: #c62828;
     border: 1px solid #f5c6c6;
     border-radius: 6px;
@@ -901,7 +901,7 @@
     text-align: center;
     color: #888;
     font-size: 0.95rem;
-    background: #f8f9fa;
+    background: var(--il-surface-2);
     border-radius: 8px;
     border: 1px dashed #d0d5dd;
 }
@@ -920,8 +920,8 @@
     flex-direction: column;
     gap: 14px;
     padding: 16px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--il-surface);
+    border: 1px solid var(--il-border);
     border-radius: 10px;
 }
 
@@ -937,7 +937,7 @@
 .edit-target-modal__vuln-card-index {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #64748b;
+    color: var(--il-text-muted);
     letter-spacing: 0.02em;
 }
 
@@ -945,7 +945,7 @@
     padding: 6px 12px;
     border: 1px solid #fecaca;
     border-radius: 6px;
-    background: #fef2f2;
+    background: var(--il-danger-bg);
     color: #b91c1c;
     font-size: 0.85rem;
     font-weight: 500;
@@ -993,12 +993,12 @@
 
 .edit-target-modal__vuln-file {
     font-size: 0.9rem;
-    color: #475569;
+    color: var(--il-text-sec);
 }
 
 .edit-target-modal__vuln-file-name {
     font-size: 0.85rem;
-    color: #64748b;
+    color: var(--il-text-muted);
 }
 
 .edit-target-modal__vuln-preview {
@@ -1007,7 +1007,7 @@
     max-height: 120px;
     margin-top: 4px;
     border-radius: 6px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--il-border);
     object-fit: cover;
 }
 
