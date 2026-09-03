@@ -211,9 +211,8 @@
     inset: 0;
     z-index: 10100;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    padding-bottom: 32px;
     cursor: pointer;
 }
 
@@ -225,10 +224,24 @@
     background: var(--il-surface);
 }
 
+.demo-blackout__logo {
+    width: 180px;
+    height: 180px;
+    object-fit: contain;
+    border-radius: 24px;
+    pointer-events: none;
+    user-select: none;
+}
+
 .demo-blackout__hint {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
     font-size: 0.8rem;
     opacity: 0;
     transition: opacity 200ms ease;
+    pointer-events: none;
 }
 
 .demo-blackout--black .demo-blackout__hint {
@@ -273,17 +286,22 @@
     background: rgba(255, 255, 255, 0.12);
 }
 
-/* Во время показа прячем операторские элементы карты. */
-.map--demo .map-fs-dock,
-.map--demo .map-fs-panel,
+/* Во время показа прячем операторские элементы карты.
+   Док и его панель можно вернуть кнопкой «Меню» (класс map--demo-dock). */
 .map--demo .map-fs-topbar,
-.map--demo .map-fs-dock-reveal,
 .map--demo .map-split-hud__zoom,
 .map--demo .map-split-hud__tools,
-.map--demo .action-radius-legend-button {
+.map--demo .action-radius-legend-button,
+.map--demo:not(.map--demo-dock) .map-fs-dock,
+.map--demo:not(.map--demo-dock) .map-fs-panel {
     opacity: 0;
     pointer-events: none;
     transition: opacity 200ms ease;
+}
+
+.map--demo .map-fs-dock-reveal {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 @media (max-width: 900px) {

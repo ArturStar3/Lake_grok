@@ -896,6 +896,8 @@ function MapComponent({
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [dockTab, setDockTab] = useState(null);
     const [isDockVisible, setIsDockVisible] = useState(true);
+    const [demoShowDock, setDemoShowDock] = useState(false);
+    const isDemoPlayback = Boolean(demoPlayback?.isActive);
     const panelTouchStartX = useRef(0);
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
@@ -958,6 +960,15 @@ function MapComponent({
 
     const showDock = useCallback(() => {
         setIsDockVisible(true);
+    }, []);
+
+    const hideDemoDock = useCallback(() => {
+        closeFullscreenPanel();
+        setDemoShowDock(false);
+    }, [closeFullscreenPanel]);
+
+    const showDemoDock = useCallback(() => {
+        setDemoShowDock(true);
     }, []);
 
     const openDock = useCallback((tab) => {
@@ -1521,6 +1532,10 @@ function MapComponent({
             setIsDockVisible(true);
         }
     }, [isFullscreen, closeFullscreenPanel]);
+
+    useEffect(() => {
+        if (!isDemoPlayback) setDemoShowDock(false);
+    }, [isDemoPlayback]);
 
     useEffect(() => {
         // Click outside measure menu (top bar tools)
@@ -2159,10 +2174,11 @@ function MapComponent({
     }, [canAddSituationTerritory, onSituationDrawPointsChange]);
 
     const isMapDrawingEvent = isMapDrawingActive;
+    const fsDockVisible = isDemoPlayback ? demoShowDock : isDockVisible;
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${(demoPlayback?.isActive || demoTextEditDraft) ? " map--demo" : ""}`}
+            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${(demoPlayback?.isActive || demoTextEditDraft) ? " map--demo" : ""}${isDemoPlayback && demoShowDock ? " map--demo-dock" : ""}`}
             ref={containerRef}
         >
             {isFullscreen && (
@@ -2216,22 +2232,22 @@ function MapComponent({
                     >
                         <MapFullscreenPanelBody {...panelBodyProps} dockTab={dockTab ?? fullscreenTab} />
                     </MapFullscreenPanel>
-                    {isDockVisible && (
+                    {fsDockVisible && (
                     <MapFullscreenDock
                         dockTab={dockTab}
                         onOpenDock={openDock}
                         canReadSituations={canReadSituations}
                         tabCounts={fullscreenTabCounts}
-                        onHideDock={hideDock}
+                        onHideDock={isDemoPlayback ? hideDemoDock : hideDock}
                     />
                     )}
-                    {!isDockVisible && (
+                    {!fsDockVisible && (
                         <button
                             type="button"
                             className="map-fs-dock-reveal"
                             title="Показать панели"
                             aria-label="Показать панели"
-                            onClick={showDock}
+                            onClick={isDemoPlayback ? showDemoDock : showDock}
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                 <polyline points="15,18 9,12 15,6" />
