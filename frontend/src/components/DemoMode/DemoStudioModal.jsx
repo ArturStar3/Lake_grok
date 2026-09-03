@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DemoStepInspector from './DemoStepInspector';
 import DemoTimeline from './DemoTimeline';
 import {
+  DEMO_START_MODE,
   DEMO_TOOL,
   DEMO_TOOLS,
   buildScenarioTimeline,
@@ -13,8 +14,14 @@ import {
   getToolLabel,
   makeLocalStepKey,
   normalizeScenario,
+  normalizeText,
 } from '../../utils/demoScenario';
 import './DemoStudioModal.css';
+
+const START_MODE_BADGE = {
+  [DEMO_START_MODE.AFTER_PREVIOUS]: 'после предыдущего',
+  [DEMO_START_MODE.WITH_PREVIOUS]: 'параллельно',
+};
 
 function reindex(steps) {
   return steps.map((step, index) => ({ ...step, order: index }));
@@ -34,6 +41,7 @@ function moveItem(list, from, to) {
  */
 export default function DemoStudioModal({
   isOpen,
+  mapTextEditActive = false,
   onClose,
   scenarios,
   loading,
@@ -52,6 +60,9 @@ export default function DemoStudioModal({
   overlayLayers,
   countriesList,
   getMapView,
+  onStartTextMapEdit,
+  onTextMapApplyRef,
+  alignTextOnMap,
 }) {
   const [draft, setDraft] = useState(null);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
@@ -162,6 +173,34 @@ export default function DemoStudioModal({
     patchSteps((steps) => steps.map((step, index) => (index === activeStepIndex ? nextStep : step)));
   }, [activeStepIndex, patchSteps]);
 
+  const handleStartTextMapEdit = useCallback(() => {
+    const step = draft?.steps?.[activeStepIndex];
+    if (!step) return;
+    onStartTextMapEdit?.({ stepKey: step.key, text: step.text });
+  }, [activeStepIndex, draft, onStartTextMapEdit]);
+
+  // Студия скрывается на время правки на карте, но остаётся смонтированной —
+  // Formular вызывает этот колбэк, чтобы записать черновик в нужный шаг.
+  useEffect(() => {
+    if (!onTextMapApplyRef) return undefined;
+    onTextMapApplyRef.current = (stepKey, text) => {
+      const normalized = normalizeText(text);
+      setDraft((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          steps: prev.steps.map((step) => (
+            step.key === stepKey ? { ...step, text: normalized } : step
+          )),
+        };
+      });
+      setDirty(true);
+    };
+    return () => {
+      onTextMapApplyRef.current = null;
+    };
+  }, [onTextMapApplyRef]);
+
   const handleSave = useCallback(async () => {
     if (!draft) return;
     if (!draft.title.trim()) {
@@ -209,17 +248,32 @@ export default function DemoStudioModal({
     onPlay?.(draft);
   }, [draft, onPlay]);
 
-  const totalMs = useMemo(
-    () => buildScenarioTimeline(draft?.steps || []).totalMs,
+  const { totalMs, stages } = useMemo(
+    () => buildScenarioTimeline(draft?.steps || []),
     [draft],
   );
+
+  /** Номер этапа для каждого шага — список шагов группируется заголовками этапов. */
+  const stageNumberByStepIndex = useMemo(() => {
+    const map = new Map();
+    stages.forEach((stage) => {
+      stage.indices.forEach((index) => map.set(index, stage.index + 1));
+    });
+    return map;
+  }, [stages]);
 
   const activeStep = draft?.steps?.[activeStepIndex] || null;
 
   if (!isOpen) return null;
 
   return (
-    <div className="demo-studio__overlay" onClick={onClose}>
+    <div
+      className={['demo-studio__overlay', mapTextEditActive ? 'demo-studio__overlay--map-edit' : '']
+        .filter(Boolean)
+        .join(' ')}
+      onClick={onClose}
+      aria-hidden={mapTextEditActive ? true : undefined}
+    >
       <div
         className="demo-studio"
         onClick={(e) => e.stopPropagation()}
@@ -318,6 +372,20 @@ export default function DemoStudioModal({
                 <label className="demo-checkbox">
                   <input
                     type="checkbox"
+                    checked={draft.auto_advance}
+                    disabled={!canWrite}
+                    onChange={(e) => patchDraft({ auto_advance: e.target.checked })}
+                  />
+                  <span className="demo-checkbox__text">
+                    Переключать этапы автоматически
+                    <span className="demo-field__hint">
+                      Выключите для доклада: этапы будет переключать докладчик стрелками или пультом
+                    </span>
+                  </span>
+                </label>
+                <label className="demo-checkbox">
+                  <input
+                    type="checkbox"
                     checked={draft.loop}
                     disabled={!canWrite}
                     onChange={(e) => patchDraft({ loop: e.target.checked })}
@@ -366,8 +434,13 @@ export default function DemoStudioModal({
               <>
                 <ol className="demo-studio__step-list">
                   {draft.steps.map((step, index) => (
+                    <Fragment key={step.key}>
+                    {(index === 0 || step.start_mode === DEMO_START_MODE.ON_CLICK) && (
+                      <li className="demo-studio__stage-head" aria-hidden="true">
+                        Этап {stageNumberByStepIndex.get(index) ?? 1}
+                      </li>
+                    )}
                     <li
-                      key={step.key}
                       draggable={canWrite}
                       onDragStart={() => { dragIndexRef.current = index; }}
                       onDragOver={(e) => e.preventDefault()}
@@ -378,7 +451,13 @@ export default function DemoStudioModal({
                         if (from == null) return;
                         handleMoveStep(from, index);
                       }}
-                      className={`demo-studio__step${index === activeStepIndex ? ' demo-studio__step--active' : ''}`}
+                      className={[
+                        'demo-studio__step',
+                        index === activeStepIndex ? 'demo-studio__step--active' : '',
+                        index > 0 && step.start_mode !== DEMO_START_MODE.ON_CLICK
+                          ? 'demo-studio__step--in-stage'
+                          : '',
+                      ].filter(Boolean).join(' ')}
                     >
                       <button
                         type="button"
@@ -395,6 +474,9 @@ export default function DemoStudioModal({
                           </span>
                           <span className="demo-studio__step-sub">
                             {describeStepSelection(step)}
+                            {START_MODE_BADGE[step.start_mode]
+                              ? ` · ${START_MODE_BADGE[step.start_mode]}`
+                              : ''}
                           </span>
                         </span>
                         <span className="demo-studio__step-badge">
@@ -410,6 +492,7 @@ export default function DemoStudioModal({
                         </div>
                       )}
                     </li>
+                    </Fragment>
                   ))}
                   {!draft.steps.length && (
                     <li className="demo-studio__hint">Шагов пока нет — добавьте первый.</li>
@@ -444,6 +527,8 @@ export default function DemoStudioModal({
               onChange={handleStepChange}
               onPreview={() => onPreviewStep?.(activeStep)}
               onPickCameraFromMap={getMapView}
+              onStartTextMapEdit={handleStartTextMapEdit}
+              alignTextOnMap={alignTextOnMap}
               objects={objects}
               events={events}
               situations={situations}

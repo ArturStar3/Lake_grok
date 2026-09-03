@@ -1,0 +1,50 @@
+.demo-text-align {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.demo-text-align__group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.demo-text-align__label {
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.demo-text-align__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.demo-text-align__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.demo-text-align__btn:hover:not(:disabled) {
+    background: #f1f5f9;
+}
+
+.demo-text-align__btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.demo-text-align__hint {
+    margin: 0;
+    font-size: 0.72rem;
+    color: #64748b;
+}

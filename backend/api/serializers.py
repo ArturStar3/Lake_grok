@@ -53,6 +53,7 @@ from .demo_scenario_utils import (
     normalize_camera,
     normalize_selection,
     normalize_step_duration,
+    normalize_text,
     replace_demo_scenario_steps,
 )
 from formular.map_display_utils import normalize_map_display_zoom_rules
@@ -1508,6 +1509,7 @@ class DemoScenarioStepSerializer(serializers.ModelSerializer):
             'camera',
             'selection',
             'animation',
+            'text',
         )
 
 
@@ -1524,12 +1526,13 @@ class DemoScenarioStepWriteSerializer(serializers.Serializer):
     )
     start_mode = serializers.ChoiceField(
         choices=DemoStepStartMode.choices,
-        default=DemoStepStartMode.AFTER_PREVIOUS,
+        default=DemoStepStartMode.ON_CLICK,
     )
     hold_previous = serializers.BooleanField(required=False, default=False)
     camera = serializers.JSONField(required=False, default=dict)
     selection = serializers.JSONField(required=False, default=dict)
     animation = serializers.JSONField(required=False, default=dict)
+    text = serializers.JSONField(required=False, default=dict)
 
     def validate_camera(self, value):
         return normalize_camera(value)
@@ -1539,6 +1542,9 @@ class DemoScenarioStepWriteSerializer(serializers.Serializer):
 
     def validate_animation(self, value):
         return normalize_animation(value)
+
+    def validate_text(self, value):
+        return normalize_text(value)
 
 
 class DemoScenarioSerializer(serializers.ModelSerializer):
@@ -1555,6 +1561,7 @@ class DemoScenarioSerializer(serializers.ModelSerializer):
             'description',
             'is_default',
             'loop',
+            'auto_advance',
             'default_step_duration_ms',
             'created_at',
             'updated_at',
@@ -1579,6 +1586,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
             'description',
             'is_default',
             'loop',
+            'auto_advance',
             'default_step_duration_ms',
             'steps',
         )

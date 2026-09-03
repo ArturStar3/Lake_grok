@@ -1402,9 +1402,11 @@ class DemoStepTool(models.TextChoices):
     LAYERS = 'layers', 'Слои карты'
     FORMULAR = 'formular', 'Формуляр объекта'
     COUNTRY = 'country', 'Справка по стране'
+    TEXT = 'text', 'Текст на карте'
 
 
 class DemoStepStartMode(models.TextChoices):
+    ON_CLICK = 'on_click', 'По щелчку (новый этап)'
     AFTER_PREVIOUS = 'after_previous', 'После предыдущего'
     WITH_PREVIOUS = 'with_previous', 'Вместе с предыдущим'
 
@@ -1445,6 +1447,11 @@ class DemoScenario(models.Model):
         help_text='Запускается кнопкой быстрого старта демонстрации',
     )
     loop = models.BooleanField(default=True, verbose_name='Зацикливать показ')
+    auto_advance = models.BooleanField(
+        default=True,
+        verbose_name='Автоматически переключать этапы',
+        help_text='Если выключено, переход к следующему этапу выполняет докладчик',
+    )
     default_step_duration_ms = models.PositiveIntegerField(
         default=DEFAULT_DEMO_STEP_DURATION_MS,
         verbose_name='Длительность шага по умолчанию, мс',
@@ -1499,7 +1506,7 @@ class DemoScenarioStep(models.Model):
     start_mode = models.CharField(
         max_length=20,
         choices=DemoStepStartMode.choices,
-        default=DemoStepStartMode.AFTER_PREVIOUS,
+        default=DemoStepStartMode.ON_CLICK,
         verbose_name='Начало',
     )
     hold_previous = models.BooleanField(
@@ -1523,6 +1530,12 @@ class DemoScenarioStep(models.Model):
         blank=True,
         verbose_name='Анимация (JSON)',
         help_text='effect, direction, duration_ms, delay_ms, easing, repeat, continuous, state_cycle',
+    )
+    text = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Текст на карте (JSON)',
+        help_text='content, anchor, lat, lng, screen, offset, width, style, enter, exit',
     )
 
     class Meta:

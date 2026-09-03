@@ -59,6 +59,9 @@ import "./MapFullscreen.css";
 import { applyDemoEffectCssVars, demoEffectClassName, demoEffectCssVars, demoMarkerIconClass, resolveEventDemoEffect } from "./demo/eventDemoAnimations";
 import { setDemoAnimationMap } from "./demo/demoRafDriver";
 import DemoPlaybackBar from "../DemoMode/DemoPlaybackBar";
+import DemoTextMapEditor from "../DemoMode/DemoTextMapEditor";
+import DemoTextLayer from "./demo/DemoTextLayer";
+import { alignDemoText } from "../../utils/demoScenario";
 import "./demo/DemoAnimations.css";
 
 // delete L.Icon.Default.prototype._getIconUrl;
@@ -699,6 +702,31 @@ function DemoMapBridge({ onOverlayLayersRef, setOnlyOverlayLayers, overlayEnable
     return null;
 }
 
+/**
+ * Во время показа докладчик может свободно работать с картой: демонстрация при
+ * этом не прерывается, лишь отсчёт текущего такта придерживается, пока идёт
+ * перетаскивание или зум — иначе автопереход выдернул бы камеру из-под руки.
+ */
+function DemoInteractionBridge({ active, onHold, onRelease }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!active || !map) return undefined;
+        const hold = () => onHold?.();
+        const release = () => onRelease?.();
+
+        map.on('dragstart zoomstart mousedown', hold);
+        map.on('dragend zoomend mouseup', release);
+        return () => {
+            map.off('dragstart zoomstart mousedown', hold);
+            map.off('dragend zoomend mouseup', release);
+            onRelease?.();
+        };
+    }, [active, map, onHold, onRelease]);
+
+    return null;
+}
+
 function MapComponent({
     // ...existing code...
     objects,
@@ -842,12 +870,20 @@ function MapComponent({
     eventDrawRequest = 0,
     demoAnimation = null,
     demoPlayback = null,
+    demoTexts = null,
     demoMenu = null,
     demoContentCardId = null,
+    demoTextEditDraft = null,
+    onDemoTextEditChange,
+    onDemoTextEditFinish,
     onDemoToggle,
     onDemoNext,
     onDemoPrev,
     onDemoStop,
+    onDemoGoToStage,
+    onDemoBlackout,
+    onDemoInteractionHold,
+    onDemoInteractionRelease,
     onDemoOverlayLayersRef,
     countryIso,
     onCountryIsoChange,
@@ -1585,9 +1621,6 @@ function MapComponent({
     // их срабатывания — каждый блок изолирован своим замыканием, чтобы `return`
     // прерывал только свою секцию, как это было у отдельных useMapEvents.
     mapEventApiRef.current.onClick = (e, map) => {
-        if (demoPlayback?.isPlaying) {
-            onDemoToggle?.();
-        }
         // 1) Клик по карте: закрытие меню группы / панели зон
         (() => {
             if (suppressNextMapClickRef.current) {
@@ -1606,6 +1639,29 @@ function MapComponent({
         (() => {
             if (!vulnerabilityPickRef.current || !onVulnerabilityMapPick) return;
             onVulnerabilityMapPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+        })();
+
+        // 2c) Правка текста демонстрации: клик ставит блок в точку карты / экрана
+        (() => {
+            if (!demoTextEditDraft || !onDemoTextEditChange) return;
+            if (e.originalEvent?.target?.closest?.('.demo-text__anchor--edit')) return;
+            if (e.originalEvent?.target?.closest?.('.demo-text-map-editor')) return;
+            if (demoTextEditDraft.anchor === 'geo') {
+                onDemoTextEditChange({
+                    ...demoTextEditDraft,
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                });
+                return;
+            }
+            const container = map.getContainer();
+            const point = map.mouseEventToContainerPoint(e.originalEvent);
+            const x = Math.min(1, Math.max(0, point.x / container.clientWidth));
+            const y = Math.min(1, Math.max(0, point.y / container.clientHeight));
+            onDemoTextEditChange({
+                ...demoTextEditDraft,
+                screen: { ...(demoTextEditDraft.screen || {}), x, y },
+            });
         })();
 
         // 2) Режим измерения: Ctrl+клик добавляет точку
@@ -2106,7 +2162,7 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${demoPlayback?.isActive ? " map--demo" : ""}`}
+            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !isDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${(demoPlayback?.isActive || demoTextEditDraft) ? " map--demo" : ""}`}
             ref={containerRef}
         >
             {isFullscreen && (
@@ -2235,6 +2291,17 @@ function MapComponent({
                     onOverlayLayersRef={onDemoOverlayLayersRef}
                     setOnlyOverlayLayers={setOnlyOverlayLayers}
                     overlayEnabledById={overlayEnabledById}
+                />
+                <DemoInteractionBridge
+                    active={Boolean(demoPlayback?.isActive)}
+                    onHold={onDemoInteractionHold}
+                    onRelease={onDemoInteractionRelease}
+                />
+                <DemoTextLayer
+                    texts={demoTexts}
+                    active={Boolean(demoPlayback?.isActive)}
+                    editText={demoTextEditDraft}
+                    onEditChange={onDemoTextEditChange}
                 />
                 {USE_VECTOR_MAP ? (
                     <MapVectorBaseLayer
@@ -2535,7 +2602,7 @@ function MapComponent({
                 />
             )}
             <EventDrawingToolbar
-                visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive}
+                visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive && !demoTextEditDraft}
                 isEditMode={isEventEditModeActive}
                 activeTool={eventDrawing.selectedTool}
                 drawMode={eventDrawing.drawMode}
@@ -2554,6 +2621,24 @@ function MapComponent({
                 onPolygonCoordChange={handleEventPolygonCoordChange}
                 polygonCoordError={eventPolygonCoordError}
             />
+            {demoTextEditDraft && (
+                <DemoTextMapEditor
+                    text={demoTextEditDraft}
+                    onChange={onDemoTextEditChange}
+                    onFinish={onDemoTextEditFinish}
+                    getMapView={() => {
+                        const map = mapRef.current;
+                        if (!map?.getCenter) return null;
+                        const center = map.getCenter();
+                        return { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+                    }}
+                    alignTextOnMap={(text, axis) => {
+                        const map = mapRef.current;
+                        if (!map?.containerPointToLatLng) return text;
+                        return alignDemoText(text, axis, map);
+                    }}
+                />
+            )}
             {isPolygonDrawActive && (
                 <InundationDrawBanner
                     hint={polygonDrawing.getHint()}
@@ -2647,6 +2732,8 @@ function MapComponent({
                 onNext={onDemoNext}
                 onPrev={onDemoPrev}
                 onStop={onDemoStop}
+                onGoToStage={onDemoGoToStage}
+                onBlackout={onDemoBlackout}
             />
             {isEventModalOpen && (
                 <AddEventModal

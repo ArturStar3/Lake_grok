@@ -225,6 +225,137 @@ class DemoScenarioApiTests(APITestCase):
         self.assertEqual(animation['effect'], 'none')
         self.assertEqual(animation['duration_ms'], 0)
 
+    def test_on_click_start_mode_is_accepted_and_is_the_default(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(
+            headers,
+            steps=[
+                build_step(title='Этап', start_mode='on_click'),
+                build_step(title='Такт', start_mode='after_previous'),
+                build_step(title='Параллельно', start_mode='with_previous'),
+                {'title': 'Без указания режима', 'tool': 'camera', 'duration_ms': 5000},
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(
+            [step['start_mode'] for step in response.data['steps']],
+            ['on_click', 'after_previous', 'with_previous', 'on_click'],
+        )
+
+    def test_auto_advance_defaults_to_true_and_can_be_disabled(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        created = self.create_scenario(headers)
+        self.assertTrue(created.data['auto_advance'])
+
+        patched = self.client.patch(
+            f'/api/v1/demo-scenarios/{created.data["id"]}/',
+            {'auto_advance': False},
+            format='json',
+            **headers,
+        )
+        self.assertEqual(patched.status_code, status.HTTP_200_OK, patched.data)
+        self.assertFalse(patched.data['auto_advance'])
+
+    def test_text_tool_normalizes_style_and_transitions(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(
+            headers,
+            steps=[
+                build_step(
+                    title='Заголовок',
+                    tool='text',
+                    text={
+                        'content': 'Кавказский регион',
+                        'anchor': 'geo',
+                        'lat': 40.45,
+                        'lng': 46.4,
+                        'width': 520,
+                        'style': {
+                            'font_family': 'Roboto',
+                            'font_size': 48,
+                            'font_weight': 800,
+                            'italic': True,
+                            'underline': True,
+                            'color': '#ffcc00',
+                            'gradient': {'enabled': True, 'from': '#fff', 'to': 'rgba(0, 120, 255, 0.8)', 'angle': 45},
+                            'stroke': {'enabled': True, 'color': '#0b1a2b', 'width': 4},
+                        },
+                        'enter': {'effect': 'slide', 'direction': 'bottom', 'duration_ms': 800},
+                        'exit': {'effect': 'zoom', 'duration_ms': 300},
+                    },
+                ),
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        text = response.data['steps'][0]['text']
+
+        self.assertEqual(text['content'], 'Кавказский регион')
+        self.assertEqual(text['anchor'], 'geo')
+        self.assertEqual(text['lat'], 40.45)
+        self.assertEqual(text['width'], 520)
+        self.assertEqual(text['style']['font_size'], 48)
+        self.assertEqual(text['style']['font_weight'], 800)
+        self.assertTrue(text['style']['italic'])
+        self.assertTrue(text['style']['underline'])
+        self.assertEqual(text['style']['color'], '#ffcc00')
+        self.assertTrue(text['style']['gradient']['enabled'])
+        self.assertEqual(text['style']['gradient']['to'], 'rgba(0, 120, 255, 0.8)')
+        self.assertEqual(text['style']['stroke']['width'], 4.0)
+        self.assertEqual(text['enter']['effect'], 'slide')
+        self.assertEqual(text['enter']['direction'], 'bottom')
+        self.assertEqual(text['exit']['effect'], 'zoom')
+        # Блоки, которые клиент не прислал, заполняются значениями по умолчанию.
+        self.assertIn('background', text['style'])
+        self.assertIn('shadow', text['style'])
+
+    def test_text_tool_rejects_unsafe_values(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(
+            headers,
+            steps=[
+                build_step(
+                    title='Плохой текст',
+                    tool='text',
+                    text={
+                        'content': 'x' * 5000,
+                        'anchor': 'geo',
+                        'lat': 500,
+                        'lng': 46.4,
+                        'style': {
+                            'font_family': 'Comic Sans MS; background: url(javascript:alert(1))',
+                            'font_size': 9000,
+                            'color': 'red; position: fixed',
+                            'opacity': 12,
+                        },
+                        'enter': {'effect': 'explode'},
+                        'exit': {'effect': 'typewriter'},
+                    },
+                ),
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        text = response.data['steps'][0]['text']
+
+        self.assertEqual(len(text['content']), 4000)
+        # Некорректная широта делает геопривязку невозможной — падаем в экранную.
+        self.assertEqual(text['anchor'], 'screen')
+        self.assertIsNone(text['lat'])
+        self.assertEqual(text['style']['font_family'], 'Roboto')
+        self.assertEqual(text['style']['font_size'], 200)
+        self.assertEqual(text['style']['color'], '#ffffff')
+        self.assertEqual(text['style']['opacity'], 1.0)
+        self.assertEqual(text['enter']['effect'], 'fade')
+        # typewriter допустим только на входе.
+        self.assertEqual(text['exit']['effect'], 'fade')
+
+    def test_step_without_text_gets_empty_defaults(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(headers)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        text = response.data['steps'][0]['text']
+        self.assertEqual(text['content'], '')
+        self.assertEqual(text['anchor'], 'screen')
+
     def test_step_duration_out_of_range_is_rejected(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         response = self.create_scenario(headers, steps=[build_step(duration_ms=10)])

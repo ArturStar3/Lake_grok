@@ -4,12 +4,15 @@ import {
   DEMO_CAMERA_MODE,
   DEMO_EFFECT,
   DEMO_TOOL,
-  buildScenarioCues,
+  buildScenarioStages,
+  composeStateAtStage,
 } from '../../utils/demoScenario';
 import { getEventCenter } from '../../utils/eventGeometry';
 import { getSituationBounds } from '../../utils/situationUtils';
 
 const PROGRESS_TICK_MS = 100;
+/** Пауза после ручного взаимодействия с картой, прежде чем таймер пойдёт дальше. */
+const INTERACTION_RESUME_DELAY_MS = 1500;
 
 export const DEMO_STATUS = {
   IDLE: 'idle',
@@ -17,11 +20,35 @@ export const DEMO_STATUS = {
   PAUSED: 'paused',
 };
 
+export const DEMO_BLACKOUT = {
+  NONE: 'none',
+  BLACK: 'black',
+  WHITE: 'white',
+};
+
 const EMPTY_ANIMATION = {
   active: false,
   runId: 0,
   effects: {},
 };
+
+const EMPTY_TEXTS = [];
+
+/** Тексты, которые останутся после текущего такта — если ключа нет, пора играть выход. */
+function nextComposedTexts(stages, stageIndex, beatIndex, scenario) {
+  const stage = stages[stageIndex];
+  if (!stage) return [];
+  if (beatIndex + 1 < stage.beats.length) {
+    return composeStateAtStage(stages, stageIndex, beatIndex + 1).texts;
+  }
+  if (stageIndex + 1 < stages.length) {
+    return composeStateAtStage(stages, stageIndex + 1, 0).texts;
+  }
+  if (scenario?.loop && stages.length) {
+    return composeStateAtStage(stages, 0, 0).texts;
+  }
+  return [];
+}
 
 function resolveIdsAgainst(collection, wantedIds, getId = (item) => item.id) {
   if (!wantedIds?.length || !collection?.length) return [];
@@ -39,12 +66,8 @@ function boundsFromLatLngs(latLngs) {
   return L.latLngBounds(valid);
 }
 
-function resolveContentStep(cue) {
-  if (!cue?.steps?.length) return null;
-  return [...cue.steps]
-    .reverse()
-    .find((step) => step.tool === DEMO_TOOL.FORMULAR || step.tool === DEMO_TOOL.COUNTRY)
-    || null;
+function isContentStep(step) {
+  return step?.tool === DEMO_TOOL.FORMULAR || step?.tool === DEMO_TOOL.COUNTRY;
 }
 
 function contentIdsForStep(step) {
@@ -75,45 +98,50 @@ function contentPlaybackSlots(step) {
 /**
  * Плеер режима демонстрации.
  *
- * Не рисует ничего сам: применяет шаги сценария через те же сеттеры,
- * которыми пользуется оператор вручную, и отдаёт наружу описание активных
- * анимаций (`demoAnimation`) для слоёв карты.
+ * Сценарий раскладывается на **этапы** (точки ручного переключения докладчиком)
+ * и **такты** внутри этапа (элементы, которые сменяют друг друга по таймеру или
+ * идут параллельно). Плеер ничего не рисует сам: он применяет свёрнутое
+ * состояние сценария через те же сеттеры, которыми пользуется оператор, и отдаёт
+ * наружу описание активных анимаций (`demoAnimation`) и текстов (`demoTexts`).
  */
 export function useDemoPlayer({ actions, data }) {
   const [scenario, setScenario] = useState(null);
   const [status, setStatus] = useState(DEMO_STATUS.IDLE);
-  const [cueIndex, setCueIndex] = useState(0);
-  const [cueElapsedMs, setCueElapsedMs] = useState(0);
+  const [stageIndex, setStageIndex] = useState(0);
+  const [beatIndex, setBeatIndex] = useState(0);
+  const [beatElapsedMs, setBeatElapsedMs] = useState(0);
   const [animationRunId, setAnimationRunId] = useState(0);
+  const [waitingForPresenter, setWaitingForPresenter] = useState(false);
+  const [blackout, setBlackout] = useState(DEMO_BLACKOUT.NONE);
+  const [hideFinishedTexts, setHideFinishedTexts] = useState(false);
 
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  const cueStartedAtRef = useRef(0);
+  const beatStartedAtRef = useRef(0);
   const pausedElapsedRef = useRef(0);
   const frameRef = useRef(null);
+  const lastFrameAtRef = useRef(0);
   const lastProgressPushRef = useRef(0);
   const snapshotRef = useRef(null);
   const advanceRef = useRef(() => {});
   const lastContentKeyRef = useRef(null);
+  const interactionHoldsRef = useRef(0);
+  const interactionReleaseTimerRef = useRef(null);
+  const applyTokenRef = useRef(0);
 
-  const cues = useMemo(() => buildScenarioCues(scenario?.steps || []), [scenario]);
-  const currentCue = cues[cueIndex] || null;
-  const isActive = status !== DEMO_STATUS.IDLE && Boolean(currentCue);
+  const stages = useMemo(() => buildScenarioStages(scenario?.steps || []), [scenario]);
+  const currentStage = stages[stageIndex] || null;
+  const currentBeat = currentStage?.beats?.[beatIndex] || null;
+  const isActive = status !== DEMO_STATUS.IDLE && Boolean(currentStage);
 
-  const clearMapContent = useCallback(() => {
-    const api = actionsRef.current;
-    api.setSelectedObj?.([]);
-    api.setSelectedEvents?.([]);
-    api.setSelectedSituations?.([]);
-    api.setTimelineRevisionId?.(null);
-    api.setFocusedSituationId?.(null);
-    api.setDetailSituation?.(null);
-    api.setDemoContentCardId?.(null);
-    api.resetZoneFilters?.(false);
-  }, []);
+  /** Состояние карты, накопленное сценарием к концу текущего такта. */
+  const composedState = useMemo(
+    () => composeStateAtStage(stages, stageIndex, beatIndex),
+    [stages, stageIndex, beatIndex],
+  );
 
   /** Снимок пользовательского состояния карты, чтобы вернуть его после показа. */
   const captureSnapshot = useCallback(() => {
@@ -237,64 +265,18 @@ export function useDemoPlayer({ actions, data }) {
     return null;
   }, []);
 
-  const applyStep = useCallback((step) => {
+  const applyCamera = useCallback((step, { instant = false } = {}) => {
     const api = actionsRef.current;
-    const current = dataRef.current;
-    const selection = step.selection || {};
+    const camera = step?.camera || {};
+    // Leaflet при animate:false выполняет обычный setView — нужный эффект
+    // для перехода назад и прыжков по этапам.
+    const animation = instant
+      ? { animate: false, duration: 0 }
+      : { duration: camera.duration_ms / 1000, easeLinearity: camera.ease_linearity };
 
-    switch (step.tool) {
-      case DEMO_TOOL.OBJECTS: {
-        const ids = resolveIdsAgainst(current.objects, selection.target_ids);
-        if (ids.length) api.setSelectedObj?.((prev) => Array.from(new Set([...prev, ...ids])));
-        break;
-      }
-      case DEMO_TOOL.EVENTS: {
-        const ids = resolveIdsAgainst(current.events, selection.event_ids);
-        if (ids.length) api.setSelectedEvents?.((prev) => Array.from(new Set([...prev, ...ids])));
-        break;
-      }
-      case DEMO_TOOL.SITUATIONS: {
-        const ids = resolveIdsAgainst(current.situations, selection.situation_ids).slice(0, 1);
-        if (ids.length) {
-          api.setSelectedSituations?.(ids);
-          api.setFocusedSituationId?.(ids[0]);
-          const situation = (current.situations || []).find(
-            (item) => String(item.id) === String(ids[0]),
-          );
-          api.setDetailSituation?.(situation || null);
-        }
-        break;
-      }
-      case DEMO_TOOL.ZONES:
-      case DEMO_TOOL.INUNDATION: {
-        const items = (selection.zone_leaves || []).map((leaf) => ({
-          country: leaf.country,
-          actionTypeId: leaf.action_type_id,
-          leaf: leaf.leaf,
-        }));
-        if (items.length) api.setZoneLeavesBatch?.(items, true);
-        break;
-      }
-      case DEMO_TOOL.LAYERS: {
-        if (selection.overlay_layer_ids?.length) {
-          api.setOverlayLayers?.(selection.overlay_layer_ids);
-        }
-        break;
-      }
-      default:
-        break;
-    }
-  }, []);
-
-  const applyCamera = useCallback((step) => {
-    const api = actionsRef.current;
-    const camera = step.camera || {};
     if (camera.mode === DEMO_CAMERA_MODE.FLY_TO) {
       if (camera.lat == null || camera.lng == null) return;
-      api.flyTo?.(camera.lat, camera.lng, camera.zoom, {
-        duration: camera.duration_ms / 1000,
-        easeLinearity: camera.ease_linearity,
-      });
+      api.flyTo?.(camera.lat, camera.lng, camera.zoom, animation);
       return;
     }
     if (camera.mode === DEMO_CAMERA_MODE.FIT_SELECTION) {
@@ -303,24 +285,24 @@ export function useDemoPlayer({ actions, data }) {
       api.flyToBounds?.(bounds, {
         padding: [camera.padding, camera.padding],
         maxZoom: camera.zoom,
-        duration: camera.duration_ms / 1000,
-        easeLinearity: camera.ease_linearity,
+        ...animation,
       });
     }
   }, [computeStepBounds]);
 
-  /** Подгружает данные, нужные шагам сцены (вкладки при этом не переключаются). */
-  const prefetchForCue = useCallback(async (cue) => {
+  /** Подгружает данные, нужные шагам этапа (вкладки при этом не переключаются). */
+  const prefetchForStage = useCallback(async (stage) => {
+    if (!stage) return;
     const api = actionsRef.current;
     const current = dataRef.current;
     const tasks = [];
 
-    const needsEvents = cue.steps.some((step) => step.tool === DEMO_TOOL.EVENTS);
+    const needsEvents = stage.steps.some((step) => step.tool === DEMO_TOOL.EVENTS);
     if (needsEvents && !(current.events || []).length) {
       tasks.push(api.fetchEvents?.());
     }
 
-    const situationSteps = cue.steps.filter((step) => step.tool === DEMO_TOOL.SITUATIONS);
+    const situationSteps = stage.steps.filter((step) => step.tool === DEMO_TOOL.SITUATIONS);
     if (situationSteps.length) {
       if (!(current.situations || []).length) {
         tasks.push(api.fetchSituations?.());
@@ -336,28 +318,58 @@ export function useDemoPlayer({ actions, data }) {
     await Promise.all(tasks.filter(Boolean).map((task) => Promise.resolve(task).catch(() => null)));
   }, []);
 
-  const applyCue = useCallback(async (cue) => {
-    if (!cue) return;
-    const hasContent = cue.steps.some(
-      (step) => step.tool === DEMO_TOOL.FORMULAR || step.tool === DEMO_TOOL.COUNTRY,
-    );
-    if (!hasContent) {
-      const api = actionsRef.current;
+  /**
+   * Применяет свёрнутое состояние сценария целиком, а не по приращению:
+   * только так переход назад и прыжок по этапам дают тот же вид карты,
+   * что и последовательный проход вперёд.
+   */
+  const applyState = useCallback((state, { instant = false } = {}) => {
+    const api = actionsRef.current;
+    const current = dataRef.current;
+
+    api.setSelectedObj?.(resolveIdsAgainst(current.objects, state.target_ids));
+    api.setSelectedEvents?.(resolveIdsAgainst(current.events, state.event_ids));
+
+    const situationIds = resolveIdsAgainst(current.situations, state.situation_ids).slice(0, 1);
+    if (situationIds.length) {
+      const situation = (current.situations || []).find(
+        (item) => String(item.id) === String(situationIds[0]),
+      );
+      api.setSelectedSituations?.(situationIds);
+      api.setFocusedSituationId?.(situationIds[0]);
+      api.setDetailSituation?.(situation || null);
+    } else {
+      api.setSelectedSituations?.([]);
+      api.setFocusedSituationId?.(null);
+      api.setDetailSituation?.(null);
+      api.setTimelineRevisionId?.(null);
+    }
+
+    api.resetZoneFilters?.(false);
+    if (state.zone_leaves.length) {
+      api.setZoneLeavesBatch?.(
+        state.zone_leaves.map((leaf) => ({
+          country: leaf.country,
+          actionTypeId: leaf.action_type_id,
+          leaf: leaf.leaf,
+        })),
+        true,
+      );
+    }
+
+    if (Array.isArray(state.overlay_layer_ids)) {
+      api.setOverlayLayers?.(state.overlay_layer_ids);
+    }
+
+    if (!state.contentStep) {
       api.setSelectedTargetId?.(null);
       api.setSelectedCountryIso?.(null);
       api.setDemoContentCardId?.(null);
+      lastContentKeyRef.current = null;
     }
-    await prefetchForCue(cue);
-    if (!cue.steps.some((step) => step.hold_previous)) {
-      clearMapContent();
-    }
-    cue.steps.forEach(applyStep);
-    const cameraStep = [...cue.steps]
-      .reverse()
-      .find((step) => step.camera?.mode && step.camera.mode !== DEMO_CAMERA_MODE.NONE);
-    if (cameraStep) applyCamera(cameraStep);
-    setAnimationRunId((prev) => prev + 1);
-  }, [applyCamera, applyStep, clearMapContent, prefetchForCue]);
+
+    if (state.cameraStep) applyCamera(state.cameraStep, { instant });
+  }, [applyCamera]);
 
   const stopFrameLoop = useCallback(() => {
     if (frameRef.current != null) {
@@ -366,47 +378,105 @@ export function useDemoPlayer({ actions, data }) {
     }
   }, []);
 
-  const goToCue = useCallback((index, { autoplay = true } = {}) => {
-    const list = cues;
+  /**
+   * Переход на такт `beat` этапа `stage`. Состояние всегда пересобирается с
+   * начала сценария, поэтому направление перехода на результат не влияет.
+   */
+  const goTo = useCallback((nextStageIndex, {
+    beat = 0,
+    instant = false,
+    autoplay = true,
+    stageList = null,
+  } = {}) => {
+    const list = stageList || stages;
     if (!list.length) return;
-    const bounded = Math.max(0, Math.min(list.length - 1, index));
-    setCueIndex(bounded);
-    setCueElapsedMs(0);
+
+    const boundedStage = Math.max(0, Math.min(list.length - 1, nextStageIndex));
+    const stage = list[boundedStage];
+    const boundedBeat = Math.max(0, Math.min(stage.beats.length - 1, beat));
+
+    setStageIndex(boundedStage);
+    setBeatIndex(boundedBeat);
+    setBeatElapsedMs(0);
+    setWaitingForPresenter(false);
+    setHideFinishedTexts(false);
     pausedElapsedRef.current = 0;
-    cueStartedAtRef.current = performance.now();
+    beatStartedAtRef.current = performance.now();
+    lastFrameAtRef.current = performance.now();
     lastProgressPushRef.current = 0;
     lastContentKeyRef.current = null;
-    applyCue(list[bounded]);
-    if (autoplay) setStatus(DEMO_STATUS.PLAYING);
-  }, [applyCue, cues]);
 
+    // Догрузка данных асинхронна: если докладчик успел уйти дальше, применять
+    // уже неактуальное состояние нельзя.
+    applyTokenRef.current += 1;
+    const token = applyTokenRef.current;
+    const state = composeStateAtStage(list, boundedStage, boundedBeat);
+    prefetchForStage(stage).then(() => {
+      if (applyTokenRef.current !== token) return;
+      applyState(state, { instant });
+    });
+    setAnimationRunId((prev) => prev + 1);
+    if (autoplay) setStatus(DEMO_STATUS.PLAYING);
+  }, [applyState, prefetchForStage, stages]);
+
+  /** Автоматический переход по таймеру: следующий такт, следующий этап или ожидание докладчика. */
   const advance = useCallback(() => {
-    const list = cues;
-    const nextIndex = cueIndex + 1;
-    if (nextIndex < list.length) {
-      goToCue(nextIndex);
+    const stage = stages[stageIndex];
+    if (!stage) return;
+
+    if (beatIndex + 1 < stage.beats.length) {
+      goTo(stageIndex, { beat: beatIndex + 1 });
       return;
     }
-    if (scenario?.loop && list.length) {
-      goToCue(0);
+
+    if (!scenario?.auto_advance) {
+      stopFrameLoop();
+      setHideFinishedTexts(true);
+      setWaitingForPresenter(true);
+      setBeatElapsedMs(stage.beats[beatIndex]?.durationMs || 0);
+      pausedElapsedRef.current = stage.beats[beatIndex]?.durationMs || 0;
       return;
     }
+
+    if (stageIndex + 1 < stages.length) {
+      goTo(stageIndex + 1);
+      return;
+    }
+    if (scenario?.loop && stages.length) {
+      goTo(0);
+      return;
+    }
+
+    stopFrameLoop();
+    setHideFinishedTexts(true);
     setStatus(DEMO_STATUS.PAUSED);
-    setCueElapsedMs(currentCue?.durationMs || 0);
-    pausedElapsedRef.current = currentCue?.durationMs || 0;
-  }, [cueIndex, cues, currentCue, goToCue, scenario]);
+    setWaitingForPresenter(true);
+    setBeatElapsedMs(stage.beats[beatIndex]?.durationMs || 0);
+    pausedElapsedRef.current = stage.beats[beatIndex]?.durationMs || 0;
+  }, [beatIndex, goTo, scenario, stageIndex, stages, stopFrameLoop]);
 
   advanceRef.current = advance;
 
   useEffect(() => {
-    if (status !== DEMO_STATUS.PLAYING || !currentCue) {
+    if (status !== DEMO_STATUS.PLAYING || waitingForPresenter || !currentBeat) {
       stopFrameLoop();
       return undefined;
     }
 
-    const duration = currentCue.durationMs;
+    const duration = currentBeat.durationMs;
     const tick = (now) => {
-      const elapsed = now - cueStartedAtRef.current;
+      const delta = now - (lastFrameAtRef.current || now);
+      lastFrameAtRef.current = now;
+
+      // Пока докладчик двигает карту, отсчёт такта стоит: автопереход не должен
+      // выдёргивать камеру из-под руки.
+      if (interactionHoldsRef.current > 0) {
+        beatStartedAtRef.current += delta;
+        frameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const elapsed = now - beatStartedAtRef.current;
       if (elapsed >= duration) {
         stopFrameLoop();
         advanceRef.current();
@@ -415,20 +485,24 @@ export function useDemoPlayer({ actions, data }) {
       // Прогресс в state обновляем реже кадра — иначе Formular перерисовывается 60 раз в секунду.
       if (now - lastProgressPushRef.current >= PROGRESS_TICK_MS) {
         lastProgressPushRef.current = now;
-        setCueElapsedMs(elapsed);
+        setBeatElapsedMs(elapsed);
       }
       frameRef.current = requestAnimationFrame(tick);
     };
 
+    lastFrameAtRef.current = performance.now();
     frameRef.current = requestAnimationFrame(tick);
     return stopFrameLoop;
-  }, [status, currentCue, stopFrameLoop]);
+  }, [status, currentBeat, waitingForPresenter, stopFrameLoop]);
 
+  /** Ротация формуляров и справок внутри такта. */
   useEffect(() => {
-    if (!isActive || !currentCue) return undefined;
+    if (!isActive) return undefined;
     const api = actionsRef.current;
-    const contentStep = resolveContentStep(currentCue);
+    const beatContentStep = currentBeat?.steps?.find(isContentStep) || null;
+    const contentStep = beatContentStep || composedState.contentStep;
     const slots = contentPlaybackSlots(contentStep);
+
     if (!contentStep || !slots.length) {
       if (lastContentKeyRef.current) {
         lastContentKeyRef.current = null;
@@ -438,8 +512,15 @@ export function useDemoPlayer({ actions, data }) {
       }
       return undefined;
     }
-    const slice = Math.max(500, Math.floor(currentCue.durationMs / slots.length));
-    const index = Math.min(slots.length - 1, Math.floor(cueElapsedMs / slice));
+
+    // Карточки листаются только у шага текущего такта; перенесённый из прошлых
+    // этапов формуляр просто остаётся открытым на первом пункте.
+    let index = 0;
+    if (beatContentStep && currentBeat?.durationMs) {
+      const slice = Math.max(500, Math.floor(currentBeat.durationMs / slots.length));
+      index = Math.min(slots.length - 1, Math.floor(beatElapsedMs / slice));
+    }
+
     const slot = slots[index];
     const key = `${contentStep.tool}:${slot.entityId}:${slot.cardId || ''}`;
     if (lastContentKeyRef.current === key) return undefined;
@@ -453,32 +534,33 @@ export function useDemoPlayer({ actions, data }) {
       api.setSelectedCountryIso?.(slot.entityId);
     }
     return undefined;
-  }, [cueElapsedMs, currentCue, isActive, status]);
+  }, [beatElapsedMs, composedState, currentBeat, isActive]);
 
   const start = useCallback((nextScenario, { startIndex = 0 } = {}) => {
     const steps = nextScenario?.steps || [];
     if (!steps.length) return false;
     if (!snapshotRef.current) captureSnapshot();
     setScenario(nextScenario);
-    const list = buildScenarioCues(steps);
-    const bounded = Math.max(0, Math.min(list.length - 1, startIndex));
-    setCueIndex(bounded);
-    setCueElapsedMs(0);
-    pausedElapsedRef.current = 0;
-    cueStartedAtRef.current = performance.now();
-    lastProgressPushRef.current = 0;
-    lastContentKeyRef.current = null;
-    setStatus(DEMO_STATUS.PLAYING);
-    applyCue(list[bounded]);
+    setBlackout(DEMO_BLACKOUT.NONE);
+    goTo(startIndex, { stageList: buildScenarioStages(steps) });
     return true;
-  }, [applyCue, captureSnapshot]);
+  }, [captureSnapshot, goTo]);
 
   const stop = useCallback(({ restore = true } = {}) => {
     stopFrameLoop();
+    if (interactionReleaseTimerRef.current) {
+      clearTimeout(interactionReleaseTimerRef.current);
+      interactionReleaseTimerRef.current = null;
+    }
+    interactionHoldsRef.current = 0;
     setStatus(DEMO_STATUS.IDLE);
     setScenario(null);
-    setCueIndex(0);
-    setCueElapsedMs(0);
+    setStageIndex(0);
+    setBeatIndex(0);
+    setBeatElapsedMs(0);
+    setWaitingForPresenter(false);
+    setHideFinishedTexts(false);
+    setBlackout(DEMO_BLACKOUT.NONE);
     pausedElapsedRef.current = 0;
     setAnimationRunId((prev) => prev + 1);
     lastContentKeyRef.current = null;
@@ -494,39 +576,95 @@ export function useDemoPlayer({ actions, data }) {
   }, [restoreSnapshot, stopFrameLoop]);
 
   const pause = useCallback(() => {
-    if (status !== DEMO_STATUS.PLAYING) return;
-    pausedElapsedRef.current = performance.now() - cueStartedAtRef.current;
-    setCueElapsedMs(pausedElapsedRef.current);
+    // Пока показ ждёт докладчика, таймер и так стоит — паузу ставить не от чего.
+    if (status !== DEMO_STATUS.PLAYING || waitingForPresenter) return;
+    pausedElapsedRef.current = performance.now() - beatStartedAtRef.current;
+    setBeatElapsedMs(pausedElapsedRef.current);
     setStatus(DEMO_STATUS.PAUSED);
-  }, [status]);
+  }, [status, waitingForPresenter]);
 
   const resume = useCallback(() => {
     if (status !== DEMO_STATUS.PAUSED) return;
-    if (currentCue && pausedElapsedRef.current >= currentCue.durationMs) {
-      goToCue(cueIndex);
+    if (currentBeat && pausedElapsedRef.current >= currentBeat.durationMs) {
+      goTo(stageIndex, { beat: beatIndex });
       return;
     }
     lastContentKeyRef.current = null;
-    cueStartedAtRef.current = performance.now() - pausedElapsedRef.current;
+    beatStartedAtRef.current = performance.now() - pausedElapsedRef.current;
+    lastFrameAtRef.current = performance.now();
     setStatus(DEMO_STATUS.PLAYING);
-  }, [cueIndex, currentCue, goToCue, status]);
+  }, [beatIndex, currentBeat, goTo, stageIndex, status]);
 
   const toggle = useCallback(() => {
     if (status === DEMO_STATUS.PLAYING) pause();
     else if (status === DEMO_STATUS.PAUSED) resume();
   }, [pause, resume, status]);
 
+  /**
+   * «Вперёд» как в PowerPoint: если этап ещё доигрывает такты — первое нажатие
+   * досрочно показывает его целиком, следующее переводит на новый этап.
+   */
   const next = useCallback(() => {
     if (status === DEMO_STATUS.IDLE) return;
-    if (cueIndex + 1 < cues.length) goToCue(cueIndex + 1);
-    else if (scenario?.loop) goToCue(0);
-  }, [cueIndex, cues.length, goToCue, scenario, status]);
+    const stage = stages[stageIndex];
+    if (!stage) return;
+
+    const stageIncomplete = !waitingForPresenter && beatIndex + 1 < stage.beats.length;
+    if (stageIncomplete) {
+      goTo(stageIndex, { beat: stage.beats.length - 1, instant: true });
+      return;
+    }
+
+    if (stageIndex + 1 < stages.length) {
+      goTo(stageIndex + 1);
+      return;
+    }
+    if (scenario?.loop) goTo(0);
+  }, [beatIndex, goTo, scenario, stageIndex, stages, status, waitingForPresenter]);
 
   const prev = useCallback(() => {
     if (status === DEMO_STATUS.IDLE) return;
-    if (cueIndex > 0) goToCue(cueIndex - 1);
-    else if (scenario?.loop && cues.length) goToCue(cues.length - 1);
-  }, [cueIndex, cues.length, goToCue, scenario, status]);
+    if (stageIndex > 0) {
+      goTo(stageIndex - 1);
+      return;
+    }
+    if (scenario?.loop && stages.length) goTo(stages.length - 1);
+  }, [goTo, scenario, stageIndex, stages.length, status]);
+
+  const goToStage = useCallback((index) => {
+    if (status === DEMO_STATUS.IDLE) return;
+    goTo(index, { instant: true });
+  }, [goTo, status]);
+
+  const restart = useCallback(() => {
+    if (status === DEMO_STATUS.IDLE) return;
+    goTo(0);
+  }, [goTo, status]);
+
+  const toggleBlackout = useCallback((mode = DEMO_BLACKOUT.BLACK) => {
+    setBlackout((prev) => (prev === mode ? DEMO_BLACKOUT.NONE : mode));
+  }, []);
+
+  /**
+   * Ручное взаимодействие с картой не прерывает показ — оно лишь придерживает
+   * отсчёт текущего такта, пока докладчик работает с картой.
+   */
+  const holdForInteraction = useCallback(() => {
+    if (interactionReleaseTimerRef.current) {
+      clearTimeout(interactionReleaseTimerRef.current);
+      interactionReleaseTimerRef.current = null;
+    }
+    interactionHoldsRef.current += 1;
+  }, []);
+
+  const releaseInteraction = useCallback(() => {
+    if (interactionHoldsRef.current <= 0) return;
+    if (interactionReleaseTimerRef.current) clearTimeout(interactionReleaseTimerRef.current);
+    interactionReleaseTimerRef.current = setTimeout(() => {
+      interactionReleaseTimerRef.current = null;
+      interactionHoldsRef.current = 0;
+    }, INTERACTION_RESUME_DELAY_MS);
+  }, []);
 
   /** Одиночный предпросмотр шага из конструктора — полноценный показ одного шага. */
   const previewStep = useCallback((step) => {
@@ -534,21 +672,25 @@ export function useDemoPlayer({ actions, data }) {
     return start({
       title: step.title || 'Просмотр шага',
       loop: false,
+      auto_advance: true,
       steps: [step],
     });
   }, [start]);
 
-  useEffect(() => () => stopFrameLoop(), [stopFrameLoop]);
+  useEffect(() => () => {
+    stopFrameLoop();
+    if (interactionReleaseTimerRef.current) clearTimeout(interactionReleaseTimerRef.current);
+  }, [stopFrameLoop]);
 
   /**
-   * Описание активных анимаций для слоёв карты.
-   * Ключи — идентификаторы сущностей, чтобы слой мог решить, анимировать ли себя.
+   * Описание активных анимаций для слоёв карты. Берём только шаги текущего
+   * такта: содержимое, показанное раньше, не должно проигрывать вход заново.
    */
   const demoAnimation = useMemo(() => {
-    if (!isActive || !currentCue) return EMPTY_ANIMATION;
+    if (!isActive || !currentBeat) return EMPTY_ANIMATION;
 
     const effects = {};
-    currentCue.steps.forEach((step) => {
+    currentBeat.steps.forEach((step) => {
       const animation = step.animation || {};
       if (!animation.effect || animation.effect === DEMO_EFFECT.NONE) return;
       const entry = {
@@ -588,42 +730,107 @@ export function useDemoPlayer({ actions, data }) {
     });
 
     return { active: true, runId: animationRunId, effects };
-  }, [animationRunId, currentCue, isActive]);
+  }, [animationRunId, currentBeat, isActive]);
 
-  const totalMs = cues.length ? cues[cues.length - 1].endMs : 0;
-  const cueProgress = currentCue?.durationMs
-    ? Math.min(1, cueElapsedMs / currentCue.durationMs)
+  /**
+   * Тексты на карте. `enterToken` меняется только у шагов текущего такта —
+   * удержанные с прошлого такта не переигрывают вход.
+   */
+  const demoTexts = useMemo(() => {
+    if (!isActive) return EMPTY_TEXTS;
+    let list = composedState.texts || [];
+    if (hideFinishedTexts) {
+      const surviving = new Set(
+        nextComposedTexts(stages, stageIndex, beatIndex, scenario).map((item) => item.key),
+      );
+      list = list.filter((item) => surviving.has(item.key));
+    }
+    if (!list.length) return EMPTY_TEXTS;
+
+    const beatKeys = new Set();
+    (currentBeat?.steps || []).forEach((step) => {
+      if (step.tool === DEMO_TOOL.TEXT && step.text?.content) {
+        beatKeys.add(step.key);
+      }
+    });
+
+    return list.map((item) => ({
+      ...item,
+      enterToken: beatKeys.has(item.key) ? animationRunId : 0,
+    }));
+  }, [
+    animationRunId,
+    beatIndex,
+    composedState,
+    currentBeat,
+    hideFinishedTexts,
+    isActive,
+    scenario,
+    stageIndex,
+    stages,
+  ]);
+
+  const totalMs = stages.length ? stages[stages.length - 1].endMs : 0;
+  const beatProgress = currentBeat?.durationMs
+    ? Math.min(1, beatElapsedMs / currentBeat.durationMs)
+    : 0;
+  const stageElapsedMs = (currentBeat?.startMs || 0) + beatElapsedMs;
+  const stageProgress = currentStage?.durationMs
+    ? Math.min(1, stageElapsedMs / currentStage.durationMs)
     : 0;
   const scenarioProgress = totalMs
-    ? Math.min(1, ((currentCue?.startMs || 0) + cueElapsedMs) / totalMs)
+    ? Math.min(1, ((currentStage?.startMs || 0) + stageElapsedMs) / totalMs)
     : 0;
+
+  const stageSummaries = useMemo(() => stages.map((stage) => ({
+    index: stage.index,
+    title: stage.title,
+    tools: stage.steps.map((step) => step.tool),
+    durationMs: stage.durationMs,
+    beatCount: stage.beats.length,
+  })), [stages]);
 
   const playback = useMemo(() => ({
     status,
     isActive,
-    isPlaying: status === DEMO_STATUS.PLAYING,
+    isPlaying: status === DEMO_STATUS.PLAYING && !waitingForPresenter,
+    waitingForPresenter,
+    autoAdvance: Boolean(scenario?.auto_advance),
+    blackout,
     scenarioTitle: scenario?.title || '',
-    cueIndex,
-    cueCount: cues.length,
-    cueProgress,
+    stageIndex,
+    stageCount: stages.length,
+    beatIndex,
+    beatCount: currentStage?.beats?.length || 0,
+    stageProgress,
+    beatProgress,
     scenarioProgress,
-    stepTitle: currentCue?.steps?.[0]?.title || '',
-    stepTools: currentCue?.steps?.map((step) => step.tool) || [],
+    stageTitle: currentStage?.title || '',
+    stepTitle: currentBeat?.steps?.[0]?.title || currentStage?.title || '',
+    stepTools: currentBeat?.steps?.map((step) => step.tool) || [],
+    stages: stageSummaries,
     loop: Boolean(scenario?.loop),
   }), [
-    cueIndex,
-    cueProgress,
-    cues.length,
-    currentCue,
+    beatIndex,
+    beatProgress,
+    blackout,
+    currentBeat,
+    currentStage,
     isActive,
     scenario,
     scenarioProgress,
+    stageIndex,
+    stageProgress,
+    stageSummaries,
+    stages.length,
     status,
+    waitingForPresenter,
   ]);
 
   return {
     playback,
     demoAnimation,
+    demoTexts,
     isActive,
     start,
     stop,
@@ -632,7 +839,11 @@ export function useDemoPlayer({ actions, data }) {
     toggle,
     next,
     prev,
-    goToCue,
+    goToStage,
+    restart,
+    toggleBlackout,
+    holdForInteraction,
+    releaseInteraction,
     previewStep,
   };
 }

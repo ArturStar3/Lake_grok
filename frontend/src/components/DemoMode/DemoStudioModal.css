@@ -9,6 +9,10 @@
     padding: 16px;
 }
 
+.demo-studio__overlay--map-edit {
+    display: none;
+}
+
 .demo-studio {
     background: #fff;
     border-radius: 12px;
@@ -185,6 +189,29 @@
     gap: 6px;
 }
 
+.demo-studio__stage-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-top: 6px;
+}
+
+.demo-studio__stage-head:first-child {
+    margin-top: 0;
+}
+
+.demo-studio__stage-head::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+}
+
 .demo-studio__step {
     display: flex;
     align-items: stretch;
@@ -193,6 +220,11 @@
     border-radius: 8px;
     background: #fff;
     overflow: hidden;
+}
+
+/* Элементы внутри этапа немного смещены — видно, что они подчинены этапу. */
+.demo-studio__step--in-stage {
+    margin-left: 14px;
 }
 
 .demo-studio__step--active {
@@ -386,6 +418,56 @@
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.demo-field__control--color input[type="color"] {
+    flex: 0 0 34px;
+    width: 34px;
+    height: 28px;
+    padding: 2px;
+    cursor: pointer;
+}
+
+/* --- Редактор текстового шага --- */
+
+.demo-text-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.demo-text-editor__toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.demo-text-editor__preview {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.demo-text-editor__preview-label {
+    font-size: 0.74rem;
+    color: #64748b;
+}
+
+.demo-text-editor__map-btn {
+    width: 100%;
+    text-align: center;
+}
+
+/* Тёмная «карта» под превью: обводка и светлый текст выглядят как на показе. */
+.demo-text-editor__preview-canvas {
+    position: relative;
+    height: 130px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background:
+        linear-gradient(135deg, #47576b 0%, #33475c 100%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0 8px, transparent 8px 16px);
+    overflow: hidden;
 }
 
 .demo-field__control input {
@@ -671,6 +753,16 @@
     background: #e9eef4;
     border-radius: 6px;
     overflow: hidden;
+}
+
+.demo-timeline__stage-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #94a3b8;
+    z-index: 2;
+    pointer-events: none;
 }
 
 .demo-timeline__bar {

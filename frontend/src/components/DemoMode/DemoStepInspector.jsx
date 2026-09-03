@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import DemoEntityPicker from './DemoEntityPicker';
+import DemoTextEditor from './DemoTextEditor';
 import {
   DEMO_CAMERA_MODE,
   DEMO_CAMERA_MODES,
   DEMO_DIRECTIONS,
   DEMO_EASINGS,
   DEMO_EFFECT,
+  DEMO_START_MODE,
   DEMO_START_MODES,
   DEMO_STEP_MAX_DURATION_MS,
   DEMO_STEP_MIN_DURATION_MS,
@@ -36,6 +38,12 @@ function NumberField({ label, value, onChange, min, max, step = 100, suffix, hin
   );
 }
 
+const START_MODE_HINTS = {
+  [DEMO_START_MODE.ON_CLICK]: 'Шаг открывает новый этап — показ ждёт докладчика',
+  [DEMO_START_MODE.AFTER_PREVIOUS]: 'Элемент того же этапа: стартует, когда отыграет предыдущий',
+  [DEMO_START_MODE.WITH_PREVIOUS]: 'Элемент того же этапа: идёт одновременно с предыдущим',
+};
+
 function SelectField({ label, value, options, onChange, hint }) {
   return (
     <label className="demo-field">
@@ -60,6 +68,8 @@ export default function DemoStepInspector({
   onChange,
   onPreview,
   onPickCameraFromMap,
+  onStartTextMapEdit,
+  alignTextOnMap,
   mapCenter,
   objects,
   events,
@@ -101,6 +111,7 @@ export default function DemoStepInspector({
   };
 
   const isCameraStep = step.tool === DEMO_TOOL.CAMERA;
+  const isTextStep = step.tool === DEMO_TOOL.TEXT;
   const showDirection = step.animation.effect === DEMO_EFFECT.DIRECTIONAL_WIPE;
   const showStateCycle = step.animation.effect === DEMO_EFFECT.STATE_CYCLE;
   const showFlyToFields = step.camera.mode === DEMO_CAMERA_MODE.FLY_TO;
@@ -133,17 +144,19 @@ export default function DemoStepInspector({
           onChange={handleToolChange}
         />
         <div className="demo-inspector__picker">
-          <DemoEntityPicker
-            tool={step.tool}
-            selection={step.selection}
-            onSelectionChange={(selection) => patch({ selection })}
-            objects={objects}
-            events={events}
-            situations={situations}
-            zoneCatalogByCountry={zoneCatalogByCountry}
-            overlayLayers={overlayLayers}
-            countriesList={countriesList}
-          />
+          {!isTextStep && (
+            <DemoEntityPicker
+              tool={step.tool}
+              selection={step.selection}
+              onSelectionChange={(selection) => patch({ selection })}
+              objects={objects}
+              events={events}
+              situations={situations}
+              zoneCatalogByCountry={zoneCatalogByCountry}
+              overlayLayers={overlayLayers}
+              countriesList={countriesList}
+            />
+          )}
           {(step.tool === DEMO_TOOL.FORMULAR || step.tool === DEMO_TOOL.COUNTRY) ? (
             <p className="demo-field__hint">
               Несколько объектов или стран показываются по очереди. Отмеченные пункты открываются сразу (тоже по очереди).
@@ -157,8 +170,26 @@ export default function DemoStepInspector({
         </div>
       </fieldset>
 
+      {isTextStep && (
+        <DemoTextEditor
+          text={step.text}
+          onChange={(text) => patch({ text })}
+          onPickPointFromMap={onPickCameraFromMap}
+          onStartMapEdit={readOnly ? undefined : onStartTextMapEdit}
+          alignTextOnMap={readOnly ? undefined : alignTextOnMap}
+          mapCenter={mapCenter}
+        />
+      )}
+
       <fieldset className="demo-inspector__group" disabled={readOnly}>
         <legend>Тайминг</legend>
+        <SelectField
+          label="Начало"
+          value={step.start_mode}
+          options={DEMO_START_MODES}
+          onChange={(start_mode) => patch({ start_mode })}
+          hint={START_MODE_HINTS[step.start_mode]}
+        />
         <NumberField
           label="Длительность шага"
           value={step.duration_ms}
@@ -166,14 +197,10 @@ export default function DemoStepInspector({
           max={DEMO_STEP_MAX_DURATION_MS}
           step={500}
           suffix="мс"
-        onChange={(duration_ms) => patch({ duration_ms })}
-        />
-        <SelectField
-          label="Начало"
-          value={step.start_mode}
-          options={DEMO_START_MODES}
-          onChange={(start_mode) => patch({ start_mode })}
-          hint="«Вместе с предыдущим» показывает шаги одновременно"
+          hint={step.start_mode === DEMO_START_MODE.ON_CLICK
+            ? 'В ручном режиме это время до следующего элемента внутри этапа'
+            : undefined}
+          onChange={(duration_ms) => patch({ duration_ms })}
         />
         <label className="demo-checkbox">
           <input
@@ -190,7 +217,8 @@ export default function DemoStepInspector({
         <SelectField
           label="Режим"
           value={step.camera.mode}
-          options={isCameraStep
+          options={isCameraStep || isTextStep
+            // Текст и камера ничего не выделяют на карте — вписывать нечего.
             ? DEMO_CAMERA_MODES.filter((mode) => mode.id !== DEMO_CAMERA_MODE.FIT_SELECTION)
             : DEMO_CAMERA_MODES}
           onChange={(mode) => patchCamera({ mode })}
@@ -261,7 +289,12 @@ export default function DemoStepInspector({
         )}
       </fieldset>
 
-      <fieldset className="demo-inspector__group" disabled={readOnly}>
+      {/* У текста собственные эффекты входа/выхода — раздел эффектов слоёв ему не нужен. */}
+      <fieldset
+        className="demo-inspector__group"
+        disabled={readOnly}
+        style={isTextStep ? { display: 'none' } : undefined}
+      >
         <legend>Анимация</legend>
         <SelectField
           label="Эффект"

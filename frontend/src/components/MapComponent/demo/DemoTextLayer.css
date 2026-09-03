@@ -1,0 +1,156 @@
+/* Текстовые оверлеи режима демонстрации */
+
+.demo-text-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 640; /* выше слоёв Leaflet, ниже HUD показа */
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.demo-text__anchor {
+    position: absolute;
+    transform: translate(-50%, -50%);
+}
+
+.demo-text-layer--edit .demo-text__anchor--edit {
+    pointer-events: auto;
+    cursor: grab;
+    outline: 2px dashed rgba(47, 128, 237, 0.85);
+    outline-offset: 8px;
+    user-select: none;
+    touch-action: none;
+}
+
+.demo-text-layer--edit .demo-text__anchor--edit:active {
+    cursor: grabbing;
+}
+
+.demo-text__anim {
+    animation-fill-mode: both;
+}
+
+.demo-text__rotor,
+.demo-text__box {
+    display: inline-block;
+}
+
+.demo-text__box {
+    box-sizing: border-box;
+}
+
+.demo-text__stack {
+    display: grid;
+}
+
+.demo-text__stack > * {
+    grid-area: 1 / 1;
+}
+
+.demo-text__layer {
+    display: block;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    margin: 0;
+}
+
+.demo-text__caret {
+    display: inline-block;
+    width: 0.08em;
+    height: 1em;
+    margin-left: 0.06em;
+    vertical-align: text-bottom;
+    background: currentColor;
+    animation: demo-text-caret 900ms steps(2, start) infinite;
+}
+
+@keyframes demo-text-caret {
+    0%, 50% { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
+}
+
+/* --- Вход --- */
+
+.demo-text--enter {
+    animation-duration: var(--demo-text-enter-duration, 600ms);
+    animation-delay: var(--demo-text-enter-delay, 0ms);
+    animation-timing-function: var(--demo-text-enter-ease, ease-out);
+}
+
+.demo-text--enter-fade { animation-name: demo-text-fade-in; }
+.demo-text--enter-slide { animation-name: demo-text-slide-in; }
+.demo-text--enter-zoom { animation-name: demo-text-zoom-in; }
+.demo-text--enter-blur { animation-name: demo-text-blur-in; }
+
+@keyframes demo-text-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes demo-text-slide-in {
+    from {
+        opacity: 0;
+        transform: translate(var(--demo-text-dx, 0), var(--demo-text-dy, 24px));
+    }
+    to {
+        opacity: 1;
+        transform: translate(0, 0);
+    }
+}
+
+@keyframes demo-text-zoom-in {
+    from { opacity: 0; transform: scale(0.72); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes demo-text-blur-in {
+    from { opacity: 0; filter: blur(14px); }
+    to { opacity: 1; filter: blur(0); }
+}
+
+/* --- Выход --- */
+
+.demo-text--exit {
+    animation-duration: var(--demo-text-exit-duration, 400ms);
+    animation-delay: var(--demo-text-exit-delay, 0ms);
+    animation-timing-function: var(--demo-text-exit-ease, ease-out);
+}
+
+.demo-text--exit-fade { animation-name: demo-text-fade-out; }
+.demo-text--exit-slide { animation-name: demo-text-slide-out; }
+.demo-text--exit-zoom { animation-name: demo-text-zoom-out; }
+.demo-text--exit-blur { animation-name: demo-text-blur-out; }
+
+@keyframes demo-text-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes demo-text-slide-out {
+    from {
+        opacity: 1;
+        transform: translate(0, 0);
+    }
+    to {
+        opacity: 0;
+        transform: translate(var(--demo-text-dx, 0), var(--demo-text-dy, -24px));
+    }
+}
+
+@keyframes demo-text-zoom-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.72); }
+}
+
+@keyframes demo-text-blur-out {
+    from { opacity: 1; filter: blur(0); }
+    to { opacity: 0; filter: blur(14px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .demo-text--enter,
+    .demo-text--exit {
+        animation-duration: 1ms;
+        animation-delay: 0ms;
+    }
+}

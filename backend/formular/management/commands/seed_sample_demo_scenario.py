@@ -75,17 +75,56 @@ def _fit(zoom=7, padding=80):
     }
 
 
-def _step(*, title, tool, camera=None, selection=None, animation=None, hold_previous=False):
+def _step(
+    *,
+    title,
+    tool,
+    camera=None,
+    selection=None,
+    animation=None,
+    hold_previous=False,
+    start_mode=DemoStepStartMode.ON_CLICK,
+    text=None,
+):
     return {
         'title': title,
         'tool': tool,
         'duration_ms': STEP_MS,
-        'start_mode': DemoStepStartMode.AFTER_PREVIOUS,
+        'start_mode': start_mode,
         'hold_previous': hold_previous,
         'camera': camera or {'mode': 'none'},
         'selection': selection or {},
         'animation': animation or {'effect': 'none'},
+        'text': text or {},
     }
+
+
+def _caption(title, content, *, lat=None, lng=None, screen_y=0.12, font_size=42):
+    """Заголовок этапа: геопривязка, если заданы координаты, иначе — к экрану."""
+    payload = {
+        'content': content,
+        'anchor': 'geo' if lat is not None else 'screen',
+        'lat': lat,
+        'lng': lng,
+        'screen': {'x': 0.5, 'y': screen_y},
+        'style': {
+            'font_family': 'Roboto',
+            'font_size': font_size,
+            'font_weight': 700,
+            'text_align': 'center',
+            'color': '#ffffff',
+            'stroke': {'enabled': True, 'color': '#0b1a2b', 'width': 3},
+            'shadow': {'enabled': True, 'color': 'rgba(0,0,0,0.55)', 'blur': 12, 'x': 0, 'y': 2},
+        },
+        'enter': {'effect': 'slide', 'direction': 'bottom', 'duration_ms': 700, 'easing': 'ease_out'},
+        'exit': {'effect': 'fade', 'duration_ms': 400},
+    }
+    return _step(
+        title=title,
+        tool=DemoStepTool.TEXT,
+        start_mode=DemoStepStartMode.WITH_PREVIOUS,
+        text=payload,
+    )
 
 
 def _situation_ids(*needles):
@@ -309,6 +348,7 @@ class Command(BaseCommand):
                 selection={'target_ids': _ids(caucasus_objects)},
                 animation={'effect': 'fade_in', 'duration_ms': 1400, 'easing': 'ease_out'},
             ),
+            _caption('Подпись: Кавказ', 'Кавказский регион', screen_y=0.1),
             _step(
                 title='Формуляр: пункты объекта',
                 tool=DemoStepTool.FORMULAR,
@@ -354,6 +394,7 @@ class Command(BaseCommand):
                 selection={'target_ids': _ids(rls_objects, 5)},
                 animation={'effect': 'fade_in', 'duration_ms': 1200, 'easing': 'ease_in_out'},
             ),
+            _caption('Подпись: РЛС', 'Радиолокационное поле', lat=ASIA[0] + 3.0, lng=ASIA[1], font_size=36),
             _step(
                 title='Зоны РЛС без рельефа',
                 tool=DemoStepTool.ZONES,

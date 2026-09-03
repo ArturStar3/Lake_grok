@@ -11,7 +11,7 @@ import {
  * и сколько длится весь показ (аналог области анимации PowerPoint).
  */
 export default function DemoTimeline({ steps = [], activeIndex = 0, onSelectStep }) {
-  const { segments, totalMs } = useMemo(() => buildScenarioTimeline(steps), [steps]);
+  const { segments, stages, totalMs } = useMemo(() => buildScenarioTimeline(steps), [steps]);
 
   if (!segments.length) {
     return (
@@ -28,6 +28,15 @@ export default function DemoTimeline({ steps = [], activeIndex = 0, onSelectStep
         <span className="demo-timeline__total">Всего: {formatDurationMs(totalMs)}</span>
       </div>
       <div className="demo-timeline__track">
+        {/* Границы этапов: там показ ждёт докладчика в ручном режиме. */}
+        {stages.slice(1).map((stage) => (
+          <span
+            key={`stage-${stage.index}`}
+            className="demo-timeline__stage-mark"
+            style={{ left: `${totalMs ? (stage.startMs / totalMs) * 100 : 0}%` }}
+            title={`Этап ${stage.index + 1}`}
+          />
+        ))}
         {segments.map((segment) => {
           const left = totalMs ? (segment.startMs / totalMs) * 100 : 0;
           const width = totalMs

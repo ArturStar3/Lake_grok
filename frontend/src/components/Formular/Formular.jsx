@@ -39,9 +39,10 @@ import { getActionFilterDimensions } from "../../utils/inundationZone";
 import { useMapDisplaySettings } from "../../hooks/map/useMapDisplaySettings";
 import { isLosRadarZoneMode } from "../../utils/computeLosZone";
 import { MAP_OVERLAY_LAYERS } from "../../config/tiles";
-import { collectEnabledZoneLeaves } from "../../utils/demoScenario";
+import { alignDemoText, collectEnabledZoneLeaves, normalizeText } from "../../utils/demoScenario";
 import { useDemoScenarios } from "../../hooks/demo/useDemoScenarios";
 import { useDemoPlayer } from "../../hooks/demo/useDemoPlayer";
+import { useDemoHotkeys } from "../../hooks/demo/useDemoHotkeys";
 import DemoStudioModal from "../DemoMode/DemoStudioModal";
 
 const FormularEditor = lazy(() => import("../FormularEditor/FormularEditor"));
@@ -112,6 +113,9 @@ export default function Formular({ onMapFullscreenChange }) {
     const [mapUiResetToken, setMapUiResetToken] = useState(0);
     const [demoStudioOpen, setDemoStudioOpen] = useState(false);
     const [demoContentCardId, setDemoContentCardId] = useState(null);
+    const [demoTextEditSession, setDemoTextEditSession] = useState(null);
+    const demoTextEditSessionRef = useRef(null);
+    const demoTextMapApplyRef = useRef(null);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
@@ -341,6 +345,7 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handleOpenDemoStudio = useCallback(() => {
         demoPlayer.stop({ restore: true });
+        setDemoTextEditSession(null);
         setDemoStudioOpen(true);
         refreshDemoScenarios();
         fetchEvents?.();
@@ -349,6 +354,7 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handlePlayDemo = useCallback(async (scenario) => {
         setDemoStudioOpen(false);
+        setDemoTextEditSession(null);
         let next = scenario;
         if (!next) {
             next = defaultScenario;
@@ -369,8 +375,56 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handlePreviewDemoStep = useCallback((step) => {
         setDemoStudioOpen(false);
+        setDemoTextEditSession(null);
         demoPlayer.previewStep(step);
     }, [demoPlayer]);
+
+    useEffect(() => {
+        demoTextEditSessionRef.current = demoTextEditSession;
+    }, [demoTextEditSession]);
+
+    const handleStartDemoTextMapEdit = useCallback(({ stepKey, text }) => {
+        demoPlayer.stop({ restore: true });
+        const raw = text && typeof text === 'object' ? { ...text } : {};
+        // normalizeText сбрасывает geo без координат — заранее берём центр карты.
+        if (raw.anchor === 'geo' && (raw.lat == null || raw.lng == null)) {
+            const center = mapRef.current?.getCenter?.();
+            if (center) {
+                raw.lat = center.lat;
+                raw.lng = center.lng;
+            }
+        }
+        const draft = normalizeText(raw);
+        setDemoTextEditSession({ stepKey, draft, original: normalizeText(text) });
+    }, [demoPlayer]);
+
+    const handleDemoTextMapChange = useCallback((nextText) => {
+        setDemoTextEditSession((prev) => (prev ? { ...prev, draft: normalizeText(nextText) } : prev));
+    }, []);
+
+    const handleFinishDemoTextMapEdit = useCallback((apply) => {
+        const session = demoTextEditSessionRef.current;
+        if (apply && session) {
+            demoTextMapApplyRef.current?.(session.stepKey, session.draft);
+        }
+        setDemoTextEditSession(null);
+    }, []);
+
+    const handleDemoStop = useCallback(() => {
+        demoPlayer.stop({ restore: true });
+    }, [demoPlayer]);
+
+    useDemoHotkeys({
+        active: demoPlayer.playback.isActive,
+        onNext: demoPlayer.next,
+        onPrev: demoPlayer.prev,
+        onTogglePause: demoPlayer.toggle,
+        onStop: handleDemoStop,
+        onRestart: demoPlayer.restart,
+        onGoToStage: demoPlayer.goToStage,
+        onBlackout: demoPlayer.toggleBlackout,
+        stageCount: demoPlayer.playback.stageCount,
+    });
 
     const demoMenu = useMemo(() => ({
         canPlayDemo: canReadDemo,
@@ -1140,15 +1194,15 @@ export default function Formular({ onMapFullscreenChange }) {
         setVulnerabilityPickSession(null);
     }, []);
 
+    // Закрытие панели во время показа не прерывает демонстрацию: докладчик
+    // убирает карточку и продолжает с той же точки сценария.
     const handleFormularModalClose = useCallback(() => {
         setSelectedTargetId(null);
-        if (demoPlayer.playback?.isPlaying) demoPlayer.pause();
-    }, [demoPlayer]);
+    }, []);
 
     const handleCountryModalClose = useCallback(() => {
         setSelectedCountryIso(null);
-        if (demoPlayer.playback?.isPlaying) demoPlayer.pause();
-    }, [demoPlayer]);
+    }, []);
 
     const handleTargetAdded = useCallback(() => refreshTargets(), [refreshTargets]);
 
@@ -1751,12 +1805,20 @@ export default function Formular({ onMapFullscreenChange }) {
                                 editingSituationId={situationModalOpen ? situationModalTarget?.id : null}
                                 demoAnimation={demoPlayer.demoAnimation}
                                 demoPlayback={demoPlayer.playback}
+                                demoTexts={demoPlayer.demoTexts}
                                 demoContentCardId={demoContentCardId}
                                 demoMenu={demoMenu}
+                                demoTextEditDraft={demoTextEditSession?.draft || null}
+                                onDemoTextEditChange={handleDemoTextMapChange}
+                                onDemoTextEditFinish={handleFinishDemoTextMapEdit}
                                 onDemoToggle={demoPlayer.toggle}
                                 onDemoNext={demoPlayer.next}
                                 onDemoPrev={demoPlayer.prev}
-                                onDemoStop={() => demoPlayer.stop({ restore: true })}
+                                onDemoStop={handleDemoStop}
+                                onDemoGoToStage={demoPlayer.goToStage}
+                                onDemoBlackout={demoPlayer.toggleBlackout}
+                                onDemoInteractionHold={demoPlayer.holdForInteraction}
+                                onDemoInteractionRelease={demoPlayer.releaseInteraction}
                                 onDemoOverlayLayersRef={overlayLayersApiRef}
                             />
                         </div>
@@ -1895,6 +1957,7 @@ export default function Formular({ onMapFullscreenChange }) {
 
             <DemoStudioModal
                 isOpen={demoStudioOpen}
+                mapTextEditActive={Boolean(demoTextEditSession)}
                 onClose={() => setDemoStudioOpen(false)}
                 scenarios={demoScenarios}
                 loading={demoScenariosLoading}
@@ -1912,11 +1975,18 @@ export default function Formular({ onMapFullscreenChange }) {
                 zoneCatalogByCountry={actionZoneAvailableByCountry}
                 overlayLayers={MAP_OVERLAY_LAYERS}
                 countriesList={countriesList}
+                onStartTextMapEdit={handleStartDemoTextMapEdit}
+                onTextMapApplyRef={demoTextMapApplyRef}
                 getMapView={() => {
                     const map = mapRef.current;
                     if (!map?.getCenter) return null;
                     const center = map.getCenter();
                     return { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+                }}
+                alignTextOnMap={(text, axis) => {
+                    const map = mapRef.current;
+                    if (!map?.containerPointToLatLng) return null;
+                    return alignDemoText(text, axis, map);
                 }}
             />
         </section>

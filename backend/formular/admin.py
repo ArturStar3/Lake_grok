@@ -545,8 +545,8 @@ class DemoScenarioStepInline(admin.TabularInline):
 
 @admin.register(DemoScenario)
 class DemoScenarioAdmin(ModelAdmin):
-    list_display = ('title', 'step_count', 'is_default', 'loop', 'updated_at', 'created_by')
-    list_filter = ('is_default', 'loop')
+    list_display = ('title', 'step_count', 'is_default', 'loop', 'auto_advance', 'updated_at', 'created_by')
+    list_filter = ('is_default', 'loop', 'auto_advance')
     search_fields = ('title', 'description')
     list_select_related = ('created_by',)
     autocomplete_fields = ('created_by',)

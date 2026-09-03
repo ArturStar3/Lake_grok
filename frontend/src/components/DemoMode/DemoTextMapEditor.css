@@ -1,0 +1,153 @@
+.demo-text-map-editor {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+    width: min(720px, calc(100% - 24px));
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+    color: #1f2937;
+}
+
+.demo-text-map-editor--moved {
+    transform: none;
+}
+
+.demo-text-map-editor__grip {
+    margin: -10px -12px 0;
+    padding: 8px 12px 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #64748b;
+    text-align: center;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.demo-text-map-editor--dragging .demo-text-map-editor__grip {
+    cursor: grabbing;
+}
+
+.demo-text-map-editor__hint {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #4b5563;
+    text-align: center;
+}
+
+.demo-text-map-editor__content {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 48px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+}
+
+.demo-text-map-editor__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.demo-text-map-editor__field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.72rem;
+    color: #64748b;
+    min-width: 0;
+    flex: 1 1 120px;
+}
+
+.demo-text-map-editor__field--narrow {
+    flex: 0 0 88px;
+}
+
+.demo-text-map-editor__field input,
+.demo-text-map-editor__field select {
+    height: 30px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0 6px;
+    font-size: 0.82rem;
+    color: #1f2937;
+    background: #fff;
+}
+
+.demo-text-map-editor__color {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.demo-text-map-editor__color input[type="color"] {
+    width: 34px;
+    height: 30px;
+    padding: 2px;
+    flex: 0 0 34px;
+    cursor: pointer;
+}
+
+.demo-text-map-editor__color input[type="text"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.demo-text-map-editor__check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: #334155;
+    padding-bottom: 6px;
+    white-space: nowrap;
+}
+
+.demo-text-map-editor__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.demo-text-map-editor__cancel,
+.demo-text-map-editor__done {
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.demo-text-map-editor__cancel {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #334155;
+}
+
+.demo-text-map-editor__done {
+    border: 1px solid #2f80ed;
+    background: #2f80ed;
+    color: #fff;
+}
+
+.demo-text-map-editor__cancel:hover {
+    background: #f3f4f6;
+}
+
+.demo-text-map-editor__done:hover {
+    background: #1d6fd8;
+}

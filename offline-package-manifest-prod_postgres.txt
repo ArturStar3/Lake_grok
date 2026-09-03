@@ -1,20 +1,21 @@
 ﻿InfoLake offline package manifest
-Generated: 2026-09-03 16:07:27
+Generated: 2026-09-03 16:08:02
 Git branch: develop_demonstration
-Mode: PRODUCTION (docker-compose.server.yml)
+Mode: PRODUCTION + PostgreSQL 17 in Docker (docker-compose.postgres.yml)
 
-Docker images in infolake_full_offline_prod.tar:
-  - maptiler/tileserver-gl:latest
+Docker images in infolake_full_offline_prod_postgres.tar:
   - infolake-backend:latest
+  - postgres:17
   - infolake-nginx:latest
+  - maptiler/tileserver-gl:latest
 
 Archive:
-  Stable:    .\infolake_full_offline_prod.tar
-  Timestamp: .\infolake_full_offline_prod_20260903_160706.tar
-  Size:      1589.9 MB
+  Stable:    .\infolake_full_offline_prod_postgres.tar
+  Timestamp: .\infolake_full_offline_prod_postgres_20260903_160742.tar
+  Size:      1720.8 MB
 
 Copy to offline server:
-  1. infolake_full_offline_prod.tar (this archive)
+  1. infolake_full_offline_prod_postgres.tar (this archive)
   2. Full project folder (git clone / zip), EXCLUDING:
      - node_modules, __pycache__, .git (optional)
      - frontend/dist (production only - built into image)
@@ -23,8 +24,8 @@ Copy to offline server:
 
 
 On offline server:
-  .\import-and-start.ps1
-  (uses docker-compose.yml + docker-compose.server.yml, nginx :80, static frontend)
+  .\import-and-start-postgres.ps1
+  (docker-compose.yml + docker-compose.server.yml + docker-compose.postgres.yml)
   See OFFLINE_MIGRATION.md
   Marker color palettes: OFFLINE_MIGRATION_MARKER_PALETTES.md
     scripts\offline\post-update-offline.ps1

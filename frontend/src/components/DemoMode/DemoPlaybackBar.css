@@ -98,6 +98,149 @@
     color: rgba(248, 250, 252, 0.7);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.demo-playbar__counter:hover {
+    border-color: rgba(255, 255, 255, 0.24);
+    color: #f8fafc;
+}
+
+.demo-playbar__pause,
+.demo-playbar__icon-btn {
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: #f8fafc;
+    border-radius: 6px;
+    width: 32px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.demo-playbar__pause:hover,
+.demo-playbar__icon-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.demo-playbar__waiting {
+    font-size: 0.78rem;
+    white-space: nowrap;
+    color: #fde68a;
+    border: 1px solid rgba(253, 230, 138, 0.4);
+    border-radius: 6px;
+    padding: 4px 10px;
+    animation: demo-playbar-waiting 1.6s ease-in-out infinite;
+}
+
+@keyframes demo-playbar-waiting {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.demo-playbar__play--waiting {
+    box-shadow: 0 0 0 2px rgba(253, 230, 138, 0.6);
+}
+
+/* Быстрый переход по этапам */
+
+.demo-playbar__stages {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.demo-playbar__stage {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: rgba(248, 250, 252, 0.82);
+    text-align: left;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+.demo-playbar__stage:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.demo-playbar__stage--active {
+    background: rgba(47, 128, 237, 0.32);
+    color: #f8fafc;
+}
+
+.demo-playbar__stage-num {
+    flex-shrink: 0;
+    min-width: 22px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(248, 250, 252, 0.55);
+}
+
+.demo-playbar__stage-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.demo-playbar__stage-beats {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: rgba(248, 250, 252, 0.5);
+}
+
+/* Затемнение экрана (клавиши B / W) */
+
+.demo-blackout {
+    position: fixed;
+    inset: 0;
+    z-index: 10100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 32px;
+    cursor: pointer;
+}
+
+.demo-blackout--black {
+    background: #000;
+}
+
+.demo-blackout--white {
+    background: #fff;
+}
+
+.demo-blackout__hint {
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity 200ms ease;
+}
+
+.demo-blackout--black .demo-blackout__hint {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.demo-blackout--white .demo-blackout__hint {
+    color: rgba(0, 0, 0, 0.45);
+}
+
+.demo-blackout:hover .demo-blackout__hint {
+    opacity: 1;
 }
 
 .demo-playbar__step-progress {
