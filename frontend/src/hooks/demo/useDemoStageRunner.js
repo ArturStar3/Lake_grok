@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   DEMO_CAMERA_MODE,
   DEMO_EFFECT,
   DEMO_TOOL,
   buildStageBeats,
-  composeStateForStage,
   zoneLeavesToFilters,
 } from '../../utils/demoScenario';
+import { getCachedComposeStateForStage } from '../../utils/demoMosaicCatalog';
 import { getEventCenter } from '../../utils/eventGeometry';
 import { getSituationBounds } from '../../utils/situationUtils';
+import {
+  acquireMosaicPlayback,
+  getMosaicPlayback,
+  mosaicPlaybackKey,
+  releaseMosaicPlayback,
+  setMosaicPlaybackPaused,
+  subscribeMosaicPlayback,
+} from './mosaicStagePlayback';
 
 const EMPTY_ANIMATION = {
   active: false,
@@ -178,7 +186,7 @@ function buildAnimation(beat, runId) {
 
 /**
  * Локальный проигрыватель одного этапа для плитки мультиэкрана.
- * Не трогает глобальные фильтры Formular.
+ * Биты шарит с другими слотами того же stage_id через mosaicStagePlayback + clock.
  */
 export function useDemoStageRunner({
   stage = null,
@@ -192,18 +200,54 @@ export function useDemoStageRunner({
   countriesList = [],
 } = {}) {
   const mapRef = useRef(null);
-  const beatStartedAtRef = useRef(0);
   const cameraTimersRef = useRef([]);
-  const pausedAtRef = useRef(null);
   const dataRef = useRef({ objects, events, situations, countriesList });
   dataRef.current = { objects, events, situations, countriesList };
+  const lastCameraRunRef = useRef(-1);
+  const [, setPlaybackVersion] = useState(0);
 
   const playback = useMemo(() => buildStageBeats(stage?.steps || []), [stage]);
-  const beats = playback.beats || [];
-  const [beatIndex, setBeatIndex] = useState(0);
-  const [animationRunId, setAnimationRunId] = useState(0);
-  const [frozen, setFrozen] = useState(false);
-  const [clockReady, setClockReady] = useState(false);
+  const beats = useMemo(() => playback.beats || [], [playback]);
+  const stageId = stage?.id != null ? String(stage.id) : null;
+  const key = (enabled && stageId && beats.length)
+    ? mosaicPlaybackKey(stageId, { loop, startDelayMs })
+    : null;
+
+  const getBeatDuration = useCallback((index) => (
+    Math.max(16, beats[index]?.durationMs || 0)
+  ), [beats]);
+
+  useLayoutEffect(() => {
+    if (!key) return undefined;
+    acquireMosaicPlayback(key, {
+      beatCount: beats.length,
+      getBeatDuration,
+      loop,
+      startDelayMs,
+    });
+    const unsub = subscribeMosaicPlayback(key, () => {
+      setPlaybackVersion((version) => version + 1);
+    });
+    return () => {
+      unsub();
+      releaseMosaicPlayback(key);
+    };
+  }, [beats.length, getBeatDuration, key, loop, startDelayMs]);
+
+  useEffect(() => {
+    if (!key) return undefined;
+    setMosaicPlaybackPaused(key, paused);
+    return undefined;
+  }, [key, paused]);
+
+  const shared = key ? getMosaicPlayback(key) : null;
+  const clockReady = Boolean(shared?.clockReady);
+  const boundedBeat = shared
+    ? Math.max(0, Math.min(Math.max(beats.length - 1, 0), shared.beatIndex))
+    : 0;
+  const frozen = Boolean(shared?.frozen);
+  const animationRunId = shared?.animationRunId || 0;
+  const currentBeat = beats[boundedBeat] || null;
 
   const clearCameraTimers = useCallback(() => {
     cameraTimersRef.current.forEach((id) => clearTimeout(id));
@@ -230,81 +274,24 @@ export function useDemoStageRunner({
     });
   }, [clearCameraTimers]);
 
-  const boundedBeat = Math.max(0, Math.min(beats.length - 1, beatIndex));
-  const currentBeat = beats[boundedBeat] || null;
-  const composed = useMemo(
-    () => (stage && clockReady ? composeStateForStage(stage, boundedBeat) : null),
-    [clockReady, stage, boundedBeat],
-  );
-
-  const goToBeat = useCallback((nextIndex, { instant = false } = {}) => {
-    if (!beats.length) return;
-    const bounded = Math.max(0, Math.min(beats.length - 1, nextIndex));
-    setBeatIndex(bounded);
-    setFrozen(false);
-    beatStartedAtRef.current = performance.now();
-    pausedAtRef.current = null;
-    setAnimationRunId((prev) => prev + 1);
-    const state = composeStateForStage(stage, bounded);
-    requestCamera(state?.cameraStep, instant);
-  }, [beats.length, requestCamera, stage]);
-
+  // Камера на каждом слоте своя (размер контейнера), при смене бита / runId.
   useEffect(() => {
-    if (!enabled || !stage || !beats.length) {
-      setClockReady(false);
-      return undefined;
-    }
-    let startTimer = null;
-    const begin = () => {
-      goToBeat(0, { instant: true });
-      setClockReady(true);
-    };
-    if (startDelayMs > 0) {
-      startTimer = setTimeout(begin, startDelayMs);
-    } else {
-      begin();
-    }
-    return () => {
-      if (startTimer) clearTimeout(startTimer);
-    };
-  }, [beats.length, enabled, goToBeat, stage, startDelayMs]);
-
-  useEffect(() => {
-    if (paused) {
-      if (pausedAtRef.current == null) pausedAtRef.current = performance.now();
-      return undefined;
-    }
-    if (pausedAtRef.current != null) {
-      beatStartedAtRef.current += performance.now() - pausedAtRef.current;
-      pausedAtRef.current = null;
-    }
+    if (!enabled || !stage || !clockReady) return undefined;
+    if (lastCameraRunRef.current === animationRunId) return undefined;
+    lastCameraRunRef.current = animationRunId;
+    const state = getCachedComposeStateForStage(stage, boundedBeat);
+    requestCamera(state?.cameraStep, animationRunId <= 1);
     return undefined;
-  }, [paused]);
-
-  useEffect(() => {
-    if (!enabled || !stage || frozen || !currentBeat || !clockReady || paused) {
-      return undefined;
-    }
-
-    const duration = Math.max(16, currentBeat.durationMs || 0);
-    const remaining = Math.max(0, duration - (performance.now() - beatStartedAtRef.current));
-    const timer = setTimeout(() => {
-      if (boundedBeat + 1 < beats.length) {
-        goToBeat(boundedBeat + 1);
-        return;
-      }
-      if (loop) {
-        goToBeat(0);
-        return;
-      }
-      setFrozen(true);
-    }, remaining);
-    return () => clearTimeout(timer);
-  }, [boundedBeat, beats.length, clockReady, currentBeat, enabled, frozen, goToBeat, loop, paused, stage]);
+  }, [animationRunId, boundedBeat, clockReady, enabled, requestCamera, stage]);
 
   useEffect(() => () => {
     clearCameraTimers();
   }, [clearCameraTimers]);
+
+  const composed = useMemo(
+    () => (stage && clockReady ? getCachedComposeStateForStage(stage, boundedBeat) : null),
+    [clockReady, stage, boundedBeat],
+  );
 
   const selectedObj = useMemo(
     () => resolveIds(objects, composed?.target_ids),

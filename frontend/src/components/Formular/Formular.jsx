@@ -1678,6 +1678,7 @@ export default function Formular({ onMapFullscreenChange }) {
                         <div className="formular__map">
                             <DemoMosaicShell
                                 mosaicRuntime={demoPlayer.mosaicRuntime}
+                                onTilesReady={demoPlayer.onMosaicTilesReady}
                                 mapRef={mapRef}
                                 objects={objects}
                                 events={events}

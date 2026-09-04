@@ -442,3 +442,72 @@ class DemoScenarioApiTests(APITestCase):
         )
         self.assertEqual(response.data['sequence'][1]['slot'], 'a')
         self.assertIsNone(response.data['sequence'][0]['slot'])
+
+    def test_mosaic_expand_animation_round_trip(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = '22222222-2222-2222-2222-222222222222'
+        preset_id = 'preset-center-stretch'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Титул',
+                'steps': [build_step(title='Камера')],
+            }],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '2x2',
+                    'transition_ms': 800,
+                    'expand_animation': 'center_then_stretch',
+                    'expand_ms': 1200,
+                    'collapse_ms': 900,
+                    'expand_easing': 'ease_in_out',
+                    'collapse_easing': 'linear',
+                    'expandable_slots': ['a'],
+                    'screens': [
+                        {'id': 'a', 'label': 'A', 'stage_id': stage_id},
+                    ],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[
+                {
+                    'type': 'mosaic',
+                    'preset_id': preset_id,
+                    'mosaic_action': 'expand',
+                    'slot': 'a',
+                    'expand_animation': 'stretch',
+                    'expand_ms': 500,
+                    'expand_easing': 'linear',
+                },
+                {
+                    'type': 'mosaic',
+                    'preset_id': preset_id,
+                    'mosaic_action': 'collapse',
+                    'collapse_ms': 400,
+                    'collapse_easing': 'ease_out',
+                },
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        preset = response.data['mosaic']['presets'][0]
+        self.assertEqual(preset['expand_animation'], 'center_then_stretch')
+        self.assertEqual(preset['expand_ms'], 1200)
+        self.assertEqual(preset['collapse_ms'], 900)
+        self.assertEqual(preset['expand_easing'], 'ease_in_out')
+        self.assertEqual(preset['collapse_easing'], 'linear')
+        expand_item = response.data['sequence'][0]
+        collapse_item = response.data['sequence'][1]
+        self.assertEqual(expand_item['expand_animation'], 'stretch')
+        self.assertEqual(expand_item['expand_ms'], 500)
+        self.assertEqual(expand_item['expand_easing'], 'linear')
+        self.assertIsNone(expand_item.get('collapse_ms'))
+        self.assertIsNone(expand_item.get('collapse_easing'))
+        self.assertEqual(collapse_item['collapse_ms'], 400)
+        self.assertEqual(collapse_item['collapse_easing'], 'ease_out')
+        self.assertIsNone(collapse_item.get('expand_animation'))
+        self.assertIsNone(collapse_item.get('expand_ms'))
+        self.assertIsNone(collapse_item.get('expand_easing'))

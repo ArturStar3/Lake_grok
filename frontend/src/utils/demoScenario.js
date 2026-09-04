@@ -251,6 +251,27 @@ export const DEMO_MOSAIC_REVEAL = {
   STAGGER: 'stagger',
 };
 
+/** Анимация разворота/свёртки слота в полноэкран. */
+export const DEMO_MOSAIC_EXPAND_ANIMATION = {
+  STRETCH: 'stretch',
+  CENTER_THEN_STRETCH: 'center_then_stretch',
+};
+
+export const DEMO_MOSAIC_EXPAND_ANIMATIONS = [
+  { id: DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH, label: 'Сразу на весь экран' },
+  {
+    id: DEMO_MOSAIC_EXPAND_ANIMATION.CENTER_THEN_STRETCH,
+    label: 'В центр, затем на весь экран',
+  },
+];
+
+/** CSS timing-function для id из DEMO_EASINGS. */
+export const DEMO_EASING_CSS = {
+  linear: 'linear',
+  ease_out: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  ease_in_out: 'ease-in-out',
+};
+
 export const DEMO_MOSAIC_ACTION = {
   SHOW_GRID: 'show_grid',
   EXPAND: 'expand',
@@ -461,10 +482,63 @@ export function createDefaultMosaicPreset(overrides = {}) {
     title: 'Мультиэкран',
     layout: DEMO_MOSAIC_LAYOUT.GRID2,
     transition_ms: 700,
+    expand_animation: DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH,
+    expand_ms: 700,
+    collapse_ms: 700,
+    expand_easing: 'ease_out',
+    collapse_easing: 'ease_out',
     reveal: DEMO_MOSAIC_REVEAL.ALL,
     stagger_ms: 400,
     ...overrides,
   });
+}
+
+/**
+ * Длительность/плавность/тип анимации слота для expand или collapse.
+ * Поля блока программы (item) переопределяют пресет; пустые значения → пресет.
+ */
+export function resolveMosaicSlotTransition(preset, item, action) {
+  const transitionFallback = clampInt(preset?.transition_ms, 200, 5000, 700);
+  const presetAnim = pickChoice(
+    preset?.expand_animation,
+    Object.values(DEMO_MOSAIC_EXPAND_ANIMATION),
+    DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH,
+  );
+  const isCollapse = action === DEMO_MOSAIC_ACTION.COLLAPSE;
+  const overrideAnim = item?.expand_animation != null && String(item.expand_animation).trim()
+    ? pickChoice(
+      item.expand_animation,
+      Object.values(DEMO_MOSAIC_EXPAND_ANIMATION),
+      null,
+    )
+    : null;
+  const animation = overrideAnim || presetAnim;
+
+  const overrideMsRaw = isCollapse ? item?.collapse_ms : item?.expand_ms;
+  const hasOverrideMs = overrideMsRaw != null && Number(overrideMsRaw) > 0;
+  const presetMs = isCollapse
+    ? clampInt(preset?.collapse_ms, 200, 5000, transitionFallback)
+    : clampInt(preset?.expand_ms, 200, 5000, transitionFallback);
+  const durationMs = hasOverrideMs
+    ? clampInt(overrideMsRaw, 200, 5000, presetMs)
+    : presetMs;
+
+  const easingIds = DEMO_EASINGS.map((entry) => entry.id);
+  const overrideEasingRaw = isCollapse ? item?.collapse_easing : item?.expand_easing;
+  const hasOverrideEasing = overrideEasingRaw != null && String(overrideEasingRaw).trim();
+  const presetEasing = isCollapse
+    ? pickChoice(preset?.collapse_easing, easingIds, 'ease_out')
+    : pickChoice(preset?.expand_easing, easingIds, 'ease_out');
+  const easing = hasOverrideEasing
+    ? pickChoice(overrideEasingRaw, easingIds, presetEasing)
+    : presetEasing;
+
+  return {
+    animation,
+    durationMs,
+    easing,
+    cssEasing: DEMO_EASING_CSS[easing] || DEMO_EASING_CSS.ease_out,
+  };
 }
 
 export function normalizeMosaicScreen(raw, slotId, defaultLabel = '') {
@@ -522,11 +596,22 @@ export function normalizeMosaicPreset(raw) {
   const title = typeof data.title === 'string' && data.title.trim()
     ? data.title.trim().slice(0, 120)
     : 'Мультиэкран';
+  const transitionMs = clampInt(data.transition_ms, 200, 5000, 700);
+  const easingIds = DEMO_EASINGS.map((item) => item.id);
   return {
     id,
     title,
     layout,
-    transition_ms: clampInt(data.transition_ms, 200, 5000, 700),
+    transition_ms: transitionMs,
+    expand_animation: pickChoice(
+      data.expand_animation,
+      Object.values(DEMO_MOSAIC_EXPAND_ANIMATION),
+      DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH,
+    ),
+    expand_ms: clampInt(data.expand_ms, 200, 5000, transitionMs),
+    collapse_ms: clampInt(data.collapse_ms, 200, 5000, transitionMs),
+    expand_easing: pickChoice(data.expand_easing, easingIds, 'ease_out'),
+    collapse_easing: pickChoice(data.collapse_easing, easingIds, 'ease_out'),
     reveal: pickChoice(data.reveal, Object.values(DEMO_MOSAIC_REVEAL), DEMO_MOSAIC_REVEAL.ALL),
     stagger_ms: clampInt(data.stagger_ms, 0, 10_000, 400),
     expandable_slots: normalizeExpandableSlots(data.expandable_slots, slotIds),
@@ -956,6 +1041,36 @@ export function normalizeSequenceItem(raw, _index = 0) {
   const slot = type === DEMO_SEQUENCE_TYPE.MOSAIC
     ? normalizeMosaicSlotId(data.slot)
     : null;
+  const easingIds = DEMO_EASINGS.map((item) => item.id);
+  const expandAnimOverride = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    && data.expand_animation != null
+    && String(data.expand_animation).trim()
+    ? pickChoice(
+      data.expand_animation,
+      Object.values(DEMO_MOSAIC_EXPAND_ANIMATION),
+      null,
+    )
+    : null;
+  const expandMsOverride = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    && data.expand_ms != null
+    && Number(data.expand_ms) > 0
+    ? clampInt(data.expand_ms, 200, 5000, null)
+    : null;
+  const collapseMsOverride = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    && data.collapse_ms != null
+    && Number(data.collapse_ms) > 0
+    ? clampInt(data.collapse_ms, 200, 5000, null)
+    : null;
+  const expandEasingOverride = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    && data.expand_easing != null
+    && String(data.expand_easing).trim()
+    ? pickChoice(data.expand_easing, easingIds, null)
+    : null;
+  const collapseEasingOverride = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    && data.collapse_easing != null
+    && String(data.collapse_easing).trim()
+    ? pickChoice(data.collapse_easing, easingIds, null)
+    : null;
   return {
     key: data.key || makeLocalSequenceKey(),
     type,
@@ -967,6 +1082,11 @@ export function normalizeSequenceItem(raw, _index = 0) {
     wait_for_presenter: Boolean(data.wait_for_presenter),
     enter: normalizeSequenceTransition(data.enter),
     exit: normalizeSequenceTransition(data.exit),
+    expand_animation: expandAnimOverride,
+    expand_ms: expandMsOverride,
+    collapse_ms: collapseMsOverride,
+    expand_easing: expandEasingOverride,
+    collapse_easing: collapseEasingOverride,
   };
 }
 
@@ -1128,6 +1248,11 @@ export function serializeScenario(scenario) {
       wait_for_presenter: item.wait_for_presenter,
       enter: item.enter,
       exit: item.exit,
+      expand_animation: item.expand_animation,
+      expand_ms: item.expand_ms,
+      collapse_ms: item.collapse_ms,
+      expand_easing: item.expand_easing,
+      collapse_easing: item.collapse_easing,
     })),
     default_step_duration_ms: normalized.default_step_duration_ms,
     stages: normalized.stages.map((stage) => ({
@@ -1290,7 +1415,7 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null) {
     const preset = findMosaicPreset(mosaic, item.preset_id);
     const action = normalizeSequenceMosaicAction(item.mosaic_action);
     if (action === DEMO_MOSAIC_ACTION.EXPAND || action === DEMO_MOSAIC_ACTION.COLLAPSE) {
-      return preset?.transition_ms || 700;
+      return resolveMosaicSlotTransition(preset, item, action).durationMs;
     }
     return mosaicDurationMs(preset, stages);
   }

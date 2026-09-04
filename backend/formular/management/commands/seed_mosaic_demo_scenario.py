@@ -270,6 +270,11 @@ class Command(BaseCommand):
                 'title': 'Два сверху, три снизу',
                 'layout': '2+3',
                 'transition_ms': 700,
+                'expand_animation': 'center_then_stretch',
+                'expand_ms': 1000,
+                'collapse_ms': 900,
+                'expand_easing': 'ease_out',
+                'collapse_easing': 'ease_in_out',
                 'reveal': 'stagger',
                 'stagger_ms': 400,
                 'screens': [

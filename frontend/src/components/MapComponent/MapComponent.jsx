@@ -940,6 +940,8 @@ function MapComponent({
     embed = false,
     embedPlaying = true,
     embedOverlayLayerIds = null,
+    /** Без MapLibre — растровые тайлы Leaflet (плитки мультиэкрана). */
+    embedLite = false,
     suspendMap = false,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
@@ -2370,6 +2372,9 @@ function MapComponent({
                 boxZoom={!embed}
                 keyboard={!embed}
                 touchZoom={!embed}
+                preferCanvas={embedLite}
+                fadeAnimation={!embedLite}
+                markerZoomAnimation={!embedLite}
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
                 <EmbedMapFixer enabled={embed} />
@@ -2419,7 +2424,7 @@ function MapComponent({
                     editText={embed ? null : demoTextEditDraft}
                     onEditChange={onDemoTextEditChange}
                 />
-                {USE_VECTOR_MAP ? (
+                {(USE_VECTOR_MAP && !embedLite) ? (
                     <MapVectorBaseLayer
                         onMapReady={handleMaplibreReady}
                         onError={handleMaplibreError}
@@ -2430,9 +2435,14 @@ function MapComponent({
                             url={TILE_RASTER_URL}
                             minZoom={2}
                             maxZoom={19}
+                            keepBuffer={embedLite ? 1 : 2}
+                            updateWhenIdle={embedLite}
+                            updateWhenZooming={!embedLite}
                             attribution='&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>'
                         />
-                        <MapOverlayLayers activeLayers={activeOverlayLayers} />
+                        {(!embedLite || (activeOverlayLayers && activeOverlayLayers.length > 0)) && (
+                            <MapOverlayLayers activeLayers={activeOverlayLayers} />
+                        )}
                     </>
                 )}
                 <MarkerInitializer 

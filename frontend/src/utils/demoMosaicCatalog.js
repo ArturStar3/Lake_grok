@@ -1,7 +1,10 @@
 import { filterRevisionsForSituations } from './situationUtils';
+import { composeStateForStage, findStage } from './demoScenario';
 
 const CACHE_LIMIT = 24;
 const sliceCache = new Map();
+const composeCache = new Map();
+const COMPOSE_CACHE_LIMIT = 64;
 
 const EMPTY_SLICE = {
   objects: [],
@@ -61,29 +64,60 @@ function filterById(list, wanted) {
 }
 
 function cacheKey(stage, catalogs) {
+  const steps = stage?.steps || [];
+  const head = (list) => (
+    list?.length
+      ? `${list.length}:${list[0]?.id ?? ''}:${list[list.length - 1]?.id ?? ''}`
+      : '0'
+  );
   return [
     stage?.id ?? '',
-    catalogs.objects?.length ?? 0,
-    catalogs.events?.length ?? 0,
-    catalogs.situations?.length ?? 0,
+    steps.length,
+    steps.map((step) => step.key || step.tool || '').join(','),
+    head(catalogs.objects),
+    head(catalogs.events),
+    head(catalogs.situations),
     catalogs.situationRevisions?.length ?? 0,
     catalogs.actionTypes?.length ?? 0,
     catalogs.countriesList?.length ?? 0,
-  ].join(':');
+  ].join('|');
 }
 
-function remember(key, value) {
-  if (sliceCache.has(key)) sliceCache.delete(key);
-  sliceCache.set(key, value);
-  if (sliceCache.size > CACHE_LIMIT) {
-    const oldest = sliceCache.keys().next().value;
-    sliceCache.delete(oldest);
+function remember(map, key, value, limit) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  if (map.size > limit) {
+    const oldest = map.keys().next().value;
+    map.delete(oldest);
   }
   return value;
 }
 
 export function clearMosaicCatalogCache() {
   sliceCache.clear();
+  composeCache.clear();
+}
+
+/**
+ * Мемоизация composeStateForStage по (stageId, beatIndex) для плиток с общим этапом.
+ */
+export function getCachedComposeStateForStage(stage, beatIndex = Infinity) {
+  if (!stage) return composeStateForStage(stage, beatIndex);
+  const key = `${stage.id ?? ''}::${beatIndex}`;
+  const cached = composeCache.get(key);
+  if (cached) return cached;
+  return remember(composeCache, key, composeStateForStage(stage, beatIndex), COMPOSE_CACHE_LIMIT);
+}
+
+/**
+ * Прогрев LRU-срезов для всех этапов пресета мультиэкрана.
+ */
+export function warmMosaicPresetCatalogs(preset, stages, catalogs = {}) {
+  const screens = preset?.screens || [];
+  screens.forEach((screen) => {
+    const stage = findStage(stages, screen.stage_id);
+    if (stage) sliceCatalogsForStage(stage, catalogs);
+  });
 }
 
 /**
@@ -129,7 +163,7 @@ export function sliceCatalogsForStage(stage, catalogs = {}) {
     ? actionTypes.filter((item) => ids.action_type_ids.has(String(item.id)))
     : [];
 
-  return remember(key, {
+  return remember(sliceCache, key, {
     objects: slicedObjects,
     zoneObjects,
     events: filterById(events, ids.event_ids),
@@ -137,5 +171,5 @@ export function sliceCatalogsForStage(stage, catalogs = {}) {
     situationRevisions: filterRevisionsForSituations(situationRevisions, [...ids.situation_ids]),
     actionTypes: slicedTypes,
     countriesList: slicedCountries,
-  });
+  }, CACHE_LIMIT);
 }

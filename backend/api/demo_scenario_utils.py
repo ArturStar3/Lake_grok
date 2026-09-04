@@ -53,6 +53,7 @@ MOSAIC_SLOT_IDS_BY_LAYOUT = {
     '2+3': ('a', 'b', 'c', 'd', 'e'),
 }
 MOSAIC_REVEALS = ('all', 'stagger')
+MOSAIC_EXPAND_ANIMATIONS = ('stretch', 'center_then_stretch')
 MOSAIC_ACTIONS = ('show_grid', 'show_slot', 'focus_slot', 'collapse', 'exit')
 SEQUENCE_MOSAIC_ACTIONS = ('show_grid', 'expand', 'collapse')
 SEQUENCE_TYPES = ('stage', 'mosaic')
@@ -557,11 +558,21 @@ def normalize_mosaic_preset(raw, allowed_stage_ids=None):
     title = data.get('title') if isinstance(data.get('title'), str) else ''
     if not title:
         title = 'Мультиэкран'
+    transition_ms = _clamp(data.get('transition_ms', 700), 200, 5000, 700)
     return {
         'id': preset_id,
         'title': title[:120],
         'layout': layout,
-        'transition_ms': _clamp(data.get('transition_ms', 700), 200, 5000, 700),
+        'transition_ms': transition_ms,
+        'expand_animation': _choice(
+            data.get('expand_animation'),
+            MOSAIC_EXPAND_ANIMATIONS,
+            'stretch',
+        ),
+        'expand_ms': _clamp(data.get('expand_ms', transition_ms), 200, 5000, transition_ms),
+        'collapse_ms': _clamp(data.get('collapse_ms', transition_ms), 200, 5000, transition_ms),
+        'expand_easing': _choice(data.get('expand_easing'), EASINGS, 'ease_out'),
+        'collapse_easing': _choice(data.get('collapse_easing'), EASINGS, 'ease_out'),
         'reveal': _choice(data.get('reveal'), MOSAIC_REVEALS, 'all'),
         'stagger_ms': _clamp(data.get('stagger_ms', 400), 0, 10_000, 400),
         'expandable_slots': _normalize_expandable_slots(data.get('expandable_slots'), slot_ids),
@@ -650,6 +661,31 @@ def normalize_sequence_transition(raw, default_effect='none'):
     }
 
 
+def _optional_mosaic_expand_animation(raw):
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    value = _choice(raw, MOSAIC_EXPAND_ANIMATIONS, None)
+    return value
+
+
+def _optional_mosaic_ms(raw):
+    if raw is None or raw == '' or raw == 0:
+        return None
+    try:
+        number = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0:
+        return None
+    return _clamp(number, 200, 5000, None)
+
+
+def _optional_mosaic_easing(raw):
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    return _choice(raw, EASINGS, None)
+
+
 def normalize_sequence_item(raw, index=0, allowed_stage_ids=None, allowed_preset_ids=None):
     data = raw if isinstance(raw, dict) else {}
     item_type = _choice(data.get('type'), SEQUENCE_TYPES, 'stage')
@@ -668,11 +704,21 @@ def normalize_sequence_item(raw, index=0, allowed_stage_ids=None, allowed_preset
     duration_ms = _clamp(duration_raw, 0, MAX_STEP_DURATION_MS, 0)
     mosaic_action = 'show_grid'
     slot = None
+    expand_animation = None
+    expand_ms = None
+    collapse_ms = None
+    expand_easing = None
+    collapse_easing = None
     if item_type == 'mosaic':
         mosaic_action = normalize_sequence_mosaic_action(data.get('mosaic_action'))
         slot = normalize_mosaic_slot_id(data.get('slot'))
         if mosaic_action == 'show_grid':
             slot = None
+        expand_animation = _optional_mosaic_expand_animation(data.get('expand_animation'))
+        expand_ms = _optional_mosaic_ms(data.get('expand_ms'))
+        collapse_ms = _optional_mosaic_ms(data.get('collapse_ms'))
+        expand_easing = _optional_mosaic_easing(data.get('expand_easing'))
+        collapse_easing = _optional_mosaic_easing(data.get('collapse_easing'))
     return {
         'key': key,
         'type': item_type,
@@ -684,6 +730,11 @@ def normalize_sequence_item(raw, index=0, allowed_stage_ids=None, allowed_preset
         'wait_for_presenter': _as_bool(data.get('wait_for_presenter'), False),
         'enter': normalize_sequence_transition(data.get('enter')),
         'exit': normalize_sequence_transition(data.get('exit')),
+        'expand_animation': expand_animation,
+        'expand_ms': expand_ms,
+        'collapse_ms': collapse_ms,
+        'expand_easing': expand_easing,
+        'collapse_easing': collapse_easing,
     }
 
 

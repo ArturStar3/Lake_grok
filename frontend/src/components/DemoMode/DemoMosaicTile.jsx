@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import MapComponent from '../MapComponent/MapComponent';
 import { useDemoStageRunner } from '../../hooks/demo/useDemoStageRunner';
 import {
@@ -65,8 +65,7 @@ function DemoMosaicPeek({ contentStep, objects = [], countriesList = [] }) {
 }
 
 /**
- * Плитка мультиэкрана: тот же визуальный стек, что у большой карты,
- * со своим проигрывателем этапа.
+ * Плитка мультиэкрана: lite Leaflet (без MapLibre) + общий stage playback.
  */
 function DemoMosaicTile({
   slotId,
@@ -74,12 +73,7 @@ function DemoMosaicTile({
   stages = [],
   startDelayMs = 0,
   playing = true,
-  objects = [],
-  events = [],
-  situations = [],
-  situationRevisions = [],
-  actionTypes = [],
-  countriesList = [],
+  catalogs: catalogsProp = null,
 }) {
   const label = screen?.label || DEMO_MOSAIC_SLOT_LABELS[slotId] || slotId.toUpperCase();
   const loop = Boolean(screen?.loop);
@@ -88,15 +82,8 @@ function DemoMosaicTile({
     [stages, screen?.stage_id],
   );
   const catalogs = useMemo(
-    () => sliceCatalogsForStage(stage, {
-      objects,
-      events,
-      situations,
-      situationRevisions,
-      actionTypes,
-      countriesList,
-    }),
-    [actionTypes, countriesList, events, objects, situationRevisions, situations, stage],
+    () => catalogsProp || sliceCatalogsForStage(stage, {}),
+    [catalogsProp, stage],
   );
 
   const runner = useDemoStageRunner({
@@ -113,12 +100,33 @@ function DemoMosaicTile({
 
   const activeSituationId = runner.selectedSituationIds?.[0] ?? null;
 
+  useEffect(() => {
+    if (!playing) return undefined;
+    const map = runner.mapRef.current;
+    if (!map) return undefined;
+    const run = () => {
+      try {
+        map.invalidateSize({ animate: false, pan: false });
+      } catch {
+        try {
+          map.invalidateSize();
+        } catch {
+          // карта ещё без контейнера
+        }
+      }
+    };
+    run();
+    const t = window.setTimeout(run, 50);
+    return () => clearTimeout(t);
+  }, [playing, runner.mapRef]);
+
   return (
     <div className={`demo-mosaic-tile demo-mosaic-tile--${slotId}`}>
       <div className="demo-mosaic-tile__map">
         {stage ? (
           <MapComponent
             embed
+            embedLite
             embedPlaying={playing}
             embedOverlayLayerIds={runner.overlayLayerIds}
             mapRef={runner.mapRef}

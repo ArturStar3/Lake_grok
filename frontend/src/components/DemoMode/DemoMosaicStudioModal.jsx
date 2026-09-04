@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
+  DEMO_EASINGS,
+  DEMO_MOSAIC_EXPAND_ANIMATIONS,
   DEMO_MOSAIC_LAYOUTS,
   DEMO_MOSAIC_REVEAL,
   DEMO_MOSAIC_SLOT_LABELS,
@@ -190,7 +192,7 @@ export default function DemoMosaicStudioModal({
                     </label>
                   )}
                   <label className="demo-field">
-                    <span className="demo-field__label">Длительность перехода, мс</span>
+                    <span className="demo-field__label">Длительность появления сетки, мс</span>
                     <input
                       type="number"
                       min={200}
@@ -199,6 +201,61 @@ export default function DemoMosaicStudioModal({
                       value={preset.transition_ms}
                       onChange={(e) => patchPreset({ transition_ms: Number(e.target.value) })}
                     />
+                  </label>
+                  <label className="demo-field">
+                    <span className="demo-field__label">Анимация разворота / свёртки</span>
+                    <select
+                      value={preset.expand_animation}
+                      onChange={(e) => patchPreset({ expand_animation: e.target.value })}
+                    >
+                      {DEMO_MOSAIC_EXPAND_ANIMATIONS.map((item) => (
+                        <option key={item.id} value={item.id}>{item.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="demo-field">
+                    <span className="demo-field__label">Длительность разворота, мс</span>
+                    <input
+                      type="number"
+                      min={200}
+                      max={5000}
+                      step={50}
+                      value={preset.expand_ms}
+                      onChange={(e) => patchPreset({ expand_ms: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="demo-field">
+                    <span className="demo-field__label">Плавность разворота</span>
+                    <select
+                      value={preset.expand_easing}
+                      onChange={(e) => patchPreset({ expand_easing: e.target.value })}
+                    >
+                      {DEMO_EASINGS.map((item) => (
+                        <option key={item.id} value={item.id}>{item.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="demo-field">
+                    <span className="demo-field__label">Длительность свёртки, мс</span>
+                    <input
+                      type="number"
+                      min={200}
+                      max={5000}
+                      step={50}
+                      value={preset.collapse_ms}
+                      onChange={(e) => patchPreset({ collapse_ms: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="demo-field">
+                    <span className="demo-field__label">Плавность свёртки</span>
+                    <select
+                      value={preset.collapse_easing}
+                      onChange={(e) => patchPreset({ collapse_easing: e.target.value })}
+                    >
+                      {DEMO_EASINGS.map((item) => (
+                        <option key={item.id} value={item.id}>{item.label}</option>
+                      ))}
+                    </select>
                   </label>
                   <span className="demo-field__label">Разрешить полноэкран</span>
                   <div className="demo-chip-row">

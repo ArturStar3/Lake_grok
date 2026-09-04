@@ -3,7 +3,9 @@ import DemoMosaicStudioModal from './DemoMosaicStudioModal';
 import DemoStageStudioModal from './DemoStageStudioModal';
 import DemoTimeline from './DemoTimeline';
 import {
+  DEMO_EASINGS,
   DEMO_MOSAIC_ACTION,
+  DEMO_MOSAIC_EXPAND_ANIMATIONS,
   DEMO_MOSAIC_SLOT_LABELS,
   DEMO_PROGRAM_ENTER_EFFECTS,
   DEMO_PROGRAM_EXIT_EFFECTS,
@@ -659,6 +661,121 @@ export default function DemoStudioModal({
                                 ))}
                               </select>
                             </label>
+                          )}
+                          {(activeItem.mosaic_action === DEMO_MOSAIC_ACTION.EXPAND
+                            || activeItem.mosaic_action === DEMO_MOSAIC_ACTION.COLLAPSE) && (
+                            <>
+                              <p className="demo-field__hint">
+                                Анимация слота: значения «как в пресете» берут настройки из конструктора
+                                мультиэкрана.
+                              </p>
+                              <label className="demo-field">
+                                <span className="demo-field__label">Тип анимации</span>
+                                <select
+                                  value={activeItem.expand_animation || ''}
+                                  onChange={(e) => handleBlockChange({
+                                    expand_animation: e.target.value || null,
+                                  })}
+                                >
+                                  <option value="">
+                                    Как в пресете
+                                    {activePreset.expand_animation
+                                      ? ` (${DEMO_MOSAIC_EXPAND_ANIMATIONS.find(
+                                        (a) => a.id === activePreset.expand_animation,
+                                      )?.label || activePreset.expand_animation})`
+                                      : ''}
+                                  </option>
+                                  {DEMO_MOSAIC_EXPAND_ANIMATIONS.map((item) => (
+                                    <option key={item.id} value={item.id}>{item.label}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              {activeItem.mosaic_action === DEMO_MOSAIC_ACTION.EXPAND ? (
+                                <>
+                                  <label className="demo-field">
+                                    <span className="demo-field__label">Длительность разворота, мс</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={5000}
+                                      step={50}
+                                      value={activeItem.expand_ms ?? 0}
+                                      onChange={(e) => {
+                                        const value = Number(e.target.value);
+                                        handleBlockChange({
+                                          expand_ms: value > 0 ? value : null,
+                                        });
+                                      }}
+                                    />
+                                    <span className="demo-field__hint">
+                                      0 — как в пресете ({activePreset.expand_ms || activePreset.transition_ms || 700} мс)
+                                    </span>
+                                  </label>
+                                  <label className="demo-field">
+                                    <span className="demo-field__label">Плавность разворота</span>
+                                    <select
+                                      value={activeItem.expand_easing || ''}
+                                      onChange={(e) => handleBlockChange({
+                                        expand_easing: e.target.value || null,
+                                      })}
+                                    >
+                                      <option value="">
+                                        Как в пресете
+                                        {activePreset.expand_easing
+                                          ? ` (${DEMO_EASINGS.find((a) => a.id === activePreset.expand_easing)?.label
+                                            || activePreset.expand_easing})`
+                                          : ''}
+                                      </option>
+                                      {DEMO_EASINGS.map((item) => (
+                                        <option key={item.id} value={item.id}>{item.label}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </>
+                              ) : (
+                                <>
+                                  <label className="demo-field">
+                                    <span className="demo-field__label">Длительность свёртки, мс</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={5000}
+                                      step={50}
+                                      value={activeItem.collapse_ms ?? 0}
+                                      onChange={(e) => {
+                                        const value = Number(e.target.value);
+                                        handleBlockChange({
+                                          collapse_ms: value > 0 ? value : null,
+                                        });
+                                      }}
+                                    />
+                                    <span className="demo-field__hint">
+                                      0 — как в пресете ({activePreset.collapse_ms || activePreset.transition_ms || 700} мс)
+                                    </span>
+                                  </label>
+                                  <label className="demo-field">
+                                    <span className="demo-field__label">Плавность свёртки</span>
+                                    <select
+                                      value={activeItem.collapse_easing || ''}
+                                      onChange={(e) => handleBlockChange({
+                                        collapse_easing: e.target.value || null,
+                                      })}
+                                    >
+                                      <option value="">
+                                        Как в пресете
+                                        {activePreset.collapse_easing
+                                          ? ` (${DEMO_EASINGS.find((a) => a.id === activePreset.collapse_easing)?.label
+                                            || activePreset.collapse_easing})`
+                                          : ''}
+                                      </option>
+                                      {DEMO_EASINGS.map((item) => (
+                                        <option key={item.id} value={item.id}>{item.label}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </>
+                              )}
+                            </>
                           )}
                         </>
                       )}

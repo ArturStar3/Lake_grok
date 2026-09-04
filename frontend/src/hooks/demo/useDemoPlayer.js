@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   DEMO_CAMERA_MODE,
+  DEMO_EASING_CSS,
   DEMO_EFFECT,
   DEMO_MOSAIC_ACTION,
+  DEMO_MOSAIC_EXPAND_ANIMATION,
   DEMO_MOSAIC_REVEAL,
   DEMO_PROGRAM_TRANSITION,
   DEMO_SEQUENCE_TYPE,
@@ -14,10 +16,15 @@ import {
   findStage,
   normalizeScenario,
   resolveMosaicScreen,
+  resolveMosaicSlotTransition,
 } from '../../utils/demoScenario';
 import { getEventCenter } from '../../utils/eventGeometry';
 import { getSituationBounds } from '../../utils/situationUtils';
-import { clearMosaicCatalogCache } from '../../utils/demoMosaicCatalog';
+import {
+  clearMosaicCatalogCache,
+  collectStageEntityIds,
+  warmMosaicPresetCatalogs,
+} from '../../utils/demoMosaicCatalog';
 
 /** Пауза после ручного взаимодействия с картой, прежде чем таймер пойдёт дальше. */
 const INTERACTION_RESUME_DELAY_MS = 1500;
@@ -54,6 +61,9 @@ const EMPTY_MOSAIC = {
   mode: 'grid',
   layout: '2x2',
   transitionMs: 700,
+  expandAnimation: DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH,
+  easing: 'ease_out',
+  cssEasing: DEMO_EASING_CSS.ease_out,
   transitioning: null,
   focusHidden: false,
   focusSlot: null,
@@ -62,6 +72,9 @@ const EMPTY_MOSAIC = {
   presetId: null,
   reveal: 'all',
   staggerMs: 0,
+  warming: false,
+  pendingReveal: false,
+  tilesReady: false,
 };
 
 function emptyComposedState() {
@@ -87,11 +100,15 @@ function mosaicRuntimeFromPreset(preset, stages, {
   (preset.screens || []).forEach((screen) => {
     screens[screen.id] = resolveMosaicScreen(screen, stages);
   });
+  const slotTransition = resolveMosaicSlotTransition(preset, null, DEMO_MOSAIC_ACTION.EXPAND);
   return {
     active: true,
     mode: 'grid',
     layout: preset.layout || '2x2',
     transitionMs: preset.transition_ms || 700,
+    expandAnimation: preset.expand_animation || DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH,
+    easing: slotTransition.easing,
+    cssEasing: slotTransition.cssEasing,
     transitioning,
     focusHidden: true,
     focusSlot: null,
@@ -101,7 +118,19 @@ function mosaicRuntimeFromPreset(preset, stages, {
     reveal: reveal || preset.reveal || DEMO_MOSAIC_REVEAL.ALL,
     staggerMs: staggerMs ?? preset.stagger_ms ?? 0,
     expandableSlots: preset.expandable_slots || [],
+    warming: false,
+    pendingReveal: false,
+    tilesReady: false,
   };
+}
+
+function firstMosaicPreset(items, startIndex = 0) {
+  const list = items || [];
+  for (let i = Math.max(0, startIndex); i < list.length; i += 1) {
+    const item = list[i];
+    if (item?.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.preset) return item.preset;
+  }
+  return null;
 }
 
 function composedStateForProgramItem(item, beatIndex) {
@@ -234,7 +263,10 @@ export function useDemoPlayer({ actions, data }) {
   const interactionHoldsRef = useRef(0);
   const interactionReleaseTimerRef = useRef(null);
   const applyTokenRef = useRef(0);
+  const mosaicPrefetchRef = useRef(new Map());
+  const mosaicWarmTimersRef = useRef([]);
   const mosaicTransitionTimerRef = useRef(null);
+  const mosaicTilesReadyRef = useRef(false);
   const mosaicRuntimeRef = useRef(EMPTY_MOSAIC);
   mosaicRuntimeRef.current = mosaicRuntime;
   const enterTimerRef = useRef(null);
@@ -402,24 +434,26 @@ export function useDemoPlayer({ actions, data }) {
 
   /** Подгружает данные, нужные шагам этапа (вкладки при этом не переключаются). */
   const prefetchForStage = useCallback(async (stage) => {
-    if (!stage) return;
+    if (!stage?.steps?.length) return;
     const api = actionsRef.current;
     const current = dataRef.current;
     const tasks = [];
+    const ids = collectStageEntityIds(stage);
 
-    const needsEvents = stage.steps.some((step) => step.tool === DEMO_TOOL.EVENTS);
+    const needsEvents = stage.steps.some((step) => step.tool === DEMO_TOOL.EVENTS)
+      || ids.event_ids.size > 0;
     if (needsEvents && !(current.events || []).length) {
       tasks.push(api.fetchEvents?.());
     }
 
     const situationSteps = stage.steps.filter((step) => step.tool === DEMO_TOOL.SITUATIONS);
-    if (situationSteps.length) {
+    if (situationSteps.length || ids.situation_ids.size) {
       if (!(current.situations || []).length) {
         tasks.push(api.fetchSituations?.());
       }
-      const situationIds = situationSteps.flatMap(
-        (step) => (step.selection?.situation_ids || []).slice(0, 1),
-      );
+      const situationIds = situationSteps.length
+        ? situationSteps.flatMap((step) => (step.selection?.situation_ids || []).slice(0, 1))
+        : [...ids.situation_ids];
       if (situationIds.length) {
         tasks.push(api.loadSituationRevisions?.(situationIds));
       }
@@ -427,6 +461,39 @@ export function useDemoPlayer({ actions, data }) {
 
     await Promise.all(tasks.filter(Boolean).map((task) => Promise.resolve(task).catch(() => null)));
   }, []);
+
+  /** Prefetch всех этапов пресета мультиэкрана + прогрев срезов каталога. */
+  const prefetchForMosaic = useCallback(async (preset, stages) => {
+    if (!preset) return;
+    const key = String(preset.id || '');
+    if (key) {
+      const inflight = mosaicPrefetchRef.current.get(key);
+      if (inflight) return inflight;
+    }
+
+    const run = (async () => {
+      warmMosaicPresetCatalogs(preset, stages, dataRef.current || {});
+      const screens = preset.screens || [];
+      const seen = new Set();
+      const tasks = [];
+      screens.forEach((screen) => {
+        const stage = findStage(stages, screen.stage_id);
+        if (!stage || seen.has(String(stage.id))) return;
+        seen.add(String(stage.id));
+        tasks.push(prefetchForStage(stage));
+      });
+      await Promise.all(tasks);
+      warmMosaicPresetCatalogs(preset, stages, dataRef.current || {});
+    })();
+
+    if (key) mosaicPrefetchRef.current.set(key, run);
+    try {
+      await run;
+    } catch (err) {
+      if (key) mosaicPrefetchRef.current.delete(key);
+      throw err;
+    }
+  }, [prefetchForStage]);
 
   /**
    * Применяет свёрнутое состояние сценария целиком, а не по приращению:
@@ -555,14 +622,19 @@ export function useDemoPlayer({ actions, data }) {
       const action = item.mosaicAction || item.item?.mosaic_action || DEMO_MOSAIC_ACTION.SHOW_GRID;
       const slot = item.slot || item.item?.slot || null;
       const samePreset = Boolean(prev.active && prev.presetId === item.preset.id);
+      if (!samePreset) mosaicTilesReadyRef.current = false;
       const stagger = !samePreset && (
         enterEffect === DEMO_PROGRAM_TRANSITION.STAGGER
         || item.preset.reveal === DEMO_MOSAIC_REVEAL.STAGGER
       );
       const fade = animate && !samePreset && enterEffect === DEMO_PROGRAM_TRANSITION.FADE;
-      const transitionMs = animate
+      const gridEnterMs = animate
         ? (item.item?.enter?.duration_ms || item.preset.transition_ms || 700)
         : 0;
+      const slotTransition = resolveMosaicSlotTransition(item.preset, item.item, action);
+      const isSlotMorph = action === DEMO_MOSAIC_ACTION.EXPAND
+        || action === DEMO_MOSAIC_ACTION.COLLAPSE;
+      const morphMs = animate && isSlotMorph ? slotTransition.durationMs : 0;
 
       const base = samePreset
         ? {
@@ -570,7 +642,12 @@ export function useDemoPlayer({ actions, data }) {
           transitioning: null,
           reveal: DEMO_MOSAIC_REVEAL.ALL,
           staggerMs: 0,
-          transitionMs: transitionMs || prev.transitionMs || 700,
+          transitionMs: isSlotMorph
+            ? (morphMs || prev.transitionMs || 700)
+            : (gridEnterMs || prev.transitionMs || 700),
+          expandAnimation: slotTransition.animation,
+          easing: slotTransition.easing,
+          cssEasing: slotTransition.cssEasing,
         }
         : mosaicRuntimeFromPreset(item.preset, stages, {
           transitioning: fade ? 'enter' : null,
@@ -578,12 +655,21 @@ export function useDemoPlayer({ actions, data }) {
           staggerMs: item.preset.stagger_ms,
         });
 
-      if (transitionMs) base.transitionMs = transitionMs;
+      if (isSlotMorph) {
+        base.transitionMs = morphMs || slotTransition.durationMs;
+        base.expandAnimation = slotTransition.animation;
+        base.easing = slotTransition.easing;
+        base.cssEasing = slotTransition.cssEasing;
+      } else if (gridEnterMs) {
+        base.transitionMs = gridEnterMs;
+      }
 
       if (action === DEMO_MOSAIC_ACTION.EXPAND && slot
         && (item.preset.expandable_slots || []).includes(slot)) {
         setMosaicRuntime({
           ...base,
+          warming: false,
+          pendingReveal: false,
           mode: animate ? 'expanding' : 'focus',
           focusHidden: false,
           focusSlot: slot,
@@ -607,6 +693,8 @@ export function useDemoPlayer({ actions, data }) {
         if (animate && wasFocused && fromSlot) {
           setMosaicRuntime({
             ...base,
+            warming: false,
+            pendingReveal: false,
             mode: 'collapsing',
             focusHidden: false,
             focusSlot: fromSlot,
@@ -624,6 +712,8 @@ export function useDemoPlayer({ actions, data }) {
         }
         setMosaicRuntime({
           ...base,
+          warming: false,
+          pendingReveal: false,
           mode: 'grid',
           focusHidden: true,
           focusSlot: null,
@@ -632,13 +722,18 @@ export function useDemoPlayer({ actions, data }) {
         return;
       }
 
+      const tilesReady = mosaicTilesReadyRef.current;
       setMosaicRuntime({
         ...base,
         mode: 'grid',
-        focusHidden: true,
+        warming: !tilesReady,
+        pendingReveal: !tilesReady,
+        tilesReady,
+        focusHidden: tilesReady,
         focusSlot: action === DEMO_MOSAIC_ACTION.SHOW_GRID ? null : (base.focusSlot || null),
+        transitioning: tilesReady ? base.transitioning : null,
       });
-      if (base.transitioning) {
+      if (tilesReady && base.transitioning) {
         mosaicTransitionTimerRef.current = setTimeout(() => {
           setMosaicRuntime((current) => ({ ...current, transitioning: null }));
         }, base.transitionMs || 700);
@@ -646,24 +741,35 @@ export function useDemoPlayer({ actions, data }) {
       return;
     }
 
-    const transitioning = animate && prev.active
-      ? 'exit'
-      : (animate && enterEffect === DEMO_PROGRAM_TRANSITION.FADE ? 'enter' : null);
-    if (prev.active && transitioning === 'exit') {
-      setMosaicRuntime({ ...prev, transitioning, focusHidden: true, mode: 'grid' });
-      mosaicTransitionTimerRef.current = setTimeout(() => {
-        setMosaicRuntime({ ...EMPTY_MOSAIC });
-      }, prev.transitionMs || 700);
+    if (prev.active && prev.presetId) {
+      const parkWarm = () => {
+        setMosaicRuntime({
+          ...prev,
+          warming: true,
+          pendingReveal: false,
+          transitioning: null,
+          focusHidden: false,
+          mode: 'grid',
+          focusSlot: null,
+          reveal: DEMO_MOSAIC_REVEAL.ALL,
+          staggerMs: 0,
+        });
+      };
+      if (animate && !prev.warming) {
+        setMosaicRuntime({
+          ...prev,
+          transitioning: 'exit',
+          focusHidden: true,
+          mode: 'grid',
+        });
+        mosaicTransitionTimerRef.current = setTimeout(parkWarm, prev.transitionMs || 700);
+        return;
+      }
+      parkWarm();
       return;
     }
-    setMosaicRuntime(transitioning === 'enter'
-      ? { ...EMPTY_MOSAIC, transitioning: 'enter' }
-      : { ...EMPTY_MOSAIC });
-    if (transitioning === 'enter') {
-      mosaicTransitionTimerRef.current = setTimeout(() => {
-        setMosaicRuntime({ ...EMPTY_MOSAIC });
-      }, 700);
-    }
+
+    setMosaicRuntime({ ...EMPTY_MOSAIC });
   }, [clearMosaicTransitionTimer, scenario?.stages]);
 
   /**
@@ -731,9 +837,17 @@ export function useDemoPlayer({ actions, data }) {
     const mosaicFocus = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC
       && (item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
         || item.mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE);
-    const prefetchTarget = prefetchTargetFromItem(item, scenario?.stages || []);
-    prefetchForStage(prefetchTarget).then(() => {
+    const mosaicGrid = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC && !mosaicFocus;
+    const stages = scenario?.stages || [];
+    const prefetchPromise = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.preset
+      ? prefetchForMosaic(item.preset, stages)
+      : prefetchForStage(prefetchTargetFromItem(item, stages));
+    prefetchPromise.then(() => {
       if (applyTokenRef.current !== token) return;
+      // На сетке основную карту не трогаем: она скрыта, а плитки сами
+      // применяют срез этапа. applyState здесь только дублирует работу и
+      // пересобирает маркеры MapLibre в момент mount N карт.
+      if (mosaicGrid) return;
       applyState(state, { instant: instant || mosaicFocus });
     });
     setAnimationRunId((prev) => prev + 1);
@@ -742,6 +856,7 @@ export function useDemoPlayer({ actions, data }) {
     applyProgramMosaic,
     applyState,
     clearEnterExitTimers,
+    prefetchForMosaic,
     prefetchForStage,
     programItems,
     publishProgress,
@@ -840,8 +955,8 @@ export function useDemoPlayer({ actions, data }) {
       lastFrameAtRef.current = now;
 
       // Пока докладчик двигает карту, отсчёт такта стоит: автопереход не должен
-      // выдёргивать камеру из-под руки.
-      if (interactionHoldsRef.current > 0) {
+      // выдёргивать камеру из-под руки. То же — пока мультиэкран ещё греется.
+      if (interactionHoldsRef.current > 0 || mosaicRuntimeRef.current?.pendingReveal) {
         beatStartedAtRef.current += delta;
         frameRef.current = requestAnimationFrame(tick);
         return;
@@ -922,17 +1037,49 @@ export function useDemoPlayer({ actions, data }) {
     const nextProgram = buildProgramPlayback(normalized);
     if (!nextProgram.items.length) return false;
     clearMosaicCatalogCache();
+    mosaicTilesReadyRef.current = false;
+    mosaicPrefetchRef.current.clear();
+    mosaicWarmTimersRef.current.forEach((id) => clearTimeout(id));
+    mosaicWarmTimersRef.current = [];
     if (!snapshotRef.current) captureSnapshot();
     setScenario(normalized);
     setBlackout(DEMO_BLACKOUT.NONE);
+    const stages = normalized.stages || [];
+    const presets = normalized.mosaic?.presets || [];
+    const warmPreset = firstMosaicPreset(nextProgram.items, startIndex);
+    if (warmPreset) {
+      prefetchForMosaic(warmPreset, stages).catch(() => null);
+      const warm = {
+        ...mosaicRuntimeFromPreset(warmPreset, stages),
+        warming: true,
+        pendingReveal: false,
+        tilesReady: false,
+        focusHidden: false,
+      };
+      mosaicRuntimeRef.current = warm;
+      setMosaicRuntime(warm);
+    } else {
+      mosaicRuntimeRef.current = EMPTY_MOSAIC;
+      setMosaicRuntime(EMPTY_MOSAIC);
+    }
+    presets.forEach((preset) => {
+      if (warmPreset && String(preset.id) === String(warmPreset.id)) return;
+      mosaicWarmTimersRef.current.push(window.setTimeout(() => {
+        prefetchForMosaic(preset, stages).catch(() => null);
+      }, 900));
+    });
     goTo(startIndex, { programList: nextProgram.items });
     return true;
-  }, [captureSnapshot, goTo]);
+  }, [captureSnapshot, goTo, prefetchForMosaic]);
 
   const stop = useCallback(({ restore = true } = {}) => {
     stopFrameLoop();
     clearMosaicTransitionTimer();
     clearEnterExitTimers();
+    mosaicWarmTimersRef.current.forEach((id) => clearTimeout(id));
+    mosaicWarmTimersRef.current = [];
+    mosaicPrefetchRef.current.clear();
+    mosaicTilesReadyRef.current = false;
     if (interactionReleaseTimerRef.current) {
       clearTimeout(interactionReleaseTimerRef.current);
       interactionReleaseTimerRef.current = null;
@@ -1118,7 +1265,9 @@ export function useDemoPlayer({ actions, data }) {
         preset_id: preset.id,
         mosaic_action: mosaicAction,
         slot: slot || null,
-        duration_ms: mosaicAction === DEMO_MOSAIC_ACTION.SHOW_GRID ? 0 : (preset.transition_ms || 700),
+        duration_ms: mosaicAction === DEMO_MOSAIC_ACTION.SHOW_GRID
+          ? 0
+          : resolveMosaicSlotTransition(preset, null, mosaicAction).durationMs,
       })],
     });
   }, [start]);
@@ -1303,11 +1452,41 @@ export function useDemoPlayer({ actions, data }) {
     waitingForPresenter,
   ]);
 
+  const onMosaicTilesReady = useCallback((ready) => {
+    mosaicTilesReadyRef.current = Boolean(ready);
+    if (!ready) {
+      setMosaicRuntime((current) => (
+        current.tilesReady ? { ...current, tilesReady: false } : current
+      ));
+      return;
+    }
+    setMosaicRuntime((current) => {
+      if (!current.active) return current;
+      if (current.pendingReveal) {
+        beatStartedAtRef.current = performance.now();
+        lastFrameAtRef.current = performance.now();
+        pausedElapsedRef.current = 0;
+        publishProgress(0);
+        return {
+          ...current,
+          warming: false,
+          pendingReveal: false,
+          tilesReady: true,
+          focusHidden: true,
+          mode: 'grid',
+        };
+      }
+      if (current.tilesReady) return current;
+      return { ...current, tilesReady: true };
+    });
+  }, [publishProgress]);
+
   return {
     playback,
     demoAnimation,
     demoTexts,
     mosaicRuntime,
+    onMosaicTilesReady,
     isActive,
     start,
     stop,
