@@ -1403,10 +1403,11 @@ class DemoStepTool(models.TextChoices):
     FORMULAR = 'formular', 'Формуляр объекта'
     COUNTRY = 'country', 'Справка по стране'
     TEXT = 'text', 'Текст на карте'
+    MOSAIC = 'mosaic', 'Мультиэкран'
 
 
 class DemoStepStartMode(models.TextChoices):
-    ON_CLICK = 'on_click', 'По щелчку (новый этап)'
+    ON_CLICK = 'on_click', 'Новый такт'
     AFTER_PREVIOUS = 'after_previous', 'После предыдущего'
     WITH_PREVIOUS = 'with_previous', 'Вместе с предыдущим'
 
@@ -1416,6 +1417,10 @@ class DemoStepEffect(models.TextChoices):
     FADE_IN = 'fade_in', 'Проявление'
     REVEAL_FROM_CENTER = 'reveal_from_center', 'Раскрытие от центра'
     BLINK = 'blink', 'Мигание'
+    FLICKER = 'flicker', 'Мерцание'
+    GLOW = 'glow', 'Свечение'
+    COLOR_SHIFT = 'color_shift', 'Переливание цвета'
+    SWAY = 'sway', 'Колыхание'
     STATE_CYCLE = 'state_cycle', 'Смена состояний'
     DIRECTIONAL_WIPE = 'directional_wipe', 'Направленное появление'
 
@@ -1452,6 +1457,18 @@ class DemoScenario(models.Model):
         verbose_name='Автоматически переключать этапы',
         help_text='Если выключено, переход к следующему этапу выполняет докладчик',
     )
+    mosaic = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Мультиэкран (JSON)',
+        help_text='presets[{id, title, layout, reveal, screens[{id, label, loop, stage_id}]}], active_preset_id',
+    )
+    sequence = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Программа показа (JSON)',
+        help_text='[{type, stage_id|preset_id, duration_ms, wait_for_presenter, enter, exit}]',
+    )
     default_step_duration_ms = models.PositiveIntegerField(
         default=DEFAULT_DEMO_STEP_DURATION_MS,
         verbose_name='Длительность шага по умолчанию, мс',
@@ -1476,6 +1493,42 @@ class DemoScenario(models.Model):
         return self.title
 
 
+class DemoScenarioStage(models.Model):
+    """Этап-шаблон вида карты: камера, объекты, текст, анимации."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    scenario = models.ForeignKey(
+        DemoScenario,
+        on_delete=models.CASCADE,
+        related_name='stages',
+        verbose_name='Сценарий',
+    )
+    order = models.PositiveIntegerField(default=0, verbose_name='Порядок')
+    title = models.CharField(max_length=255, blank=True, default='', verbose_name='Название этапа')
+
+    class Meta:
+        verbose_name = 'Этап сценария демонстрации'
+        verbose_name_plural = 'Этапы сценария демонстрации'
+        ordering = ['scenario_id', 'order']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('scenario', 'order'),
+                name='uniq_demo_scenario_stage_order',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=('scenario', 'order')),
+        ]
+
+    def __str__(self):
+        return self.title or f'Этап {self.order + 1}'
+
+
 class DemoScenarioStep(models.Model):
     """Шаг сценария демонстрации: что показать, как долго и с какой анимацией."""
 
@@ -1490,6 +1543,14 @@ class DemoScenarioStep(models.Model):
         on_delete=models.CASCADE,
         related_name='steps',
         verbose_name='Сценарий',
+    )
+    stage = models.ForeignKey(
+        'DemoScenarioStage',
+        on_delete=models.CASCADE,
+        related_name='steps',
+        verbose_name='Этап',
+        null=True,
+        blank=True,
     )
     order = models.PositiveIntegerField(default=0, verbose_name='Порядок')
     title = models.CharField(max_length=255, blank=True, default='', verbose_name='Название шага')
@@ -1523,7 +1584,7 @@ class DemoScenarioStep(models.Model):
         default=dict,
         blank=True,
         verbose_name='Выбранные элементы (JSON)',
-        help_text='target_ids, event_ids, situation_ids, zone_leaves, overlay_layer_ids, country_isos',
+        help_text='target_ids, event_ids, situation_ids, zone_leaves, overlay_layer_ids, country_isos, mosaic_action',
     )
     animation = models.JSONField(
         default=dict,
@@ -1537,19 +1598,26 @@ class DemoScenarioStep(models.Model):
         verbose_name='Текст на карте (JSON)',
         help_text='content, anchor, lat, lng, screen, offset, width, style, enter, exit',
     )
+    mosaic = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Мультиэкран этапа (JSON)',
+        help_text='slot, loop, label — задаётся на первом шаге этапа (on_click)',
+    )
 
     class Meta:
         verbose_name = 'Шаг сценария демонстрации'
         verbose_name_plural = 'Шаги сценария демонстрации'
-        ordering = ['scenario_id', 'order']
+        ordering = ['scenario_id', 'stage_id', 'order']
         constraints = [
             models.UniqueConstraint(
-                fields=('scenario', 'order'),
-                name='uniq_demo_scenario_step_order',
+                fields=('stage', 'order'),
+                name='uniq_demo_scenario_stage_step_order',
             ),
         ]
         indexes = [
             models.Index(fields=('scenario', 'order')),
+            models.Index(fields=('stage', 'order')),
         ]
 
     def __str__(self):

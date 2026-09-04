@@ -57,12 +57,13 @@ import { MapFullscreenMeasureBanner } from "./MapFullscreenZoomControls";
 import "./MapComponent.css";
 import "./MapFullscreen.css";
 import { applyDemoEffectCssVars, demoEffectClassName, demoEffectCssVars, demoMarkerIconClass, resolveEventDemoEffect } from "./demo/eventDemoAnimations";
+import { applyObjectDemoEffect, objectDemoMarkerKeySuffix, resolveObjectDemoEffect } from "./demo/objectDemoAnimations";
+import "./demo/DemoAnimations.css";
 import { setDemoAnimationMap } from "./demo/demoRafDriver";
 import DemoPlaybackBar from "../DemoMode/DemoPlaybackBar";
 import DemoTextMapEditor from "../DemoMode/DemoTextMapEditor";
 import DemoTextLayer from "./demo/DemoTextLayer";
 import { alignDemoText } from "../../utils/demoScenario";
-import "./demo/DemoAnimations.css";
 
 // delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -284,8 +285,18 @@ const FlagMapMarker = React.memo(function FlagMapMarker({
     onAltClickAddTarget,
     onMarkerClick,
     onMarkerHover,
+    demoEffect = null,
 }) {
+    const markerRef = useRef(null);
+
+    useEffect(() => {
+        applyObjectDemoEffect(markerRef.current, demoEffect);
+    }, [demoEffect]);
+
     const eventHandlers = useMemo(() => ({
+        add: (e) => {
+            applyObjectDemoEffect(e.target, demoEffect);
+        },
         click: (e) => {
             if (eventDrawingActive) {
                 onEventMapClick?.(e.latlng, e.target._map);
@@ -305,12 +316,13 @@ const FlagMapMarker = React.memo(function FlagMapMarker({
             if (obj.id) onMarkerHover(obj.id);
         },
         mouseout: () => onMarkerHover(null),
-    }), [obj.id, measureMode, eventDrawingActive, altAddTargetActive, onEventMapClick, onAltClickAddTarget, onMarkerClick, onMarkerHover]);
+    }), [obj.id, measureMode, eventDrawingActive, altAddTargetActive, onEventMapClick, onAltClickAddTarget, onMarkerClick, onMarkerHover, demoEffect]);
 
     if (!icon) return null;
 
     return (
         <Marker
+            ref={markerRef}
             position={[obj.lat, obj.lng]}
             icon={icon}
             draggable={false}
@@ -319,27 +331,42 @@ const FlagMapMarker = React.memo(function FlagMapMarker({
     );
 });
 
-function getFlagMarkerKey(o) {
+function getFlagMarkerKey(o, demoEffect) {
     const markerId = o.marker?.id ?? 'no-marker';
-    return `${o.id}-${markerId}`;
+    return `${o.id}-${markerId}${objectDemoMarkerKeySuffix(demoEffect)}`;
 }
 
-function FlagMarkersLayer({ markers, iconsById, measureMode, eventDrawingActive, altAddTargetActive, onEventMapClick, onAltClickAddTarget, onMarkerClick, onMarkerHover }) {
+function FlagMarkersLayer({
+    markers,
+    iconsById,
+    measureMode,
+    eventDrawingActive,
+    altAddTargetActive,
+    onEventMapClick,
+    onAltClickAddTarget,
+    onMarkerClick,
+    onMarkerHover,
+    demoAnimation = null,
+}) {
     const visible = useMapViewportMarkers(markers);
-    return visible.map((obj) => (
-        <FlagMapMarker
-            key={getFlagMarkerKey(obj)}
-            obj={obj}
-            icon={iconsById[obj.id]}
-            measureMode={measureMode}
-            eventDrawingActive={eventDrawingActive}
-            altAddTargetActive={altAddTargetActive}
-            onEventMapClick={onEventMapClick}
-            onAltClickAddTarget={onAltClickAddTarget}
-            onMarkerClick={onMarkerClick}
-            onMarkerHover={onMarkerHover}
-        />
-    ));
+    return visible.map((obj) => {
+        const demoEffect = resolveObjectDemoEffect(obj, demoAnimation);
+        return (
+            <FlagMapMarker
+                key={getFlagMarkerKey(obj, demoEffect)}
+                obj={obj}
+                icon={iconsById[obj.id]}
+                measureMode={measureMode}
+                eventDrawingActive={eventDrawingActive}
+                altAddTargetActive={altAddTargetActive}
+                onEventMapClick={onEventMapClick}
+                onAltClickAddTarget={onAltClickAddTarget}
+                onMarkerClick={onMarkerClick}
+                onMarkerHover={onMarkerHover}
+                demoEffect={demoEffect}
+            />
+        );
+    });
 }
 
 const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
@@ -355,8 +382,18 @@ const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
     onMarkerHover,
     onGroupHover,
     onPinGroup,
+    demoEffect = null,
 }) {
+    const markerRef = useRef(null);
+
+    useEffect(() => {
+        applyObjectDemoEffect(markerRef.current, demoEffect);
+    }, [demoEffect]);
+
     const eventHandlers = useMemo(() => ({
+        add: (e) => {
+            applyObjectDemoEffect(e.target, demoEffect);
+        },
         mouseover: () => {
             if (obj.isGroupIcon) {
                 onGroupHover(obj.groupId);
@@ -410,12 +447,14 @@ const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
         onMarkerHover,
         onGroupHover,
         onPinGroup,
+        demoEffect,
     ]);
 
     if (!icon) return null;
 
     return (
         <Marker
+            ref={markerRef}
             position={[obj.lat, obj.lng]}
             icon={icon}
             draggable={false}
@@ -439,6 +478,7 @@ function NonFlagMarkersLayer({
     onMarkerHover,
     onGroupHover,
     onPinGroup,
+    demoAnimation = null,
 }) {
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const candidates = useMemo(() => {
@@ -449,10 +489,11 @@ function NonFlagMarkersLayer({
     const visible = useMapViewportMarkers(candidates);
 
     return visible.map((obj) => {
+        const demoEffect = resolveObjectDemoEffect(obj, demoAnimation);
         const markerId = obj.marker?.id ?? 'no-marker';
         const key = obj.isGroupIcon
-            ? `non-flag-group-${obj.groupId}`
-            : `non-flag-${obj.id}-${markerId}`;
+            ? `non-flag-group-${obj.groupId}${objectDemoMarkerKeySuffix(demoEffect)}`
+            : `non-flag-${obj.id}-${markerId}${objectDemoMarkerKeySuffix(demoEffect)}`;
         return (
             <NonFlagMapMarker
                 key={key}
@@ -468,6 +509,7 @@ function NonFlagMarkersLayer({
                 onMarkerHover={onMarkerHover}
                 onGroupHover={onGroupHover}
                 onPinGroup={onPinGroup}
+                demoEffect={demoEffect}
             />
         );
     });
@@ -630,27 +672,32 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
 });
 
  // Компонент для отслеживания изменений зума
+function EmbedMapFixer({ enabled }) {
+    const map = useMap();
+    useEffect(() => {
+        if (!enabled || !map) return undefined;
+        const run = () => {
+            try {
+                map.invalidateSize();
+            } catch {
+                // контейнер ещё без размеров
+            }
+        };
+        run();
+        const t0 = setTimeout(run, 50);
+        const t1 = setTimeout(run, 300);
+        return () => {
+            clearTimeout(t0);
+            clearTimeout(t1);
+        };
+    }, [enabled, map]);
+    return null;
+}
+
 function ZoomTracker({ onZoomChange }) {
     const map = useMapEvents({
         zoomend: () => {
-            const zoom = map.getZoom();
-            onZoomChange(zoom);
-
-            // Debug: значение масштаба (zoom), используемое в текущий момент для запроса тайлов
-            const center = map.getCenter();
-            const metersPerPx = 156543.03392 * Math.cos((center.lat * Math.PI) / 180) / Math.pow(2, zoom);
-
-            // Простой расчёт Representative Fraction (аналогично MapScaleBar)
-            const denomRaw = Math.round(metersPerPx / 0.000264583333);
-            let denom = AVAILABLE_DENOMINATORS[0];
-            let bestDiff = Math.abs(denomRaw - denom);
-            for (const c of AVAILABLE_DENOMINATORS) {
-                const diff = Math.abs(denomRaw - c);
-                if (diff < bestDiff) {
-                    bestDiff = diff;
-                    denom = c;
-                }
-            }
+            onZoomChange(map.getZoom());
         }
     });
     return null;
@@ -678,13 +725,14 @@ function MapEventBridge({ apiRef }) {
 }
 
 /** Связывает Leaflet-карту с rAF-анимациями демонстрации и отдаёт API слоёв наружу. */
-function DemoMapBridge({ onOverlayLayersRef, setOnlyOverlayLayers, overlayEnabledById }) {
+function DemoMapBridge({ onOverlayLayersRef, setOnlyOverlayLayers, overlayEnabledById, bindAnimationMap = true }) {
     const map = useMap();
 
     useEffect(() => {
+        if (!bindAnimationMap) return undefined;
         setDemoAnimationMap(map);
         return () => setDemoAnimationMap(null);
-    }, [map]);
+    }, [map, bindAnimationMap]);
 
     useEffect(() => {
         if (!onOverlayLayersRef) return undefined;
@@ -889,6 +937,10 @@ function MapComponent({
     onCountryIsoChange,
     onCountryModalClose,
     onDemoCountryBoundsRef,
+    embed = false,
+    embedPlaying = true,
+    embedOverlayLayerIds = null,
+    suspendMap = false,
 }) {
     const zoneObjectsSource = zoneObjects.length > 0 ? zoneObjects : objects;
     const mapConsiderTerrain = Boolean(considerTerrain) && !demoPlayback?.isActive;
@@ -902,7 +954,7 @@ function MapComponent({
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
     const [vectorMapError, setVectorMapError] = useState(null);
-    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, setOnlyLayers: setOnlyOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers(maplibreMapRef, maplibreReady);
+    const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, setOnlyLayers: setOnlyOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers(maplibreMapRef, maplibreReady, { persist: !embed });
     const [isMeasureMode, setIsMeasureMode] = useState(false);
     const [isMeasureMenuOpen, setIsMeasureMenuOpen] = useState(false);
     const [measurePoints, setMeasurePoints] = useState([]);
@@ -916,7 +968,7 @@ function MapComponent({
     const [markerData, setMarkerData] = useState({ iconsById: {}, clusteredObjects: [], bubbles: [] });
     const [flagBubbles, setFlagBubbles] = useState([]);
     const [nonFlagBubbles, setNonFlagBubbles] = useState([]);
-    const [clusterMode, setClusterModeState] = useState(() => loadMapClusterMode());
+    const [clusterMode, setClusterModeState] = useState(() => (embed ? 'legacy' : loadMapClusterMode()));
     const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
@@ -930,6 +982,21 @@ function MapComponent({
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
     const [markerVersion, setMarkerVersion] = useState(0);
+
+    useEffect(() => {
+        if (!embed) return;
+        setOnlyOverlayLayers(embedOverlayLayerIds || []);
+    }, [embed, embedOverlayLayerIds, setOnlyOverlayLayers]);
+
+    useEffect(() => {
+        if (!maplibreReady) return undefined;
+        const map = maplibreMapRef.current;
+        if (!map) return undefined;
+        const shouldPause = suspendMap || (embed && embedPlaying === false);
+        if (shouldPause) map.pause?.();
+        else map.resume?.();
+        return undefined;
+    }, [embed, embedPlaying, maplibreReady, suspendMap]);
 
     const handleMaplibreReady = useCallback((map) => {
         maplibreMapRef.current = map;
@@ -1498,21 +1565,40 @@ function MapComponent({
     }, [pinnedGroupId, pinnedZonePanel]);
 
     useEffect(() => {
-        const observer = new ResizeObserver(() => {
-            if (mapRef.current) {
-                setTimeout(() => {
-                    if (mapRef.current) {
-                        mapRef.current.invalidateSize();
-                    }
-                }, 0);
+        let raf = 0;
+        const resize = () => {
+            raf = 0;
+            const map = mapRef.current;
+            if (!map) return;
+            try {
+                map.invalidateSize({ animate: false, pan: false });
+            } catch {
+                try {
+                    map.invalidateSize();
+                } catch {
+                    // карта ещё без размеров
+                }
             }
+            const ml = maplibreMapRef.current;
+            if (ml?.resize) {
+                try {
+                    ml.resize();
+                } catch {
+                    // MapLibre ещё без холста
+                }
+            }
+        };
+        const observer = new ResizeObserver(() => {
+            if (raf) return;
+            raf = requestAnimationFrame(resize);
         });
         if (containerRef.current) {
-            observer.observe(containerRef.current)
+            observer.observe(containerRef.current);
         }
         return () => {
             observer.disconnect();
-        }
+            if (raf) cancelAnimationFrame(raf);
+        };
     }, []);
 
     useEffect(() => {
@@ -1552,6 +1638,7 @@ function MapComponent({
     }, [isMeasureMenuOpen]);
 
     useEffect(() => {
+        if (embed) return undefined;
         fetch("/geo/custom.geo.json")
             .then((res) => {
                 if (!res.ok) throw new Error(`GeoJSON HTTP ${res.status}`);
@@ -1559,7 +1646,8 @@ function MapComponent({
             })
             .then(setGeoData)
             .catch((err) => console.warn("Не удалось загрузить границы стран:", err));
-    }, []);
+        return undefined;
+    }, [embed]);
 
     const onEachCountry = useCallback((feature, layer) => {
         const featureId = feature.id || feature.prperties?.id;
@@ -2178,10 +2266,10 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${(demoPlayback?.isActive || demoTextEditDraft) ? " map--demo" : ""}${isDemoPlayback && demoShowDock ? " map--demo-dock" : ""}`}
+            className={`map ${embed ? "map--embed " : ""}${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${((demoPlayback?.isActive || demoTextEditDraft) && !embed) ? " map--demo" : ""}${isDemoPlayback && demoShowDock && !embed ? " map--demo-dock" : ""}`}
             ref={containerRef}
         >
-            {isFullscreen && (
+            {isFullscreen && !embed && (
                 <>
                     <MapFullscreenTopBar
                         toolsMenuRef={measureMenuRef}
@@ -2274,11 +2362,20 @@ function MapComponent({
                 style={{height: "100%", width: "100%"}}
                 maxBounds={mapMaxBounds}
                 maxBoundsViscosity={1}
+                zoomControl={!embed}
+                attributionControl={!embed}
+                dragging={!embed}
+                scrollWheelZoom={!embed}
+                doubleClickZoom={!embed}
+                boxZoom={!embed}
+                keyboard={!embed}
+                touchZoom={!embed}
             >
                 <ZoomTracker onZoomChange={setCurrentZoom} />
-                <MapScaleBar isFullscreen={isFullscreen} />
+                <EmbedMapFixer enabled={embed} />
+                {!embed && <MapScaleBar isFullscreen={isFullscreen} />}
                 <MapEventBridge apiRef={mapEventApiRef} />
-                {!isFullscreen && (
+                {!embed && !isFullscreen && (
                     <MapSplitHud
                         toolsOpen={isMeasureMenuOpen}
                         onToggleTools={() => setIsMeasureMenuOpen((v) => !v)}
@@ -2304,19 +2401,22 @@ function MapComponent({
                     />
                 )}
                 <DemoMapBridge
-                    onOverlayLayersRef={onDemoOverlayLayersRef}
+                    onOverlayLayersRef={embed ? undefined : onDemoOverlayLayersRef}
                     setOnlyOverlayLayers={setOnlyOverlayLayers}
                     overlayEnabledById={overlayEnabledById}
+                    bindAnimationMap={!embed}
                 />
-                <DemoInteractionBridge
-                    active={Boolean(demoPlayback?.isActive)}
-                    onHold={onDemoInteractionHold}
-                    onRelease={onDemoInteractionRelease}
-                />
+                {!embed && (
+                    <DemoInteractionBridge
+                        active={Boolean(demoPlayback?.isActive)}
+                        onHold={onDemoInteractionHold}
+                        onRelease={onDemoInteractionRelease}
+                    />
+                )}
                 <DemoTextLayer
                     texts={demoTexts}
                     active={Boolean(demoPlayback?.isActive)}
-                    editText={demoTextEditDraft}
+                    editText={embed ? null : demoTextEditDraft}
                     onEditChange={onDemoTextEditChange}
                 />
                 {USE_VECTOR_MAP ? (
@@ -2382,14 +2482,14 @@ function MapComponent({
                 {vulnerabilityMapPoints.length > 0 && (
                     <VulnerabilityPointsLayer points={vulnerabilityMapPoints} />
                 )}
-                {geoData && (
+                {geoData && !embed && (
                         <MemoGeoJSON
                             data={geoData}
                             onEachFeature={onEachCountry}
                             style={countryStyle}
                         />
                 )}
-                {isMapDrawingEvent && (
+                {isMapDrawingEvent && !embed && (
                     <EventDraftLayer
                         drawMode={
                             isPolygonDrawActive
@@ -2488,6 +2588,7 @@ function MapComponent({
                     onAltClickAddTarget={handleAltClickAddTarget}
                     onMarkerClick={handleMarkerClickGuarded}
                     onMarkerHover={handleMarkerHover}
+                    demoAnimation={demoAnimation}
                 />
                 <NonFlagMarkersLayer
                     groupedObjects={nonFlagData.groupedObjects}
@@ -2504,6 +2605,7 @@ function MapComponent({
                     onMarkerHover={handleMarkerHover}
                     onGroupHover={updateGroupHover}
                     onPinGroup={setPinnedGroupId}
+                    demoAnimation={demoAnimation}
                 />
                 </>
                 )}
@@ -2590,7 +2692,7 @@ function MapComponent({
                     />
                 )}
             </MapContainer>
-            {showActionRadius && <ActionRadiusLegendButton actionTypes={actionTypes} />}
+            {showActionRadius && !embed && <ActionRadiusLegendButton actionTypes={actionTypes} />}
             {isFullscreen && showActionRadius && (pinnedZonePanel || hoveredZoneList.length > 0) && (
                 <ZoneHoverListPanel
                     zones={pinnedZonePanel?.zones ?? hoveredZoneList}
@@ -2602,14 +2704,14 @@ function MapComponent({
                 />
             )}
 
-            {!isFullscreen && (
+            {!embed && !isFullscreen && (
                 <FullscreenControl
                     isFullscreen={isFullscreen}
                     onToggle={toggleFullscreen}
                     sidebarOpen={false}
                 />
             )}
-            {!isFullscreen && (
+            {!embed && !isFullscreen && (
                 <MapSearchControl
                     objects={zoneObjectsSource}
                     countries={countriesList}
@@ -2617,6 +2719,7 @@ function MapComponent({
                     mapRef={mapRef}
                 />
             )}
+            {!embed && (
             <EventDrawingToolbar
                 visible={eventsDrawingEnabled && !isEventModalOpen && !isPolygonDrawActive && !isSituationDrawingActive && !demoTextEditDraft}
                 isEditMode={isEventEditModeActive}
@@ -2637,7 +2740,8 @@ function MapComponent({
                 onPolygonCoordChange={handleEventPolygonCoordChange}
                 polygonCoordError={eventPolygonCoordError}
             />
-            {demoTextEditDraft && (
+            )}
+            {!embed && demoTextEditDraft && (
                 <DemoTextMapEditor
                     text={demoTextEditDraft}
                     onChange={onDemoTextEditChange}
@@ -2709,7 +2813,7 @@ function MapComponent({
                     polygonCoordError={situationPolygonCoordError}
                 />
             )}
-            {detailSituation && (
+            {!embed && detailSituation && (
                 <SituationDetailPanel
                     situation={detailSituation}
                     revisions={filterRevisionsForSituation(situationRevisions, detailSituation.id)}
@@ -2726,7 +2830,7 @@ function MapComponent({
                     onNewState={onSituationNewState}
                 />
             )}
-            {selectedCountryIso && (
+            {!embed && selectedCountryIso && (
                 <CountryModal 
                     countryIso={selectedCountryIso}
                     onClose={() => {
@@ -2742,6 +2846,7 @@ function MapComponent({
                     initialCardId={demoPlayback?.isActive ? demoContentCardId : undefined}
                 />
             )}
+            {!embed && (
             <DemoPlaybackBar
                 playback={demoPlayback}
                 onToggle={onDemoToggle}
@@ -2751,6 +2856,7 @@ function MapComponent({
                 onGoToStage={onDemoGoToStage}
                 onBlackout={onDemoBlackout}
             />
+            )}
             {isEventModalOpen && (
                 <AddEventModal
                     isOpen={isEventModalOpen}
@@ -2768,7 +2874,7 @@ function MapComponent({
                 радио "Считывание координат" в контексте инструмента "Зона действия".
                 Ранее при активном showActionRadius координаты скрывались, если не был выбран специальный режим "coords". */}
             <div ref={cursorCoordsRef} className="map__cursor-coords" style={{ display: 'none' }} />
-            {vectorMapError && USE_VECTOR_MAP && (
+            {vectorMapError && USE_VECTOR_MAP && !embed && (
                 <DismissibleBanner
                     className="map__vector-error"
                     message={`Ошибка загрузки векторной карты: ${vectorMapError}`}

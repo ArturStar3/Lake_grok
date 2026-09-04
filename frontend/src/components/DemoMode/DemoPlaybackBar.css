@@ -26,10 +26,15 @@
     background: rgba(255, 255, 255, 0.14);
 }
 
+/* Прогресс тянем через scaleX: изменение width пересчитывало бы раскладку
+   на каждом кадре, а трансформация уходит в композитор. */
 .demo-playbar__progress-fill {
     height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: #4b9bff;
-    transition: width 120ms linear;
+    will-change: transform;
 }
 
 .demo-playbar__row {
@@ -267,8 +272,11 @@
 
 .demo-playbar__step-progress-fill {
     height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
     background: #7dd3fc;
-    transition: width 120ms linear;
+    will-change: transform;
 }
 
 .demo-playbar__exit {

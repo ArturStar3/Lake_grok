@@ -397,3 +397,48 @@ class DemoScenarioApiTests(APITestCase):
         headers = auth_header(self.client, 'demo_outsider', TEST_PASSWORD)
         response = self.client.get('/api/v1/demo-scenarios/', **headers)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_sequence_mosaic_expand_and_expandable_slots(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = '11111111-1111-1111-1111-111111111111'
+        preset_id = 'preset-test-expand'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Кавказ',
+                'steps': [build_step(title='Камера')],
+            }],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '2+3',
+                    'expandable_slots': ['a', 'c'],
+                    'screens': [
+                        {'id': 'a', 'label': 'A', 'stage_id': stage_id},
+                    ],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[
+                {'type': 'mosaic', 'preset_id': preset_id, 'mosaic_action': 'show_grid'},
+                {
+                    'type': 'mosaic',
+                    'preset_id': preset_id,
+                    'mosaic_action': 'focus_slot',
+                    'slot': 'a',
+                },
+                {'type': 'mosaic', 'preset_id': preset_id, 'mosaic_action': 'collapse'},
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        preset = response.data['mosaic']['presets'][0]
+        self.assertEqual(preset['expandable_slots'], ['a', 'c'])
+        self.assertEqual(
+            [item['mosaic_action'] for item in response.data['sequence']],
+            ['show_grid', 'expand', 'collapse'],
+        )
+        self.assertEqual(response.data['sequence'][1]['slot'], 'a')
+        self.assertIsNone(response.data['sequence'][0]['slot'])

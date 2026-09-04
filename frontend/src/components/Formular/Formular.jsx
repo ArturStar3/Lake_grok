@@ -12,6 +12,7 @@ import SituationsTable from "../OperationalSituation/SituationsTable";
 import SituationsTimeline from "../OperationalSituation/SituationsTimeline";
 import SituationModal from "../OperationalSituation/SituationModal";
 import MapComponent from "../MapComponent/MapComponent";
+import DemoMosaicShell from "../DemoMode/DemoMosaicShell";
 import Features from "../Features/Features";
 import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
@@ -366,7 +367,7 @@ export default function Formular({ onMapFullscreenChange }) {
                 next = list.find((item) => item.is_default) || list[0] || null;
             }
         }
-        if (!next?.steps?.length) {
+        if (!next?.sequence?.length && !next?.stages?.length) {
             setDemoStudioOpen(true);
             return;
         }
@@ -377,6 +378,24 @@ export default function Formular({ onMapFullscreenChange }) {
         setDemoStudioOpen(false);
         setDemoTextEditSession(null);
         demoPlayer.previewStep(step);
+    }, [demoPlayer]);
+
+    const handlePreviewDemoStage = useCallback((stage) => {
+        setDemoStudioOpen(false);
+        setDemoTextEditSession(null);
+        demoPlayer.previewStage(stage);
+    }, [demoPlayer]);
+
+    const handlePreviewDemoMosaic = useCallback((preset, stages) => {
+        setDemoStudioOpen(false);
+        setDemoTextEditSession(null);
+        demoPlayer.previewMosaic(preset, stages);
+    }, [demoPlayer]);
+
+    const handlePreviewDemoProgramItem = useCallback((draft, item) => {
+        setDemoStudioOpen(false);
+        setDemoTextEditSession(null);
+        demoPlayer.previewProgramItem(draft, item);
     }, [demoPlayer]);
 
     useEffect(() => {
@@ -1657,6 +1676,17 @@ export default function Formular({ onMapFullscreenChange }) {
                     </div>
                     <div className={`formular__features-wraper${isFullscreen ? " formular__features-wraper--fullscreen" : ""}`}>
                         <div className="formular__map">
+                            <DemoMosaicShell
+                                mosaicRuntime={demoPlayer.mosaicRuntime}
+                                mapRef={mapRef}
+                                objects={objects}
+                                events={events}
+                                situations={situations}
+                                situationRevisions={situationRevisions}
+                                actionTypes={actionTypesList}
+                                countriesList={countriesList}
+                                stages={demoPlayer.scenario?.stages || []}
+                            >
                             <MapComponent
                                 objects={filteredObjects}
                                 zoneObjects={objects}
@@ -1738,6 +1768,10 @@ export default function Formular({ onMapFullscreenChange }) {
                                 toggleQuickSelectCountry={toggleQuickSelectCountry}
                                 setAllQuickSelectCountries={setAllQuickSelectCountries}
                                 considerTerrain={considerTerrain}
+                                suspendMap={Boolean(
+                                    demoPlayer.mosaicRuntime?.active
+                                    && demoPlayer.mosaicRuntime?.focusHidden
+                                )}
                                 onConsiderTerrainChange={setConsiderTerrain}
                                 losGeometryByZoneKey={losGeometryByZoneKey}
                                 losComputingCount={losComputingCount}
@@ -1821,6 +1855,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 onDemoInteractionRelease={demoPlayer.releaseInteraction}
                                 onDemoOverlayLayersRef={overlayLayersApiRef}
                             />
+                            </DemoMosaicShell>
                         </div>
                         {!isFullscreen && isMeasureMode && (
                         <div className="formular__features">
@@ -1967,6 +2002,9 @@ export default function Formular({ onMapFullscreenChange }) {
                 onDelete={removeScenario}
                 onPlay={handlePlayDemo}
                 onPreviewStep={handlePreviewDemoStep}
+                onPreviewStage={handlePreviewDemoStage}
+                onPreviewMosaic={handlePreviewDemoMosaic}
+                onPreviewProgramItem={handlePreviewDemoProgramItem}
                 canWrite={canWriteDemo}
                 canDelete={canDeleteDemo}
                 objects={objects}

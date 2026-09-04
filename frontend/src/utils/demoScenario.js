@@ -15,6 +15,7 @@ export const DEMO_TOOL = {
   FORMULAR: 'formular',
   COUNTRY: 'country',
   TEXT: 'text',
+  MOSAIC: 'mosaic',
 };
 
 export const DEMO_EFFECT = {
@@ -22,6 +23,10 @@ export const DEMO_EFFECT = {
   FADE_IN: 'fade_in',
   REVEAL_FROM_CENTER: 'reveal_from_center',
   BLINK: 'blink',
+  FLICKER: 'flicker',
+  GLOW: 'glow',
+  COLOR_SHIFT: 'color_shift',
+  SWAY: 'sway',
   STATE_CYCLE: 'state_cycle',
   DIRECTIONAL_WIPE: 'directional_wipe',
 };
@@ -52,11 +57,23 @@ export const DEMO_TOOLS = [
   { id: DEMO_TOOL.TEXT, label: 'Текст на карте', icon: 'T' },
 ];
 
+export const DEMO_STAGE_TOOLS = DEMO_TOOLS;
+
+export const DEMO_START_MODES = [
+  { id: DEMO_START_MODE.AFTER_PREVIOUS, label: 'После предыдущего' },
+  { id: DEMO_START_MODE.WITH_PREVIOUS, label: 'Вместе с предыдущим' },
+  { id: DEMO_START_MODE.ON_CLICK, label: 'Новый такт' },
+];
+
 export const DEMO_EFFECTS = [
   { id: DEMO_EFFECT.NONE, label: 'Без анимации' },
   { id: DEMO_EFFECT.FADE_IN, label: 'Проявление' },
   { id: DEMO_EFFECT.REVEAL_FROM_CENTER, label: 'Раскрытие от центра' },
   { id: DEMO_EFFECT.BLINK, label: 'Мигание' },
+  { id: DEMO_EFFECT.FLICKER, label: 'Мерцание' },
+  { id: DEMO_EFFECT.GLOW, label: 'Свечение' },
+  { id: DEMO_EFFECT.COLOR_SHIFT, label: 'Переливание цвета' },
+  { id: DEMO_EFFECT.SWAY, label: 'Колыхание' },
   { id: DEMO_EFFECT.STATE_CYCLE, label: 'Смена состояний (цикл)' },
   { id: DEMO_EFFECT.DIRECTIONAL_WIPE, label: 'Направленное появление' },
 ];
@@ -78,12 +95,6 @@ export const DEMO_CAMERA_MODES = [
   { id: DEMO_CAMERA_MODE.NONE, label: 'Не двигать камеру' },
   { id: DEMO_CAMERA_MODE.FLY_TO, label: 'Перелёт в точку' },
   { id: DEMO_CAMERA_MODE.FIT_SELECTION, label: 'Вписать выбранное' },
-];
-
-export const DEMO_START_MODES = [
-  { id: DEMO_START_MODE.ON_CLICK, label: 'По щелчку — новый этап' },
-  { id: DEMO_START_MODE.AFTER_PREVIOUS, label: 'После предыдущего' },
-  { id: DEMO_START_MODE.WITH_PREVIOUS, label: 'Вместе с предыдущим' },
 ];
 
 /* --- Инструмент «Текст на карте» --- */
@@ -206,10 +217,149 @@ export const DEMO_TEXT_ALIGNS = [
 
 export const DEMO_TEXT_MAX_LENGTH = 4000;
 
+/* --- Мультиэкран --- */
+
+export const DEMO_MOSAIC_LAYOUT = {
+  ROW2: '1x2',
+  COL2: '2x1',
+  ONE_PLUS_TWO: '1+2',
+  GRID2: '2x2',
+  GRID23: '2x3',
+  TWO_PLUS_THREE: '2+3',
+};
+
+export const DEMO_MOSAIC_LAYOUTS = [
+  { id: DEMO_MOSAIC_LAYOUT.ROW2, label: 'Два экрана рядом', slots: ['a', 'b'] },
+  { id: DEMO_MOSAIC_LAYOUT.COL2, label: 'Два экрана сверху и снизу', slots: ['a', 'b'] },
+  { id: DEMO_MOSAIC_LAYOUT.ONE_PLUS_TWO, label: 'Один крупный + два', slots: ['a', 'b', 'c'] },
+  { id: DEMO_MOSAIC_LAYOUT.GRID2, label: 'Сетка 2×2', slots: ['a', 'b', 'c', 'd'] },
+  { id: DEMO_MOSAIC_LAYOUT.GRID23, label: 'Сетка 2×3', slots: ['a', 'b', 'c', 'd', 'e', 'f'] },
+  { id: DEMO_MOSAIC_LAYOUT.TWO_PLUS_THREE, label: 'Два сверху, три снизу', slots: ['a', 'b', 'c', 'd', 'e'] },
+];
+
+export const DEMO_MOSAIC_SLOT_LABELS = {
+  a: 'Экран A',
+  b: 'Экран B',
+  c: 'Экран C',
+  d: 'Экран D',
+  e: 'Экран E',
+  f: 'Экран F',
+};
+
+export const DEMO_MOSAIC_REVEAL = {
+  ALL: 'all',
+  STAGGER: 'stagger',
+};
+
+export const DEMO_MOSAIC_ACTION = {
+  SHOW_GRID: 'show_grid',
+  EXPAND: 'expand',
+  COLLAPSE: 'collapse',
+  SHOW_SLOT: 'show_slot',
+  FOCUS_SLOT: 'focus_slot',
+  EXIT: 'exit',
+};
+
+export const DEMO_MOSAIC_ACTIONS = [
+  { id: DEMO_MOSAIC_ACTION.SHOW_GRID, label: 'Показать сетку' },
+  { id: DEMO_MOSAIC_ACTION.SHOW_SLOT, label: 'Показать экран' },
+  { id: DEMO_MOSAIC_ACTION.FOCUS_SLOT, label: 'Развернуть экран' },
+  { id: DEMO_MOSAIC_ACTION.EXPAND, label: 'Развернуть экран' },
+  { id: DEMO_MOSAIC_ACTION.COLLAPSE, label: 'Свернуть в сетку' },
+  { id: DEMO_MOSAIC_ACTION.EXIT, label: 'Выйти из мультиэкрана' },
+];
+
+export const DEMO_SEQUENCE_MOSAIC_ACTIONS = [
+  { id: DEMO_MOSAIC_ACTION.SHOW_GRID, label: 'Сетка' },
+  { id: DEMO_MOSAIC_ACTION.EXPAND, label: 'Развернуть экран' },
+  { id: DEMO_MOSAIC_ACTION.COLLAPSE, label: 'Свернуть в сетку' },
+];
+
+const SEQUENCE_MOSAIC_ACTION_IDS = DEMO_SEQUENCE_MOSAIC_ACTIONS.map((item) => item.id);
+const MOSAIC_SLOT_IDS = ['a', 'b', 'c', 'd', 'e', 'f'];
+
+export const DEMO_SEQUENCE_TYPE = {
+  STAGE: 'stage',
+  MOSAIC: 'mosaic',
+};
+
+export const DEMO_SEQUENCE_TYPES = [
+  { id: DEMO_SEQUENCE_TYPE.STAGE, label: 'Этап', icon: '▶' },
+  { id: DEMO_SEQUENCE_TYPE.MOSAIC, label: 'Мультиэкран', icon: '▦' },
+];
+
+export const DEMO_PROGRAM_TRANSITION = {
+  NONE: 'none',
+  FADE: 'fade',
+  BLACKOUT: 'blackout',
+  STAGGER: 'stagger',
+};
+
+export const DEMO_PROGRAM_ENTER_EFFECTS = [
+  { id: DEMO_PROGRAM_TRANSITION.NONE, label: 'Без анимации' },
+  { id: DEMO_PROGRAM_TRANSITION.FADE, label: 'Проявление' },
+  { id: DEMO_PROGRAM_TRANSITION.BLACKOUT, label: 'Через затемнение' },
+  { id: DEMO_PROGRAM_TRANSITION.STAGGER, label: 'Постепенно (мультиэкран)' },
+];
+
+export const DEMO_PROGRAM_EXIT_EFFECTS = [
+  { id: DEMO_PROGRAM_TRANSITION.NONE, label: 'Без анимации' },
+  { id: DEMO_PROGRAM_TRANSITION.FADE, label: 'Растворение' },
+  { id: DEMO_PROGRAM_TRANSITION.BLACKOUT, label: 'В затемнение' },
+];
+
+export function getMosaicLayoutDef(layoutId) {
+  return DEMO_MOSAIC_LAYOUTS.find((item) => item.id === layoutId) || DEMO_MOSAIC_LAYOUTS[3];
+}
+
+export function getMosaicActionLabel(action) {
+  return DEMO_SEQUENCE_MOSAIC_ACTIONS.find((item) => item.id === action)?.label
+    || DEMO_MOSAIC_ACTIONS.find((item) => item.id === action)?.label
+    || action
+    || '';
+}
+
+export function normalizeSequenceMosaicAction(raw) {
+  const aliases = {
+    [DEMO_MOSAIC_ACTION.FOCUS_SLOT]: DEMO_MOSAIC_ACTION.EXPAND,
+    [DEMO_MOSAIC_ACTION.SHOW_SLOT]: DEMO_MOSAIC_ACTION.EXPAND,
+    [DEMO_MOSAIC_ACTION.EXIT]: DEMO_MOSAIC_ACTION.COLLAPSE,
+  };
+  const value = aliases[raw] || raw;
+  return pickChoice(value, SEQUENCE_MOSAIC_ACTION_IDS, DEMO_MOSAIC_ACTION.SHOW_GRID);
+}
+
+export function normalizeMosaicSlotId(raw) {
+  const id = String(raw || '').trim().toLowerCase();
+  return MOSAIC_SLOT_IDS.includes(id) ? id : null;
+}
+
+export function normalizeExpandableSlots(raw, slotIds) {
+  const allowed = Array.isArray(slotIds) ? slotIds : [];
+  if (raw == null) return [...allowed];
+  if (!Array.isArray(raw)) return [...allowed];
+  const picked = new Set(
+    raw.map((item) => String(item || '').trim().toLowerCase()).filter((id) => allowed.includes(id)),
+  );
+  return allowed.filter((id) => picked.has(id));
+}
+
+export function makeLocalPresetId() {
+  return `preset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /** Какие эффекты имеют смысл для каждого инструмента. */
 const EFFECTS_BY_TOOL = {
   [DEMO_TOOL.CAMERA]: [DEMO_EFFECT.NONE],
-  [DEMO_TOOL.OBJECTS]: [DEMO_EFFECT.NONE, DEMO_EFFECT.FADE_IN],
+  [DEMO_TOOL.OBJECTS]: [
+    DEMO_EFFECT.NONE,
+    DEMO_EFFECT.FADE_IN,
+    DEMO_EFFECT.BLINK,
+    DEMO_EFFECT.FLICKER,
+    DEMO_EFFECT.GLOW,
+    DEMO_EFFECT.COLOR_SHIFT,
+    DEMO_EFFECT.SWAY,
+  ],
   [DEMO_TOOL.EVENTS]: [DEMO_EFFECT.NONE, DEMO_EFFECT.FADE_IN, DEMO_EFFECT.BLINK],
   [DEMO_TOOL.ZONES]: [DEMO_EFFECT.NONE, DEMO_EFFECT.FADE_IN, DEMO_EFFECT.REVEAL_FROM_CENTER],
   [DEMO_TOOL.INUNDATION]: [
@@ -224,6 +374,7 @@ const EFFECTS_BY_TOOL = {
   [DEMO_TOOL.COUNTRY]: [DEMO_EFFECT.NONE],
   // У текста собственные эффекты входа/выхода внутри блока `text`.
   [DEMO_TOOL.TEXT]: [DEMO_EFFECT.NONE],
+  [DEMO_TOOL.MOSAIC]: [DEMO_EFFECT.NONE],
 };
 
 const DEFAULT_EFFECT_BY_TOOL = {
@@ -251,7 +402,14 @@ export function getEffectLabel(effect) {
 }
 
 export function isContinuousByDefault(effect) {
-  return effect === DEMO_EFFECT.BLINK || effect === DEMO_EFFECT.STATE_CYCLE;
+  return (
+    effect === DEMO_EFFECT.BLINK
+    || effect === DEMO_EFFECT.FLICKER
+    || effect === DEMO_EFFECT.GLOW
+    || effect === DEMO_EFFECT.COLOR_SHIFT
+    || effect === DEMO_EFFECT.SWAY
+    || effect === DEMO_EFFECT.STATE_CYCLE
+  );
 }
 
 function clampInt(value, low, high, fallback) {
@@ -277,6 +435,156 @@ function toBool(value, fallback) {
     return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
   }
   return Boolean(value);
+}
+
+export function createDefaultScenarioMosaic(overrides = {}) {
+  return normalizeScenarioMosaic({
+    presets: [],
+    active_preset_id: null,
+    ...overrides,
+  });
+}
+
+export function createDefaultMosaicScreen(slotId, overrides = {}) {
+  return normalizeMosaicScreen({
+    id: slotId,
+    label: DEMO_MOSAIC_SLOT_LABELS[slotId] || `Экран ${String(slotId).toUpperCase()}`,
+    loop: false,
+    stage_id: null,
+    ...overrides,
+  }, slotId);
+}
+
+export function createDefaultMosaicPreset(overrides = {}) {
+  return normalizeMosaicPreset({
+    id: makeLocalPresetId(),
+    title: 'Мультиэкран',
+    layout: DEMO_MOSAIC_LAYOUT.GRID2,
+    transition_ms: 700,
+    reveal: DEMO_MOSAIC_REVEAL.ALL,
+    stagger_ms: 400,
+    ...overrides,
+  });
+}
+
+export function normalizeMosaicScreen(raw, slotId, defaultLabel = '') {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const selectionRaw = data.selection && typeof data.selection === 'object' ? data.selection : {};
+  let label = typeof data.label === 'string' ? data.label.slice(0, 120) : '';
+  if (!label) label = defaultLabel || DEMO_MOSAIC_SLOT_LABELS[slotId] || `Экран ${String(slotId).toUpperCase()}`;
+  const stageId = data.stage_id != null && String(data.stage_id).trim()
+    ? String(data.stage_id).trim().slice(0, 80)
+    : null;
+  return {
+    id: slotId,
+    label,
+    loop: Boolean(data.loop),
+    stage_id: stageId,
+    camera: normalizeCamera(data.camera),
+    selection: {
+      target_ids: toIdList(selectionRaw.target_ids),
+      event_ids: toIdList(selectionRaw.event_ids),
+      situation_ids: toIdList(selectionRaw.situation_ids),
+      zone_leaves: toZoneLeaves(selectionRaw.zone_leaves),
+      overlay_layer_ids: toIdList(selectionRaw.overlay_layer_ids),
+      country_isos: toIsoList(selectionRaw.country_isos),
+      card_ids: toIdList(selectionRaw.card_ids),
+    },
+    text: normalizeText(data.text),
+  };
+}
+
+export function normalizeMosaicPreset(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const layout = pickChoice(
+    data.layout,
+    DEMO_MOSAIC_LAYOUTS.map((item) => item.id),
+    DEMO_MOSAIC_LAYOUT.GRID2,
+  );
+  const slotIds = getMosaicLayoutDef(layout).slots;
+  const incoming = Array.isArray(data.screens) ? data.screens : [];
+  const byId = {};
+  incoming.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const id = String(item.id || '').trim().toLowerCase();
+    if (slotIds.includes(id)) byId[id] = item;
+  });
+  if (!Object.keys(byId).length && Array.isArray(data.slots)) {
+    data.slots.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const id = String(item.id || '').trim().toLowerCase();
+      if (slotIds.includes(id)) byId[id] = { id, label: item.label || '' };
+    });
+  }
+  const id = typeof data.id === 'string' && data.id.trim()
+    ? data.id.trim().slice(0, 80)
+    : makeLocalPresetId();
+  const title = typeof data.title === 'string' && data.title.trim()
+    ? data.title.trim().slice(0, 120)
+    : 'Мультиэкран';
+  return {
+    id,
+    title,
+    layout,
+    transition_ms: clampInt(data.transition_ms, 200, 5000, 700),
+    reveal: pickChoice(data.reveal, Object.values(DEMO_MOSAIC_REVEAL), DEMO_MOSAIC_REVEAL.ALL),
+    stagger_ms: clampInt(data.stagger_ms, 0, 10_000, 400),
+    expandable_slots: normalizeExpandableSlots(data.expandable_slots, slotIds),
+    screens: slotIds.map((slotId) => normalizeMosaicScreen(
+      byId[slotId],
+      slotId,
+      DEMO_MOSAIC_SLOT_LABELS[slotId],
+    )),
+  };
+}
+
+export function normalizeScenarioMosaic(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+
+  if (Array.isArray(data.presets) || Object.prototype.hasOwnProperty.call(data, 'active_preset_id')) {
+    const seen = new Set();
+    const presets = (data.presets || []).map((item) => {
+      const preset = normalizeMosaicPreset(item);
+      if (seen.has(preset.id)) preset.id = makeLocalPresetId();
+      seen.add(preset.id);
+      return preset;
+    });
+    let active = data.active_preset_id ? String(data.active_preset_id).trim().slice(0, 80) : null;
+    if (active && !seen.has(active)) active = presets[0]?.id || null;
+    else if (!active && presets.length) active = presets[0].id;
+    return { presets, active_preset_id: active };
+  }
+
+  if (data.layout || data.slots || data.enabled != null) {
+    const legacy = normalizeMosaicPreset({
+      id: 'legacy-default',
+      title: 'Мультиэкран',
+      layout: data.layout || DEMO_MOSAIC_LAYOUT.GRID2,
+      transition_ms: data.transition_ms,
+      reveal: DEMO_MOSAIC_REVEAL.ALL,
+      slots: data.slots || [],
+    });
+    const keep = Boolean(data.enabled || data.slots?.length);
+    return {
+      presets: keep ? [legacy] : [],
+      active_preset_id: data.enabled ? legacy.id : (keep ? legacy.id : null),
+    };
+  }
+
+  return { presets: [], active_preset_id: null };
+}
+
+export function normalizeStepMosaic() {
+  return { slot: null, loop: false, label: '' };
+}
+
+export function findMosaicPreset(mosaic, presetId) {
+  const library = normalizeScenarioMosaic(mosaic);
+  if (!library.presets.length) return null;
+  return library.presets.find((item) => item.id === presetId)
+    || library.presets.find((item) => item.id === library.active_preset_id)
+    || library.presets[0]
+    || null;
 }
 
 function toIdList(raw) {
@@ -343,6 +651,21 @@ export function normalizeCamera(raw) {
 
 export function normalizeSelection(raw) {
   const data = raw && typeof raw === 'object' ? raw : {};
+  let mosaicAction = null;
+  if (data.mosaic_action != null && String(data.mosaic_action).trim()) {
+    mosaicAction = pickChoice(
+      String(data.mosaic_action).trim(),
+      Object.values(DEMO_MOSAIC_ACTION),
+      DEMO_MOSAIC_ACTION.SHOW_GRID,
+    );
+  }
+  let presetId = data.preset_id != null ? String(data.preset_id).trim().slice(0, 80) : null;
+  if (!presetId) presetId = null;
+  let slot = null;
+  if (data.slot != null && String(data.slot).trim()) {
+    const candidate = String(data.slot).trim().toLowerCase();
+    if (['a', 'b', 'c', 'd', 'e', 'f'].includes(candidate)) slot = candidate;
+  }
   return {
     target_ids: toIdList(data.target_ids),
     event_ids: toIdList(data.event_ids),
@@ -351,6 +674,9 @@ export function normalizeSelection(raw) {
     overlay_layer_ids: toIdList(data.overlay_layer_ids),
     country_isos: toIsoList(data.country_isos),
     card_ids: toIdList(data.card_ids),
+    mosaic_action: mosaicAction,
+    preset_id: presetId,
+    slot,
   };
 }
 
@@ -525,11 +851,26 @@ export function normalizeText(raw) {
 }
 
 let localStepSeq = 0;
+let localStageSeq = 0;
+let localSequenceSeq = 0;
 
 /** Локальный ключ шага для React — идентификаторы с сервера появляются только после сохранения. */
 export function makeLocalStepKey() {
   localStepSeq += 1;
   return `local-${Date.now()}-${localStepSeq}`;
+}
+
+export function makeLocalStageId() {
+  localStageSeq += 1;
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `stage-${Date.now().toString(36)}-${localStageSeq}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function makeLocalSequenceKey() {
+  localSequenceSeq += 1;
+  return `seq-${Date.now().toString(36)}-${localSequenceSeq}`;
 }
 
 export function normalizeStep(raw, index = 0) {
@@ -568,12 +909,145 @@ export function normalizeStep(raw, index = 0) {
     })(),
     animation,
     text: normalizeText(data.text),
+    mosaic: normalizeStepMosaic(),
   };
+}
+
+export function normalizeStage(raw, index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const steps = Array.isArray(data.steps) ? data.steps : [];
+  return {
+    key: data.key || (data.id ? String(data.id) : makeLocalStageId()),
+    id: data.id ?? null,
+    order: Number.isFinite(Number(data.order)) ? Number(data.order) : index,
+    title: typeof data.title === 'string' ? data.title : '',
+    steps: steps
+      .filter((step) => step?.tool !== DEMO_TOOL.MOSAIC)
+      .map((step, stepIndex) => normalizeStep(step, stepIndex))
+      .sort((a, b) => a.order - b.order)
+      .map((step, stepIndex) => ({ ...step, order: stepIndex })),
+  };
+}
+
+export function normalizeSequenceTransition(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  return {
+    effect: pickChoice(
+      data.effect,
+      Object.values(DEMO_PROGRAM_TRANSITION),
+      DEMO_PROGRAM_TRANSITION.NONE,
+    ),
+    duration_ms: clampInt(data.duration_ms, 0, 20_000, 400),
+  };
+}
+
+export function normalizeSequenceItem(raw, _index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const type = pickChoice(data.type, Object.values(DEMO_SEQUENCE_TYPE), DEMO_SEQUENCE_TYPE.STAGE);
+  const stageId = data.stage_id != null && String(data.stage_id).trim()
+    ? String(data.stage_id).trim().slice(0, 80)
+    : null;
+  const presetId = data.preset_id != null && String(data.preset_id).trim()
+    ? String(data.preset_id).trim().slice(0, 80)
+    : null;
+  const mosaicAction = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    ? normalizeSequenceMosaicAction(data.mosaic_action)
+    : DEMO_MOSAIC_ACTION.SHOW_GRID;
+  const slot = type === DEMO_SEQUENCE_TYPE.MOSAIC
+    ? normalizeMosaicSlotId(data.slot)
+    : null;
+  return {
+    key: data.key || makeLocalSequenceKey(),
+    type,
+    stage_id: type === DEMO_SEQUENCE_TYPE.STAGE ? stageId : null,
+    preset_id: type === DEMO_SEQUENCE_TYPE.MOSAIC ? presetId : null,
+    mosaic_action: mosaicAction,
+    slot: mosaicAction === DEMO_MOSAIC_ACTION.EXPAND ? slot : (mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE ? slot : null),
+    duration_ms: clampInt(data.duration_ms, 0, DEMO_STEP_MAX_DURATION_MS, 0),
+    wait_for_presenter: Boolean(data.wait_for_presenter),
+    enter: normalizeSequenceTransition(data.enter),
+    exit: normalizeSequenceTransition(data.exit),
+  };
+}
+
+export function normalizeSequence(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item) => item && typeof item === 'object')
+    .map((item, index) => normalizeSequenceItem(item, index));
+}
+
+function bindSequenceRefs(sequence, stages, mosaic) {
+  const stageIds = new Set(stages.map((stage) => String(stage.id || stage.key)));
+  const presetIds = new Set((mosaic?.presets || []).map((preset) => String(preset.id)));
+  return sequence.map((item) => {
+    if (item.type === DEMO_SEQUENCE_TYPE.STAGE) {
+      const id = item.stage_id && stageIds.has(String(item.stage_id)) ? item.stage_id : null;
+      return { ...item, stage_id: id, preset_id: null };
+    }
+    const id = item.preset_id && presetIds.has(String(item.preset_id)) ? item.preset_id : null;
+    return { ...item, preset_id: id, stage_id: null };
+  });
+}
+
+export function findStage(stages, stageId) {
+  if (stageId == null) return null;
+  const key = String(stageId);
+  return (stages || []).find((stage) => String(stage.id) === key || String(stage.key) === key) || null;
+}
+
+export function createDefaultStage(overrides = {}) {
+  const id = overrides.id || makeLocalStageId();
+  return normalizeStage({
+    title: 'Этап 1',
+    steps: [createDefaultStep(DEMO_TOOL.CAMERA)],
+    ...overrides,
+    id,
+    key: overrides.key || id,
+  });
+}
+
+export function createDefaultSequenceItem(overrides = {}) {
+  return normalizeSequenceItem({
+    type: DEMO_SEQUENCE_TYPE.STAGE,
+    duration_ms: 0,
+    wait_for_presenter: false,
+    enter: { effect: DEMO_PROGRAM_TRANSITION.NONE, duration_ms: 400 },
+    exit: { effect: DEMO_PROGRAM_TRANSITION.NONE, duration_ms: 400 },
+    ...overrides,
+  });
+}
+
+export function flattenStageSteps(stages = []) {
+  return (stages || []).flatMap((stage) => stage.steps || []);
 }
 
 export function normalizeScenario(raw) {
   const data = raw && typeof raw === 'object' ? raw : {};
-  const steps = Array.isArray(data.steps) ? data.steps : [];
+  let stages;
+  if (Array.isArray(data.stages) && data.stages.length) {
+    stages = data.stages.map((stage, index) => normalizeStage(stage, index));
+  } else {
+    const flatSteps = (Array.isArray(data.steps) ? data.steps : [])
+      .filter((step) => step?.tool !== DEMO_TOOL.MOSAIC);
+    stages = flatSteps.length
+      ? [normalizeStage({ title: 'Этап 1', steps: flatSteps }, 0)]
+      : [];
+  }
+  stages = stages
+    .sort((a, b) => a.order - b.order)
+    .map((stage, index) => ({ ...stage, order: index }));
+
+  const mosaic = normalizeScenarioMosaic(data.mosaic);
+  let sequence = normalizeSequence(data.sequence);
+  if (!sequence.length && stages.length) {
+    sequence = stages.map((stage) => createDefaultSequenceItem({
+      type: DEMO_SEQUENCE_TYPE.STAGE,
+      stage_id: stage.id || stage.key,
+    }));
+  }
+  sequence = bindSequenceRefs(sequence, stages, mosaic);
+
   return {
     id: data.id ?? null,
     title: typeof data.title === 'string' ? data.title : '',
@@ -581,16 +1055,16 @@ export function normalizeScenario(raw) {
     is_default: Boolean(data.is_default),
     loop: data.loop === undefined ? true : Boolean(data.loop),
     auto_advance: data.auto_advance === undefined ? true : Boolean(data.auto_advance),
+    mosaic,
+    sequence,
     default_step_duration_ms: clampInt(
       data.default_step_duration_ms,
       DEMO_STEP_MIN_DURATION_MS,
       DEMO_STEP_MAX_DURATION_MS,
       DEMO_DEFAULT_STEP_DURATION_MS,
     ),
-    steps: steps
-      .map((step, index) => normalizeStep(step, index))
-      .sort((a, b) => a.order - b.order)
-      .map((step, index) => ({ ...step, order: index })),
+    stages,
+    steps: flattenStageSteps(stages),
   };
 }
 
@@ -598,7 +1072,6 @@ export function createDefaultStep(tool = DEMO_TOOL.CAMERA, overrides = {}) {
   const effect = DEFAULT_EFFECT_BY_TOOL[tool] || DEMO_EFFECT.NONE;
   const cameraMode = (() => {
     if (tool === DEMO_TOOL.CAMERA) return DEMO_CAMERA_MODE.FLY_TO;
-    // Текст ничего не выделяет на карте — «вписать выбранное» для него бессмысленно.
     if (tool === DEMO_TOOL.TEXT) return DEMO_CAMERA_MODE.NONE;
     return DEMO_CAMERA_MODE.FIT_SELECTION;
   })();
@@ -606,21 +1079,30 @@ export function createDefaultStep(tool = DEMO_TOOL.CAMERA, overrides = {}) {
     title: getToolLabel(tool),
     tool,
     duration_ms: DEMO_DEFAULT_STEP_DURATION_MS,
-    start_mode: DEMO_START_MODE.ON_CLICK,
+    start_mode: DEMO_START_MODE.AFTER_PREVIOUS,
     camera: { mode: cameraMode },
+    selection: {},
     animation: { effect },
     ...overrides,
   });
 }
 
 export function createDefaultScenario(overrides = {}) {
+  const stage = createDefaultStage({ title: 'Этап 1' });
   return normalizeScenario({
     title: 'Новый сценарий',
     description: '',
     is_default: false,
     loop: true,
+    mosaic: createDefaultScenarioMosaic(),
     default_step_duration_ms: DEMO_DEFAULT_STEP_DURATION_MS,
-    steps: [createDefaultStep(DEMO_TOOL.CAMERA)],
+    stages: [stage],
+    sequence: [
+      createDefaultSequenceItem({
+        type: DEMO_SEQUENCE_TYPE.STAGE,
+        stage_id: stage.id || stage.key,
+      }),
+    ],
     ...overrides,
   });
 }
@@ -634,17 +1116,35 @@ export function serializeScenario(scenario) {
     is_default: normalized.is_default,
     loop: normalized.loop,
     auto_advance: normalized.auto_advance,
+    mosaic: normalized.mosaic,
+    sequence: normalized.sequence.map((item) => ({
+      key: item.key,
+      type: item.type,
+      stage_id: item.stage_id,
+      preset_id: item.preset_id,
+      mosaic_action: item.mosaic_action,
+      slot: item.slot,
+      duration_ms: item.duration_ms,
+      wait_for_presenter: item.wait_for_presenter,
+      enter: item.enter,
+      exit: item.exit,
+    })),
     default_step_duration_ms: normalized.default_step_duration_ms,
-    steps: normalized.steps.map((step) => ({
-      title: step.title,
-      tool: step.tool,
-      duration_ms: step.duration_ms,
-      start_mode: step.start_mode,
-      hold_previous: step.hold_previous,
-      camera: step.camera,
-      selection: step.selection,
-      animation: step.animation,
-      text: step.text,
+    stages: normalized.stages.map((stage) => ({
+      id: stage.id,
+      title: stage.title,
+      steps: stage.steps.map((step) => ({
+        title: step.title,
+        tool: step.tool,
+        duration_ms: step.duration_ms,
+        start_mode: step.start_mode,
+        hold_previous: step.hold_previous,
+        camera: step.camera,
+        selection: step.selection,
+        animation: step.animation,
+        text: step.text,
+        mosaic: step.mosaic,
+      })),
     })),
   };
 }
@@ -725,6 +1225,186 @@ export function buildScenarioStages(steps = []) {
   return stages;
 }
 
+/**
+ * Такты внутри одного этапа-шаблона. `on_click` внутри этапа — это новый такт,
+ * а не отдельный слайд программы.
+ */
+export function buildStageBeats(steps = []) {
+  const rewritten = (steps || []).map((step, index) => (
+    index > 0 && step.start_mode === DEMO_START_MODE.ON_CLICK
+      ? { ...step, start_mode: DEMO_START_MODE.AFTER_PREVIOUS }
+      : step
+  ));
+  const derived = buildScenarioStages(rewritten);
+  if (derived.length <= 1) return derived[0] || {
+    index: 0,
+    steps: rewritten,
+    indices: rewritten.map((_, index) => index),
+    beats: [],
+    durationMs: 0,
+    startMs: 0,
+    endMs: 0,
+    title: '',
+  };
+  const beats = [];
+  derived.forEach((stage) => {
+    stage.beats.forEach((beat) => beats.push({ ...beat }));
+  });
+  let inner = 0;
+  beats.forEach((beat) => {
+    beat.startMs = inner;
+    beat.endMs = inner + beat.durationMs;
+    inner = beat.endMs;
+  });
+  return {
+    index: 0,
+    steps: rewritten,
+    indices: rewritten.map((_, index) => index),
+    beats,
+    durationMs: inner,
+    startMs: 0,
+    endMs: inner,
+    title: derived.find((stage) => stage.title)?.title || '',
+  };
+}
+
+export function composeStateForStage(stage, beatIndex = Infinity) {
+  const playback = buildStageBeats(stage?.steps || []);
+  return composeStateAtStage([playback], 0, beatIndex);
+}
+
+export function mosaicDurationMs(preset, stages = []) {
+  const fromStages = (preset?.screens || []).reduce((max, screen) => {
+    const stage = findStage(stages, screen.stage_id);
+    if (!stage) return max;
+    const duration = buildStageBeats(stage.steps).durationMs;
+    return Math.max(max, duration);
+  }, 0);
+  return fromStages || DEMO_DEFAULT_STEP_DURATION_MS;
+}
+
+export function sequenceItemDurationMs(item, stages = [], mosaic = null) {
+  if (!item) return 0;
+    if (item.duration_ms > 0) return item.duration_ms;
+  if (item.type === DEMO_SEQUENCE_TYPE.MOSAIC) {
+    const preset = findMosaicPreset(mosaic, item.preset_id);
+    const action = normalizeSequenceMosaicAction(item.mosaic_action);
+    if (action === DEMO_MOSAIC_ACTION.EXPAND || action === DEMO_MOSAIC_ACTION.COLLAPSE) {
+      return preset?.transition_ms || 700;
+    }
+    return mosaicDurationMs(preset, stages);
+  }
+  const stage = findStage(stages, item.stage_id);
+  return buildStageBeats(stage?.steps || []).durationMs;
+}
+
+export function buildProgramPlayback(scenario) {
+  const normalized = scenario?.stages ? scenario : normalizeScenario(scenario || {});
+  const stages = normalized.stages || [];
+  const mosaic = normalized.mosaic;
+  const items = [];
+  let cursor = 0;
+  let lastMosaicFocus = { presetId: null, slot: null, focusStage: null };
+  (normalized.sequence || []).forEach((item, index) => {
+    const durationMs = sequenceItemDurationMs(item, stages, mosaic);
+    const enterMs = item.enter?.effect && item.enter.effect !== DEMO_PROGRAM_TRANSITION.NONE
+      ? item.enter.duration_ms
+      : 0;
+    const exitMs = item.exit?.effect && item.exit.effect !== DEMO_PROGRAM_TRANSITION.NONE
+      ? item.exit.duration_ms
+      : 0;
+    const startMs = cursor;
+    const endMs = cursor + enterMs + durationMs + exitMs;
+    cursor = endMs;
+    if (item.type === DEMO_SEQUENCE_TYPE.MOSAIC) {
+      const preset = findMosaicPreset(mosaic, item.preset_id);
+      const mosaicAction = item.mosaic_action || DEMO_MOSAIC_ACTION.SHOW_GRID;
+      let slot = item.slot
+        || (mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
+          ? (preset?.expandable_slots?.[0] || preset?.screens?.[0]?.id || null)
+          : null);
+      if (mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE && !slot
+        && lastMosaicFocus.presetId === preset?.id) {
+        slot = lastMosaicFocus.slot;
+      }
+      const screen = (preset?.screens || []).find((entry) => entry.id === slot);
+      let focusStage = findStage(stages, screen?.stage_id);
+      if (!focusStage && mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE
+        && lastMosaicFocus.presetId === preset?.id) {
+        focusStage = lastMosaicFocus.focusStage;
+      }
+      const actionLabel = getMosaicActionLabel(mosaicAction);
+      const title = mosaicAction === DEMO_MOSAIC_ACTION.SHOW_GRID
+        ? (preset?.title || 'Мультиэкран')
+        : `${preset?.title || 'Мультиэкран'} · ${actionLabel}${slot ? ` ${String(slot).toUpperCase()}` : ''}`;
+      if (mosaicAction === DEMO_MOSAIC_ACTION.EXPAND) {
+        lastMosaicFocus = { presetId: preset?.id || null, slot, focusStage };
+      } else if (mosaicAction === DEMO_MOSAIC_ACTION.SHOW_GRID) {
+        lastMosaicFocus = { presetId: preset?.id || null, slot: null, focusStage: null };
+      }
+      items.push({
+        index,
+        item,
+        kind: DEMO_SEQUENCE_TYPE.MOSAIC,
+        title,
+        durationMs,
+        enterMs,
+        exitMs,
+        startMs,
+        endMs,
+        beats: [{ steps: [], indices: [], durationMs, startMs: 0, endMs: durationMs }],
+        stage: null,
+        preset,
+        mosaicAction,
+        slot,
+        focusStage,
+      });
+      return;
+    }
+    const stage = findStage(stages, item.stage_id);
+    const playback = buildStageBeats(stage?.steps || []);
+    items.push({
+      index,
+      item,
+      kind: DEMO_SEQUENCE_TYPE.STAGE,
+      title: stage?.title || playback.title || `Этап ${index + 1}`,
+      durationMs: playback.durationMs || durationMs,
+      enterMs,
+      exitMs,
+      startMs,
+      endMs,
+      beats: playback.beats,
+      stage,
+      preset: null,
+    });
+  });
+  return {
+    items,
+    totalMs: cursor,
+  };
+}
+
+export function resolveMosaicScreen(screen, stages = []) {
+  if (!screen) return screen;
+  const stage = findStage(stages, screen.stage_id);
+  if (!stage) return screen;
+  const composed = composeStateForStage(stage);
+  return {
+    ...screen,
+    label: screen.label || stage.title || screen.label,
+    camera: composed.cameraStep?.camera || screen.camera,
+    selection: {
+      ...(screen.selection || {}),
+      target_ids: composed.target_ids,
+      event_ids: composed.event_ids,
+      situation_ids: composed.situation_ids,
+      zone_leaves: composed.zone_leaves,
+      overlay_layer_ids: Array.isArray(composed.overlay_layer_ids) ? composed.overlay_layer_ids : [],
+    },
+    text: composed.texts?.[0]?.text || screen.text,
+  };
+}
+
 /** Такт «сбрасывает» накопленное содержимое, если ни один его шаг не просит сохранить предыдущее. */
 export function beatClearsPrevious(beat) {
   return !beat?.steps?.some((step) => step.hold_previous);
@@ -793,6 +1473,8 @@ function mergeStepIntoState(state, step, stepIndex) {
       if (step.text?.content) {
         state.texts.push({ key: step.key || `step-${stepIndex}`, index: stepIndex, text: step.text });
       }
+      break;
+    case DEMO_TOOL.MOSAIC:
       break;
     default:
       break;
@@ -917,6 +1599,18 @@ export function describeStepSelection(step) {
       const preview = firstLine.length > 32 ? `${firstLine.slice(0, 32)}…` : firstLine;
       return `«${preview}»`;
     }
+    case DEMO_TOOL.MOSAIC: {
+      const action = selection.mosaic_action || DEMO_MOSAIC_ACTION.SHOW_GRID;
+      const actionLabel = getMosaicActionLabel(action);
+      if (action === DEMO_MOSAIC_ACTION.EXIT || action === DEMO_MOSAIC_ACTION.COLLAPSE) {
+        return actionLabel;
+      }
+      const slot = selection.slot ? String(selection.slot).toUpperCase() : '';
+      if (action === DEMO_MOSAIC_ACTION.SHOW_SLOT || action === DEMO_MOSAIC_ACTION.FOCUS_SLOT) {
+        return slot ? `${actionLabel}: ${slot}` : actionLabel;
+      }
+      return actionLabel;
+    }
     case DEMO_TOOL.CAMERA:
       return step.camera?.mode === DEMO_CAMERA_MODE.FLY_TO && step.camera?.lat != null
         ? `${step.camera.lat.toFixed(3)}, ${step.camera.lng?.toFixed(3)} · zoom ${step.camera.zoom}`
@@ -953,4 +1647,22 @@ export function collectEnabledZoneLeaves(actionZoneFilters) {
     });
   });
   return leaves;
+}
+
+/** Обратная операция: листья шага демонстрации → actionZoneFilters для слоя зон. */
+export function zoneLeavesToFilters(leaves) {
+  const filters = {};
+  (leaves || []).forEach((leaf) => {
+    const country = leaf.country;
+    const typeKey = String(leaf.action_type_id ?? leaf.actionTypeId ?? '');
+    const leafId = leaf.leaf;
+    if (!country || !typeKey || leafId == null) return;
+    if (!filters[country]) filters[country] = {};
+    const set = filters[country][typeKey] instanceof Set
+      ? filters[country][typeKey]
+      : new Set();
+    set.add(leafId);
+    filters[country][typeKey] = set;
+  });
+  return filters;
 }

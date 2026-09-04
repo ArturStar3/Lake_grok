@@ -3,16 +3,31 @@ import L from 'leaflet';
 import {
   DEMO_CAMERA_MODE,
   DEMO_EFFECT,
+  DEMO_MOSAIC_ACTION,
+  DEMO_MOSAIC_REVEAL,
+  DEMO_PROGRAM_TRANSITION,
+  DEMO_SEQUENCE_TYPE,
   DEMO_TOOL,
-  buildScenarioStages,
-  composeStateAtStage,
+  buildProgramPlayback,
+  composeStateForStage,
+  createDefaultSequenceItem,
+  findStage,
+  normalizeScenario,
+  resolveMosaicScreen,
 } from '../../utils/demoScenario';
 import { getEventCenter } from '../../utils/eventGeometry';
 import { getSituationBounds } from '../../utils/situationUtils';
+import { clearMosaicCatalogCache } from '../../utils/demoMosaicCatalog';
 
-const PROGRESS_TICK_MS = 100;
 /** Пауза после ручного взаимодействия с картой, прежде чем таймер пойдёт дальше. */
 const INTERACTION_RESUME_DELAY_MS = 1500;
+
+const EMPTY_PROGRESS = {
+  beatElapsedMs: 0,
+  beatProgress: 0,
+  stageProgress: 0,
+  scenarioProgress: 0,
+};
 
 export const DEMO_STATUS = {
   IDLE: 'idle',
@@ -34,20 +49,100 @@ const EMPTY_ANIMATION = {
 
 const EMPTY_TEXTS = [];
 
+const EMPTY_MOSAIC = {
+  active: false,
+  mode: 'grid',
+  layout: '2x2',
+  transitionMs: 700,
+  transitioning: null,
+  focusHidden: false,
+  focusSlot: null,
+  visibleSlotIds: [],
+  screens: {},
+  presetId: null,
+  reveal: 'all',
+  staggerMs: 0,
+};
+
+function emptyComposedState() {
+  return {
+    target_ids: [],
+    event_ids: [],
+    situation_ids: [],
+    zone_leaves: [],
+    overlay_layer_ids: [],
+    texts: [],
+    contentStep: null,
+    cameraStep: null,
+  };
+}
+
+function mosaicRuntimeFromPreset(preset, stages, {
+  transitioning = null,
+  reveal = null,
+  staggerMs = null,
+} = {}) {
+  if (!preset) return { ...EMPTY_MOSAIC };
+  const screens = {};
+  (preset.screens || []).forEach((screen) => {
+    screens[screen.id] = resolveMosaicScreen(screen, stages);
+  });
+  return {
+    active: true,
+    mode: 'grid',
+    layout: preset.layout || '2x2',
+    transitionMs: preset.transition_ms || 700,
+    transitioning,
+    focusHidden: true,
+    focusSlot: null,
+    visibleSlotIds: (preset.screens || []).map((screen) => screen.id),
+    screens,
+    presetId: preset.id,
+    reveal: reveal || preset.reveal || DEMO_MOSAIC_REVEAL.ALL,
+    staggerMs: staggerMs ?? preset.stagger_ms ?? 0,
+    expandableSlots: preset.expandable_slots || [],
+  };
+}
+
+function composedStateForProgramItem(item, beatIndex) {
+  if (item?.kind === DEMO_SEQUENCE_TYPE.STAGE && item.stage) {
+    return composeStateForStage(item.stage, beatIndex);
+  }
+  if (item?.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.focusStage
+    && (item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
+      || item.mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE)) {
+    return composeStateForStage(item.focusStage);
+  }
+  return emptyComposedState();
+}
+
 /** Тексты, которые останутся после текущего такта — если ключа нет, пора играть выход. */
-function nextComposedTexts(stages, stageIndex, beatIndex, scenario) {
-  const stage = stages[stageIndex];
-  if (!stage) return [];
-  if (beatIndex + 1 < stage.beats.length) {
-    return composeStateAtStage(stages, stageIndex, beatIndex + 1).texts;
+function nextComposedTexts(items, itemIndex, beatIndex, scenario) {
+  const item = items[itemIndex];
+  if (!item || item.kind !== DEMO_SEQUENCE_TYPE.STAGE || !item.stage) return [];
+  if (beatIndex + 1 < (item.beats?.length || 0)) {
+    return composeStateForStage(item.stage, beatIndex + 1).texts;
   }
-  if (stageIndex + 1 < stages.length) {
-    return composeStateAtStage(stages, stageIndex + 1, 0).texts;
-  }
-  if (scenario?.loop && stages.length) {
-    return composeStateAtStage(stages, 0, 0).texts;
+  const nextIndex = itemIndex + 1 < items.length
+    ? itemIndex + 1
+    : (scenario?.loop && items.length ? 0 : -1);
+  if (nextIndex < 0) return [];
+  const next = items[nextIndex];
+  if (next?.kind === DEMO_SEQUENCE_TYPE.STAGE && next.stage) {
+    return composeStateForStage(next.stage, 0).texts;
   }
   return [];
+}
+
+function prefetchTargetFromItem(item, stages) {
+  if (!item) return null;
+  if (item.kind === DEMO_SEQUENCE_TYPE.STAGE) return item.stage;
+  const steps = [];
+  (item.preset?.screens || []).forEach((screen) => {
+    const stage = findStage(stages, screen.stage_id);
+    if (stage?.steps) steps.push(...stage.steps);
+  });
+  return steps.length ? { steps } : null;
 }
 
 function resolveIdsAgainst(collection, wantedIds, getId = (item) => item.id) {
@@ -98,10 +193,9 @@ function contentPlaybackSlots(step) {
 /**
  * Плеер режима демонстрации.
  *
- * Сценарий раскладывается на **этапы** (точки ручного переключения докладчиком)
- * и **такты** внутри этапа (элементы, которые сменяют друг друга по таймеру или
- * идут параллельно). Плеер ничего не рисует сам: он применяет свёрнутое
- * состояние сценария через те же сеттеры, которыми пользуется оператор, и отдаёт
+ * Сценарий раскладывается на **блоки программы** (этап или мультиэкран)
+ * и **такты** внутри этапа. Плеер ничего не рисует сам: он применяет свёрнутое
+ * состояние через те же сеттеры, которыми пользуется оператор, и отдаёт
  * наружу описание активных анимаций (`demoAnimation`) и текстов (`demoTexts`).
  */
 export function useDemoPlayer({ actions, data }) {
@@ -114,6 +208,7 @@ export function useDemoPlayer({ actions, data }) {
   const [waitingForPresenter, setWaitingForPresenter] = useState(false);
   const [blackout, setBlackout] = useState(DEMO_BLACKOUT.NONE);
   const [hideFinishedTexts, setHideFinishedTexts] = useState(false);
+  const [mosaicRuntime, setMosaicRuntime] = useState(EMPTY_MOSAIC);
 
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
@@ -124,23 +219,38 @@ export function useDemoPlayer({ actions, data }) {
   const pausedElapsedRef = useRef(0);
   const frameRef = useRef(null);
   const lastFrameAtRef = useRef(0);
-  const lastProgressPushRef = useRef(0);
   const snapshotRef = useRef(null);
+  const progressRef = useRef(EMPTY_PROGRESS);
+  const progressListenersRef = useRef(new Set());
+  const timelineRef = useRef({
+    beatDurationMs: 0,
+    beatStartMs: 0,
+    stageDurationMs: 0,
+    stageStartMs: 0,
+    totalMs: 0,
+  });
   const advanceRef = useRef(() => {});
   const lastContentKeyRef = useRef(null);
   const interactionHoldsRef = useRef(0);
   const interactionReleaseTimerRef = useRef(null);
   const applyTokenRef = useRef(0);
+  const mosaicTransitionTimerRef = useRef(null);
+  const mosaicRuntimeRef = useRef(EMPTY_MOSAIC);
+  mosaicRuntimeRef.current = mosaicRuntime;
+  const enterTimerRef = useRef(null);
+  const exitTimerRef = useRef(null);
 
-  const stages = useMemo(() => buildScenarioStages(scenario?.steps || []), [scenario]);
-  const currentStage = stages[stageIndex] || null;
-  const currentBeat = currentStage?.beats?.[beatIndex] || null;
-  const isActive = status !== DEMO_STATUS.IDLE && Boolean(currentStage);
+  const program = useMemo(() => buildProgramPlayback(scenario || {}), [scenario]);
+  const programItems = program.items;
+  const currentItem = programItems[stageIndex] || null;
+  const currentStage = currentItem;
+  const currentBeat = currentItem?.beats?.[beatIndex] || null;
+  const isActive = status !== DEMO_STATUS.IDLE && Boolean(currentItem);
 
-  /** Состояние карты, накопленное сценарием к концу текущего такта. */
+  /** Состояние карты текущего блока программы (этап) или пустое (мультиэкран). */
   const composedState = useMemo(
-    () => composeStateAtStage(stages, stageIndex, beatIndex),
-    [stages, stageIndex, beatIndex],
+    () => composedStateForProgramItem(currentItem, beatIndex),
+    [currentItem, beatIndex],
   );
 
   /** Снимок пользовательского состояния карты, чтобы вернуть его после показа. */
@@ -379,23 +489,207 @@ export function useDemoPlayer({ actions, data }) {
   }, []);
 
   /**
-   * Переход на такт `beat` этапа `stage`. Состояние всегда пересобирается с
-   * начала сценария, поэтому направление перехода на результат не влияет.
+   * Прогресс такта раздаётся подписчикам мимо состояния React.
+   *
+   * Раньше он лежал в useState и обновлялся 10 раз в секунду: каждый такой
+   * тик перерисовывал Formular целиком вместе с картой ради одной полоски в
+   * HUD. Теперь значение пишется в ref, а HUD правит ширину полосы прямо в
+   * DOM — рендеров нет вовсе, а полоса едет с частотой кадров, а не рывками.
    */
-  const goTo = useCallback((nextStageIndex, {
+  const publishProgress = useCallback((elapsedMs) => {
+    const timeline = timelineRef.current;
+    const stageElapsedMs = timeline.beatStartMs + elapsedMs;
+    const next = {
+      beatElapsedMs: elapsedMs,
+      beatProgress: timeline.beatDurationMs
+        ? Math.min(1, elapsedMs / timeline.beatDurationMs)
+        : 0,
+      stageProgress: timeline.stageDurationMs
+        ? Math.min(1, stageElapsedMs / timeline.stageDurationMs)
+        : 0,
+      scenarioProgress: timeline.totalMs
+        ? Math.min(1, (timeline.stageStartMs + stageElapsedMs) / timeline.totalMs)
+        : 0,
+    };
+    progressRef.current = next;
+    progressListenersRef.current.forEach((listener) => {
+      try {
+        listener(next);
+      } catch (err) {
+        console.warn('Ошибка подписчика прогресса демонстрации', err);
+      }
+    });
+  }, []);
+
+  const subscribeProgress = useCallback((listener) => {
+    if (typeof listener !== 'function') return () => {};
+    progressListenersRef.current.add(listener);
+    listener(progressRef.current);
+    return () => progressListenersRef.current.delete(listener);
+  }, []);
+
+  const clearMosaicTransitionTimer = useCallback(() => {
+    if (mosaicTransitionTimerRef.current) {
+      clearTimeout(mosaicTransitionTimerRef.current);
+      mosaicTransitionTimerRef.current = null;
+    }
+  }, []);
+
+  const clearEnterExitTimers = useCallback(() => {
+    if (enterTimerRef.current) {
+      clearTimeout(enterTimerRef.current);
+      enterTimerRef.current = null;
+    }
+    if (exitTimerRef.current) {
+      clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
+    }
+  }, []);
+
+  const applyProgramMosaic = useCallback((item, { animate = true, enterEffect = DEMO_PROGRAM_TRANSITION.NONE } = {}) => {
+    clearMosaicTransitionTimer();
+    const prev = mosaicRuntimeRef.current;
+    const stages = scenario?.stages || [];
+
+    if (item?.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.preset) {
+      const action = item.mosaicAction || item.item?.mosaic_action || DEMO_MOSAIC_ACTION.SHOW_GRID;
+      const slot = item.slot || item.item?.slot || null;
+      const samePreset = Boolean(prev.active && prev.presetId === item.preset.id);
+      const stagger = !samePreset && (
+        enterEffect === DEMO_PROGRAM_TRANSITION.STAGGER
+        || item.preset.reveal === DEMO_MOSAIC_REVEAL.STAGGER
+      );
+      const fade = animate && !samePreset && enterEffect === DEMO_PROGRAM_TRANSITION.FADE;
+      const transitionMs = animate
+        ? (item.item?.enter?.duration_ms || item.preset.transition_ms || 700)
+        : 0;
+
+      const base = samePreset
+        ? {
+          ...prev,
+          transitioning: null,
+          reveal: DEMO_MOSAIC_REVEAL.ALL,
+          staggerMs: 0,
+          transitionMs: transitionMs || prev.transitionMs || 700,
+        }
+        : mosaicRuntimeFromPreset(item.preset, stages, {
+          transitioning: fade ? 'enter' : null,
+          reveal: stagger ? DEMO_MOSAIC_REVEAL.STAGGER : item.preset.reveal,
+          staggerMs: item.preset.stagger_ms,
+        });
+
+      if (transitionMs) base.transitionMs = transitionMs;
+
+      if (action === DEMO_MOSAIC_ACTION.EXPAND && slot
+        && (item.preset.expandable_slots || []).includes(slot)) {
+        setMosaicRuntime({
+          ...base,
+          mode: animate ? 'expanding' : 'focus',
+          focusHidden: false,
+          focusSlot: slot,
+          transitioning: animate ? 'expand' : null,
+        });
+        if (animate) {
+          mosaicTransitionTimerRef.current = setTimeout(() => {
+            setMosaicRuntime((current) => ({
+              ...current,
+              mode: 'focus',
+              transitioning: null,
+            }));
+          }, base.transitionMs || 700);
+        }
+        return;
+      }
+
+      if (action === DEMO_MOSAIC_ACTION.COLLAPSE) {
+        const fromSlot = prev.focusSlot || slot;
+        const wasFocused = prev.mode === 'focus' || prev.mode === 'expanding' || !prev.focusHidden;
+        if (animate && wasFocused && fromSlot) {
+          setMosaicRuntime({
+            ...base,
+            mode: 'collapsing',
+            focusHidden: false,
+            focusSlot: fromSlot,
+            transitioning: 'collapse',
+          });
+          mosaicTransitionTimerRef.current = setTimeout(() => {
+            setMosaicRuntime((current) => ({
+              ...current,
+              mode: 'grid',
+              focusHidden: true,
+              transitioning: null,
+            }));
+          }, base.transitionMs || 700);
+          return;
+        }
+        setMosaicRuntime({
+          ...base,
+          mode: 'grid',
+          focusHidden: true,
+          focusSlot: null,
+          transitioning: null,
+        });
+        return;
+      }
+
+      setMosaicRuntime({
+        ...base,
+        mode: 'grid',
+        focusHidden: true,
+        focusSlot: action === DEMO_MOSAIC_ACTION.SHOW_GRID ? null : (base.focusSlot || null),
+      });
+      if (base.transitioning) {
+        mosaicTransitionTimerRef.current = setTimeout(() => {
+          setMosaicRuntime((current) => ({ ...current, transitioning: null }));
+        }, base.transitionMs || 700);
+      }
+      return;
+    }
+
+    const transitioning = animate && prev.active
+      ? 'exit'
+      : (animate && enterEffect === DEMO_PROGRAM_TRANSITION.FADE ? 'enter' : null);
+    if (prev.active && transitioning === 'exit') {
+      setMosaicRuntime({ ...prev, transitioning, focusHidden: true, mode: 'grid' });
+      mosaicTransitionTimerRef.current = setTimeout(() => {
+        setMosaicRuntime({ ...EMPTY_MOSAIC });
+      }, prev.transitionMs || 700);
+      return;
+    }
+    setMosaicRuntime(transitioning === 'enter'
+      ? { ...EMPTY_MOSAIC, transitioning: 'enter' }
+      : { ...EMPTY_MOSAIC });
+    if (transitioning === 'enter') {
+      mosaicTransitionTimerRef.current = setTimeout(() => {
+        setMosaicRuntime({ ...EMPTY_MOSAIC });
+      }, 700);
+    }
+  }, [clearMosaicTransitionTimer, scenario?.stages]);
+
+  /**
+   * Переход на блок программы `index` и такт `beat`. Состояние этапа
+   * собирается только из этого этапа, а не накопительно по всей программе.
+   */
+  const goTo = useCallback((nextIndex, {
     beat = 0,
     instant = false,
     autoplay = true,
-    stageList = null,
+    programList = null,
+    skipEnter = false,
   } = {}) => {
-    const list = stageList || stages;
+    const list = programList || programItems;
     if (!list.length) return;
 
-    const boundedStage = Math.max(0, Math.min(list.length - 1, nextStageIndex));
-    const stage = list[boundedStage];
-    const boundedBeat = Math.max(0, Math.min(stage.beats.length - 1, beat));
+    const boundedIndex = Math.max(0, Math.min(list.length - 1, nextIndex));
+    const item = list[boundedIndex];
+    const beats = item.beats?.length
+      ? item.beats
+      : [{ steps: [], indices: [], durationMs: item.durationMs || 0, startMs: 0, endMs: item.durationMs || 0 }];
+    const boundedBeat = Math.max(0, Math.min(beats.length - 1, beat));
 
-    setStageIndex(boundedStage);
+    clearEnterExitTimers();
+
+    setStageIndex(boundedIndex);
     setBeatIndex(boundedBeat);
     setBeatElapsedMs(0);
     setWaitingForPresenter(false);
@@ -403,57 +697,134 @@ export function useDemoPlayer({ actions, data }) {
     pausedElapsedRef.current = 0;
     beatStartedAtRef.current = performance.now();
     lastFrameAtRef.current = performance.now();
-    lastProgressPushRef.current = 0;
     lastContentKeyRef.current = null;
 
-    // Догрузка данных асинхронна: если докладчик успел уйти дальше, применять
-    // уже неактуальное состояние нельзя.
+    const itemDuration = (item.enterMs || 0) + (item.durationMs || 0) + (item.exitMs || 0);
+    timelineRef.current = {
+      beatDurationMs: beats[boundedBeat]?.durationMs || 0,
+      beatStartMs: (beats[boundedBeat]?.startMs || 0) + (item.enterMs || 0),
+      stageDurationMs: itemDuration,
+      stageStartMs: item.startMs || 0,
+      totalMs: list.length ? list[list.length - 1].endMs : 0,
+    };
+    publishProgress(0);
+
+    const enter = item.item?.enter || {};
+    const enterEffect = skipEnter || instant
+      ? DEMO_PROGRAM_TRANSITION.NONE
+      : (enter.effect || DEMO_PROGRAM_TRANSITION.NONE);
+    if (!skipEnter && !instant && enterEffect === DEMO_PROGRAM_TRANSITION.BLACKOUT) {
+      setBlackout(DEMO_BLACKOUT.BLACK);
+      enterTimerRef.current = setTimeout(() => {
+        setBlackout(DEMO_BLACKOUT.NONE);
+        enterTimerRef.current = null;
+      }, enter.duration_ms || 400);
+    } else if (skipEnter || instant || enterEffect !== DEMO_PROGRAM_TRANSITION.BLACKOUT) {
+      setBlackout(DEMO_BLACKOUT.NONE);
+    }
+
+    applyProgramMosaic(item, { animate: !instant, enterEffect });
+
     applyTokenRef.current += 1;
     const token = applyTokenRef.current;
-    const state = composeStateAtStage(list, boundedStage, boundedBeat);
-    prefetchForStage(stage).then(() => {
+    const state = composedStateForProgramItem(item, boundedBeat);
+    const mosaicFocus = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC
+      && (item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
+        || item.mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE);
+    const prefetchTarget = prefetchTargetFromItem(item, scenario?.stages || []);
+    prefetchForStage(prefetchTarget).then(() => {
       if (applyTokenRef.current !== token) return;
-      applyState(state, { instant });
+      applyState(state, { instant: instant || mosaicFocus });
     });
     setAnimationRunId((prev) => prev + 1);
     if (autoplay) setStatus(DEMO_STATUS.PLAYING);
-  }, [applyState, prefetchForStage, stages]);
+  }, [
+    applyProgramMosaic,
+    applyState,
+    clearEnterExitTimers,
+    prefetchForStage,
+    programItems,
+    publishProgress,
+    scenario?.stages,
+  ]);
 
-  /** Автоматический переход по таймеру: следующий такт, следующий этап или ожидание докладчика. */
+  const moveToNextItem = useCallback((list = programItems, index = stageIndex) => {
+    if (index + 1 < list.length) {
+      goTo(index + 1, { programList: list });
+      return true;
+    }
+    if (scenario?.loop && list.length) {
+      goTo(0, { programList: list });
+      return true;
+    }
+    return false;
+  }, [goTo, programItems, scenario, stageIndex]);
+
+  const runExitThen = useCallback((item, thenGo) => {
+    const effect = item?.item?.exit?.effect || DEMO_PROGRAM_TRANSITION.NONE;
+    const duration = item?.item?.exit?.duration_ms || 0;
+    if (effect === DEMO_PROGRAM_TRANSITION.NONE || duration <= 0) {
+      thenGo();
+      return;
+    }
+    stopFrameLoop();
+    if (effect === DEMO_PROGRAM_TRANSITION.BLACKOUT) {
+      setBlackout(DEMO_BLACKOUT.BLACK);
+    } else if (effect === DEMO_PROGRAM_TRANSITION.FADE && mosaicRuntimeRef.current.active) {
+      setMosaicRuntime((current) => ({ ...current, transitioning: 'exit' }));
+    }
+    if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = setTimeout(() => {
+      exitTimerRef.current = null;
+      setBlackout(DEMO_BLACKOUT.NONE);
+      thenGo();
+    }, duration);
+  }, [stopFrameLoop]);
+
+  /** Автоматический переход по таймеру: следующий такт, следующий блок или ожидание докладчика. */
   const advance = useCallback(() => {
-    const stage = stages[stageIndex];
-    if (!stage) return;
+    const item = programItems[stageIndex];
+    if (!item) return;
 
-    if (beatIndex + 1 < stage.beats.length) {
-      goTo(stageIndex, { beat: beatIndex + 1 });
+    if (beatIndex + 1 < (item.beats?.length || 0)) {
+      goTo(stageIndex, { beat: beatIndex + 1, skipEnter: true });
       return;
     }
 
-    if (!scenario?.auto_advance) {
+    const wait = Boolean(item.item?.wait_for_presenter);
+    if (wait) {
       stopFrameLoop();
       setHideFinishedTexts(true);
       setWaitingForPresenter(true);
-      setBeatElapsedMs(stage.beats[beatIndex]?.durationMs || 0);
-      pausedElapsedRef.current = stage.beats[beatIndex]?.durationMs || 0;
+      const finished = item.beats[beatIndex]?.durationMs || item.durationMs || 0;
+      setBeatElapsedMs(finished);
+      publishProgress(finished);
+      pausedElapsedRef.current = finished;
       return;
     }
 
-    if (stageIndex + 1 < stages.length) {
-      goTo(stageIndex + 1);
-      return;
-    }
-    if (scenario?.loop && stages.length) {
-      goTo(0);
-      return;
-    }
-
-    stopFrameLoop();
-    setHideFinishedTexts(true);
-    setStatus(DEMO_STATUS.PAUSED);
-    setWaitingForPresenter(true);
-    setBeatElapsedMs(stage.beats[beatIndex]?.durationMs || 0);
-    pausedElapsedRef.current = stage.beats[beatIndex]?.durationMs || 0;
-  }, [beatIndex, goTo, scenario, stageIndex, stages, stopFrameLoop]);
+    runExitThen(item, () => {
+      if (moveToNextItem()) return;
+      stopFrameLoop();
+      setHideFinishedTexts(true);
+      setStatus(DEMO_STATUS.PAUSED);
+      setWaitingForPresenter(true);
+      const finished = item.beats[beatIndex]?.durationMs || item.durationMs || 0;
+      setBeatElapsedMs(finished);
+      publishProgress(finished);
+      pausedElapsedRef.current = finished;
+    });
+  }, [
+    beatIndex,
+    goTo,
+    moveToNextItem,
+    programItems,
+    publishProgress,
+    runExitThen,
+    scenario,
+    stageIndex,
+    stopFrameLoop,
+  ]);
 
   advanceRef.current = advance;
 
@@ -482,18 +853,15 @@ export function useDemoPlayer({ actions, data }) {
         advanceRef.current();
         return;
       }
-      // Прогресс в state обновляем реже кадра — иначе Formular перерисовывается 60 раз в секунду.
-      if (now - lastProgressPushRef.current >= PROGRESS_TICK_MS) {
-        lastProgressPushRef.current = now;
-        setBeatElapsedMs(elapsed);
-      }
+      // Прогресс идёт мимо состояния React, поэтому его можно отдавать каждый кадр.
+      publishProgress(elapsed);
       frameRef.current = requestAnimationFrame(tick);
     };
 
     lastFrameAtRef.current = performance.now();
     frameRef.current = requestAnimationFrame(tick);
     return stopFrameLoop;
-  }, [status, currentBeat, waitingForPresenter, stopFrameLoop]);
+  }, [status, currentBeat, waitingForPresenter, publishProgress, stopFrameLoop]);
 
   /** Ротация формуляров и справок внутри такта. */
   useEffect(() => {
@@ -515,39 +883,56 @@ export function useDemoPlayer({ actions, data }) {
 
     // Карточки листаются только у шага текущего такта; перенесённый из прошлых
     // этапов формуляр просто остаётся открытым на первом пункте.
-    let index = 0;
-    if (beatContentStep && currentBeat?.durationMs) {
-      const slice = Math.max(500, Math.floor(currentBeat.durationMs / slots.length));
-      index = Math.min(slots.length - 1, Math.floor(beatElapsedMs / slice));
-    }
+    const rotates = Boolean(beatContentStep && currentBeat?.durationMs && slots.length > 1);
+    const slice = rotates
+      ? Math.max(500, Math.floor(currentBeat.durationMs / slots.length))
+      : 0;
 
-    const slot = slots[index];
-    const key = `${contentStep.tool}:${slot.entityId}:${slot.cardId || ''}`;
-    if (lastContentKeyRef.current === key) return undefined;
-    lastContentKeyRef.current = key;
-    api.setDemoContentCardId?.(slot.cardId);
-    if (contentStep.tool === DEMO_TOOL.FORMULAR) {
-      api.setSelectedCountryIso?.(null);
-      api.setSelectedTargetId?.(slot.entityId);
-    } else {
-      api.setSelectedTargetId?.(null);
-      api.setSelectedCountryIso?.(slot.entityId);
-    }
-    return undefined;
-  }, [beatElapsedMs, composedState, currentBeat, isActive]);
+    let lastIndex = -1;
+    const showAt = (elapsedMs) => {
+      const index = rotates
+        ? Math.min(slots.length - 1, Math.floor(elapsedMs / slice))
+        : 0;
+      // Кадр без смены карточки не должен доходить до setState в Formular.
+      if (index === lastIndex && lastContentKeyRef.current !== null) return;
+      lastIndex = index;
+
+      const slot = slots[index];
+      const key = `${contentStep.tool}:${slot.entityId}:${slot.cardId || ''}`;
+      if (lastContentKeyRef.current === key) return;
+      lastContentKeyRef.current = key;
+      api.setDemoContentCardId?.(slot.cardId);
+      if (contentStep.tool === DEMO_TOOL.FORMULAR) {
+        api.setSelectedCountryIso?.(null);
+        api.setSelectedTargetId?.(slot.entityId);
+      } else {
+        api.setSelectedTargetId?.(null);
+        api.setSelectedCountryIso?.(slot.entityId);
+      }
+    };
+
+    // Листание карточек внутри такта слушает тот же прогресс, что и HUD.
+    // Подписка вызывает слушателя сразу, поэтому первая карточка встаёт на
+    // место без ожидания кадра.
+    return subscribeProgress((progress) => showAt(progress.beatElapsedMs));
+  }, [composedState, currentBeat, isActive, subscribeProgress]);
 
   const start = useCallback((nextScenario, { startIndex = 0 } = {}) => {
-    const steps = nextScenario?.steps || [];
-    if (!steps.length) return false;
+    const normalized = normalizeScenario(nextScenario || {});
+    const nextProgram = buildProgramPlayback(normalized);
+    if (!nextProgram.items.length) return false;
+    clearMosaicCatalogCache();
     if (!snapshotRef.current) captureSnapshot();
-    setScenario(nextScenario);
+    setScenario(normalized);
     setBlackout(DEMO_BLACKOUT.NONE);
-    goTo(startIndex, { stageList: buildScenarioStages(steps) });
+    goTo(startIndex, { programList: nextProgram.items });
     return true;
   }, [captureSnapshot, goTo]);
 
   const stop = useCallback(({ restore = true } = {}) => {
     stopFrameLoop();
+    clearMosaicTransitionTimer();
+    clearEnterExitTimers();
     if (interactionReleaseTimerRef.current) {
       clearTimeout(interactionReleaseTimerRef.current);
       interactionReleaseTimerRef.current = null;
@@ -561,7 +946,9 @@ export function useDemoPlayer({ actions, data }) {
     setWaitingForPresenter(false);
     setHideFinishedTexts(false);
     setBlackout(DEMO_BLACKOUT.NONE);
+    setMosaicRuntime(EMPTY_MOSAIC);
     pausedElapsedRef.current = 0;
+    progressRef.current = EMPTY_PROGRESS;
     setAnimationRunId((prev) => prev + 1);
     lastContentKeyRef.current = null;
     if (restore) restoreSnapshot();
@@ -573,20 +960,21 @@ export function useDemoPlayer({ actions, data }) {
       api.setDetailSituation?.(null);
       api.setDemoContentCardId?.(null);
     }
-  }, [restoreSnapshot, stopFrameLoop]);
+  }, [clearEnterExitTimers, clearMosaicTransitionTimer, restoreSnapshot, stopFrameLoop]);
 
   const pause = useCallback(() => {
     // Пока показ ждёт докладчика, таймер и так стоит — паузу ставить не от чего.
     if (status !== DEMO_STATUS.PLAYING || waitingForPresenter) return;
     pausedElapsedRef.current = performance.now() - beatStartedAtRef.current;
     setBeatElapsedMs(pausedElapsedRef.current);
+    publishProgress(pausedElapsedRef.current);
     setStatus(DEMO_STATUS.PAUSED);
-  }, [status, waitingForPresenter]);
+  }, [publishProgress, status, waitingForPresenter]);
 
   const resume = useCallback(() => {
     if (status !== DEMO_STATUS.PAUSED) return;
     if (currentBeat && pausedElapsedRef.current >= currentBeat.durationMs) {
-      goTo(stageIndex, { beat: beatIndex });
+      goTo(stageIndex, { beat: beatIndex, skipEnter: true });
       return;
     }
     lastContentKeyRef.current = null;
@@ -602,25 +990,34 @@ export function useDemoPlayer({ actions, data }) {
 
   /**
    * «Вперёд» как в PowerPoint: если этап ещё доигрывает такты — первое нажатие
-   * досрочно показывает его целиком, следующее переводит на новый этап.
+   * досрочно показывает его целиком, следующее переводит на новый блок программы.
    */
   const next = useCallback(() => {
     if (status === DEMO_STATUS.IDLE) return;
-    const stage = stages[stageIndex];
-    if (!stage) return;
+    const item = programItems[stageIndex];
+    if (!item) return;
 
-    const stageIncomplete = !waitingForPresenter && beatIndex + 1 < stage.beats.length;
-    if (stageIncomplete) {
-      goTo(stageIndex, { beat: stage.beats.length - 1, instant: true });
+    const incomplete = !waitingForPresenter && beatIndex + 1 < (item.beats?.length || 0);
+    if (incomplete) {
+      goTo(stageIndex, { beat: item.beats.length - 1, instant: true, skipEnter: true });
       return;
     }
 
-    if (stageIndex + 1 < stages.length) {
-      goTo(stageIndex + 1);
-      return;
-    }
-    if (scenario?.loop) goTo(0);
-  }, [beatIndex, goTo, scenario, stageIndex, stages, status, waitingForPresenter]);
+    runExitThen(item, () => {
+      if (moveToNextItem()) return;
+      if (scenario?.loop && programItems.length) goTo(0);
+    });
+  }, [
+    beatIndex,
+    goTo,
+    moveToNextItem,
+    programItems,
+    runExitThen,
+    scenario,
+    stageIndex,
+    status,
+    waitingForPresenter,
+  ]);
 
   const prev = useCallback(() => {
     if (status === DEMO_STATUS.IDLE) return;
@@ -628,8 +1025,8 @@ export function useDemoPlayer({ actions, data }) {
       goTo(stageIndex - 1);
       return;
     }
-    if (scenario?.loop && stages.length) goTo(stages.length - 1);
-  }, [goTo, scenario, stageIndex, stages.length, status]);
+    if (scenario?.loop && programItems.length) goTo(programItems.length - 1);
+  }, [goTo, programItems.length, scenario, stageIndex, status]);
 
   const goToStage = useCallback((index) => {
     if (status === DEMO_STATUS.IDLE) return;
@@ -669,18 +1066,81 @@ export function useDemoPlayer({ actions, data }) {
   /** Одиночный предпросмотр шага из конструктора — полноценный показ одного шага. */
   const previewStep = useCallback((step) => {
     if (!step) return false;
+    const stage = {
+      id: 'preview-stage',
+      key: 'preview-stage',
+      title: step.title || 'Просмотр шага',
+      steps: [step],
+    };
     return start({
       title: step.title || 'Просмотр шага',
       loop: false,
       auto_advance: true,
-      steps: [step],
+      stages: [stage],
+      sequence: [createDefaultSequenceItem({
+        type: DEMO_SEQUENCE_TYPE.STAGE,
+        stage_id: stage.id,
+      })],
+    });
+  }, [start]);
+
+  /** Предпросмотр этапа целиком — последний такт составленного вида. */
+  const previewStage = useCallback((stage) => {
+    if (!stage) return false;
+    const id = stage.id || stage.key || 'preview-stage';
+    return start({
+      title: stage.title || 'Просмотр этапа',
+      loop: false,
+      auto_advance: true,
+      stages: [{ ...stage, id, key: id }],
+      sequence: [createDefaultSequenceItem({
+        type: DEMO_SEQUENCE_TYPE.STAGE,
+        stage_id: id,
+      })],
+    });
+  }, [start]);
+
+  /** Предпросмотр пресета мультиэкрана (сетка или разворот слота). */
+  const previewMosaic = useCallback((preset, stages = [], { action, slot } = {}) => {
+    if (!preset) return false;
+    const mosaicAction = action || DEMO_MOSAIC_ACTION.SHOW_GRID;
+    return start({
+      title: preset.title || 'Просмотр мультиэкрана',
+      loop: false,
+      auto_advance: true,
+      stages,
+      mosaic: {
+        presets: [preset],
+        active_preset_id: preset.id,
+      },
+      sequence: [createDefaultSequenceItem({
+        type: DEMO_SEQUENCE_TYPE.MOSAIC,
+        preset_id: preset.id,
+        mosaic_action: mosaicAction,
+        slot: slot || null,
+        duration_ms: mosaicAction === DEMO_MOSAIC_ACTION.SHOW_GRID ? 0 : (preset.transition_ms || 700),
+      })],
+    });
+  }, [start]);
+
+  /** Предпросмотр одного блока программы из черновика конструктора. */
+  const previewProgramItem = useCallback((draft, item) => {
+    if (!draft || !item) return false;
+    return start({
+      ...draft,
+      title: draft.title || 'Просмотр блока',
+      loop: false,
+      auto_advance: true,
+      sequence: [{ ...item, wait_for_presenter: false }],
     });
   }, [start]);
 
   useEffect(() => () => {
     stopFrameLoop();
+    clearMosaicTransitionTimer();
+    clearEnterExitTimers();
     if (interactionReleaseTimerRef.current) clearTimeout(interactionReleaseTimerRef.current);
-  }, [stopFrameLoop]);
+  }, [clearEnterExitTimers, clearMosaicTransitionTimer, stopFrameLoop]);
 
   /**
    * Описание активных анимаций для слоёв карты. Берём только шаги текущего
@@ -690,7 +1150,7 @@ export function useDemoPlayer({ actions, data }) {
     if (!isActive || !currentBeat) return EMPTY_ANIMATION;
 
     const effects = {};
-    currentBeat.steps.forEach((step) => {
+    (currentBeat.steps || []).forEach((step) => {
       const animation = step.animation || {};
       if (!animation.effect || animation.effect === DEMO_EFFECT.NONE) return;
       const entry = {
@@ -741,7 +1201,7 @@ export function useDemoPlayer({ actions, data }) {
     let list = composedState.texts || [];
     if (hideFinishedTexts) {
       const surviving = new Set(
-        nextComposedTexts(stages, stageIndex, beatIndex, scenario).map((item) => item.key),
+        nextComposedTexts(programItems, stageIndex, beatIndex, scenario).map((item) => item.key),
       );
       list = list.filter((item) => surviving.has(item.key));
     }
@@ -765,12 +1225,12 @@ export function useDemoPlayer({ actions, data }) {
     currentBeat,
     hideFinishedTexts,
     isActive,
+    programItems,
     scenario,
     stageIndex,
-    stages,
   ]);
 
-  const totalMs = stages.length ? stages[stages.length - 1].endMs : 0;
+  const totalMs = program.totalMs || 0;
   const beatProgress = currentBeat?.durationMs
     ? Math.min(1, beatElapsedMs / currentBeat.durationMs)
     : 0;
@@ -782,13 +1242,24 @@ export function useDemoPlayer({ actions, data }) {
     ? Math.min(1, ((currentStage?.startMs || 0) + stageElapsedMs) / totalMs)
     : 0;
 
-  const stageSummaries = useMemo(() => stages.map((stage) => ({
-    index: stage.index,
-    title: stage.title,
-    tools: stage.steps.map((step) => step.tool),
-    durationMs: stage.durationMs,
-    beatCount: stage.beats.length,
-  })), [stages]);
+  // Шкала для publishProgress: считать её в кадре по currentStage/currentBeat
+  // нельзя — те живут в замыкании эффекта и устаревают вместе с ним.
+  timelineRef.current = {
+    beatDurationMs: currentBeat?.durationMs || 0,
+    beatStartMs: (currentBeat?.startMs || 0) + (currentItem?.enterMs || 0),
+    stageDurationMs: (currentItem?.enterMs || 0) + (currentItem?.durationMs || 0) + (currentItem?.exitMs || 0),
+    stageStartMs: currentItem?.startMs || 0,
+    totalMs,
+  };
+
+  const stageSummaries = useMemo(() => programItems.map((item) => ({
+    index: item.index,
+    title: item.title,
+    kind: item.kind,
+    tools: (item.beats || []).flatMap((beat) => (beat.steps || []).map((step) => step.tool)),
+    durationMs: item.durationMs,
+    beatCount: item.beats?.length || 0,
+  })), [programItems]);
 
   const playback = useMemo(() => ({
     status,
@@ -798,32 +1269,37 @@ export function useDemoPlayer({ actions, data }) {
     autoAdvance: Boolean(scenario?.auto_advance),
     blackout,
     scenarioTitle: scenario?.title || '',
+    kind: currentItem?.kind || DEMO_SEQUENCE_TYPE.STAGE,
     stageIndex,
-    stageCount: stages.length,
+    stageCount: programItems.length,
     beatIndex,
-    beatCount: currentStage?.beats?.length || 0,
+    beatCount: currentItem?.beats?.length || 0,
     stageProgress,
     beatProgress,
     scenarioProgress,
-    stageTitle: currentStage?.title || '',
-    stepTitle: currentBeat?.steps?.[0]?.title || currentStage?.title || '',
+    stageTitle: currentItem?.title || '',
+    stepTitle: currentBeat?.steps?.[0]?.title || currentItem?.title || '',
     stepTools: currentBeat?.steps?.map((step) => step.tool) || [],
     stages: stageSummaries,
     loop: Boolean(scenario?.loop),
+    // Живой прогресс HUD берёт отсюда: значения выше — только срез на момент
+    // смены такта, паузы или остановки.
+    subscribeProgress,
   }), [
     beatIndex,
     beatProgress,
     blackout,
     currentBeat,
-    currentStage,
+    currentItem,
     isActive,
+    programItems.length,
     scenario,
     scenarioProgress,
     stageIndex,
     stageProgress,
     stageSummaries,
-    stages.length,
     status,
+    subscribeProgress,
     waitingForPresenter,
   ]);
 
@@ -831,6 +1307,7 @@ export function useDemoPlayer({ actions, data }) {
     playback,
     demoAnimation,
     demoTexts,
+    mosaicRuntime,
     isActive,
     start,
     stop,
@@ -845,5 +1322,9 @@ export function useDemoPlayer({ actions, data }) {
     holdForInteraction,
     releaseInteraction,
     previewStep,
+    previewStage,
+    previewMosaic,
+    previewProgramItem,
+    scenario,
   };
 }

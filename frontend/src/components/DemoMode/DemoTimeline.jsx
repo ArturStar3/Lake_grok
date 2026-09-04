@@ -1,22 +1,29 @@
 import { useMemo } from 'react';
 import {
-  buildScenarioTimeline,
+  DEMO_SEQUENCE_TYPE,
+  buildProgramPlayback,
   formatDurationMs,
-  getToolIcon,
-  getToolLabel,
 } from '../../utils/demoScenario';
 
 /**
- * Временная шкала сценария: показывает, когда стартует каждый шаг
- * и сколько длится весь показ (аналог области анимации PowerPoint).
+ * Временная шкала программы показа: блоки этапов и мультиэкрана.
  */
-export default function DemoTimeline({ steps = [], activeIndex = 0, onSelectStep }) {
-  const { segments, stages, totalMs } = useMemo(() => buildScenarioTimeline(steps), [steps]);
+export default function DemoTimeline({
+  program: programProp = null,
+  scenario = null,
+  activeIndex = 0,
+  onSelectItem,
+}) {
+  const program = useMemo(
+    () => programProp || buildProgramPlayback(scenario || {}),
+    [programProp, scenario],
+  );
+  const { items, totalMs } = program;
 
-  if (!segments.length) {
+  if (!items.length) {
     return (
       <div className="demo-timeline demo-timeline--empty">
-        Добавьте шаги — здесь появится временная шкала показа.
+        Добавьте блоки в программу — здесь появится временная шкала показа.
       </div>
     );
   }
@@ -28,34 +35,24 @@ export default function DemoTimeline({ steps = [], activeIndex = 0, onSelectStep
         <span className="demo-timeline__total">Всего: {formatDurationMs(totalMs)}</span>
       </div>
       <div className="demo-timeline__track">
-        {/* Границы этапов: там показ ждёт докладчика в ручном режиме. */}
-        {stages.slice(1).map((stage) => (
-          <span
-            key={`stage-${stage.index}`}
-            className="demo-timeline__stage-mark"
-            style={{ left: `${totalMs ? (stage.startMs / totalMs) * 100 : 0}%` }}
-            title={`Этап ${stage.index + 1}`}
-          />
-        ))}
-        {segments.map((segment) => {
-          const left = totalMs ? (segment.startMs / totalMs) * 100 : 0;
+        {items.map((item) => {
+          const left = totalMs ? (item.startMs / totalMs) * 100 : 0;
           const width = totalMs
-            ? Math.max(1.5, ((segment.endMs - segment.startMs) / totalMs) * 100)
+            ? Math.max(2.5, ((item.endMs - item.startMs) / totalMs) * 100)
             : 100;
-          const isActive = segment.index === activeIndex;
+          const isActive = item.index === activeIndex;
+          const mosaic = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC;
           return (
             <button
               type="button"
-              key={segment.step.key}
-              className={`demo-timeline__bar${isActive ? ' demo-timeline__bar--active' : ''}`}
+              key={item.item.key || item.index}
+              className={`demo-timeline__bar${isActive ? ' demo-timeline__bar--active' : ''}${mosaic ? ' demo-timeline__bar--slot-a' : ''}`}
               style={{ left: `${left}%`, width: `${width}%` }}
-              onClick={() => onSelectStep?.(segment.index)}
-              title={`${segment.index + 1}. ${segment.step.title || getToolLabel(segment.step.tool)} — ${formatDurationMs(segment.step.duration_ms)}`}
+              onClick={() => onSelectItem?.(item.index)}
+              title={`${item.index + 1}. ${item.title} — ${formatDurationMs(item.endMs - item.startMs)}`}
             >
-              <span className="demo-timeline__bar-icon">{getToolIcon(segment.step.tool)}</span>
-              <span className="demo-timeline__bar-label">
-                {segment.step.title || getToolLabel(segment.step.tool)}
-              </span>
+              <span className="demo-timeline__bar-icon">{mosaic ? '▦' : '▶'}</span>
+              <span className="demo-timeline__bar-label">{item.title}</span>
             </button>
           );
         })}

@@ -32,6 +32,7 @@ from formular.models import (
     MapDisplaySettings,
     TargetVulnerability,
     DemoScenario,
+    DemoScenarioStage,
     DemoScenarioStep,
     DemoStepStartMode,
     DemoStepTool,
@@ -51,9 +52,13 @@ from .demo_scenario_utils import (
     clear_other_default_scenarios,
     normalize_animation,
     normalize_camera,
+    normalize_scenario_mosaic,
+    normalize_scenario_sequence,
     normalize_selection,
     normalize_step_duration,
+    normalize_step_mosaic,
     normalize_text,
+    replace_demo_scenario_library,
     replace_demo_scenario_steps,
 )
 from formular.map_display_utils import normalize_map_display_zoom_rules
@@ -1500,6 +1505,7 @@ class DemoScenarioStepSerializer(serializers.ModelSerializer):
         model = DemoScenarioStep
         fields = (
             'id',
+            'stage',
             'order',
             'title',
             'tool',
@@ -1510,6 +1516,7 @@ class DemoScenarioStepSerializer(serializers.ModelSerializer):
             'selection',
             'animation',
             'text',
+            'mosaic',
         )
 
 
@@ -1533,6 +1540,7 @@ class DemoScenarioStepWriteSerializer(serializers.Serializer):
     selection = serializers.JSONField(required=False, default=dict)
     animation = serializers.JSONField(required=False, default=dict)
     text = serializers.JSONField(required=False, default=dict)
+    mosaic = serializers.JSONField(required=False, default=dict)
 
     def validate_camera(self, value):
         return normalize_camera(value)
@@ -1546,11 +1554,34 @@ class DemoScenarioStepWriteSerializer(serializers.Serializer):
     def validate_text(self, value):
         return normalize_text(value)
 
+    def validate_mosaic(self, value):
+        return normalize_step_mosaic(value)
 
-class DemoScenarioSerializer(serializers.ModelSerializer):
-    """Сценарий демонстрации со вложенными шагами (чтение)."""
+
+class DemoScenarioStageSerializer(serializers.ModelSerializer):
+    """Этап-шаблон со вложенными шагами (чтение)."""
 
     steps = DemoScenarioStepSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = DemoScenarioStage
+        fields = ('id', 'order', 'title', 'steps')
+
+
+class DemoScenarioStageWriteSerializer(serializers.Serializer):
+    """Этап при записи сценария."""
+
+    id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=80)
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    steps = DemoScenarioStepWriteSerializer(many=True, required=False)
+
+
+class DemoScenarioSerializer(serializers.ModelSerializer):
+    """Сценарий демонстрации со вложенными этапами (чтение)."""
+
+    stages = DemoScenarioStageSerializer(many=True, read_only=True)
+    steps = serializers.SerializerMethodField()
+    stage_count = serializers.SerializerMethodField()
     step_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -1562,21 +1593,36 @@ class DemoScenarioSerializer(serializers.ModelSerializer):
             'is_default',
             'loop',
             'auto_advance',
+            'mosaic',
+            'sequence',
             'default_step_duration_ms',
             'created_at',
             'updated_at',
+            'stages',
             'steps',
+            'stage_count',
             'step_count',
         )
 
+    def get_steps(self, obj):
+        steps = []
+        for stage in obj.stages.all():
+            steps.extend(stage.steps.all())
+        return DemoScenarioStepSerializer(steps, many=True, context=self.context).data
+
+    def get_stage_count(self, obj):
+        return len(obj.stages.all())
+
     def get_step_count(self, obj):
-        return len(obj.steps.all())
+        return sum(len(stage.steps.all()) for stage in obj.stages.all())
 
 
 class DemoScenarioWriteSerializer(serializers.ModelSerializer):
-    """Создание/обновление сценария демонстрации вместе с шагами."""
+    """Создание/обновление сценария демонстрации вместе с этапами и программой."""
 
+    stages = DemoScenarioStageWriteSerializer(many=True, required=False)
     steps = DemoScenarioStepWriteSerializer(many=True, required=False)
+    sequence = serializers.JSONField(required=False, default=list)
 
     class Meta:
         model = DemoScenario
@@ -1587,7 +1633,10 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
             'is_default',
             'loop',
             'auto_advance',
+            'mosaic',
+            'sequence',
             'default_step_duration_ms',
+            'stages',
             'steps',
         )
         read_only_fields = ('id',)
@@ -1595,24 +1644,105 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
     def validate_default_step_duration_ms(self, value):
         return normalize_step_duration(value)
 
+    def validate_mosaic(self, value):
+        return normalize_scenario_mosaic(value)
+
+    def validate_sequence(self, value):
+        return normalize_scenario_sequence(value)
+
+    def _replace_library(self, scenario, validated_data):
+        stages_data = validated_data.pop('stages', serializers.empty)
+        steps_data = validated_data.pop('steps', serializers.empty)
+        sequence_data = validated_data.get('sequence', serializers.empty)
+        mosaic_data = validated_data.get('mosaic', serializers.empty)
+
+        if stages_data is not serializers.empty:
+            replace_demo_scenario_library(
+                scenario,
+                stages_data or [],
+                sequence_data=None if sequence_data is serializers.empty else sequence_data,
+                mosaic_data=None if mosaic_data is serializers.empty else mosaic_data,
+            )
+        elif steps_data is not serializers.empty:
+            replace_demo_scenario_steps(scenario, steps_data or [])
+        elif sequence_data is not serializers.empty or mosaic_data is not serializers.empty:
+            stage_rows = [
+                {
+                    'id': str(stage.id),
+                    'title': stage.title,
+                    'steps': [
+                        {
+                            'title': step.title,
+                            'tool': step.tool,
+                            'duration_ms': step.duration_ms,
+                            'start_mode': step.start_mode,
+                            'hold_previous': step.hold_previous,
+                            'camera': step.camera,
+                            'selection': step.selection,
+                            'animation': step.animation,
+                            'text': step.text,
+                            'mosaic': step.mosaic,
+                        }
+                        for step in stage.steps.all()
+                    ],
+                }
+                for stage in scenario.stages.all()
+            ]
+            replace_demo_scenario_library(
+                scenario,
+                stage_rows,
+                sequence_data=None if sequence_data is serializers.empty else sequence_data,
+                mosaic_data=None if mosaic_data is serializers.empty else mosaic_data,
+            )
+
     @transaction.atomic
     def create(self, validated_data):
-        steps_data = validated_data.pop('steps', None)
+        stages_data = validated_data.pop('stages', serializers.empty)
+        steps_data = validated_data.pop('steps', serializers.empty)
+        sequence_data = validated_data.pop('sequence', [])
+        mosaic_data = validated_data.get('mosaic')
         scenario = DemoScenario.objects.create(**validated_data)
-        replace_demo_scenario_steps(scenario, steps_data if steps_data is not None else [])
+        if stages_data is not serializers.empty:
+            replace_demo_scenario_library(
+                scenario,
+                stages_data or [],
+                sequence_data=sequence_data,
+                mosaic_data=mosaic_data,
+            )
+        else:
+            replace_demo_scenario_steps(scenario, steps_data if steps_data is not serializers.empty else [])
+            if sequence_data:
+                scenario.sequence = normalize_scenario_sequence(sequence_data)
+                scenario.save(update_fields=['sequence'])
         clear_other_default_scenarios(scenario)
         return scenario
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        stages_data = validated_data.pop('stages', serializers.empty)
         steps_data = validated_data.pop('steps', serializers.empty)
+        sequence_data = validated_data.pop('sequence', serializers.empty)
+        mosaic_data = validated_data.get('mosaic', serializers.empty)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        if steps_data is not serializers.empty:
+        if stages_data is not serializers.empty:
+            replace_demo_scenario_library(
+                instance,
+                stages_data or [],
+                sequence_data=None if sequence_data is serializers.empty else sequence_data,
+                mosaic_data=None if mosaic_data is serializers.empty else mosaic_data,
+            )
+        elif steps_data is not serializers.empty:
             replace_demo_scenario_steps(instance, steps_data or [])
+        elif sequence_data is not serializers.empty or mosaic_data is not serializers.empty:
+            self._replace_library(instance, {
+                'sequence': sequence_data,
+                'mosaic': mosaic_data,
+            })
         clear_other_default_scenarios(instance)
         return instance
 
     def to_representation(self, instance):
         return DemoScenarioSerializer(instance, context=self.context).data
+

@@ -3,11 +3,13 @@ import { MAP_OVERLAY_LAYERS } from '../config/tiles';
 
 const STORAGE_KEY = 'infolake.mapLayers.v1';
 
-function readInitialState() {
+function readInitialState(persist = true) {
   const defaults = {};
   MAP_OVERLAY_LAYERS.forEach((layer) => {
-    defaults[layer.id] = layer.defaultOn;
+    defaults[layer.id] = persist ? layer.defaultOn : false;
   });
+
+  if (!persist) return defaults;
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -51,17 +53,20 @@ export function applyOverlayVisibility(maplibreMap, enabledById) {
 /**
  * Состояние переключаемых слоёв карты с сохранением в localStorage.
  * @param {import('react').MutableRefObject<import('maplibre-gl').Map|null>} maplibreMapRef
+ * @param {boolean} maplibreReady
+ * @param {{ persist?: boolean }} [options] persist: false — не читать/писать localStorage (плитки мультиэкрана)
  */
-export function useMapOverlayLayers(maplibreMapRef = null, maplibreReady = false) {
-  const [enabledById, setEnabledById] = useState(readInitialState);
+export function useMapOverlayLayers(maplibreMapRef = null, maplibreReady = false, { persist = true } = {}) {
+  const [enabledById, setEnabledById] = useState(() => readInitialState(persist));
 
   useEffect(() => {
+    if (!persist) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(enabledById));
     } catch {
       // localStorage недоступен — молча пропускаем
     }
-  }, [enabledById]);
+  }, [enabledById, persist]);
 
   useEffect(() => {
     const map = maplibreMapRef?.current;

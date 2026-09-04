@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DemoBlackout from './DemoBlackout';
 import { DEMO_BLACKOUT } from '../../hooks/demo/useDemoPlayer';
@@ -13,8 +13,12 @@ const AUTO_HIDE_MS = 4000;
  *
  * Клавиатура обрабатывается отдельно (useDemoHotkeys) — панель может быть
  * скрыта, а управление стрелками и пультом обязано работать всегда.
+ *
+ * Полосы прогресса двигаются подпиской на плеер и правкой стиля напрямую:
+ * прогресс в состоянии React перерисовывал бы весь экран показа ради
+ * нескольких пикселей ширины.
  */
-export default function DemoPlaybackBar({
+function DemoPlaybackBar({
   playback,
   onToggle,
   onNext,
@@ -26,8 +30,29 @@ export default function DemoPlaybackBar({
   const [visible, setVisible] = useState(true);
   const [stagesOpen, setStagesOpen] = useState(false);
   const hideTimerRef = useRef(null);
+  const scenarioFillRef = useRef(null);
+  const stageFillRef = useRef(null);
 
   const isActive = Boolean(playback?.isActive);
+  const subscribeProgress = playback?.subscribeProgress;
+
+  useEffect(() => {
+    if (!isActive || !subscribeProgress) return undefined;
+    let scenarioPainted = -1;
+    let stagePainted = -1;
+    return subscribeProgress((progress) => {
+      const scenario = Math.round(progress.scenarioProgress * 1000);
+      if (scenario !== scenarioPainted && scenarioFillRef.current) {
+        scenarioPainted = scenario;
+        scenarioFillRef.current.style.transform = `scaleX(${scenario / 1000})`;
+      }
+      const stage = Math.round(progress.stageProgress * 1000);
+      if (stage !== stagePainted && stageFillRef.current) {
+        stagePainted = stage;
+        stageFillRef.current.style.transform = `scaleX(${stage / 1000})`;
+      }
+    });
+  }, [isActive, subscribeProgress]);
 
   useEffect(() => {
     if (!isActive) return undefined;
@@ -74,8 +99,9 @@ export default function DemoPlaybackBar({
         <div className={`demo-playbar${visible ? '' : ' demo-playbar--hidden'}`}>
           <div className="demo-playbar__progress" aria-hidden="true">
             <div
+              ref={scenarioFillRef}
               className="demo-playbar__progress-fill"
-              style={{ width: `${Math.round(playback.scenarioProgress * 100)}%` }}
+              style={{ transform: `scaleX(${playback.scenarioProgress})` }}
             />
           </div>
 
@@ -92,8 +118,9 @@ export default function DemoPlaybackBar({
                     }}
                   >
                     <span className="demo-playbar__stage-num">{stage.index + 1}</span>
-                    <span className="demo-playbar__stage-title">
-                      {stage.title || stage.tools.map((tool) => getToolLabel(tool)).join(' + ')}
+              <span className="demo-playbar__stage-title">
+                      {stage.title
+                        || (stage.kind === 'mosaic' ? 'Мультиэкран' : stage.tools.map((tool) => getToolLabel(tool)).join(' + '))}
                     </span>
                     {stage.beatCount > 1 && (
                       <span className="demo-playbar__stage-beats">{stage.beatCount} элем.</span>
@@ -122,7 +149,9 @@ export default function DemoPlaybackBar({
             <div className="demo-playbar__info">
               <span className="demo-playbar__scenario">{playback.scenarioTitle}</span>
               <span className="demo-playbar__step">
-                <span aria-hidden="true">{getToolIcon(playback.stepTools[0])}</span>
+                <span aria-hidden="true">
+                  {playback.kind === 'mosaic' ? '▦' : getToolIcon(playback.stepTools[0])}
+                </span>
                 {' '}
                 {stageLabel}
               </span>
@@ -148,15 +177,16 @@ export default function DemoPlaybackBar({
               title="Перейти к этапу (номер этапа + Enter)"
               aria-expanded={stagesOpen}
             >
-              Этап {playback.stageIndex + 1} / {playback.stageCount}
+              Шаг программы {playback.stageIndex + 1} / {playback.stageCount}
               {playback.beatCount > 1 ? ` · ${playback.beatIndex + 1} из ${playback.beatCount}` : ''}
               {playback.loop ? ' · цикл' : ''}
             </button>
 
             <div className="demo-playbar__step-progress" aria-hidden="true">
               <div
+                ref={stageFillRef}
                 className="demo-playbar__step-progress-fill"
-                style={{ width: `${Math.round(playback.stageProgress * 100)}%` }}
+                style={{ transform: `scaleX(${playback.stageProgress})` }}
               />
             </div>
 
@@ -180,3 +210,5 @@ export default function DemoPlaybackBar({
     </>
   );
 }
+
+export default memo(DemoPlaybackBar);

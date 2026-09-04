@@ -115,6 +115,7 @@ from formular.models import (
     MarkerColorPalette,
     TargetVulnerability,
     DemoScenario,
+    DemoScenarioStage,
     DemoScenarioStep,
 )
 from equipment.models import (
@@ -1477,6 +1478,8 @@ class DemoScenarioViewSet(viewsets.ModelViewSet):
 
     permission_classes = [DemoScenariosPermission]
     queryset = DemoScenario.objects.prefetch_related(
+        Prefetch('stages', queryset=DemoScenarioStage.objects.order_by('order')),
+        Prefetch('stages__steps', queryset=DemoScenarioStep.objects.order_by('order')),
         Prefetch('steps', queryset=DemoScenarioStep.objects.order_by('order')),
     ).order_by('title')
 

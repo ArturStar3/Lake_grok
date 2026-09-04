@@ -11,8 +11,8 @@ import {
   DEMO_START_MODES,
   DEMO_STEP_MAX_DURATION_MS,
   DEMO_STEP_MIN_DURATION_MS,
+  DEMO_STAGE_TOOLS,
   DEMO_TOOL,
-  DEMO_TOOLS,
   getEffectsForTool,
   getToolLabel,
   isContinuousByDefault,
@@ -39,9 +39,9 @@ function NumberField({ label, value, onChange, min, max, step = 100, suffix, hin
 }
 
 const START_MODE_HINTS = {
-  [DEMO_START_MODE.ON_CLICK]: 'Шаг открывает новый этап — показ ждёт докладчика',
-  [DEMO_START_MODE.AFTER_PREVIOUS]: 'Элемент того же этапа: стартует, когда отыграет предыдущий',
-  [DEMO_START_MODE.WITH_PREVIOUS]: 'Элемент того же этапа: идёт одновременно с предыдущим',
+  [DEMO_START_MODE.ON_CLICK]: 'Начинает новый такт внутри этапа',
+  [DEMO_START_MODE.AFTER_PREVIOUS]: 'Стартует, когда отыграет предыдущий элемент',
+  [DEMO_START_MODE.WITH_PREVIOUS]: 'Идёт одновременно с предыдущим элементом',
 };
 
 function SelectField({ label, value, options, onChange, hint }) {
@@ -140,7 +140,7 @@ export default function DemoStepInspector({
         <SelectField
           label="Инструмент"
           value={step.tool}
-          options={DEMO_TOOLS}
+          options={DEMO_STAGE_TOOLS}
           onChange={handleToolChange}
         />
         <div className="demo-inspector__picker">
@@ -213,142 +213,140 @@ export default function DemoStepInspector({
       </fieldset>
 
       <fieldset className="demo-inspector__group" disabled={readOnly}>
-        <legend>Камера</legend>
-        <SelectField
-          label="Режим"
-          value={step.camera.mode}
-          options={isCameraStep || isTextStep
-            // Текст и камера ничего не выделяют на карте — вписывать нечего.
-            ? DEMO_CAMERA_MODES.filter((mode) => mode.id !== DEMO_CAMERA_MODE.FIT_SELECTION)
-            : DEMO_CAMERA_MODES}
-          onChange={(mode) => patchCamera({ mode })}
-        />
-        {showFlyToFields && (
-          <>
-            <div className="demo-inspector__row">
-              <NumberField
-                label="Широта"
-                value={step.camera.lat ?? ''}
-                min={-90}
-                max={90}
-                step={0.001}
-                onChange={(lat) => patchCamera({ lat })}
-              />
-              <NumberField
-                label="Долгота"
-                value={step.camera.lng ?? ''}
-                min={-180}
-                max={180}
-                step={0.001}
-                onChange={(lng) => patchCamera({ lng })}
-              />
-            </div>
-            <button
-              type="button"
-              className="demo-btn demo-btn--ghost"
-              onClick={() => {
-                const center = onPickCameraFromMap?.() || mapCenter;
-                if (center) patchCamera({ lat: center.lat, lng: center.lng, zoom: center.zoom ?? step.camera.zoom });
-              }}
-            >
-              Взять текущий вид карты
-            </button>
-          </>
-        )}
-        {showCameraTiming && (
-          <div className="demo-inspector__row">
-            <NumberField
-              label={step.camera.mode === DEMO_CAMERA_MODE.FIT_SELECTION ? 'Макс. масштаб' : 'Масштаб'}
-              value={step.camera.zoom}
-              min={1}
-              max={20}
-              step={1}
-              onChange={(zoom) => patchCamera({ zoom })}
-            />
-            <NumberField
-              label="Длительность перелёта"
-              value={step.camera.duration_ms}
-              min={0}
-              max={60000}
-              step={250}
-              suffix="мс"
-              onChange={(duration_ms) => patchCamera({ duration_ms })}
-            />
-          </div>
-        )}
-        {step.camera.mode === DEMO_CAMERA_MODE.FIT_SELECTION && (
-          <NumberField
-            label="Отступ от краёв"
-            value={step.camera.padding}
-            min={0}
-            max={400}
-            step={8}
-            suffix="px"
-            onChange={(padding) => patchCamera({ padding })}
-          />
-        )}
-      </fieldset>
-
-      {/* У текста собственные эффекты входа/выхода — раздел эффектов слоёв ему не нужен. */}
-      <fieldset
-        className="demo-inspector__group"
-        disabled={readOnly}
-        style={isTextStep ? { display: 'none' } : undefined}
-      >
-        <legend>Анимация</legend>
-        <SelectField
-          label="Эффект"
-          value={step.animation.effect}
-          options={effects}
-          onChange={(effect) => patchAnimation({
-            effect,
-            continuous: isContinuousByDefault(effect),
-          })}
-          hint={effects.length === 1 ? 'Для этого инструмента эффекты не предусмотрены' : undefined}
-        />
-        {showDirection && (
+          <legend>Камера</legend>
           <SelectField
-            label="Направление"
-            value={step.animation.direction}
-            options={DEMO_DIRECTIONS}
-            onChange={(direction) => patchAnimation({ direction })}
+            label="Режим"
+            value={step.camera.mode}
+            options={isCameraStep || isTextStep
+              ? DEMO_CAMERA_MODES.filter((mode) => mode.id !== DEMO_CAMERA_MODE.FIT_SELECTION)
+              : DEMO_CAMERA_MODES}
+            onChange={(mode) => patchCamera({ mode })}
           />
-        )}
-        {step.animation.effect !== DEMO_EFFECT.NONE && !showStateCycle && (
-          <div className="demo-inspector__row">
-            <NumberField
-              label="Длительность"
-              value={step.animation.duration_ms}
-              min={0}
-              max={60000}
-              step={100}
-              suffix="мс"
-              onChange={(duration_ms) => patchAnimation({ duration_ms })}
+          {showFlyToFields && (
+            <>
+              <div className="demo-inspector__row">
+                <NumberField
+                  label="Широта"
+                  value={step.camera.lat ?? ''}
+                  min={-90}
+                  max={90}
+                  step={0.001}
+                  onChange={(lat) => patchCamera({ lat })}
+                />
+                <NumberField
+                  label="Долгота"
+                  value={step.camera.lng ?? ''}
+                  min={-180}
+                  max={180}
+                  step={0.001}
+                  onChange={(lng) => patchCamera({ lng })}
+                />
+              </div>
+              <NumberField
+                label="Масштаб"
+                value={step.camera.zoom}
+                min={1}
+                max={20}
+                step={1}
+                onChange={(zoom) => patchCamera({ zoom })}
+              />
+              <button
+                type="button"
+                className="demo-btn demo-btn--ghost"
+                onClick={() => {
+                  const view = onPickCameraFromMap?.();
+                  if (!view) return;
+                  patchCamera({
+                    mode: DEMO_CAMERA_MODE.FLY_TO,
+                    lat: view.lat,
+                    lng: view.lng,
+                    zoom: view.zoom,
+                  });
+                }}
+              >
+                Взять с карты
+              </button>
+            </>
+          )}
+          {showCameraTiming && (
+            <>
+              <NumberField
+                label="Длительность камеры"
+                value={step.camera.duration_ms}
+                min={0}
+                max={60000}
+                step={100}
+                suffix="мс"
+                onChange={(duration_ms) => patchCamera({ duration_ms })}
+              />
+              <NumberField
+                label="Плавность"
+                value={step.camera.ease_linearity}
+                min={0.05}
+                max={1}
+                step={0.05}
+                onChange={(ease_linearity) => patchCamera({ ease_linearity })}
+              />
+            </>
+          )}
+        </fieldset>
+
+      {!isTextStep && (
+        <fieldset className="demo-inspector__group" disabled={readOnly}>
+          <legend>Анимация</legend>
+          <SelectField
+            label="Эффект"
+            value={step.animation.effect}
+            options={effects}
+            onChange={(effect) => patchAnimation({
+              effect,
+              continuous: isContinuousByDefault(effect),
+            })}
+          />
+          {showDirection && (
+            <SelectField
+              label="Направление"
+              value={step.animation.direction}
+              options={DEMO_DIRECTIONS}
+              onChange={(direction) => patchAnimation({ direction })}
             />
-            <NumberField
-              label="Задержка"
-              value={step.animation.delay_ms}
-              min={0}
-              max={60000}
-              step={100}
-              suffix="мс"
-              onChange={(delay_ms) => patchAnimation({ delay_ms })}
-            />
-          </div>
-        )}
-        {step.animation.effect !== DEMO_EFFECT.NONE && !showStateCycle && (
+          )}
+          <NumberField
+            label="Длительность эффекта"
+            value={step.animation.duration_ms}
+            min={0}
+            max={60000}
+            step={100}
+            suffix="мс"
+            onChange={(duration_ms) => patchAnimation({ duration_ms })}
+          />
+          <NumberField
+            label="Задержка"
+            value={step.animation.delay_ms}
+            min={0}
+            max={60000}
+            step={100}
+            suffix="мс"
+            onChange={(delay_ms) => patchAnimation({ delay_ms })}
+          />
           <SelectField
             label="Сглаживание"
             value={step.animation.easing}
             options={DEMO_EASINGS}
             onChange={(easing) => patchAnimation({ easing })}
           />
-        )}
-        {showStateCycle && (
-          <>
-            <div className="demo-inspector__row">
+          <label className="demo-checkbox">
+            <input
+              type="checkbox"
+              checked={Boolean(step.animation.continuous)}
+              onChange={(e) => patchAnimation({ continuous: e.target.checked })}
+            />
+            <span>Непрерывно</span>
+          </label>
+          {showStateCycle && (
+            <>
               <NumberField
-                label="Показ состояния"
+                label="Время на состояние"
                 value={step.animation.state_cycle.per_state_ms}
                 min={200}
                 max={60000}
@@ -357,7 +355,7 @@ export default function DemoStepInspector({
                 onChange={(per_state_ms) => patchStateCycle({ per_state_ms })}
               />
               <NumberField
-                label="Кросс-фейд"
+                label="Перекрёстное растворение"
                 value={step.animation.state_cycle.cross_fade_ms}
                 min={0}
                 max={20000}
@@ -365,34 +363,19 @@ export default function DemoStepInspector({
                 suffix="мс"
                 onChange={(cross_fade_ms) => patchStateCycle({ cross_fade_ms })}
               />
-            </div>
-            <SelectField
-              label="Порядок состояний"
-              value={step.animation.state_cycle.order}
-              options={[
-                { id: 'old_to_new', label: 'От старого к новому' },
-                { id: 'new_to_old', label: 'От нового к старому' },
-              ]}
-              onChange={(order) => patchStateCycle({ order })}
-            />
-          </>
-        )}
-        {step.animation.effect !== DEMO_EFFECT.NONE && (
-          <label className="demo-checkbox">
-            <input
-              type="checkbox"
-              checked={Boolean(step.animation.continuous)}
-              onChange={(e) => patchAnimation({ continuous: e.target.checked })}
-            />
-            <span className="demo-checkbox__text">
-              Непрерывное действие
-              <span className="demo-field__hint">
-                Повторять эффект, пока идёт шаг. Длительность — один цикл.
-              </span>
-            </span>
-          </label>
-        )}
-      </fieldset>
+              <SelectField
+                label="Порядок состояний"
+                value={step.animation.state_cycle.order}
+                options={[
+                  { id: 'old_to_new', label: 'От старых к новым' },
+                  { id: 'new_to_old', label: 'От новых к старым' },
+                ]}
+                onChange={(order) => patchStateCycle({ order })}
+              />
+            </>
+          )}
+        </fieldset>
+      )}
     </div>
   );
 }

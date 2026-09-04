@@ -1,4 +1,5 @@
 import { DEMO_EFFECT } from '../../../utils/demoScenario';
+import { cachedBucketData, idSet } from './demoEffectCache';
 
 function loopClass(continuous) {
   return continuous ? 'demo-anim--continuous' : 'demo-anim--once';
@@ -7,22 +8,27 @@ function loopClass(continuous) {
 /**
  * Эффект демонстрации для конкретного события.
  * Пустой список `eventIds` в шаге означает «все показанные события».
+ *
+ * Ссылка на эффект общая для всех событий шага — см. demoEffectCache.
  */
 export function resolveEventDemoEffect(eventItem, demoAnimation) {
   if (!demoAnimation?.active) return null;
   const bucket = demoAnimation.effects?.events;
   if (!bucket || !bucket.effect || bucket.effect === DEMO_EFFECT.NONE) return null;
-  if (bucket.eventIds?.length) {
-    const wanted = new Set(bucket.eventIds.map(String));
-    if (!wanted.has(String(eventItem?.id))) return null;
-  }
-  return {
-    effect: bucket.effect,
-    durationMs: bucket.durationMs,
-    delayMs: bucket.delayMs,
-    continuous: Boolean(bucket.continuous),
-    runId: demoAnimation.runId,
-  };
+
+  const cached = cachedBucketData(bucket, () => ({
+    wanted: idSet(bucket.eventIds),
+    effect: {
+      effect: bucket.effect,
+      durationMs: bucket.durationMs,
+      delayMs: bucket.delayMs,
+      continuous: Boolean(bucket.continuous),
+      runId: demoAnimation.runId,
+    },
+  }));
+
+  if (cached.wanted && !cached.wanted.has(String(eventItem?.id))) return null;
+  return cached.effect;
 }
 
 /**
@@ -33,20 +39,25 @@ export function resolveSituationDemoEffect(situationId, demoAnimation) {
   if (!demoAnimation?.active) return null;
   const bucket = demoAnimation.effects?.situations;
   if (!bucket || !bucket.effect || bucket.effect === DEMO_EFFECT.NONE) return null;
-  if (bucket.situationIds?.length) {
-    const wanted = new Set(bucket.situationIds.map(String));
-    if (!wanted.has(String(situationId))) return null;
-  }
-  const cycle = bucket.stateCycle || {};
-  return {
-    effect: bucket.effect,
-    perStateMs: cycle.per_state_ms ?? 1800,
-    crossFadeMs: cycle.cross_fade_ms ?? 600,
-    order: cycle.order ?? 'old_to_new',
-    durationMs: bucket.durationMs,
-    continuous: Boolean(bucket.continuous),
-    runId: demoAnimation.runId,
-  };
+
+  const cached = cachedBucketData(bucket, () => {
+    const cycle = bucket.stateCycle || {};
+    return {
+      wanted: idSet(bucket.situationIds),
+      effect: {
+        effect: bucket.effect,
+        perStateMs: cycle.per_state_ms ?? 1800,
+        crossFadeMs: cycle.cross_fade_ms ?? 600,
+        order: cycle.order ?? 'old_to_new',
+        durationMs: bucket.durationMs,
+        continuous: Boolean(bucket.continuous),
+        runId: demoAnimation.runId,
+      },
+    };
+  });
+
+  if (cached.wanted && !cached.wanted.has(String(situationId))) return null;
+  return cached.effect;
 }
 
 /** Класс CSS для фигуры/маркера события по активному эффекту. */

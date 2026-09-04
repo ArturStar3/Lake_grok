@@ -1,0 +1,180 @@
+.demo-mosaic-studio-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 16px;
+}
+
+.demo-mosaic-studio-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--il-overlay);
+}
+
+.demo-mosaic-studio-modal__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(1280px, 100%);
+  max-height: calc(100vh - 32px);
+  border-radius: 12px;
+  background: var(--il-surface);
+  color: var(--il-text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
+.demo-mosaic-studio-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.demo-mosaic-studio-modal__header > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.demo-mosaic-studio-modal__header > .demo-btn {
+  flex-shrink: 0;
+}
+
+.demo-mosaic-studio-modal__header h2 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  color: var(--il-text);
+}
+
+.demo-mosaic-studio-modal__header p {
+  margin: 0;
+  color: var(--il-text-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.demo-mosaic-studio-modal__body {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(300px, 380px);
+  gap: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.demo-mosaic-studio-modal__presets,
+.demo-mosaic-studio-modal__main,
+.demo-mosaic-studio-modal__screen,
+.demo-mosaic-studio-modal__body > .demo-studio__steps,
+.demo-mosaic-studio-modal__body > .demo-studio__inspector {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px 16px;
+}
+
+.demo-mosaic-studio-modal__presets,
+.demo-mosaic-studio-modal__screen {
+  background: var(--il-surface-2);
+}
+
+.demo-mosaic-studio-modal__presets {
+  border-right: 1px solid #e5e7eb;
+}
+
+.demo-mosaic-studio-modal__screen {
+  border-left: 1px solid #e5e7eb;
+}
+
+.demo-mosaic-studio-modal__presets-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.demo-mosaic-studio-modal__presets-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--il-text-sec);
+}
+
+.demo-mosaic-studio-modal__presets ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.demo-mosaic-studio-modal__presets ul button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--il-surface);
+  color: var(--il-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-mosaic-studio-modal__presets ul button:hover {
+  border-color: var(--il-border);
+}
+
+.demo-mosaic-studio-modal__presets ul button.is-active {
+  border-color: #2f80ed;
+  background: #eff6ff;
+}
+
+.demo-mosaic-studio-modal__presets-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.demo-mosaic-studio-modal__presets-actions .demo-btn {
+  width: 100%;
+}
+
+.demo-mosaic-studio-modal__empty {
+  color: var(--il-text-muted);
+  font-size: 0.86rem;
+}
+
+.demo-mosaic-studio-modal__main .demo-mosaic-preview {
+  margin-top: 12px;
+}
+
+.demo-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+@media (max-width: 1100px) {
+  .demo-mosaic-studio-modal__body {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .demo-mosaic-studio-modal__presets,
+  .demo-mosaic-studio-modal__screen {
+    border: 0;
+  }
+}

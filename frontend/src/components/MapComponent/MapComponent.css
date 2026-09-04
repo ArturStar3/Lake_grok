@@ -1,10 +1,9 @@
-.map {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    z-index: auto;
-    inset: auto;
-    overflow: hidden;
+.map--embed {
+    pointer-events: none;
+}
+
+.map--embed .leaflet-control-container {
+    display: none;
 }
 
 .map:not(.map--fullscreen) {

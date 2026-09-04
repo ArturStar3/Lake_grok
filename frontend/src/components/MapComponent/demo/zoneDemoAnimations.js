@@ -4,6 +4,7 @@ import { ZONE_LEAF_MANUAL, makeParamLeaf } from '../../../utils/inundationZone';
 import { applyEasing, DEMO_EFFECT } from '../../../utils/demoScenario';
 import { registerDemoAnimation, unregisterDemoAnimation } from './demoRafDriver';
 import { applyDemoEffectCssVars } from './eventDemoAnimations';
+import { cachedBucketData } from './demoEffectCache';
 
 const MIN_REVEAL_RADIUS_M = 1;
 
@@ -39,7 +40,8 @@ export function resolveZoneDemoEffect(zone, demoAnimation) {
     : demoAnimation.effects?.zones;
   if (!bucket) return null;
   if (!matchesZoneLeaves(zone, bucket.zoneLeaves)) return null;
-  return {
+  // Ссылка общая на все зоны шага — см. demoEffectCache.
+  return cachedBucketData(bucket, () => ({
     effect: bucket.effect,
     durationMs: bucket.durationMs,
     delayMs: bucket.delayMs,
@@ -47,7 +49,7 @@ export function resolveZoneDemoEffect(zone, demoAnimation) {
     direction: bucket.direction,
     continuous: Boolean(bucket.continuous),
     runId: demoAnimation.runId,
-  };
+  }));
 }
 
 export function demoFadeClassName(baseClass, demoEffect) {
@@ -105,6 +107,7 @@ export function useCircleRevealAnimation(circleRef, {
   continuous = false,
   animationKey,
 }) {
+  const map = useMap();
   useEffect(() => {
     const layer = circleRef.current;
     if (!layer) return undefined;
@@ -119,6 +122,7 @@ export function useCircleRevealAnimation(circleRef, {
 
     let finished = false;
     registerDemoAnimation(key, {
+      map,
       center: layer.getLatLng(),
       update: (elapsed) => {
         if (finished) return;
@@ -127,7 +131,7 @@ export function useCircleRevealAnimation(circleRef, {
         if (done) {
           finished = true;
           layer.setRadius(radiusMeters);
-          unregisterDemoAnimation(key);
+          unregisterDemoAnimation(key, map);
           return;
         }
         const eased = applyEasing(easing, progress);
@@ -136,9 +140,9 @@ export function useCircleRevealAnimation(circleRef, {
     });
 
     return () => {
-      unregisterDemoAnimation(key);
+      unregisterDemoAnimation(key, map);
     };
-  }, [circleRef, enabled, runId, radiusMeters, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [circleRef, map, enabled, runId, radiusMeters, durationMs, delayMs, easing, continuous, animationKey]);
 }
 
 function scalePositionsFromCentroid(positions, centroid, factor) {
@@ -153,8 +157,16 @@ export function collapsePositionsToCentroid(positions, centroid, factor = 0.001)
   return scalePositionsFromCentroid(positions, centroid, factor);
 }
 
+const MIN_REVEAL_FACTOR = 0.001;
+
 /**
- * Раскрытие полигональной зоны от центроида: точки контура «разъезжаются» из центра.
+ * Раскрытие полигональной зоны от центроида: контур «разъезжается» из центра.
+ *
+ * У SVG-рендерера масштаб задаётся трансформацией самого пути. Пересчёт
+ * координат через setLatLngs на каждом кадре заставлял Leaflet заново
+ * проецировать все точки контура и собирать строку пути — на детальных зонах
+ * это десятки тысяч операций в секунду. Трансформация же уходит в отрисовку
+ * SVG почти бесплатно. Для canvas-рендерера остаётся прежний путь.
  */
 export function usePolygonRevealAnimation(polygonRef, {
   enabled,
@@ -167,6 +179,7 @@ export function usePolygonRevealAnimation(polygonRef, {
   continuous = false,
   animationKey,
 }) {
+  const map = useMap();
   const positionsRef = useRef(positions);
   positionsRef.current = positions;
   const signature = positionsSignature(positions);
@@ -176,39 +189,96 @@ export function usePolygonRevealAnimation(polygonRef, {
     const pts = positionsRef.current;
     if (!layer || !pts?.length || !centroid) return undefined;
 
+    const path = layer._path;
+    // Хвост предыдущего прогона: без сброса зона осталась бы сжатой навсегда.
+    if (path) {
+      path.removeAttribute('transform');
+      path.removeAttribute('vector-effect');
+    }
+
     if (!enabled || !durationMs) {
       layer.setLatLngs(pts);
       return undefined;
     }
 
     const key = `polygon-reveal:${animationKey}:${runId}`;
-    const collapsed = scalePositionsFromCentroid(pts, centroid, 0.001);
-    layer.setLatLngs(collapsed);
+    const canTransform = Boolean(path && typeof map?.latLngToLayerPoint === 'function');
 
     let finished = false;
+    let stopViewSync = null;
+
+    let applyFactor;
+    let settle;
+
+    if (canTransform) {
+      layer.setLatLngs(pts);
+      let origin = map.latLngToLayerPoint(centroid);
+      let factor = MIN_REVEAL_FACTOR;
+
+      const paint = () => {
+        path.setAttribute(
+          'transform',
+          `translate(${origin.x} ${origin.y}) scale(${factor}) translate(${-origin.x} ${-origin.y})`,
+        );
+      };
+
+      // Иначе на сжатом контуре обводка стала бы волосяной.
+      path.setAttribute('vector-effect', 'non-scaling-stroke');
+      paint();
+
+      // Точка отсчёта живёт в координатах слоя: после зума и сброса начала
+      // координат её нужно взять заново.
+      const resync = () => {
+        origin = map.latLngToLayerPoint(centroid);
+        paint();
+      };
+      map.on('zoomend viewreset moveend', resync);
+      stopViewSync = () => map.off('zoomend viewreset moveend', resync);
+
+      applyFactor = (value) => {
+        factor = value;
+        paint();
+      };
+      settle = () => {
+        path.removeAttribute('transform');
+        path.removeAttribute('vector-effect');
+      };
+    } else {
+      layer.setLatLngs(scalePositionsFromCentroid(pts, centroid, MIN_REVEAL_FACTOR));
+      applyFactor = (value) => {
+        const current = positionsRef.current;
+        if (current?.length) {
+          layer.setLatLngs(scalePositionsFromCentroid(current, centroid, value));
+        }
+      };
+      settle = () => {
+        const current = positionsRef.current;
+        if (current?.length) layer.setLatLngs(current);
+      };
+    }
+
     registerDemoAnimation(key, {
+      map,
       center: { lat: centroid.lat, lng: centroid.lng },
       update: (elapsed) => {
         if (finished) return;
-        const current = positionsRef.current;
-        if (!current?.length) return;
         const { waiting, progress, done } = timedProgress(elapsed, delayMs, durationMs, continuous);
         if (waiting) return;
         if (done) {
           finished = true;
-          layer.setLatLngs(current);
-          unregisterDemoAnimation(key);
+          settle();
+          unregisterDemoAnimation(key, map);
           return;
         }
-        const eased = Math.max(0.001, applyEasing(easing, progress));
-        layer.setLatLngs(scalePositionsFromCentroid(current, centroid, eased));
+        applyFactor(Math.max(MIN_REVEAL_FACTOR, applyEasing(easing, progress)));
       },
     });
 
     return () => {
-      unregisterDemoAnimation(key);
+      unregisterDemoAnimation(key, map);
+      stopViewSync?.();
     };
-  }, [polygonRef, enabled, runId, signature, centroid, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [polygonRef, map, enabled, runId, signature, centroid, durationMs, delayMs, easing, continuous, animationKey]);
 }
 
 const WIPE_ID_PREFIX = 'demo-wipe-';
@@ -343,6 +413,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
 
       const key = `polygon-wipe:${animationKey}:${runId}`;
       registerDemoAnimation(key, {
+        map,
         update: (elapsed) => {
           if (finished) return;
           const { waiting, progress: raw, done } = timedProgress(elapsed, delayMs, durationMs, continuous);
@@ -351,7 +422,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
             finished = true;
             progress = 1;
             paint();
-            unregisterDemoAnimation(key);
+            unregisterDemoAnimation(key, map);
             return;
           }
           progress = applyEasing(easing, raw);
@@ -360,7 +431,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
       });
 
       cleanupFns.push(() => {
-        unregisterDemoAnimation(key);
+        unregisterDemoAnimation(key, map);
         map.off('zoomend', handleViewReset);
         map.off('moveend', handleViewReset);
         path.removeAttribute('clip-path');

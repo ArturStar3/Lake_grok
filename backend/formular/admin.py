@@ -39,6 +39,7 @@ from .models import (
     MapDisplaySettings,
     TargetVulnerability,
     DemoScenario,
+    DemoScenarioStage,
     DemoScenarioStep,
 )
 from .admin_inlines import (
@@ -541,31 +542,57 @@ class DemoScenarioStepInline(admin.TabularInline):
     fields = ('order', 'title', 'tool', 'duration_ms', 'start_mode', 'hold_previous')
     ordering = ('order',)
     show_change_link = True
+    fk_name = 'stage'
+
+
+class DemoScenarioStageInline(admin.TabularInline):
+    model = DemoScenarioStage
+    extra = 0
+    fields = ('order', 'title')
+    ordering = ('order',)
+    show_change_link = True
 
 
 @admin.register(DemoScenario)
 class DemoScenarioAdmin(ModelAdmin):
-    list_display = ('title', 'step_count', 'is_default', 'loop', 'auto_advance', 'updated_at', 'created_by')
+    list_display = ('title', 'stage_count', 'step_count', 'is_default', 'loop', 'auto_advance', 'updated_at', 'created_by')
     list_filter = ('is_default', 'loop', 'auto_advance')
     search_fields = ('title', 'description')
     list_select_related = ('created_by',)
     autocomplete_fields = ('created_by',)
-    inlines = [DemoScenarioStepInline]
+    inlines = [DemoScenarioStageInline]
     list_per_page = 50
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(_step_count=Count('steps'))
+        return super().get_queryset(request).annotate(
+            _step_count=Count('steps'),
+            _stage_count=Count('stages', distinct=True),
+        )
+
+    @admin.display(description='Этапов', ordering='_stage_count')
+    def stage_count(self, obj):
+        return obj._stage_count
 
     @admin.display(description='Шагов', ordering='_step_count')
     def step_count(self, obj):
         return obj._step_count
 
 
-@admin.register(DemoScenarioStep)
-class DemoScenarioStepAdmin(ModelAdmin):
-    list_display = ('__str__', 'scenario', 'tool', 'duration_ms', 'start_mode')
-    list_filter = ('tool', 'start_mode')
+@admin.register(DemoScenarioStage)
+class DemoScenarioStageAdmin(ModelAdmin):
+    list_display = ('__str__', 'scenario', 'order')
     search_fields = ('title', 'scenario__title')
     list_select_related = ('scenario',)
     autocomplete_fields = ('scenario',)
+    inlines = [DemoScenarioStepInline]
+    list_per_page = 50
+
+
+@admin.register(DemoScenarioStep)
+class DemoScenarioStepAdmin(ModelAdmin):
+    list_display = ('__str__', 'scenario', 'stage', 'tool', 'duration_ms', 'start_mode')
+    list_filter = ('tool', 'start_mode')
+    search_fields = ('title', 'scenario__title', 'stage__title')
+    list_select_related = ('scenario', 'stage')
+    autocomplete_fields = ('scenario', 'stage')
     list_per_page = 50

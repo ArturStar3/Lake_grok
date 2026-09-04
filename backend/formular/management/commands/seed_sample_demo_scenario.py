@@ -6,13 +6,15 @@
   python manage.py seed_sample_demo_scenario --replace
 """
 
+import uuid
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Q
 
 from api.demo_scenario_utils import (
     clear_other_default_scenarios,
-    replace_demo_scenario_steps,
+    replace_demo_scenario_library,
 )
 from formular.enums import ZoneGeometryModes
 from formular.models import (
@@ -125,6 +127,25 @@ def _caption(title, content, *, lat=None, lng=None, screen_y=0.12, font_size=42)
         start_mode=DemoStepStartMode.WITH_PREVIOUS,
         text=payload,
     )
+
+
+def _group_stages(steps):
+    """Каждый on_click — отдельный этап библиотеки; параллельные шаги входят в него."""
+    stages = []
+    current = None
+    for step in steps:
+        mode = step.get('start_mode') or DemoStepStartMode.ON_CLICK
+        if current is None or mode == DemoStepStartMode.ON_CLICK:
+            title = (step.get('title') or '').strip() or f'Этап {len(stages) + 1}'
+            current = {
+                'id': str(uuid.uuid4()),
+                'title': title[:255],
+                'steps': [step],
+            }
+            stages.append(current)
+        else:
+            current['steps'].append(step)
+    return stages
 
 
 def _situation_ids(*needles):
@@ -490,6 +511,7 @@ class Command(BaseCommand):
             scenario.title = SCENARIO_TITLE
             scenario.description = DESCRIPTION
             scenario.loop = True
+            scenario.auto_advance = True
             scenario.is_default = True
             scenario.default_step_duration_ms = STEP_MS
             scenario.save()
@@ -498,16 +520,37 @@ class Command(BaseCommand):
                 title=SCENARIO_TITLE,
                 description=DESCRIPTION,
                 loop=True,
+                auto_advance=True,
                 is_default=True,
                 default_step_duration_ms=STEP_MS,
             )
 
-        replace_demo_scenario_steps(scenario, steps)
+        stages_data = _group_stages(steps)
+        sequence = [
+            {
+                'type': 'stage',
+                'stage_id': stage['id'],
+                'duration_ms': 0,
+                'wait_for_presenter': False,
+                'enter': {'effect': 'none', 'duration_ms': 400},
+                'exit': {'effect': 'none', 'duration_ms': 400},
+            }
+            for stage in stages_data
+        ]
+        scenario.auto_advance = True
+        scenario.save(update_fields=['auto_advance'])
+        replace_demo_scenario_library(
+            scenario,
+            stages_data,
+            sequence_data=sequence,
+            mosaic_data={},
+        )
         clear_other_default_scenarios(scenario)
 
         total_ms = sum(step['duration_ms'] for step in steps)
         self.stdout.write(self.style.SUCCESS(
-            f'Сценарий «{scenario.title}» сохранён (id={scenario.id}, шагов={len(steps)}, '
+            f'Сценарий «{scenario.title}» сохранён (id={scenario.id}, '
+            f'этапов={len(stages_data)}, шагов={len(steps)}, '
             f'{total_ms / 1000:.0f} с). Запуск: Инструменты → Демонстрация: воспроизвести.'
         ))
         self.stdout.write(

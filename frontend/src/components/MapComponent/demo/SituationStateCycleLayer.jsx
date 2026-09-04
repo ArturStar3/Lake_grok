@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FeatureGroup, Polygon } from 'react-leaflet';
+import { FeatureGroup, Polygon, useMap } from 'react-leaflet';
 import { getZonePolygonStrokeStyle } from '../../../utils/actionZoneStyle';
 import { getZonePolygonPositionsList } from '../../../utils/inundationZone';
 import { registerDemoAnimation, unregisterDemoAnimation } from './demoRafDriver';
@@ -32,6 +32,7 @@ const CrossFadeState = memo(function CrossFadeState({
   onFadeOutDone,
 }) {
   const groupRef = useRef(null);
+  const map = useMap();
   const pathOptions = useMemo(() => buildPathOptions(revision), [revision?.id, revision?.color]);
   const rings = useMemo(
     () => getZonePolygonPositionsList(revision?.geometry),
@@ -67,20 +68,21 @@ const CrossFadeState = memo(function CrossFadeState({
 
     let done = false;
     registerDemoAnimation(key, {
+      map,
       update: (elapsed) => {
         if (done) return;
         const progress = Math.min(1, elapsed / crossFadeMs);
         applyFactor(phase === 'in' ? progress : 1 - progress);
         if (progress >= 1) {
           done = true;
-          unregisterDemoAnimation(key);
+          unregisterDemoAnimation(key, map);
           if (phase === 'out') onFadeOutDone?.();
         }
       },
     });
 
-    return () => unregisterDemoAnimation(key);
-  }, [crossFadeMs, cycleTick, onFadeOutDone, pathOptions, phase, revision?.id, situationId]);
+    return () => unregisterDemoAnimation(key, map);
+  }, [crossFadeMs, cycleTick, map, onFadeOutDone, pathOptions, phase, revision?.id, situationId]);
 
   if (!rings.length || revision?.id == null) return null;
 

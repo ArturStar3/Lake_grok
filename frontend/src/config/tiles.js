@@ -111,39 +111,54 @@ export function createMaplibreTransformRequest() {
 // Единый стиль InfoLake (база + все оверлеи) — до fetchUnifiedMapStyle для ясности порядка.
 export const UNIFIED_STYLE = 'infolake-unified';
 
+let unifiedStylePromise = null;
+let unifiedStyleUrl = null;
+
 export async function fetchUnifiedMapStyle() {
   const styleUrl = `${getTileserverBaseUrl()}/styles/${UNIFIED_STYLE}/style.json`;
-  const controller = new AbortController();
-  const timeoutMs = 15_000;
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let res;
-  try {
-    res = await fetch(styleUrl, { signal: controller.signal });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error(`Тайлсервер не ответил за ${timeoutMs / 1000} с (${styleUrl})`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
+  if (!unifiedStylePromise || unifiedStyleUrl !== styleUrl) {
+    unifiedStyleUrl = styleUrl;
+    unifiedStylePromise = (async () => {
+      const controller = new AbortController();
+      const timeoutMs = 15_000;
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      let res;
+      try {
+        res = await fetch(styleUrl, { signal: controller.signal });
+      } catch (err) {
+        unifiedStylePromise = null;
+        unifiedStyleUrl = null;
+        if (err?.name === 'AbortError') {
+          throw new Error(`Тайлсервер не ответил за ${timeoutMs / 1000} с (${styleUrl})`);
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!res.ok) {
+        unifiedStylePromise = null;
+        unifiedStyleUrl = null;
+        throw new Error(`style.json HTTP ${res.status} (${styleUrl})`);
+      }
+
+      const style = await res.json();
+
+      if (style.sprite) style.sprite = normalizeTileserverUrl(style.sprite);
+      if (style.glyphs) style.glyphs = normalizeTileserverUrl(style.glyphs);
+
+      if (style.sources) {
+        Object.values(style.sources).forEach((source) => {
+          if (source.url) source.url = normalizeTileserverUrl(source.url);
+          if (source.tiles) source.tiles = source.tiles.map(normalizeTileserverUrl);
+        });
+      }
+
+      return style;
+    })();
   }
-  if (!res.ok) {
-    throw new Error(`style.json HTTP ${res.status} (${styleUrl})`);
-  }
 
-  const style = await res.json();
-
-  if (style.sprite) style.sprite = normalizeTileserverUrl(style.sprite);
-  if (style.glyphs) style.glyphs = normalizeTileserverUrl(style.glyphs);
-
-  if (style.sources) {
-    Object.values(style.sources).forEach((source) => {
-      if (source.url) source.url = normalizeTileserverUrl(source.url);
-      if (source.tiles) source.tiles = source.tiles.map(normalizeTileserverUrl);
-    });
-  }
-
-  return style;
+  const style = await unifiedStylePromise;
+  return JSON.parse(JSON.stringify(style));
 }
 
 // Векторный режим (единый стиль + клиентский рендер). VITE_MAP_VECTOR=false — откат на PNG.

@@ -1,14 +1,17 @@
 """Утилиты для сценариев демонстрации возможностей карты."""
 
 import re
+import uuid
 
 from django.db import transaction
 
 from formular.models import (
     DEFAULT_DEMO_STEP_DURATION_MS,
+    DemoScenarioStage,
     DemoScenarioStep,
     DemoStepDirection,
     DemoStepEffect,
+    DemoStepTool,
 )
 
 MIN_STEP_DURATION_MS = 500
@@ -39,6 +42,47 @@ TEXT_FONT_FAMILIES = (
     'monospace',
 )
 TEXT_MAX_LENGTH = 4000
+
+MOSAIC_LAYOUTS = ('1x2', '2x1', '1+2', '2x2', '2x3', '2+3')
+MOSAIC_SLOT_IDS_BY_LAYOUT = {
+    '1x2': ('a', 'b'),
+    '2x1': ('a', 'b'),
+    '1+2': ('a', 'b', 'c'),
+    '2x2': ('a', 'b', 'c', 'd'),
+    '2x3': ('a', 'b', 'c', 'd', 'e', 'f'),
+    '2+3': ('a', 'b', 'c', 'd', 'e'),
+}
+MOSAIC_REVEALS = ('all', 'stagger')
+MOSAIC_ACTIONS = ('show_grid', 'show_slot', 'focus_slot', 'collapse', 'exit')
+SEQUENCE_MOSAIC_ACTIONS = ('show_grid', 'expand', 'collapse')
+SEQUENCE_TYPES = ('stage', 'mosaic')
+SEQUENCE_TRANSITION_EFFECTS = ('none', 'fade', 'blackout', 'stagger')
+MOSAIC_SLOT_IDS = ('a', 'b', 'c', 'd', 'e', 'f')
+STAGE_TOOLS = (
+    DemoStepTool.CAMERA,
+    DemoStepTool.OBJECTS,
+    DemoStepTool.EVENTS,
+    DemoStepTool.ZONES,
+    DemoStepTool.INUNDATION,
+    DemoStepTool.SITUATIONS,
+    DemoStepTool.LAYERS,
+    DemoStepTool.FORMULAR,
+    DemoStepTool.COUNTRY,
+    DemoStepTool.TEXT,
+)
+DEFAULT_MOSAIC = {
+    'presets': [],
+    'active_preset_id': None,
+}
+DEFAULT_SEQUENCE_TRANSITION = {
+    'effect': 'none',
+    'duration_ms': 400,
+}
+DEFAULT_STEP_MOSAIC = {
+    'slot': None,
+    'loop': False,
+    'label': '',
+}
 
 COLOR_RE = re.compile(
     r'#[0-9a-fA-F]{3,8}'
@@ -71,7 +115,14 @@ DEFAULT_ANIMATION = {
     },
 }
 
-CONTINUOUS_BY_DEFAULT = frozenset((DemoStepEffect.BLINK, DemoStepEffect.STATE_CYCLE))
+CONTINUOUS_BY_DEFAULT = frozenset((
+    DemoStepEffect.BLINK,
+    DemoStepEffect.FLICKER,
+    DemoStepEffect.GLOW,
+    DemoStepEffect.COLOR_SHIFT,
+    DemoStepEffect.SWAY,
+    DemoStepEffect.STATE_CYCLE,
+))
 
 DEFAULT_TEXT_STYLE = {
     'font_family': 'Roboto',
@@ -233,6 +284,19 @@ def _normalize_zone_leaves(raw):
 def normalize_selection(raw):
     """Приводит блок выбранных элементов шага к предсказуемой форме."""
     data = raw if isinstance(raw, dict) else {}
+    action_raw = data.get('mosaic_action')
+    mosaic_action = None
+    if action_raw is not None and str(action_raw).strip():
+        mosaic_action = _choice(str(action_raw).strip(), MOSAIC_ACTIONS, 'show_grid')
+    preset_id = data.get('preset_id')
+    if preset_id is not None:
+        preset_id = str(preset_id).strip()[:80] or None
+    slot_raw = data.get('slot')
+    slot = None
+    if slot_raw is not None and str(slot_raw).strip():
+        slot = str(slot_raw).strip().lower()[:8]
+        if slot not in ('a', 'b', 'c', 'd', 'e', 'f'):
+            slot = None
     return {
         'target_ids': _normalize_id_list(data.get('target_ids')),
         'event_ids': _normalize_id_list(data.get('event_ids')),
@@ -241,6 +305,9 @@ def normalize_selection(raw):
         'overlay_layer_ids': _normalize_id_list(data.get('overlay_layer_ids')),
         'country_isos': _normalize_country_isos(data.get('country_isos')),
         'card_ids': _normalize_id_list(data.get('card_ids')),
+        'mosaic_action': mosaic_action,
+        'preset_id': preset_id,
+        'slot': slot,
     }
 
 
@@ -424,36 +491,374 @@ def normalize_step_duration(value):
     return _clamp(value, MIN_STEP_DURATION_MS, MAX_STEP_DURATION_MS, DEFAULT_DEMO_STEP_DURATION_MS)
 
 
-@transaction.atomic
-def replace_demo_scenario_steps(scenario, steps_data):
-    """
-    Атомарная замена шагов сценария с переиндексацией порядка 0..N-1.
-    steps_data: список валидированных словарей или None — не менять.
-    """
-    if steps_data is None:
-        return
-    scenario.steps.all().delete()
-    if not steps_data:
-        return
-    to_create = [
-        DemoScenarioStep(
-            scenario=scenario,
-            order=index,
-            title=row.get('title') or '',
-            tool=row['tool'],
-            duration_ms=normalize_step_duration(row.get('duration_ms')),
-            start_mode=row['start_mode'],
-            hold_previous=bool(row.get('hold_previous')),
-            camera=normalize_camera(row.get('camera')),
-            selection=normalize_selection(row.get('selection')),
-            animation=normalize_animation(row.get('animation')),
-            text=normalize_text(row.get('text')),
+def _new_preset_id():
+    return f'preset-{uuid.uuid4().hex[:12]}'
+
+
+def _optional_id(value):
+    if value in (None, ''):
+        return None
+    text = str(value).strip()
+    return text[:80] if text else None
+
+
+def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=None):
+    data = raw if isinstance(raw, dict) else {}
+    selection_raw = data.get('selection') if isinstance(data.get('selection'), dict) else {}
+    label = data.get('label') if isinstance(data.get('label'), str) else ''
+    if not label:
+        label = default_label
+    stage_id = _optional_id(data.get('stage_id'))
+    if allowed_stage_ids is not None and stage_id and stage_id not in allowed_stage_ids:
+        stage_id = None
+    return {
+        'id': slot_id,
+        'label': label[:120],
+        'loop': _as_bool(data.get('loop'), False),
+        'stage_id': stage_id,
+        'camera': normalize_camera(data.get('camera')),
+        'selection': {
+            'target_ids': _normalize_id_list(selection_raw.get('target_ids')),
+            'event_ids': _normalize_id_list(selection_raw.get('event_ids')),
+            'situation_ids': _normalize_id_list(selection_raw.get('situation_ids')),
+            'zone_leaves': _normalize_zone_leaves(selection_raw.get('zone_leaves')),
+            'overlay_layer_ids': _normalize_id_list(selection_raw.get('overlay_layer_ids')),
+            'country_isos': _normalize_country_isos(selection_raw.get('country_isos')),
+            'card_ids': _normalize_id_list(selection_raw.get('card_ids')),
+        },
+        'text': normalize_text(data.get('text')),
+    }
+
+
+def normalize_mosaic_preset(raw, allowed_stage_ids=None):
+    data = raw if isinstance(raw, dict) else {}
+    layout = _choice(data.get('layout'), MOSAIC_LAYOUTS, '2x2')
+    slot_ids = MOSAIC_SLOT_IDS_BY_LAYOUT[layout]
+    incoming = data.get('screens') if isinstance(data.get('screens'), list) else []
+    by_id = {}
+    for item in incoming:
+        if not isinstance(item, dict):
+            continue
+        sid = str(item.get('id') or '').strip().lower()
+        if sid in slot_ids:
+            by_id[sid] = item
+    if not by_id and isinstance(data.get('slots'), list):
+        for item in data['slots']:
+            if not isinstance(item, dict):
+                continue
+            sid = str(item.get('id') or '').strip().lower()
+            if sid in slot_ids:
+                by_id[sid] = {'id': sid, 'label': item.get('label') or ''}
+    preset_id = data.get('id')
+    if not preset_id or not str(preset_id).strip():
+        preset_id = _new_preset_id()
+    else:
+        preset_id = str(preset_id).strip()[:80]
+    title = data.get('title') if isinstance(data.get('title'), str) else ''
+    if not title:
+        title = 'Мультиэкран'
+    return {
+        'id': preset_id,
+        'title': title[:120],
+        'layout': layout,
+        'transition_ms': _clamp(data.get('transition_ms', 700), 200, 5000, 700),
+        'reveal': _choice(data.get('reveal'), MOSAIC_REVEALS, 'all'),
+        'stagger_ms': _clamp(data.get('stagger_ms', 400), 0, 10_000, 400),
+        'expandable_slots': _normalize_expandable_slots(data.get('expandable_slots'), slot_ids),
+        'screens': [
+            normalize_mosaic_screen(
+                by_id.get(sid),
+                sid,
+                default_label=f'Экран {sid.upper()}',
+                allowed_stage_ids=allowed_stage_ids,
+            )
+            for sid in slot_ids
+        ],
+    }
+
+
+def normalize_scenario_mosaic(raw, allowed_stage_ids=None):
+    """Библиотека пресетов мультиэкрана на уровне сценария."""
+    data = raw if isinstance(raw, dict) else {}
+
+    if isinstance(data.get('presets'), list) or 'active_preset_id' in data:
+        presets = []
+        seen = set()
+        for item in (data.get('presets') or []):
+            preset = normalize_mosaic_preset(item, allowed_stage_ids=allowed_stage_ids)
+            if preset['id'] in seen:
+                preset['id'] = _new_preset_id()
+            seen.add(preset['id'])
+            presets.append(preset)
+        active = data.get('active_preset_id')
+        active = str(active).strip()[:80] if active else None
+        if active and active not in seen:
+            active = presets[0]['id'] if presets else None
+        elif not active and presets:
+            active = presets[0]['id']
+        return {'presets': presets, 'active_preset_id': active}
+
+    if data.get('layout') or data.get('slots') or data.get('enabled'):
+        legacy = normalize_mosaic_preset({
+            'id': 'legacy-default',
+            'title': 'Мультиэкран',
+            'layout': data.get('layout') or '2x2',
+            'transition_ms': data.get('transition_ms', 700),
+            'reveal': 'all',
+            'slots': data.get('slots') or [],
+        }, allowed_stage_ids=allowed_stage_ids)
+        keep = bool(data.get('enabled') or data.get('slots'))
+        return {
+            'presets': [legacy] if keep else [],
+            'active_preset_id': legacy['id'] if data.get('enabled') else (legacy['id'] if keep else None),
+        }
+
+    return dict(DEFAULT_MOSAIC)
+
+
+def _normalize_expandable_slots(raw, slot_ids):
+    allowed = tuple(slot_ids)
+    if raw is None:
+        return list(allowed)
+    if not isinstance(raw, list):
+        return list(allowed)
+    picked = {str(item).strip().lower() for item in raw if item is not None}
+    return [sid for sid in allowed if sid in picked]
+
+
+def normalize_sequence_mosaic_action(raw):
+    value = str(raw or '').strip()
+    aliases = {
+        'focus_slot': 'expand',
+        'show_slot': 'expand',
+        'exit': 'collapse',
+    }
+    value = aliases.get(value, value)
+    return _choice(value, SEQUENCE_MOSAIC_ACTIONS, 'show_grid')
+
+
+def normalize_mosaic_slot_id(raw):
+    value = str(raw or '').strip().lower()
+    return value if value in MOSAIC_SLOT_IDS else None
+
+
+def normalize_sequence_transition(raw, default_effect='none'):
+    data = raw if isinstance(raw, dict) else {}
+    return {
+        'effect': _choice(data.get('effect'), SEQUENCE_TRANSITION_EFFECTS, default_effect),
+        'duration_ms': _clamp(data.get('duration_ms', DEFAULT_SEQUENCE_TRANSITION['duration_ms']), 0, 20_000, 400),
+    }
+
+
+def normalize_sequence_item(raw, index=0, allowed_stage_ids=None, allowed_preset_ids=None):
+    data = raw if isinstance(raw, dict) else {}
+    item_type = _choice(data.get('type'), SEQUENCE_TYPES, 'stage')
+    stage_id = _optional_id(data.get('stage_id'))
+    preset_id = _optional_id(data.get('preset_id'))
+    if allowed_stage_ids is not None and stage_id and stage_id not in allowed_stage_ids:
+        stage_id = None
+    if allowed_preset_ids is not None and preset_id and preset_id not in allowed_preset_ids:
+        preset_id = None
+    key = data.get('key')
+    if not key or not str(key).strip():
+        key = f'seq-{index}-{uuid.uuid4().hex[:8]}'
+    else:
+        key = str(key).strip()[:80]
+    duration_raw = data.get('duration_ms', 0)
+    duration_ms = _clamp(duration_raw, 0, MAX_STEP_DURATION_MS, 0)
+    mosaic_action = 'show_grid'
+    slot = None
+    if item_type == 'mosaic':
+        mosaic_action = normalize_sequence_mosaic_action(data.get('mosaic_action'))
+        slot = normalize_mosaic_slot_id(data.get('slot'))
+        if mosaic_action == 'show_grid':
+            slot = None
+    return {
+        'key': key,
+        'type': item_type,
+        'stage_id': stage_id if item_type == 'stage' else None,
+        'preset_id': preset_id if item_type == 'mosaic' else None,
+        'mosaic_action': mosaic_action,
+        'slot': slot,
+        'duration_ms': duration_ms,
+        'wait_for_presenter': _as_bool(data.get('wait_for_presenter'), False),
+        'enter': normalize_sequence_transition(data.get('enter')),
+        'exit': normalize_sequence_transition(data.get('exit')),
+    }
+
+
+def normalize_scenario_sequence(raw, allowed_stage_ids=None, allowed_preset_ids=None):
+    items = raw if isinstance(raw, list) else []
+    return [
+        normalize_sequence_item(
+            item,
+            index,
+            allowed_stage_ids=allowed_stage_ids,
+            allowed_preset_ids=allowed_preset_ids,
         )
-        for index, row in enumerate(steps_data)
+        for index, item in enumerate(items)
+        if isinstance(item, dict)
     ]
-    DemoScenarioStep.objects.bulk_create(to_create)
+
+
+def normalize_step_mosaic(raw, allowed_slot_ids=None):
+    """Устаревшее поле park на шаге — всегда пустая заглушка."""
+    return dict(DEFAULT_STEP_MOSAIC)
+
+
+def _step_kwargs(scenario, stage, index, row):
+    tool = row.get('tool') or DemoStepTool.CAMERA
+    if tool == DemoStepTool.MOSAIC:
+        tool = DemoStepTool.CAMERA
+    if tool not in STAGE_TOOLS:
+        tool = DemoStepTool.CAMERA
+    return {
+        'scenario': scenario,
+        'stage': stage,
+        'order': index,
+        'title': row.get('title') or '',
+        'tool': tool,
+        'duration_ms': normalize_step_duration(row.get('duration_ms')),
+        'start_mode': row.get('start_mode') or 'after_previous',
+        'hold_previous': bool(row.get('hold_previous')),
+        'camera': normalize_camera(row.get('camera')),
+        'selection': normalize_selection(row.get('selection')),
+        'animation': normalize_animation(row.get('animation')),
+        'text': normalize_text(row.get('text')),
+        'mosaic': normalize_step_mosaic(row.get('mosaic')),
+    }
+
+
+def _remap_stage_id(value, id_map):
+    if value is None:
+        return None
+    key = str(value).strip()
+    if not key:
+        return None
+    return id_map.get(key)
+
+
+def _remap_mosaic_stage_ids(raw, id_map):
+    data = raw if isinstance(raw, dict) else {}
+    presets = data.get('presets') if isinstance(data.get('presets'), list) else []
+    next_presets = []
+    for preset in presets:
+        if not isinstance(preset, dict):
+            continue
+        screens = preset.get('screens') if isinstance(preset.get('screens'), list) else []
+        next_screens = []
+        for screen in screens:
+            if not isinstance(screen, dict):
+                continue
+            mapped = dict(screen)
+            mapped['stage_id'] = _remap_stage_id(screen.get('stage_id'), id_map)
+            next_screens.append(mapped)
+        next_presets.append({**preset, 'screens': next_screens})
+    return {**data, 'presets': next_presets}
+
+
+def _remap_sequence_stage_ids(raw, id_map):
+    items = raw if isinstance(raw, list) else []
+    remapped = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        next_item = dict(item)
+        next_item['stage_id'] = _remap_stage_id(item.get('stage_id'), id_map)
+        remapped.append(next_item)
+    return remapped
+
+
+@transaction.atomic
+def replace_demo_scenario_library(scenario, stages_data, sequence_data=None, mosaic_data=None):
+    """
+    Атомарная замена библиотеки этапов, шагов и программы показа.
+    stages_data: список {id?, title, steps: [...]}.
+    Локальные id с клиента (не UUID) переписываются на новые и проставляются
+    в sequence и слоты мультиэкрана.
+    """
+    scenario.steps.all().delete()
+    scenario.stages.all().delete()
+
+    created_stages = []
+    to_create_steps = []
+    id_map = {}
+    for index, row in enumerate(stages_data or []):
+        if not isinstance(row, dict):
+            continue
+        title = row.get('title') if isinstance(row.get('title'), str) else ''
+        stage_id = row.get('id') or row.get('key')
+        create_kwargs = {
+            'scenario': scenario,
+            'order': index,
+            'title': (title or f'Этап {index + 1}')[:255],
+        }
+        if stage_id:
+            try:
+                create_kwargs['id'] = uuid.UUID(str(stage_id))
+            except (TypeError, ValueError, AttributeError):
+                pass
+        stage = DemoScenarioStage.objects.create(**create_kwargs)
+        created_stages.append(stage)
+        id_map[str(stage.id)] = str(stage.id)
+        if stage_id:
+            id_map[str(stage_id)] = str(stage.id)
+        if row.get('key'):
+            id_map[str(row['key'])] = str(stage.id)
+        steps = row.get('steps') if isinstance(row.get('steps'), list) else []
+        for step_index, step_row in enumerate(steps):
+            if not isinstance(step_row, dict):
+                continue
+            to_create_steps.append(DemoScenarioStep(
+                **_step_kwargs(scenario, stage, step_index, step_row),
+            ))
+
+    if to_create_steps:
+        DemoScenarioStep.objects.bulk_create(to_create_steps)
+
+    stage_ids = {str(stage.id) for stage in created_stages}
+    mosaic_raw = mosaic_data if mosaic_data is not None else scenario.mosaic
+    sequence_raw = sequence_data if sequence_data is not None else scenario.sequence
+    mosaic = normalize_scenario_mosaic(
+        _remap_mosaic_stage_ids(mosaic_raw, id_map),
+        allowed_stage_ids=stage_ids,
+    )
+    preset_ids = {preset['id'] for preset in mosaic.get('presets') or []}
+    sequence = normalize_scenario_sequence(
+        _remap_sequence_stage_ids(sequence_raw, id_map),
+        allowed_stage_ids=stage_ids,
+        allowed_preset_ids=preset_ids,
+    )
+    scenario.mosaic = mosaic
+    scenario.sequence = sequence
+    scenario.save(update_fields=['mosaic', 'sequence'])
+
     if hasattr(scenario, '_prefetched_objects_cache'):
         scenario._prefetched_objects_cache.pop('steps', None)
+        scenario._prefetched_objects_cache.pop('stages', None)
+    return created_stages
+
+
+@transaction.atomic
+def replace_demo_scenario_steps(scenario, steps_data):
+    """Совместимость: плоский список шагов сворачивается в один этап."""
+    if steps_data is None:
+        return
+    stages = [{
+        'title': 'Этап 1',
+        'steps': list(steps_data),
+    }] if steps_data else []
+    sequence = []
+    if stages:
+        sequence = [{'type': 'stage', 'stage_id': None, 'duration_ms': 0}]
+    replace_demo_scenario_library(scenario, stages, sequence_data=sequence, mosaic_data=scenario.mosaic)
+    if scenario.stages.exists() and scenario.sequence:
+        first = scenario.stages.order_by('order').first()
+        sequence = list(scenario.sequence)
+        if sequence and sequence[0].get('type') == 'stage':
+            sequence[0]['stage_id'] = str(first.id)
+            scenario.sequence = sequence
+            scenario.save(update_fields=['sequence'])
 
 
 def clear_other_default_scenarios(scenario):
@@ -461,3 +866,4 @@ def clear_other_default_scenarios(scenario):
     if not scenario.is_default:
         return
     scenario.__class__.objects.exclude(pk=scenario.pk).filter(is_default=True).update(is_default=False)
+
