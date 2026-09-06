@@ -1,0 +1,274 @@
+/* Художественный режим: наклон карты + плавающие карточки */
+
+.demo-tableau {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #0b1220;
+}
+
+.demo-tableau__plane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+  perspective: inherit;
+}
+
+.demo-tableau__map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  transform-origin: center center;
+  transform: rotateX(0deg) rotateZ(0deg) scale(1);
+  transition: transform var(--tableau-tilt-ms, 700ms) cubic-bezier(0.22, 1, 0.36, 1),
+    width var(--tableau-tilt-ms, 700ms) ease,
+    height var(--tableau-tilt-ms, 700ms) ease,
+    left var(--tableau-tilt-ms, 700ms) ease,
+    top var(--tableau-tilt-ms, 700ms) ease,
+    border-radius var(--tableau-tilt-ms, 700ms) ease,
+    box-shadow var(--tableau-tilt-ms, 700ms) ease;
+  will-change: transform;
+}
+
+/* Inset + 3D только вместе с --tilted: один CSS-переход из fullscreen. */
+.demo-tableau--active .demo-tableau__map {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.demo-tableau--active.demo-tableau--tilted .demo-tableau__map {
+  left: 6%;
+  top: calc(11% + var(--tableau-offset-y, 0%));
+  width: 88%;
+  height: 78%;
+  border-radius: var(--tableau-radius, 14px);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  transform:
+    rotateX(var(--tableau-rotate-x, 58deg))
+    rotateZ(var(--tableau-rotate-z, -8deg))
+    scale(var(--tableau-scale, 0.92));
+}
+
+.demo-tableau--active.demo-tableau--exiting .demo-tableau__map {
+  transform: rotateX(0deg) rotateZ(0deg) scale(1);
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.demo-tableau__corner {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.demo-tableau__corner--tl { left: 0; top: 0; }
+.demo-tableau__corner--tr { right: 0; top: 0; }
+.demo-tableau__corner--br { right: 0; bottom: 0; }
+.demo-tableau__corner--bl { left: 0; bottom: 0; }
+
+.demo-tableau__map > *:not(.demo-tableau__corner) {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Карта в формуляре часто map--fullscreen — удерживаем внутри плоскости */
+.demo-tableau--active .demo-tableau__map .map,
+.demo-tableau--active .demo-tableau__map .map.map--fullscreen {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: inherit;
+}
+
+/* Заморозка layout на время CSS-наклона: пиксельный размер до tilt, без invalidateSize */
+.demo-tableau--active .demo-tableau__map .map.map--layout-frozen,
+.demo-tableau--active .demo-tableau__map .map.map--fullscreen.map--layout-frozen {
+  inset: auto !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--tableau-freeze-w, 100%) !important;
+  height: var(--tableau-freeze-h, 100%) !important;
+}
+
+.demo-tableau__arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Над карточками: искра не попадает под backdrop-filter и не гоняет пересъёмку карты */
+  z-index: 8;
+  overflow: visible;
+  isolation: isolate;
+  contain: strict;
+  transform: translateZ(0);
+}
+
+.demo-tableau__arrow-line {
+  fill: none;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  opacity: 1;
+}
+
+.demo-tableau__arrow-head {
+  stroke: none;
+  opacity: 1;
+}
+
+.demo-tableau__spark {
+  pointer-events: none;
+}
+
+.demo-tableau__spark-node {
+  pointer-events: none;
+  transform-box: view-box;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+
+.demo-tableau__spark-core,
+.demo-tableau__spark-trail {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.demo-tableau__spark-core {
+  animation: demo-tableau-spark-pulse 200ms ease-in-out infinite alternate;
+}
+
+@keyframes demo-tableau-spark-pulse {
+  0% {
+    transform: scale(0.88);
+  }
+  100% {
+    transform: scale(1.08);
+  }
+}
+
+.demo-tableau__caption {
+  position: absolute;
+  z-index: 7;
+  max-width: min(70%, 520px);
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-align: center;
+  letter-spacing: 0.01em;
+  /* Без backdrop-filter: blur поверх 3D MapLibre дороже самой искры */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 0);
+  white-space: pre-wrap;
+}
+
+.demo-tableau__caption--visible {
+  opacity: 1;
+}
+
+.demo-tableau__cards {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.demo-tableau__grid {
+  position: absolute;
+  display: grid;
+  pointer-events: none;
+  z-index: 6;
+  box-sizing: border-box;
+}
+
+.demo-tableau__grid-cell {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.demo-tableau__grid-cell--bridge {
+  z-index: 1;
+}
+
+.demo-tableau__placement {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.demo-tableau__placement--visible {
+  opacity: 1;
+}
+
+.demo-tableau__placement-block {
+  width: 100%;
+  height: 100%;
+}
+
+.demo-tableau__card-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.demo-tableau__card-list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  opacity: 0.92;
+}
+
+.demo-tableau__card-list li + li {
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-tableau__map {
+    transition: none !important;
+  }
+
+  .demo-tableau__spark {
+    display: none !important;
+  }
+
+  .demo-tableau__placement--visible,
+  .demo-tableau__caption--visible {
+    opacity: 1;
+  }
+}

@@ -302,12 +302,118 @@ const MOSAIC_SLOT_IDS = ['a', 'b', 'c', 'd', 'e', 'f'];
 export const DEMO_SEQUENCE_TYPE = {
   STAGE: 'stage',
   MOSAIC: 'mosaic',
+  TABLEAU: 'tableau',
 };
 
 export const DEMO_SEQUENCE_TYPES = [
   { id: DEMO_SEQUENCE_TYPE.STAGE, label: 'Этап', icon: '▶' },
   { id: DEMO_SEQUENCE_TYPE.MOSAIC, label: 'Мультиэкран', icon: '▦' },
+  { id: DEMO_SEQUENCE_TYPE.TABLEAU, label: 'Художественный', icon: '◇' },
 ];
+
+export const DEMO_DEFAULT_TABLEAU_TILT = {
+  perspective: 1200,
+  rotate_x: 58,
+  rotate_z: -8,
+  scale: 0.92,
+  offset_y: 0,
+};
+
+export const DEMO_DEFAULT_TABLEAU_CAPTION = {
+  content: '',
+  x: 50,
+  y: 6,
+  font_family: 'Roboto',
+  font_size: 17,
+  font_weight: 700,
+  color: '#f8fafc',
+  background: 'rgba(15, 23, 42, 0.55)',
+  border: {
+    color: 'rgba(255, 255, 255, 0.28)',
+    width: 1,
+  },
+};
+
+export const DEMO_DEFAULT_TABLEAU_BORDER_RADIUS = 14;
+export const DEMO_DEFAULT_TABLEAU_TILT_MS = 700;
+export const DEMO_DEFAULT_TABLEAU_UNTILT_MS = 700;
+
+export const DEMO_DEFAULT_TABLEAU_BLOCK_FILL = {
+  color: 'rgba(15,23,42,0.55)',
+  opacity: 1,
+};
+
+export const DEMO_DEFAULT_TABLEAU_BLOCK_BORDER = {
+  color: 'rgba(255,255,255,0.28)',
+  width: 1,
+  opacity: 1,
+};
+
+export const DEMO_TABLEAU_ARROW_LINES = ['solid', 'dashed', 'dotted'];
+export const DEMO_TABLEAU_ARROW_HEADS = ['end', 'none', 'both'];
+export const DEMO_TABLEAU_EDGES = ['top', 'right', 'bottom', 'left'];
+
+/** Рамка карты при показе (centered 88%×78%). */
+export const DEMO_TABLEAU_MAP_FRAME = {
+  left: 6,
+  top: 11,
+  width: 88,
+  height: 78,
+};
+
+export const DEMO_DEFAULT_TABLEAU_ARROW = {
+  line: 'dashed',
+  width: 1.5,
+  color: 'rgba(248,250,252,0.88)',
+  head: 'end',
+  block_edge: 'bottom',
+};
+
+export const DEMO_TABLEAU_CELL_ROLES = ['card', 'bridge'];
+export const DEMO_TABLEAU_CELL_ALIGNS = ['start', 'center', 'end'];
+
+export const DEMO_DEFAULT_TABLEAU_OVERLAY = {
+  cols: 5,
+  rows: 2,
+  x: 4,
+  y: 2,
+  width: 92,
+  height: 36,
+  column_gap: 1.2,
+  row_gap: 1.2,
+  row_heights: [1, 1],
+  cells: [
+    { id: 'cell-0-0', row: 0, col: 0, col_span: 1, role: 'card', block_id: null, content_width: 100, content_height: 100, align_x: 'center', align_y: 'center', offset_top: 0 },
+    { id: 'cell-0-1', row: 0, col: 1, col_span: 1, role: 'card', block_id: null, content_width: 100, content_height: 100, align_x: 'center', align_y: 'center', offset_top: 0 },
+    { id: 'cell-0-2', row: 0, col: 2, col_span: 1, role: 'card', block_id: null, content_width: 100, content_height: 100, align_x: 'center', align_y: 'center', offset_top: 0 },
+    { id: 'cell-0-3', row: 0, col: 3, col_span: 1, role: 'card', block_id: null, content_width: 100, content_height: 100, align_x: 'center', align_y: 'center', offset_top: 0 },
+    { id: 'cell-0-4', row: 0, col: 4, col_span: 1, role: 'card', block_id: null, content_width: 100, content_height: 100, align_x: 'center', align_y: 'center', offset_top: 0 },
+    { id: 'cell-1-1', row: 1, col: 1, col_span: 3, role: 'bridge', block_id: null, content_width: 100, content_height: 100, align_x: 'center', align_y: 'center', offset_top: 0 },
+  ],
+  map_arrow: {
+    inset: 14,
+    line: 'dashed',
+    width: 1.5,
+    color: 'rgba(248,250,252,0.88)',
+    head: 'end',
+  },
+};
+
+export const DEMO_DEFAULT_TABLEAU_MAP_REVEAL = {
+  lifetime_ms: 3500,
+  spawn_gap_min_ms: 0,
+  spawn_gap_max_ms: 1000,
+};
+
+export const DEMO_DEFAULT_TABLEAU_CAMERA = {
+  mode: DEMO_CAMERA_MODE.FLY_TO,
+  lat: null,
+  lng: null,
+  zoom: 8,
+  duration_ms: 1500,
+  ease_linearity: 0.3,
+  padding: 72,
+};
 
 export const DEMO_PROGRAM_TRANSITION = {
   NONE: 'none',
@@ -491,6 +597,1157 @@ export function createDefaultMosaicPreset(overrides = {}) {
     stagger_ms: 400,
     ...overrides,
   });
+}
+
+export function createDefaultScenarioTableau(overrides = {}) {
+  return normalizeScenarioTableau({
+    presets: [],
+    active_preset_id: null,
+    blocks: [],
+    ...overrides,
+  });
+}
+
+function makeLocalTableauId(prefix, index = 0) {
+  return `${prefix}-${index}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function optionalTableauId(raw) {
+  if (raw == null) return null;
+  const value = String(raw).trim();
+  return value ? value.slice(0, 80) : null;
+}
+
+export function normalizeTableauTilt(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  return {
+    perspective: clampInt(
+      data.perspective,
+      400,
+      4000,
+      DEMO_DEFAULT_TABLEAU_TILT.perspective,
+    ),
+    rotate_x: clampFloat(
+      data.rotate_x,
+      0,
+      80,
+      DEMO_DEFAULT_TABLEAU_TILT.rotate_x,
+    ),
+    rotate_z: clampFloat(
+      data.rotate_z,
+      -45,
+      45,
+      DEMO_DEFAULT_TABLEAU_TILT.rotate_z,
+    ),
+    scale: clampFloat(
+      data.scale,
+      0.4,
+      1.2,
+      DEMO_DEFAULT_TABLEAU_TILT.scale,
+    ),
+    offset_y: clampFloat(
+      data.offset_y,
+      -30,
+      30,
+      DEMO_DEFAULT_TABLEAU_TILT.offset_y,
+    ),
+  };
+}
+
+export function normalizeTableauCaption(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const content = typeof data.content === 'string' ? data.content.trim().slice(0, 500) : '';
+  const borderRaw = data.border && typeof data.border === 'object' ? data.border : {};
+  const weightIds = DEMO_TEXT_WEIGHTS.map((item) => item.id);
+  const fontIds = DEMO_TEXT_FONTS.map((item) => item.id);
+  return {
+    content,
+    x: clampFloat(data.x, 0, 100, DEMO_DEFAULT_TABLEAU_CAPTION.x),
+    y: clampFloat(data.y, 0, 100, DEMO_DEFAULT_TABLEAU_CAPTION.y),
+    font_family: pickChoice(
+      data.font_family,
+      fontIds,
+      DEMO_DEFAULT_TABLEAU_CAPTION.font_family,
+    ),
+    font_size: clampFloat(
+      data.font_size,
+      10,
+      96,
+      DEMO_DEFAULT_TABLEAU_CAPTION.font_size,
+    ),
+    font_weight: pickChoice(
+      Number(data.font_weight),
+      weightIds,
+      DEMO_DEFAULT_TABLEAU_CAPTION.font_weight,
+    ),
+    color: pickColor(data.color, DEMO_DEFAULT_TABLEAU_CAPTION.color),
+    background: pickColor(data.background, DEMO_DEFAULT_TABLEAU_CAPTION.background),
+    border: {
+      color: pickColor(borderRaw.color, DEMO_DEFAULT_TABLEAU_CAPTION.border.color),
+      width: clampFloat(
+        borderRaw.width,
+        0,
+        12,
+        DEMO_DEFAULT_TABLEAU_CAPTION.border.width,
+      ),
+    },
+  };
+}
+
+function normalizeTableauFill(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  return {
+    color: pickColor(data.color, DEMO_DEFAULT_TABLEAU_BLOCK_FILL.color),
+    opacity: clampFloat(
+      data.opacity,
+      0,
+      1,
+      DEMO_DEFAULT_TABLEAU_BLOCK_FILL.opacity,
+    ),
+  };
+}
+
+function normalizeTableauBorder(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  return {
+    color: pickColor(data.color, DEMO_DEFAULT_TABLEAU_BLOCK_BORDER.color),
+    width: clampFloat(
+      data.width,
+      0,
+      12,
+      DEMO_DEFAULT_TABLEAU_BLOCK_BORDER.width,
+    ),
+    opacity: clampFloat(
+      data.opacity,
+      0,
+      1,
+      DEMO_DEFAULT_TABLEAU_BLOCK_BORDER.opacity,
+    ),
+  };
+}
+
+export function normalizeTableauElement(raw, index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const elType = pickChoice(data.type, ['text', 'image'], 'text');
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('el', index);
+  const base = {
+    id,
+    type: elType,
+    x: clampFloat(data.x, 0, 100, 8),
+    y: clampFloat(data.y, 0, 100, 8 + index * 12),
+    w: clampFloat(data.w, 4, 100, 84),
+    h: clampFloat(data.h, 4, 100, 20),
+  };
+  if (elType === 'image') {
+    const src = typeof data.src === 'string' ? data.src.trim().slice(0, 500) : '';
+    return { ...base, src };
+  }
+  const content = typeof data.content === 'string' ? data.content.slice(0, 2000) : '';
+  return {
+    ...base,
+    content,
+    style: normalizeTextStyle(data.style),
+  };
+}
+
+export function normalizeTableauBlock(raw, index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('block', index);
+  const title = typeof data.title === 'string' && data.title.trim()
+    ? data.title.trim().slice(0, 200)
+    : `Блок ${index + 1}`;
+  const elements = [];
+  const seen = new Set();
+  (Array.isArray(data.elements) ? data.elements : []).slice(0, 40).forEach((item, elIndex) => {
+    const element = normalizeTableauElement(item, elIndex);
+    if (seen.has(element.id)) {
+      element.id = makeLocalTableauId('el', elIndex);
+    }
+    seen.add(element.id);
+    elements.push(element);
+  });
+  return {
+    id,
+    title,
+    width: clampFloat(data.width, 8, 80, 22),
+    height: clampFloat(data.height, 8, 70, 28),
+    border_radius_px: clampInt(data.border_radius_px, 0, 48, 12),
+    fill: normalizeTableauFill(data.fill),
+    border: normalizeTableauBorder(data.border),
+    elements,
+  };
+}
+
+export function normalizeTableauPlacement(raw, index = 0, allowedBlockIds = null) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('place', index);
+  let blockId = optionalTableauId(data.block_id);
+  if (allowedBlockIds != null && blockId && !allowedBlockIds.has(blockId)) {
+    blockId = null;
+  }
+  let width = null;
+  if (data.width != null && data.width !== '') {
+    width = clampFloat(data.width, 8, 80, 22);
+  }
+  let height = null;
+  if (data.height != null && data.height !== '') {
+    height = clampFloat(data.height, 8, 70, 28);
+  }
+  return {
+    id,
+    block_id: blockId,
+    x: clampFloat(data.x, 0, 100, 20 + index * 12),
+    y: clampFloat(data.y, 0, 100, 12 + (index % 3) * 14),
+    width,
+    height,
+  };
+}
+
+export function normalizeTableauMapAnchor(raw, index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('anchor', index);
+  return {
+    id,
+    edge: pickChoice(data.edge, DEMO_TABLEAU_EDGES, 'bottom'),
+    t: clampFloat(data.t, 0, 1, 0.5),
+  };
+}
+
+export function normalizeTableauArrow(raw, index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('arrow', index);
+  return {
+    id,
+    placement_id: optionalTableauId(data.placement_id),
+    block_edge: pickChoice(
+      data.block_edge,
+      DEMO_TABLEAU_EDGES,
+      DEMO_DEFAULT_TABLEAU_ARROW.block_edge,
+    ),
+    map_anchor_id: optionalTableauId(data.map_anchor_id),
+    line: pickChoice(data.line, DEMO_TABLEAU_ARROW_LINES, DEMO_DEFAULT_TABLEAU_ARROW.line),
+    width: clampFloat(
+      data.width,
+      0.5,
+      8,
+      DEMO_DEFAULT_TABLEAU_ARROW.width,
+    ),
+    color: pickColor(data.color, DEMO_DEFAULT_TABLEAU_ARROW.color),
+    head: pickChoice(data.head, DEMO_TABLEAU_ARROW_HEADS, DEMO_DEFAULT_TABLEAU_ARROW.head),
+  };
+}
+
+export function normalizeTableauOverlayCell(raw, index = 0, cols = 5, rows = 2, allowedBlockIds = null) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('cell', index);
+  const colMax = Math.max(1, cols) - 1;
+  const rowMax = Math.max(1, rows) - 1;
+  const col = clampInt(data.col, 0, colMax, Math.min(index, colMax));
+  const row = clampInt(data.row, 0, rowMax, 0);
+  const maxSpan = Math.max(1, cols - col);
+  const colSpan = clampInt(data.col_span, 1, maxSpan, 1);
+  let blockId = optionalTableauId(data.block_id);
+  if (allowedBlockIds != null && blockId && !allowedBlockIds.has(blockId)) {
+    blockId = null;
+  }
+  return {
+    id,
+    row,
+    col,
+    col_span: colSpan,
+    role: pickChoice(data.role, DEMO_TABLEAU_CELL_ROLES, 'card'),
+    block_id: blockId,
+    content_width: clampFloat(data.content_width, 20, 100, 100),
+    content_height: clampFloat(data.content_height, 20, 100, 100),
+    align_x: pickChoice(data.align_x, DEMO_TABLEAU_CELL_ALIGNS, 'center'),
+    align_y: pickChoice(data.align_y, DEMO_TABLEAU_CELL_ALIGNS, 'center'),
+    offset_top: clampFloat(data.offset_top, 0, 40, 0),
+  };
+}
+
+export function normalizeTableauOverlayMapArrow(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const defaults = DEMO_DEFAULT_TABLEAU_OVERLAY.map_arrow;
+  return {
+    inset: clampFloat(data.inset, 0, 40, defaults.inset),
+    line: pickChoice(data.line, DEMO_TABLEAU_ARROW_LINES, defaults.line),
+    width: clampFloat(data.width, 0.5, 8, defaults.width),
+    color: pickColor(data.color, defaults.color),
+    head: pickChoice(data.head, DEMO_TABLEAU_ARROW_HEADS, defaults.head),
+  };
+}
+
+/** Нормализовать веса высот рядов до длины rows. */
+export function normalizeTableauRowHeights(raw, rows) {
+  const count = Math.max(1, rows);
+  const list = Array.isArray(raw) ? raw : [];
+  const heights = [];
+  for (let i = 0; i < count; i += 1) {
+    heights.push(clampFloat(list[i], 0.2, 10, 1));
+  }
+  return heights;
+}
+
+/** Собрать overlay из старых placements (один ряд, без моста). */
+export function migratePlacementsToOverlay(placements, allowedBlockIds = null) {
+  const list = Array.isArray(placements) ? placements.filter(Boolean) : [];
+  if (!list.length) {
+    return normalizeTableauOverlay(DEMO_DEFAULT_TABLEAU_OVERLAY, allowedBlockIds);
+  }
+  const cols = clampInt(list.length, 1, 8, Math.min(list.length, 8));
+  const cells = list.slice(0, cols).map((placement, index) => (
+    normalizeTableauOverlayCell({
+      id: placement.id ? `cell-from-${placement.id}` : undefined,
+      row: 0,
+      col: index,
+      col_span: 1,
+      role: 'card',
+      block_id: placement.block_id,
+    }, index, cols, 1, allowedBlockIds)
+  ));
+  return normalizeTableauOverlay({
+    cols,
+    rows: 1,
+    x: 4,
+    y: 4,
+    width: 92,
+    height: 28,
+    column_gap: 1.2,
+    row_gap: 1.2,
+    row_heights: [1],
+    cells,
+    map_arrow: { ...DEMO_DEFAULT_TABLEAU_OVERLAY.map_arrow },
+  }, allowedBlockIds);
+}
+
+export function normalizeTableauOverlay(raw, allowedBlockIds = null) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const cols = clampInt(data.cols, 1, 8, DEMO_DEFAULT_TABLEAU_OVERLAY.cols);
+  const rows = clampInt(data.rows, 1, 4, DEMO_DEFAULT_TABLEAU_OVERLAY.rows);
+  const legacyGap = data.gap != null
+    ? clampFloat(data.gap, 0, 40, DEMO_DEFAULT_TABLEAU_OVERLAY.column_gap)
+    : DEMO_DEFAULT_TABLEAU_OVERLAY.column_gap;
+  const columnGap = clampFloat(
+    data.column_gap != null ? data.column_gap : legacyGap,
+    0, 40, DEMO_DEFAULT_TABLEAU_OVERLAY.column_gap,
+  );
+  const rowGap = clampFloat(
+    data.row_gap != null ? data.row_gap : legacyGap,
+    0, 40, DEMO_DEFAULT_TABLEAU_OVERLAY.row_gap,
+  );
+  const cellsRaw = Array.isArray(data.cells) ? data.cells : [];
+  const cells = [];
+  const seen = new Set();
+  let bridgeCount = 0;
+  cellsRaw.slice(0, cols * rows + 8).forEach((item, index) => {
+    const cell = normalizeTableauOverlayCell(item, index, cols, rows, allowedBlockIds);
+    if (cell.col + cell.col_span > cols) {
+      cell.col_span = Math.max(1, cols - cell.col);
+    }
+    if (cell.role === 'bridge') {
+      if (bridgeCount >= 1) cell.role = 'card';
+      else bridgeCount += 1;
+    }
+    if (seen.has(cell.id)) {
+      cell.id = makeLocalTableauId('cell', index);
+    }
+    seen.add(cell.id);
+    cells.push(cell);
+  });
+  return {
+    cols,
+    rows,
+    x: clampFloat(data.x, 0, 100, DEMO_DEFAULT_TABLEAU_OVERLAY.x),
+    y: clampFloat(data.y, 0, 90, DEMO_DEFAULT_TABLEAU_OVERLAY.y),
+    width: clampFloat(data.width, 10, 100, DEMO_DEFAULT_TABLEAU_OVERLAY.width),
+    height: clampFloat(data.height, 8, 95, DEMO_DEFAULT_TABLEAU_OVERLAY.height),
+    column_gap: columnGap,
+    row_gap: rowGap,
+    row_heights: normalizeTableauRowHeights(data.row_heights, rows),
+    cells,
+    map_arrow: normalizeTableauOverlayMapArrow(data.map_arrow),
+  };
+}
+
+function alignOffset(align, freeSpace) {
+  if (align === 'start') return 0;
+  if (align === 'end') return freeSpace;
+  return freeSpace / 2;
+}
+
+/** offset_top моста (0 если моста нет). */
+export function getBridgeOffsetTop(overlay) {
+  const bridge = (overlay?.cells || []).find((c) => c?.role === 'bridge');
+  if (!bridge) return 0;
+  return clampFloat(bridge.offset_top, 0, 40, 0);
+}
+
+/**
+ * Метрики рядов сетки: базовые доли от overlay.height + extra на ряд моста.
+ */
+export function resolveOverlayRowMetrics(overlay) {
+  const cols = Math.max(1, overlay?.cols || 1);
+  const rows = Math.max(1, overlay?.rows || 1);
+  const oy = Number(overlay?.y) || 0;
+  const ow = Number(overlay?.width) || 100;
+  let oh = Number(overlay?.height) || 30;
+  let columnGap = Math.max(0, Number(
+    overlay?.column_gap != null ? overlay.column_gap : overlay?.gap,
+  ) || 0);
+  let rowGap = Math.max(0, Number(
+    overlay?.row_gap != null ? overlay.row_gap : overlay?.gap,
+  ) || 0);
+  const heights = normalizeTableauRowHeights(overlay?.row_heights, rows);
+  const bridge = (overlay?.cells || []).find((c) => c?.role === 'bridge');
+  const bridgeRow = bridge ? clampInt(bridge.row, 0, rows - 1, 0) : -1;
+  let extra = bridge ? clampFloat(bridge.offset_top, 0, 40, 0) : 0;
+  const maxExtra = Math.max(0, 100 - oy - oh);
+  if (extra > maxExtra) extra = maxExtra;
+
+  const colGaps = Math.max(0, cols - 1);
+  const rowGaps = Math.max(0, rows - 1);
+  if (colGaps > 0 && columnGap * colGaps >= ow) {
+    columnGap = (ow * 0.85) / colGaps;
+  }
+  if (rowGaps > 0 && rowGap * rowGaps >= oh) {
+    rowGap = (oh * 0.85) / rowGaps;
+  }
+
+  const usableH = oh - rowGap * rowGaps;
+  const weightSum = heights.reduce((sum, h) => sum + h, 0) || rows;
+  const rowHeights = heights.map((h) => (usableH * h) / weightSum);
+  if (bridgeRow >= 0 && extra > 0) {
+    rowHeights[bridgeRow] += extra;
+  }
+  const totalHeight = oh + extra;
+  return {
+    cols,
+    rows,
+    columnGap,
+    rowGap,
+    rowHeights,
+    bridgeRow,
+    extra,
+    baseHeight: oh,
+    totalHeight,
+    oy,
+    ow,
+  };
+}
+
+/**
+ * Прямоугольник ячейки в % экрана (корень tableau).
+ * Учитывает column_gap / row_gap, row_heights и offset_top моста.
+ * @param {object} [metrics] — результат resolveOverlayRowMetrics (чтобы не считать повторно).
+ */
+export function cellRect(overlay, cell, metrics = null) {
+  const m = metrics || resolveOverlayRowMetrics(overlay);
+  const ox = Number(overlay?.x) || 0;
+  const col = clampInt(cell?.col, 0, m.cols - 1, 0);
+  const row = clampInt(cell?.row, 0, m.rows - 1, 0);
+  const span = clampInt(cell?.col_span, 1, m.cols - col, 1);
+
+  const cellW = (m.ow - m.columnGap * Math.max(0, m.cols - 1)) / m.cols;
+  const left = ox + col * (cellW + m.columnGap);
+  let top = m.oy;
+  for (let i = 0; i < row; i += 1) {
+    top += m.rowHeights[i] + m.rowGap;
+  }
+  const height = m.rowHeights[row];
+  const width = cellW * span + m.columnGap * Math.max(0, span - 1);
+  return {
+    left,
+    top,
+    width,
+    height,
+    cx: left + width / 2,
+    cy: top + height / 2,
+    bottom: top + height,
+    right: left + width,
+  };
+}
+
+/**
+ * Прямоугольник видимого блока внутри ячейки (content_width/height + align).
+ * У моста сверху резервируется offset_top.
+ * @param {object} [metrics] — результат resolveOverlayRowMetrics (чтобы не считать повторно).
+ */
+export function cellContentRect(overlay, cell, metrics = null) {
+  const m = metrics || resolveOverlayRowMetrics(overlay);
+  const rect = cellRect(overlay, cell, m);
+  const isBridge = cell?.role === 'bridge';
+  const extra = isBridge ? m.extra : 0;
+  const offsetTop = extra;
+  const innerTop = rect.top + Math.min(offsetTop, Math.max(0, rect.height - 0.5));
+  const innerHeight = Math.max(0.5, rect.bottom - innerTop);
+  const cw = clampFloat(cell?.content_width, 20, 100, 100) / 100;
+  const ch = clampFloat(cell?.content_height, 20, 100, 100) / 100;
+  const width = rect.width * cw;
+  const height = innerHeight * ch;
+  const alignX = pickChoice(cell?.align_x, DEMO_TABLEAU_CELL_ALIGNS, 'center');
+  const alignY = pickChoice(cell?.align_y, DEMO_TABLEAU_CELL_ALIGNS, 'center');
+  const left = rect.left + alignOffset(alignX, rect.width - width);
+  const top = innerTop + alignOffset(alignY, innerHeight - height);
+  return {
+    left,
+    top,
+    width,
+    height,
+    cx: left + width / 2,
+    cy: top + height / 2,
+    bottom: top + height,
+    right: left + width,
+  };
+}
+
+/** CSS-стиль абсолютной CSS-grid рамки overlay. */
+export function overlayGridStyle(overlay) {
+  if (!overlay) return undefined;
+  const metrics = resolveOverlayRowMetrics(overlay);
+  const frameW = Math.max(0.01, metrics.ow);
+  const frameH = Math.max(0.01, metrics.totalHeight);
+  // column_gap/row_gap — % рамки overlay; CSS gap — % самой сетки
+  return {
+    left: `${overlay.x}%`,
+    top: `${overlay.y}%`,
+    width: `${overlay.width}%`,
+    height: `${metrics.totalHeight}%`,
+    columnGap: `${(metrics.columnGap / frameW) * 100}%`,
+    rowGap: `${(metrics.rowGap / frameH) * 100}%`,
+    gridTemplateColumns: `repeat(${metrics.cols}, 1fr)`,
+    gridTemplateRows: metrics.rowHeights.map((h) => `${Math.max(h, 0.01)}fr`).join(' '),
+  };
+}
+
+/** Доля offset_top от высоты ячейки моста (для CSS-спейсера). */
+export function bridgeSpacerPercent(overlay, cell) {
+  if (!cell || cell.role !== 'bridge') return 0;
+  const offsetTop = clampFloat(cell.offset_top, 0, 40, 0);
+  if (offsetTop <= 0) return 0;
+  const metrics = resolveOverlayRowMetrics(overlay);
+  const rect = cellRect(overlay, cell, metrics);
+  if (!rect.height) return 0;
+  return Math.min(95, (offsetTop / rect.height) * 100);
+}
+
+/** CSS justify/align для содержимого ячейки. */
+export function cellAlignStyle(cell) {
+  const map = { start: 'flex-start', center: 'center', end: 'flex-end' };
+  const alignX = pickChoice(cell?.align_x, DEMO_TABLEAU_CELL_ALIGNS, 'center');
+  const alignY = pickChoice(cell?.align_y, DEMO_TABLEAU_CELL_ALIGNS, 'center');
+  return {
+    justifyContent: map[alignX] || 'center',
+    alignItems: map[alignY] || 'center',
+  };
+}
+
+function polylineVertical(x, y1, y2) {
+  return [{ x, y: y1 }, { x, y: y2 }];
+}
+
+/** L: низ карточки → вниз до cy моста → в боковую грань моста. */
+function polylineLDownThenSide(fromX, fromY, bridgeRect) {
+  const sideX = fromX < bridgeRect.left
+    ? bridgeRect.left
+    : fromX > bridgeRect.right
+      ? bridgeRect.right
+      : bridgeRect.cx;
+  if (Math.abs(fromX - sideX) < 0.15) {
+    return polylineVertical(fromX, fromY, bridgeRect.top);
+  }
+  let cornerY = bridgeRect.cy;
+  if (cornerY <= fromY) {
+    cornerY = bridgeRect.top;
+  }
+  if (cornerY <= fromY) {
+    cornerY = fromY + 0.5;
+  }
+  return [
+    { x: fromX, y: fromY },
+    { x: fromX, y: cornerY },
+    { x: sideX, y: cornerY },
+  ];
+}
+
+/**
+ * Ортогональные стрелки overlay: карточки → мост, мост → карта.
+ * @returns {{ id, points: {x,y}[], line, width, color, head, kind }[]}
+ */
+export function buildTableauOverlayArrows(overlay, mapFrame = DEMO_TABLEAU_MAP_FRAME) {
+  if (!overlay?.cells?.length) return [];
+  const style = overlay.map_arrow || DEMO_DEFAULT_TABLEAU_OVERLAY.map_arrow;
+  const metrics = resolveOverlayRowMetrics(overlay);
+  const bridge = overlay.cells.find((c) => c.role === 'bridge');
+  const cards = overlay.cells.filter((c) => c.role === 'card' && c.block_id);
+  const result = [];
+
+  if (bridge) {
+    const bridgeRect = cellContentRect(overlay, bridge, metrics);
+    cards.forEach((card) => {
+      const rect = cellContentRect(overlay, card, metrics);
+      const fromX = rect.cx;
+      const fromY = rect.bottom;
+      let points;
+      if (fromX >= bridgeRect.left && fromX <= bridgeRect.right) {
+        points = polylineVertical(fromX, fromY, bridgeRect.top);
+      } else {
+        points = polylineLDownThenSide(fromX, fromY, bridgeRect);
+      }
+      result.push({
+        id: `arrow-card-${card.id}`,
+        kind: 'card',
+        points,
+        line: style.line,
+        width: style.width,
+        color: style.color,
+        head: style.head,
+      });
+    });
+
+    const inset = clampFloat(style.inset, 0, 40, 14);
+    const mapTop = Number(mapFrame?.top) || DEMO_TABLEAU_MAP_FRAME.top;
+    const mapHeight = Number(mapFrame?.height) || DEMO_TABLEAU_MAP_FRAME.height;
+    const tipY = mapTop + (mapHeight * inset) / 100 + metrics.extra;
+    result.push({
+      id: 'arrow-bridge-map',
+      kind: 'bridge',
+      points: polylineVertical(bridgeRect.cx, bridgeRect.bottom, tipY),
+      line: style.line,
+      width: style.width,
+      color: style.color,
+      head: style.head,
+    });
+  }
+
+  return result;
+}
+
+/** Середина ребра placement (x/y — центр блока). */
+export function placementEdgePoint(placement, edge, size = null) {
+  if (!placement) return { x: 50, y: 50 };
+  const w = size?.width ?? placement.width ?? 22;
+  const h = size?.height ?? placement.height ?? 28;
+  const x = Number(placement.x) || 0;
+  const y = Number(placement.y) || 0;
+  switch (edge) {
+    case 'top':
+      return { x, y: y - h / 2 };
+    case 'bottom':
+      return { x, y: y + h / 2 };
+    case 'left':
+      return { x: x - w / 2, y };
+    case 'right':
+      return { x: x + w / 2, y };
+    default:
+      return { x, y: y + h / 2 };
+  }
+}
+
+/** Точка map_anchor на рамке карты в % сцены. */
+export function mapAnchorPoint(anchor, frame = DEMO_TABLEAU_MAP_FRAME) {
+  const t = clampFloat(anchor?.t, 0, 1, 0.5);
+  const left = frame.left;
+  const top = frame.top;
+  const width = frame.width;
+  const height = frame.height;
+  switch (anchor?.edge) {
+    case 'top':
+      return { x: left + t * width, y: top };
+    case 'bottom':
+      return { x: left + t * width, y: top + height };
+    case 'left':
+      return { x: left, y: top + t * height };
+    case 'right':
+      return { x: left + width, y: top + t * height };
+    default:
+      return { x: left + t * width, y: top + height };
+  }
+}
+
+/**
+ * Ближайшая точка на периметре рамки карты.
+ * @returns {{ edge: string, t: number, x: number, y: number }}
+ */
+export function snapPointToMapFrame(px, py, frame = DEMO_TABLEAU_MAP_FRAME) {
+  const left = frame.left;
+  const top = frame.top;
+  const width = Math.max(frame.width, 0.001);
+  const height = Math.max(frame.height, 0.001);
+  const right = left + width;
+  const bottom = top + height;
+  const cx = clampFloat(px, left, right, left);
+  const cy = clampFloat(py, top, bottom, top);
+  const candidates = [
+    {
+      edge: 'top',
+      x: cx,
+      y: top,
+      t: (cx - left) / width,
+      dist: Math.abs(py - top) + (px < left || px > right ? Math.min(Math.abs(px - left), Math.abs(px - right)) : 0),
+    },
+    {
+      edge: 'bottom',
+      x: cx,
+      y: bottom,
+      t: (cx - left) / width,
+      dist: Math.abs(py - bottom) + (px < left || px > right ? Math.min(Math.abs(px - left), Math.abs(px - right)) : 0),
+    },
+    {
+      edge: 'left',
+      x: left,
+      y: cy,
+      t: (cy - top) / height,
+      dist: Math.abs(px - left) + (py < top || py > bottom ? Math.min(Math.abs(py - top), Math.abs(py - bottom)) : 0),
+    },
+    {
+      edge: 'right',
+      x: right,
+      y: cy,
+      t: (cy - top) / height,
+      dist: Math.abs(px - right) + (py < top || py > bottom ? Math.min(Math.abs(py - top), Math.abs(py - bottom)) : 0),
+    },
+  ];
+  let best = candidates[0];
+  candidates.forEach((item) => {
+    if (item.dist < best.dist) best = item;
+  });
+  return {
+    edge: best.edge,
+    t: clampFloat(best.t, 0, 1, 0.5),
+    x: best.x,
+    y: best.y,
+  };
+}
+
+function lerpPoint(a, b, t) {
+  const u = clampFloat(t, 0, 1, 0.5);
+  return {
+    x: a.x + (b.x - a.x) * u,
+    y: a.y + (b.y - a.y) * u,
+  };
+}
+
+/** Центр элемента в % относительно root (после CSS transform). */
+export function percentFromElement(el, root) {
+  if (!el || !root) return null;
+  const er = el.getBoundingClientRect();
+  const rr = root.getBoundingClientRect();
+  if (!rr.width || !rr.height) return null;
+  return {
+    x: ((er.left + er.width / 2) - rr.left) / rr.width * 100,
+    y: ((er.top + er.height / 2) - rr.top) / rr.height * 100,
+  };
+}
+
+/**
+ * Углы карты в % родителя из DOM-маркеров { tl, tr, br, bl }.
+ * @returns {{ tl, tr, br, bl } | null}
+ */
+export function readMapCornersFromElements(cornerEls, root) {
+  if (!cornerEls || !root) return null;
+  const tl = percentFromElement(cornerEls.tl, root);
+  const tr = percentFromElement(cornerEls.tr, root);
+  const br = percentFromElement(cornerEls.br, root);
+  const bl = percentFromElement(cornerEls.bl, root);
+  if (!tl || !tr || !br || !bl) return null;
+  return { tl, tr, br, bl };
+}
+
+/** Точка map_anchor на видимых (возможно 3D) рёбрах карты. */
+export function mapAnchorPointFromCorners(anchor, corners) {
+  if (!corners?.tl || !corners?.tr || !corners?.br || !corners?.bl) {
+    return mapAnchorPoint(anchor);
+  }
+  const t = clampFloat(anchor?.t, 0, 1, 0.5);
+  switch (anchor?.edge) {
+    case 'top':
+      return lerpPoint(corners.tl, corners.tr, t);
+    case 'right':
+      return lerpPoint(corners.tr, corners.br, t);
+    case 'bottom':
+      return lerpPoint(corners.bl, corners.br, t);
+    case 'left':
+      return lerpPoint(corners.tl, corners.bl, t);
+    default:
+      return lerpPoint(corners.bl, corners.br, t);
+  }
+}
+
+/**
+ * Ближайшая точка на периметре видимого планшета (по измеренным углам).
+ * @returns {{ edge: string, t: number, x: number, y: number } | null}
+ */
+export function snapPointToMapCorners(px, py, corners) {
+  if (!corners?.tl || !corners?.tr || !corners?.br || !corners?.bl) {
+    return snapPointToMapFrame(px, py);
+  }
+  const edges = [
+    { edge: 'top', a: corners.tl, b: corners.tr },
+    { edge: 'right', a: corners.tr, b: corners.br },
+    { edge: 'bottom', a: corners.bl, b: corners.br },
+    { edge: 'left', a: corners.tl, b: corners.bl },
+  ];
+  let best = null;
+  edges.forEach(({ edge, a, b }) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    let t = ((px - a.x) * dx + (py - a.y) * dy) / len2;
+    t = clampFloat(t, 0, 1, 0.5);
+    const x = a.x + dx * t;
+    const y = a.y + dy * t;
+    const dist = Math.hypot(px - x, py - y);
+    if (!best || dist < best.dist) {
+      best = { edge, t, x, y, dist };
+    }
+  });
+  return {
+    edge: best.edge,
+    t: best.t,
+    x: best.x,
+    y: best.y,
+  };
+}
+
+export function resolveTableauArrowEndpoints(
+  placement,
+  blockEdge,
+  anchor,
+  frameOrCorners = DEMO_TABLEAU_MAP_FRAME,
+  size = null,
+) {
+  const from = placementEdgePoint(placement, blockEdge, size);
+  const looksLikeCorners = frameOrCorners
+    && frameOrCorners.tl
+    && frameOrCorners.tr
+    && frameOrCorners.br
+    && frameOrCorners.bl;
+  const to = looksLikeCorners
+    ? mapAnchorPointFromCorners(anchor, frameOrCorners)
+    : mapAnchorPoint(anchor, frameOrCorners);
+  return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+}
+
+/** Legacy cards[] → block + placement (title + items as text). */
+function legacyCardToBlockAndPlacement(card, index) {
+  const data = card && typeof card === 'object' ? card : {};
+  const title = typeof data.title === 'string' && data.title.trim()
+    ? data.title.trim()
+    : `Блок ${index + 1}`;
+  const items = Array.isArray(data.items) ? data.items : [];
+  const lines = [title, ...items.map((item) => `• ${item}`)];
+  const content = lines.join('\n');
+  const cardKey = data.id != null && String(data.id).trim()
+    ? String(data.id).trim()
+    : String(index);
+  const blockId = `legacy-block-${cardKey}`.slice(0, 80);
+  const block = normalizeTableauBlock({
+    id: blockId,
+    title,
+    width: 22,
+    height: 28,
+    border_radius_px: 12,
+    elements: [{
+      type: 'text',
+      id: `legacy-text-${index}`,
+      content,
+      x: 8,
+      y: 8,
+      w: 84,
+      h: 84,
+      style: {
+        font_size: 14,
+        font_weight: 600,
+        text_align: 'left',
+        color: '#f8fafc',
+      },
+    }],
+  }, index);
+  const placement = normalizeTableauPlacement({
+    id: `legacy-place-${cardKey}`.slice(0, 80),
+    block_id: blockId,
+    x: data.x ?? 20,
+    y: data.y ?? 12,
+    width: 22,
+    height: 28,
+  }, index, new Set([blockId]));
+  return { block, placement };
+}
+
+export function normalizeTableauPreset(raw, allowedBlockIds = null) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalPresetId();
+  const title = typeof data.title === 'string' && data.title.trim()
+    ? data.title.trim().slice(0, 120)
+    : 'Художественный';
+  const stageId = optionalTableauId(data.stage_id);
+
+  let placementsRaw = Array.isArray(data.placements) ? [...data.placements] : [];
+  let arrowsRaw = Array.isArray(data.arrows) ? [...data.arrows] : [];
+  let anchorsRaw = Array.isArray(data.map_anchors) ? [...data.map_anchors] : [];
+  const legacyCards = Array.isArray(data.cards) ? data.cards : [];
+
+  const migratedBlocks = [];
+  if (!placementsRaw.length && legacyCards.length) {
+    legacyCards.slice(0, 24).forEach((card, index) => {
+      if (!card || typeof card !== 'object') return;
+      const { block, placement } = legacyCardToBlockAndPlacement(card, index);
+      migratedBlocks.push(block);
+      placementsRaw.push(placement);
+      const anchorId = `legacy-anchor-${index}`;
+      anchorsRaw.push({
+        id: anchorId,
+        edge: 'bottom',
+        t: clampFloat(0.35 + (index % 4) * 0.12, 0, 1, 0.5),
+      });
+      arrowsRaw.push({
+        id: `legacy-arrow-${index}`,
+        placement_id: placement.id,
+        block_edge: 'bottom',
+        map_anchor_id: anchorId,
+        line: 'dashed',
+        width: 1.5,
+        color: 'rgba(248,250,252,0.88)',
+        head: 'end',
+      });
+    });
+  }
+
+  const blockIds = new Set(allowedBlockIds || []);
+  migratedBlocks.forEach((block) => blockIds.add(block.id));
+  const blockIdFilter = blockIds.size ? blockIds : null;
+
+  const placements = [];
+  const seenP = new Set();
+  placementsRaw.slice(0, 24).forEach((item, index) => {
+    const placement = normalizeTableauPlacement(item, index, blockIdFilter);
+    if (seenP.has(placement.id)) {
+      placement.id = makeLocalTableauId('place', index);
+    }
+    seenP.add(placement.id);
+    placements.push(placement);
+  });
+  const placementIds = new Set(placements.map((item) => item.id));
+
+  const mapAnchors = [];
+  const seenAnchors = new Set();
+  anchorsRaw.slice(0, 48).forEach((item, index) => {
+    const anchor = normalizeTableauMapAnchor(item, index);
+    if (seenAnchors.has(anchor.id)) {
+      anchor.id = makeLocalTableauId('anchor', index);
+    }
+    seenAnchors.add(anchor.id);
+    mapAnchors.push(anchor);
+  });
+  const anchorIds = new Set(mapAnchors.map((item) => item.id));
+
+  const arrows = [];
+  const seenA = new Set();
+  arrowsRaw.slice(0, 40).forEach((item, index) => {
+    const arrow = normalizeTableauArrow(item, index);
+    if (!arrow.placement_id || !placementIds.has(arrow.placement_id)) return;
+    if (!arrow.map_anchor_id || !anchorIds.has(arrow.map_anchor_id)) return;
+    if (seenA.has(arrow.id)) {
+      arrow.id = makeLocalTableauId('arrow', index);
+    }
+    seenA.add(arrow.id);
+    arrows.push(arrow);
+  });
+
+  return {
+    id,
+    title,
+    stage_id: stageId,
+    tilt: normalizeTableauTilt(data.tilt),
+    border_radius_px: clampInt(
+      data.border_radius_px,
+      0,
+      48,
+      DEMO_DEFAULT_TABLEAU_BORDER_RADIUS,
+    ),
+    tilt_ms: clampInt(data.tilt_ms, 200, 5000, DEMO_DEFAULT_TABLEAU_TILT_MS),
+    untilt_ms: clampInt(data.untilt_ms, 200, 5000, DEMO_DEFAULT_TABLEAU_UNTILT_MS),
+    caption: normalizeTableauCaption(data.caption),
+    card_stagger_ms: clampInt(data.card_stagger_ms, 0, 10_000, 350),
+    arrow_draw_ms: clampInt(data.arrow_draw_ms, 100, 10_000, 900),
+    camera: normalizeTableauCamera(data.camera),
+    map_reveal: normalizeTableauMapReveal(data.map_reveal),
+    overlay: data.overlay != null
+      ? normalizeTableauOverlay(data.overlay, blockIdFilter)
+      : migratePlacementsToOverlay(placements, blockIdFilter),
+    placements,
+    map_anchors: mapAnchors,
+    arrows,
+    _migrated_blocks: migratedBlocks,
+  };
+}
+
+export function normalizeScenarioTableau(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const blocks = [];
+  const seenBlocks = new Set();
+  (Array.isArray(data.blocks) ? data.blocks : []).slice(0, 48).forEach((item, index) => {
+    const block = normalizeTableauBlock(item, index);
+    if (seenBlocks.has(block.id)) {
+      block.id = makeLocalTableauId('block', index);
+    }
+    seenBlocks.add(block.id);
+    blocks.push(block);
+  });
+
+  const seen = new Set();
+  const presets = [];
+  (Array.isArray(data.presets) ? data.presets : []).forEach((item) => {
+    const preset = normalizeTableauPreset(item, seenBlocks);
+    const migrated = preset._migrated_blocks || [];
+    delete preset._migrated_blocks;
+    migrated.forEach((block) => {
+      if (!seenBlocks.has(block.id)) {
+        seenBlocks.add(block.id);
+        blocks.push(block);
+      }
+    });
+    if (migrated.length) {
+      preset.placements = (preset.placements || []).map((placement, index) => (
+        normalizeTableauPlacement(placement, index, seenBlocks)
+      ));
+    }
+    if (seen.has(preset.id)) {
+      preset.id = makeLocalPresetId();
+    }
+    seen.add(preset.id);
+    presets.push(preset);
+  });
+
+  let active = data.active_preset_id != null && String(data.active_preset_id).trim()
+    ? String(data.active_preset_id).trim().slice(0, 80)
+    : null;
+  if (active && !seen.has(active)) {
+    active = presets[0]?.id || null;
+  } else if (!active && presets.length) {
+    active = presets[0].id;
+  }
+  return { presets, active_preset_id: active, blocks };
+}
+
+export function createDefaultTableauPreset(overrides = {}) {
+  const preset = normalizeTableauPreset({
+    id: makeLocalPresetId(),
+    title: 'Художественный',
+    stage_id: null,
+    tilt: { ...DEMO_DEFAULT_TABLEAU_TILT },
+    border_radius_px: DEMO_DEFAULT_TABLEAU_BORDER_RADIUS,
+    tilt_ms: DEMO_DEFAULT_TABLEAU_TILT_MS,
+    untilt_ms: DEMO_DEFAULT_TABLEAU_UNTILT_MS,
+    caption: { ...DEMO_DEFAULT_TABLEAU_CAPTION },
+    card_stagger_ms: 350,
+    arrow_draw_ms: 900,
+    camera: { ...DEMO_DEFAULT_TABLEAU_CAMERA },
+    map_reveal: { ...DEMO_DEFAULT_TABLEAU_MAP_REVEAL },
+    overlay: { ...DEMO_DEFAULT_TABLEAU_OVERLAY, cells: DEMO_DEFAULT_TABLEAU_OVERLAY.cells.map((c) => ({ ...c })) },
+    placements: [],
+    map_anchors: [],
+    arrows: [],
+    ...overrides,
+  });
+  delete preset._migrated_blocks;
+  return preset;
+}
+
+export function createDefaultTableauBlock(overrides = {}) {
+  return normalizeTableauBlock({
+    title: 'Блок',
+    width: 22,
+    height: 28,
+    border_radius_px: 12,
+    fill: { ...DEMO_DEFAULT_TABLEAU_BLOCK_FILL },
+    border: { ...DEMO_DEFAULT_TABLEAU_BLOCK_BORDER },
+    elements: [],
+    ...overrides,
+  });
+}
+
+export function createDefaultTableauPlacement(overrides = {}) {
+  return normalizeTableauPlacement({
+    block_id: null,
+    x: 20,
+    y: 14,
+    width: null,
+    height: null,
+    ...overrides,
+  });
+}
+
+export function createDefaultTableauArrow(overrides = {}) {
+  return normalizeTableauArrow({
+    placement_id: null,
+    block_edge: DEMO_DEFAULT_TABLEAU_ARROW.block_edge,
+    map_anchor_id: null,
+    line: DEMO_DEFAULT_TABLEAU_ARROW.line,
+    width: DEMO_DEFAULT_TABLEAU_ARROW.width,
+    color: DEMO_DEFAULT_TABLEAU_ARROW.color,
+    head: DEMO_DEFAULT_TABLEAU_ARROW.head,
+    ...overrides,
+  });
+}
+
+export function createDefaultTableauMapAnchor(overrides = {}) {
+  return normalizeTableauMapAnchor({
+    edge: 'bottom',
+    t: 0.5,
+    ...overrides,
+  });
+}
+
+export function createDefaultTableauTextElement(overrides = {}) {
+  return normalizeTableauElement({
+    type: 'text',
+    content: '',
+    x: 8,
+    y: 8,
+    w: 84,
+    h: 20,
+    ...overrides,
+  });
+}
+
+export function createDefaultTableauImageElement(overrides = {}) {
+  return normalizeTableauElement({
+    type: 'image',
+    src: '',
+    x: 8,
+    y: 8,
+    w: 84,
+    h: 40,
+    ...overrides,
+  });
+}
+
+export function findTableauPreset(tableau, presetId) {
+  if (presetId == null) return null;
+  const key = String(presetId);
+  return (tableau?.presets || []).find((preset) => String(preset.id) === key) || null;
+}
+
+export function findTableauBlock(blocks, id) {
+  if (id == null) return null;
+  const key = String(id);
+  const list = Array.isArray(blocks) ? blocks : (blocks?.blocks || []);
+  return list.find((block) => String(block.id) === key) || null;
 }
 
 /**
@@ -732,6 +1989,42 @@ export function normalizeCamera(raw) {
     ease_linearity: clampFloat(data.ease_linearity, 0.05, 1, 0.3),
     padding: clampInt(data.padding, 0, 400, 72),
   };
+}
+
+export function normalizeTableauMapReveal(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const minGap = clampInt(
+    data.spawn_gap_min_ms,
+    0,
+    1000,
+    DEMO_DEFAULT_TABLEAU_MAP_REVEAL.spawn_gap_min_ms,
+  );
+  const maxGap = clampInt(
+    data.spawn_gap_max_ms,
+    0,
+    1000,
+    DEMO_DEFAULT_TABLEAU_MAP_REVEAL.spawn_gap_max_ms,
+  );
+  return {
+    lifetime_ms: clampInt(
+      data.lifetime_ms,
+      500,
+      60_000,
+      DEMO_DEFAULT_TABLEAU_MAP_REVEAL.lifetime_ms,
+    ),
+    spawn_gap_min_ms: Math.min(minGap, maxGap),
+    spawn_gap_max_ms: Math.max(minGap, maxGap),
+  };
+}
+
+/** Камера пресета: по умолчанию fly_to без координат. */
+export function normalizeTableauCamera(raw) {
+  const camera = normalizeCamera({
+    ...DEMO_DEFAULT_TABLEAU_CAMERA,
+    ...(raw && typeof raw === 'object' ? raw : {}),
+    mode: DEMO_CAMERA_MODE.FLY_TO,
+  });
+  return { ...camera, mode: DEMO_CAMERA_MODE.FLY_TO };
 }
 
 export function normalizeSelection(raw) {
@@ -1075,7 +2368,9 @@ export function normalizeSequenceItem(raw, _index = 0) {
     key: data.key || makeLocalSequenceKey(),
     type,
     stage_id: type === DEMO_SEQUENCE_TYPE.STAGE ? stageId : null,
-    preset_id: type === DEMO_SEQUENCE_TYPE.MOSAIC ? presetId : null,
+    preset_id: (type === DEMO_SEQUENCE_TYPE.MOSAIC || type === DEMO_SEQUENCE_TYPE.TABLEAU)
+      ? presetId
+      : null,
     mosaic_action: mosaicAction,
     slot: mosaicAction === DEMO_MOSAIC_ACTION.EXPAND ? slot : (mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE ? slot : null),
     duration_ms: clampInt(data.duration_ms, 0, DEMO_STEP_MAX_DURATION_MS, 0),
@@ -1097,15 +2392,24 @@ export function normalizeSequence(raw) {
     .map((item, index) => normalizeSequenceItem(item, index));
 }
 
-function bindSequenceRefs(sequence, stages, mosaic) {
+function bindSequenceRefs(sequence, stages, mosaic, tableau) {
   const stageIds = new Set(stages.map((stage) => String(stage.id || stage.key)));
-  const presetIds = new Set((mosaic?.presets || []).map((preset) => String(preset.id)));
+  const mosaicPresetIds = new Set((mosaic?.presets || []).map((preset) => String(preset.id)));
+  const tableauPresetIds = new Set((tableau?.presets || []).map((preset) => String(preset.id)));
   return sequence.map((item) => {
     if (item.type === DEMO_SEQUENCE_TYPE.STAGE) {
       const id = item.stage_id && stageIds.has(String(item.stage_id)) ? item.stage_id : null;
       return { ...item, stage_id: id, preset_id: null };
     }
-    const id = item.preset_id && presetIds.has(String(item.preset_id)) ? item.preset_id : null;
+    if (item.type === DEMO_SEQUENCE_TYPE.TABLEAU) {
+      const id = item.preset_id && tableauPresetIds.has(String(item.preset_id))
+        ? item.preset_id
+        : null;
+      return { ...item, preset_id: id, stage_id: null };
+    }
+    const id = item.preset_id && mosaicPresetIds.has(String(item.preset_id))
+      ? item.preset_id
+      : null;
     return { ...item, preset_id: id, stage_id: null };
   });
 }
@@ -1159,6 +2463,7 @@ export function normalizeScenario(raw) {
     .map((stage, index) => ({ ...stage, order: index }));
 
   const mosaic = normalizeScenarioMosaic(data.mosaic);
+  const tableau = normalizeScenarioTableau(data.tableau);
   let sequence = normalizeSequence(data.sequence);
   if (!sequence.length && stages.length) {
     sequence = stages.map((stage) => createDefaultSequenceItem({
@@ -1166,7 +2471,7 @@ export function normalizeScenario(raw) {
       stage_id: stage.id || stage.key,
     }));
   }
-  sequence = bindSequenceRefs(sequence, stages, mosaic);
+  sequence = bindSequenceRefs(sequence, stages, mosaic, tableau);
 
   return {
     id: data.id ?? null,
@@ -1176,6 +2481,7 @@ export function normalizeScenario(raw) {
     loop: data.loop === undefined ? true : Boolean(data.loop),
     auto_advance: data.auto_advance === undefined ? true : Boolean(data.auto_advance),
     mosaic,
+    tableau,
     sequence,
     default_step_duration_ms: clampInt(
       data.default_step_duration_ms,
@@ -1215,6 +2521,7 @@ export function createDefaultScenario(overrides = {}) {
     is_default: false,
     loop: true,
     mosaic: createDefaultScenarioMosaic(),
+    tableau: createDefaultScenarioTableau(),
     default_step_duration_ms: DEMO_DEFAULT_STEP_DURATION_MS,
     stages: [stage],
     sequence: [
@@ -1237,6 +2544,7 @@ export function serializeScenario(scenario) {
     loop: normalized.loop,
     auto_advance: normalized.auto_advance,
     mosaic: normalized.mosaic,
+    tableau: normalized.tableau,
     sequence: normalized.sequence.map((item) => ({
       key: item.key,
       type: item.type,
@@ -1408,9 +2716,9 @@ export function mosaicDurationMs(preset, stages = []) {
   return fromStages || DEMO_DEFAULT_STEP_DURATION_MS;
 }
 
-export function sequenceItemDurationMs(item, stages = [], mosaic = null) {
+export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau = null) {
   if (!item) return 0;
-    if (item.duration_ms > 0) return item.duration_ms;
+  if (item.duration_ms > 0) return item.duration_ms;
   if (item.type === DEMO_SEQUENCE_TYPE.MOSAIC) {
     const preset = findMosaicPreset(mosaic, item.preset_id);
     const action = normalizeSequenceMosaicAction(item.mosaic_action);
@@ -1418,6 +2726,18 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null) {
       return resolveMosaicSlotTransition(preset, item, action).durationMs;
     }
     return mosaicDurationMs(preset, stages);
+  }
+  if (item.type === DEMO_SEQUENCE_TYPE.TABLEAU) {
+    const preset = findTableauPreset(tableau, item.preset_id);
+    const stage = findStage(stages, preset?.stage_id);
+    const stageMs = buildStageBeats(stage?.steps || []).durationMs;
+    const placements = preset?.placements || [];
+    const stagger = preset?.card_stagger_ms || 0;
+    const arrow = preset?.arrow_draw_ms || 900;
+    const revealMs = placements.length
+      ? (placements.length - 1) * stagger + arrow + 2000
+      : DEMO_DEFAULT_STEP_DURATION_MS;
+    return Math.max(stageMs, revealMs, DEMO_DEFAULT_STEP_DURATION_MS);
   }
   const stage = findStage(stages, item.stage_id);
   return buildStageBeats(stage?.steps || []).durationMs;
@@ -1427,11 +2747,12 @@ export function buildProgramPlayback(scenario) {
   const normalized = scenario?.stages ? scenario : normalizeScenario(scenario || {});
   const stages = normalized.stages || [];
   const mosaic = normalized.mosaic;
+  const tableau = normalized.tableau;
   const items = [];
   let cursor = 0;
   let lastMosaicFocus = { presetId: null, slot: null, focusStage: null };
   (normalized.sequence || []).forEach((item, index) => {
-    const durationMs = sequenceItemDurationMs(item, stages, mosaic);
+    const durationMs = sequenceItemDurationMs(item, stages, mosaic, tableau);
     const enterMs = item.enter?.effect && item.enter.effect !== DEMO_PROGRAM_TRANSITION.NONE
       ? item.enter.duration_ms
       : 0;
@@ -1483,6 +2804,27 @@ export function buildProgramPlayback(scenario) {
         mosaicAction,
         slot,
         focusStage,
+      });
+      return;
+    }
+    if (item.type === DEMO_SEQUENCE_TYPE.TABLEAU) {
+      const preset = findTableauPreset(tableau, item.preset_id);
+      const stage = findStage(stages, preset?.stage_id);
+      items.push({
+        index,
+        item,
+        kind: DEMO_SEQUENCE_TYPE.TABLEAU,
+        title: preset?.title || 'Художественный',
+        durationMs,
+        enterMs,
+        exitMs,
+        startMs,
+        endMs,
+        beats: [{ steps: [], indices: [], durationMs, startMs: 0, endMs: durationMs }],
+        stage,
+        preset,
+        tableauPreset: preset,
+        tableauBlocks: tableau?.blocks || [],
       });
       return;
     }

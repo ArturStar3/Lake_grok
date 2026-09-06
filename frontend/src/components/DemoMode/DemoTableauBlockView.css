@@ -1,0 +1,42 @@
+.demo-tableau-block {
+  box-sizing: border-box;
+  color: #f8fafc;
+  overflow: visible;
+}
+
+.demo-tableau-block__el {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.demo-tableau-block__el--text {
+  overflow: visible;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.demo-tableau-block__el--image {
+  overflow: hidden;
+}
+
+.demo-tableau-block__el--image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.demo-tableau-block__img-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  opacity: 0.6;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+}
