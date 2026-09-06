@@ -84,6 +84,7 @@ from .serializers import (
     TargetVulnerabilitySerializer,
     DemoScenarioSerializer,
     DemoScenarioWriteSerializer,
+    DemoTableauMediaSerializer,
 )
 from formular.models import (
     Target,
@@ -117,6 +118,7 @@ from formular.models import (
     DemoScenario,
     DemoScenarioStage,
     DemoScenarioStep,
+    DemoTableauMedia,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -1490,6 +1492,33 @@ class DemoScenarioViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user, 'demo_scenarios')
+        return super().destroy(request, *args, **kwargs)
+
+
+class DemoTableauMediaViewSet(viewsets.ModelViewSet):
+    """Загрузка изображений для блоков художественного режима."""
+
+    permission_classes = [DemoScenariosPermission]
+    serializer_class = DemoTableauMediaSerializer
+    queryset = DemoTableauMedia.objects.all().order_by('-created_at')
+    http_method_names = ['get', 'post', 'head', 'options', 'delete']
+
+    def get_queryset(self):
+        if self.action == 'list':
+            return DemoTableauMedia.objects.none()
+        return super().get_queryset()
+
+    def create(self, request, *args, **kwargs):
+        ensure_can_write(request.user, 'demo_scenarios')
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(
+            created_by=self.request.user if self.request.user.is_authenticated else None,
+        )
 
     def destroy(self, request, *args, **kwargs):
         ensure_can_delete(request.user, 'demo_scenarios')

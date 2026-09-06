@@ -13,6 +13,7 @@ import SituationsTimeline from "../OperationalSituation/SituationsTimeline";
 import SituationModal from "../OperationalSituation/SituationModal";
 import MapComponent from "../MapComponent/MapComponent";
 import DemoMosaicShell from "../DemoMode/DemoMosaicShell";
+import DemoTableauShell from "../DemoMode/DemoTableauShell";
 import Features from "../Features/Features";
 import ActionZoneFilters from "../Features/ActionZoneFilters";
 import IntersectionTable from "../IntersectionTable/IntersectionTable";
@@ -113,6 +114,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const [highlightedSituationId, setHighlightedSituationId] = useState(null);
     const [mapUiResetToken, setMapUiResetToken] = useState(0);
     const [demoStudioOpen, setDemoStudioOpen] = useState(false);
+    const [demoStudioPreviewHide, setDemoStudioPreviewHide] = useState(null);
     const [demoContentCardId, setDemoContentCardId] = useState(null);
     const [demoTextEditSession, setDemoTextEditSession] = useState(null);
     const demoTextEditSessionRef = useRef(null);
@@ -347,6 +349,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const handleOpenDemoStudio = useCallback(() => {
         demoPlayer.stop({ restore: true });
         setDemoTextEditSession(null);
+        setDemoStudioPreviewHide(null);
         setDemoStudioOpen(true);
         refreshDemoScenarios();
         fetchEvents?.();
@@ -355,6 +358,7 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handlePlayDemo = useCallback(async (scenario) => {
         setDemoStudioOpen(false);
+        setDemoStudioPreviewHide(null);
         setDemoTextEditSession(null);
         let next = scenario;
         if (!next) {
@@ -390,6 +394,12 @@ export default function Formular({ onMapFullscreenChange }) {
         setDemoStudioOpen(false);
         setDemoTextEditSession(null);
         demoPlayer.previewMosaic(preset, stages);
+    }, [demoPlayer]);
+
+    const handlePreviewDemoTableau = useCallback((preset, stages, blocks = []) => {
+        setDemoStudioPreviewHide('tableau');
+        setDemoTextEditSession(null);
+        demoPlayer.previewTableau(preset, stages, blocks);
     }, [demoPlayer]);
 
     const handlePreviewDemoProgramItem = useCallback((draft, item) => {
@@ -431,6 +441,7 @@ export default function Formular({ onMapFullscreenChange }) {
 
     const handleDemoStop = useCallback(() => {
         demoPlayer.stop({ restore: true });
+        setDemoStudioPreviewHide(null);
     }, [demoPlayer]);
 
     useDemoHotkeys({
@@ -1688,6 +1699,10 @@ export default function Formular({ onMapFullscreenChange }) {
                                 countriesList={countriesList}
                                 stages={demoPlayer.scenario?.stages || []}
                             >
+                            <DemoTableauShell
+                                tableauRuntime={demoPlayer.tableauRuntime}
+                                mapRef={mapRef}
+                            >
                             <MapComponent
                                 objects={filteredObjects}
                                 zoneObjects={objects}
@@ -1856,6 +1871,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 onDemoInteractionRelease={demoPlayer.releaseInteraction}
                                 onDemoOverlayLayersRef={overlayLayersApiRef}
                             />
+                            </DemoTableauShell>
                             </DemoMosaicShell>
                         </div>
                         {!isFullscreen && isMeasureMode && (
@@ -1994,7 +2010,11 @@ export default function Formular({ onMapFullscreenChange }) {
             <DemoStudioModal
                 isOpen={demoStudioOpen}
                 mapTextEditActive={Boolean(demoTextEditSession)}
-                onClose={() => setDemoStudioOpen(false)}
+                previewHideActive={demoStudioPreviewHide === 'tableau'}
+                onClose={() => {
+                    setDemoStudioPreviewHide(null);
+                    setDemoStudioOpen(false);
+                }}
                 scenarios={demoScenarios}
                 loading={demoScenariosLoading}
                 error={demoScenariosError}
@@ -2005,6 +2025,7 @@ export default function Formular({ onMapFullscreenChange }) {
                 onPreviewStep={handlePreviewDemoStep}
                 onPreviewStage={handlePreviewDemoStage}
                 onPreviewMosaic={handlePreviewDemoMosaic}
+                onPreviewTableau={handlePreviewDemoTableau}
                 onPreviewProgramItem={handlePreviewDemoProgramItem}
                 canWrite={canWriteDemo}
                 canDelete={canDeleteDemo}

@@ -36,6 +36,7 @@ from formular.models import (
     DemoScenarioStep,
     DemoStepStartMode,
     DemoStepTool,
+    DemoTableauMedia,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -54,6 +55,7 @@ from .demo_scenario_utils import (
     normalize_camera,
     normalize_scenario_mosaic,
     normalize_scenario_sequence,
+    normalize_scenario_tableau,
     normalize_selection,
     normalize_step_duration,
     normalize_step_mosaic,
@@ -1594,6 +1596,7 @@ class DemoScenarioSerializer(serializers.ModelSerializer):
             'loop',
             'auto_advance',
             'mosaic',
+            'tableau',
             'sequence',
             'default_step_duration_ms',
             'created_at',
@@ -1634,6 +1637,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
             'loop',
             'auto_advance',
             'mosaic',
+            'tableau',
             'sequence',
             'default_step_duration_ms',
             'stages',
@@ -1647,6 +1651,9 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
     def validate_mosaic(self, value):
         return normalize_scenario_mosaic(value)
 
+    def validate_tableau(self, value):
+        return normalize_scenario_tableau(value)
+
     def validate_sequence(self, value):
         return normalize_scenario_sequence(value)
 
@@ -1655,6 +1662,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
         steps_data = validated_data.pop('steps', serializers.empty)
         sequence_data = validated_data.get('sequence', serializers.empty)
         mosaic_data = validated_data.get('mosaic', serializers.empty)
+        tableau_data = validated_data.get('tableau', serializers.empty)
 
         if stages_data is not serializers.empty:
             replace_demo_scenario_library(
@@ -1662,10 +1670,15 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
                 stages_data or [],
                 sequence_data=None if sequence_data is serializers.empty else sequence_data,
                 mosaic_data=None if mosaic_data is serializers.empty else mosaic_data,
+                tableau_data=None if tableau_data is serializers.empty else tableau_data,
             )
         elif steps_data is not serializers.empty:
             replace_demo_scenario_steps(scenario, steps_data or [])
-        elif sequence_data is not serializers.empty or mosaic_data is not serializers.empty:
+        elif (
+            sequence_data is not serializers.empty
+            or mosaic_data is not serializers.empty
+            or tableau_data is not serializers.empty
+        ):
             stage_rows = [
                 {
                     'id': str(stage.id),
@@ -1693,6 +1706,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
                 stage_rows,
                 sequence_data=None if sequence_data is serializers.empty else sequence_data,
                 mosaic_data=None if mosaic_data is serializers.empty else mosaic_data,
+                tableau_data=None if tableau_data is serializers.empty else tableau_data,
             )
 
     @transaction.atomic
@@ -1701,6 +1715,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
         steps_data = validated_data.pop('steps', serializers.empty)
         sequence_data = validated_data.pop('sequence', [])
         mosaic_data = validated_data.get('mosaic')
+        tableau_data = validated_data.get('tableau')
         scenario = DemoScenario.objects.create(**validated_data)
         if stages_data is not serializers.empty:
             replace_demo_scenario_library(
@@ -1708,6 +1723,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
                 stages_data or [],
                 sequence_data=sequence_data,
                 mosaic_data=mosaic_data,
+                tableau_data=tableau_data,
             )
         else:
             replace_demo_scenario_steps(scenario, steps_data if steps_data is not serializers.empty else [])
@@ -1723,6 +1739,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
         steps_data = validated_data.pop('steps', serializers.empty)
         sequence_data = validated_data.pop('sequence', serializers.empty)
         mosaic_data = validated_data.get('mosaic', serializers.empty)
+        tableau_data = validated_data.get('tableau', serializers.empty)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -1732,17 +1749,58 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
                 stages_data or [],
                 sequence_data=None if sequence_data is serializers.empty else sequence_data,
                 mosaic_data=None if mosaic_data is serializers.empty else mosaic_data,
+                tableau_data=None if tableau_data is serializers.empty else tableau_data,
             )
         elif steps_data is not serializers.empty:
             replace_demo_scenario_steps(instance, steps_data or [])
-        elif sequence_data is not serializers.empty or mosaic_data is not serializers.empty:
+        elif (
+            sequence_data is not serializers.empty
+            or mosaic_data is not serializers.empty
+            or tableau_data is not serializers.empty
+        ):
             self._replace_library(instance, {
                 'sequence': sequence_data,
                 'mosaic': mosaic_data,
+                'tableau': tableau_data,
             })
         clear_other_default_scenarios(instance)
         return instance
 
     def to_representation(self, instance):
         return DemoScenarioSerializer(instance, context=self.context).data
+
+
+class DemoTableauMediaSerializer(serializers.ModelSerializer):
+    """Загрузка изображения для блоков художественного режима."""
+
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DemoTableauMedia
+        fields = ('id', 'image', 'url', 'created_at')
+        read_only_fields = ('id', 'url', 'created_at')
+
+    def get_url(self, obj):
+        request = self.context.get('request')
+        if not obj.image:
+            return None
+        url = obj.image.url
+        if request is not None:
+            return request.build_absolute_uri(url)
+        return url
+
+    def validate_image(self, value):
+        if not value:
+            raise serializers.ValidationError('Файл обязателен')
+        content_type = getattr(value, 'content_type', '') or ''
+        name = (getattr(value, 'name', '') or '').lower()
+        allowed = (
+            content_type in ('image/jpeg', 'image/png', 'image/webp')
+            or name.endswith(('.jpg', '.jpeg', '.png', '.webp'))
+        )
+        if not allowed:
+            raise serializers.ValidationError('Допустимы JPEG, PNG или WebP')
+        if value.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError('Максимальный размер файла — 5 МБ')
+        return value
 

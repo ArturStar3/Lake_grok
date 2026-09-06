@@ -13,6 +13,10 @@ import { resolveMediaUrl } from "../../utils/mediaUrl";
 
 const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 
+function selectionIdsKey(objects) {
+  return objects.map((o) => `${o.id}:${o.marker?.id || 'none'}`).sort().join(',');
+}
+
 /**
  * Компонент для генерации иконок non-flag объектов с группировкой
  */
@@ -21,6 +25,7 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
   const [svgCache, setSvgCache] = useState(new Map());
   const loadedPathsRef = useRef(new Set());
   const loadingPathsRef = useRef(new Set());
+  const lastNoneIdsKeyRef = useRef('');
   const [groupedObjects, setGroupedObjects] = useState([]);
   const [bubbleClusters, setBubbleClusters] = useState([]);
   const [zoom, setZoom] = useState(mapInstance?.getZoom?.() || 0);
@@ -52,9 +57,10 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
 
     const selectedNonFlagObjects = filterNonFlagMarkers(objects, selectedIds);
 
-    const ids = selectedNonFlagObjects.map(o => `${o.id}:${o.marker?.id || 'none'}`).sort().join(',');
+    const ids = selectionIdsKey(selectedNonFlagObjects);
+    if (clusterMode === 'none') return `${ids}:none`;
     return `${ids}:${zoom}:${mapInstance?._size?.x || 0}:${mapInstance?._size?.y || 0}`;
-  }, [objects, selectedIds, zoom, mapInstance]);
+  }, [objects, selectedIds, zoom, mapInstance, clusterMode]);
 
   useEffect(() => {
     if (!pathsKey) return;
@@ -102,7 +108,22 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
     const selectedNonFlagObjects = filterNonFlagMarkers(objects, selectedIds);
 
     if (mapInstance && mapInstance._size) {
-      if (clusterMode === 'bubble') {
+      if (clusterMode === 'none') {
+        const idsKey = selectionIdsKey(selectedNonFlagObjects);
+        if (idsKey === lastNoneIdsKeyRef.current) return;
+        lastNoneIdsKeyRef.current = idsKey;
+        setBubbleClusters((prev) => (prev.length ? [] : prev));
+        setGroupedObjects(
+          selectedNonFlagObjects.map((obj) => ({
+            ...obj,
+            isGrouped: false,
+            isHidden: false,
+            groupSize: 1,
+            groupObjects: [obj],
+          })),
+        );
+      } else if (clusterMode === 'bubble') {
+        lastNoneIdsKeyRef.current = '';
         const { visible, bubbles } = computeCountryBubbleClusters(
           selectedNonFlagObjects,
           mapInstance,
@@ -117,6 +138,7 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
           })),
         );
       } else {
+        lastNoneIdsKeyRef.current = '';
         setBubbleClusters([]);
         const processed = processNonFlagClustering(selectedNonFlagObjects, mapInstance, selectedIds);
         setGroupedObjects(processed);

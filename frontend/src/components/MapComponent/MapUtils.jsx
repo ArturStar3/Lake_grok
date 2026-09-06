@@ -35,6 +35,42 @@ function enrichMarkersWithSvgSize(objects, svgCache) {
   });
 }
 
+/** Reuse enriched objects when SVG/path/scale unchanged (tableau reveal thrashing). */
+function enrichMarkersWithSvgSizeCached(objects, svgCache, cacheRef) {
+  const nextIds = new Set();
+  const result = objects.map((o) => {
+    nextIds.add(o.id);
+    const path = resolveMediaUrl(o.marker?.path);
+    const svg = path ? svgCache.get(path) ?? "" : "";
+    const markerScale = parseFloat(o.marker?.scale) || 1;
+    const cached = cacheRef.current.get(o.id);
+    if (
+      cached
+      && cached.path === path
+      && cached.svgLen === svg.length
+      && cached.scale === markerScale
+    ) {
+      return cached.obj;
+    }
+    const [enriched] = enrichMarkersWithSvgSize([o], svgCache);
+    cacheRef.current.set(o.id, {
+      path,
+      svgLen: svg.length,
+      scale: markerScale,
+      obj: enriched,
+    });
+    return enriched;
+  });
+  cacheRef.current.forEach((_, id) => {
+    if (!nextIds.has(id)) cacheRef.current.delete(id);
+  });
+  return result;
+}
+
+function selectionIdsKey(objects) {
+  return objects.map((o) => `${o.id}:${o.marker?.id || 'none'}`).sort().join(',');
+}
+
 const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
 
 const LABEL_FONT_MAX = 14;
@@ -102,6 +138,8 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
   const [svgCache, setSvgCache] = useState(new Map());
   const loadedPathsRef = useRef(new Set()); // Отслеживание загруженных путей
   const loadingPathsRef = useRef(new Set()); // Отслеживание текущих загрузок
+  const enrichCacheRef = useRef(new Map());
+  const lastNoneIdsKeyRef = useRef('');
   const [clusteredObjects, setClusteredObjects] = useState(objects);
   const [bubbleClusters, setBubbleClusters] = useState([]);
   const [zoom, setZoom] = useState(mapInstance?.getZoom?.() || 0);
@@ -138,9 +176,11 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     if (!objects || !Array.isArray(objects) || objects.length === 0) return '';
     const selectedFlagObjects = filterFlagMarkers(objects, selectedIds);
     // Ключ только по id, marker.id и zoom
-    const ids = selectedFlagObjects.map(o => `${o.id}:${o.marker?.id || 'none'}`).sort().join(',');
+    const ids = selectionIdsKey(selectedFlagObjects);
+    // Mode `none` (tableau force-show): zoom does not change layout — omit it.
+    if (clusterMode === 'none') return `${ids}:none`;
     return `${ids}:${zoom}`;
-  }, [objects, selectedIds, zoom]);
+  }, [objects, selectedIds, zoom, clusterMode]);
 
   // Отдельный useEffect для загрузки SVG (только при изменении путей)
   useEffect(() => {
@@ -188,13 +228,30 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
   useEffect(() => {
     const selectedFlagObjects = filterFlagMarkers(objects, selectedIds);
     if (mapInstance) {
-      // Сначала обогащаем объекты реальными размерами
-      const enrichedObjects = enrichMarkersWithSvgSize(selectedFlagObjects, svgCache);
-      if (clusterMode === 'bubble') {
+      if (clusterMode === 'none') {
+        const enrichedObjects = enrichMarkersWithSvgSizeCached(
+          selectedFlagObjects,
+          svgCache,
+          enrichCacheRef,
+        );
+        const idsKey = selectionIdsKey(enrichedObjects);
+        const sizeFp = enrichedObjects
+          .map((o) => `${o.id}:${o.marker?._computedIconHeight || 0}`)
+          .join(',');
+        const noneKey = `${idsKey}|${sizeFp}`;
+        if (noneKey === lastNoneIdsKeyRef.current) return;
+        lastNoneIdsKeyRef.current = noneKey;
+        setBubbleClusters((prev) => (prev.length ? [] : prev));
+        setClusteredObjects(enrichedObjects);
+      } else if (clusterMode === 'bubble') {
+        const enrichedObjects = enrichMarkersWithSvgSize(selectedFlagObjects, svgCache);
+        lastNoneIdsKeyRef.current = '';
         const { visible, bubbles } = computeCountryBubbleClusters(enrichedObjects, mapInstance);
         setClusteredObjects(visible);
         setBubbleClusters(bubbles);
       } else {
+        const enrichedObjects = enrichMarkersWithSvgSize(selectedFlagObjects, svgCache);
+        lastNoneIdsKeyRef.current = '';
         setBubbleClusters([]);
         const processedObjects = processMarkerClustering(enrichedObjects, mapInstance);
         setClusteredObjects(processedObjects);

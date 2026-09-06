@@ -1463,6 +1463,15 @@ class DemoScenario(models.Model):
         verbose_name='Мультиэкран (JSON)',
         help_text='presets[{id, title, layout, reveal, screens[{id, label, loop, stage_id}]}], active_preset_id',
     )
+    tableau = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Художественный режим (JSON)',
+        help_text=(
+            'blocks[{id,title,width,height,elements}], '
+            'presets[{id,title,stage_id,tilt,placements,arrows}], active_preset_id'
+        ),
+    )
     sequence = models.JSONField(
         default=list,
         blank=True,
@@ -1491,6 +1500,38 @@ class DemoScenario(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class DemoTableauMedia(models.Model):
+    """Изображение для блоков художественного режима демонстрации."""
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='Уникальный идентификатор',
+    )
+    image = models.ImageField(
+        upload_to='demo_tableau/',
+        verbose_name='Изображение',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demo_tableau_media',
+        verbose_name='Автор',
+    )
+
+    class Meta:
+        verbose_name = 'Медиа художественного режима'
+        verbose_name_plural = 'Медиа художественного режима'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return str(self.id)
 
 
 class DemoScenarioStage(models.Model):

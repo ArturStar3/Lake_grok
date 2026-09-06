@@ -98,6 +98,9 @@ export function applyObjectDemoEffect(marker, demoEffect) {
 
 export function objectDemoMarkerKeySuffix(demoEffect) {
   if (!demoEffect?.effect || demoEffect.effect === DEMO_EFFECT.NONE) return '';
+  // Fade-in restarts via applyObjectDemoEffect; remounting markers on every
+  // reveal tick freezes the map in artistic/tableau mode.
+  if (demoEffect.effect === DEMO_EFFECT.FADE_IN) return '';
   return `-demo-${demoEffect.runId || 0}-${demoEffect.effect}`;
 }
 

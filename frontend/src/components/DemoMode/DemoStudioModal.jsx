@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DemoMosaicStudioModal from './DemoMosaicStudioModal';
+import DemoTableauStudioModal from './DemoTableauStudioModal';
 import DemoStageStudioModal from './DemoStageStudioModal';
 import DemoTimeline from './DemoTimeline';
 import {
@@ -16,6 +17,7 @@ import {
   createDefaultSequenceItem,
   findMosaicPreset,
   findStage,
+  findTableauPreset,
   formatDurationMs,
   getMosaicLayoutDef,
   makeLocalSequenceKey,
@@ -24,6 +26,7 @@ import {
   normalizeMosaicPreset,
   normalizeScenario,
   normalizeScenarioMosaic,
+  normalizeScenarioTableau,
 } from '../../utils/demoScenario';
 import './DemoStudioModal.css';
 
@@ -41,6 +44,7 @@ function moveItem(list, from, to) {
 export default function DemoStudioModal({
   isOpen,
   mapTextEditActive = false,
+  previewHideActive = false,
   onClose,
   scenarios,
   loading,
@@ -52,6 +56,7 @@ export default function DemoStudioModal({
   onPreviewStep,
   onPreviewStage,
   onPreviewMosaic,
+  onPreviewTableau,
   onPreviewProgramItem,
   canWrite,
   canDelete,
@@ -72,6 +77,7 @@ export default function DemoStudioModal({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [mosaicStudioOpen, setMosaicStudioOpen] = useState(false);
+  const [tableauStudioOpen, setTableauStudioOpen] = useState(false);
   const [stageStudioOpen, setStageStudioOpen] = useState(false);
   const dragIndexRef = useRef(null);
 
@@ -93,6 +99,7 @@ export default function DemoStudioModal({
     setDirty(false);
     setNotice('');
     setMosaicStudioOpen(false);
+    setTableauStudioOpen(false);
     setStageStudioOpen(false);
   }, [isOpen]);
 
@@ -157,6 +164,13 @@ export default function DemoStudioModal({
         })),
       })),
     });
+    const tableau = normalizeScenarioTableau({
+      ...(draft.tableau || {}),
+      presets: (draft.tableau?.presets || []).map((preset) => ({
+        ...preset,
+        stage_id: preset.stage_id ? (idMap[String(preset.stage_id)] || null) : null,
+      })),
+    });
     setDraft(normalizeScenario({
       ...draft,
       id: null,
@@ -164,6 +178,7 @@ export default function DemoStudioModal({
       is_default: false,
       stages,
       mosaic,
+      tableau,
       sequence: (draft.sequence || []).map((item) => ({
         ...item,
         key: makeLocalSequenceKey(),
@@ -186,6 +201,22 @@ export default function DemoStudioModal({
         next.splice(Math.min(items.length, activeIndex + 1), 0, createDefaultSequenceItem({
           type: DEMO_SEQUENCE_TYPE.STAGE,
           stage_id: stage.id || stage.key,
+          wait_for_presenter: !draft.auto_advance,
+        }));
+        return next;
+      });
+    } else if (type === DEMO_SEQUENCE_TYPE.TABLEAU) {
+      if (!draft?.tableau?.presets?.length) {
+        setTableauStudioOpen(true);
+        setNotice('Сначала создайте пресет в конструкторе художественного режима.');
+        return;
+      }
+      const preset = findTableauPreset(draft.tableau, draft.tableau.active_preset_id);
+      patchSequence((items) => {
+        const next = [...items];
+        next.splice(Math.min(items.length, activeIndex + 1), 0, createDefaultSequenceItem({
+          type: DEMO_SEQUENCE_TYPE.TABLEAU,
+          preset_id: preset?.id || draft.tableau.presets[0]?.id,
           wait_for_presenter: !draft.auto_advance,
         }));
         return next;
@@ -303,17 +334,21 @@ export default function DemoStudioModal({
   const program = useMemo(() => buildProgramPlayback(draft || {}), [draft]);
   const activeItem = draft?.sequence?.[activeIndex] || null;
   const activeStage = findStage(draft?.stages, activeItem?.stage_id);
-  const activePreset = findMosaicPreset(draft?.mosaic, activeItem?.preset_id);
+  const activePreset = activeItem?.type === DEMO_SEQUENCE_TYPE.TABLEAU
+    ? findTableauPreset(draft?.tableau, activeItem?.preset_id)
+    : findMosaicPreset(draft?.mosaic, activeItem?.preset_id);
 
   if (!isOpen) return null;
 
+  const hideOverlay = mapTextEditActive || previewHideActive;
+
   return (
     <div
-      className={['demo-studio__overlay', mapTextEditActive ? 'demo-studio__overlay--map-edit' : '']
+      className={['demo-studio__overlay', hideOverlay ? 'demo-studio__overlay--map-edit' : '']
         .filter(Boolean)
         .join(' ')}
       onClick={onClose}
-      aria-hidden={mapTextEditActive ? true : undefined}
+      aria-hidden={hideOverlay ? true : undefined}
     >
       <div
         className="demo-studio"
@@ -326,7 +361,7 @@ export default function DemoStudioModal({
           <div>
             <h2 id="demo-studio-title">Настройка демонстрации</h2>
             <p className="demo-studio__subtitle">
-              Программа показа: этапы и мультиэкран, их вход и выход
+              Программа показа: этапы, мультиэкран и художественный режим
             </p>
           </div>
           <div className="demo-studio__header-actions">
@@ -345,6 +380,14 @@ export default function DemoStudioModal({
               onClick={() => setMosaicStudioOpen(true)}
             >
               Мультиэкран…
+            </button>
+            <button
+              type="button"
+              className="demo-btn demo-btn--ghost"
+              disabled={!draft}
+              onClick={() => setTableauStudioOpen(true)}
+            >
+              Художественный…
             </button>
             <button
               type="button"
@@ -490,7 +533,11 @@ export default function DemoStudioModal({
                   {(draft.sequence || []).map((item, index) => {
                     const playback = program.items[index];
                     const title = playback?.title
-                      || (item.type === DEMO_SEQUENCE_TYPE.MOSAIC ? 'Мультиэкран' : 'Этап');
+                      || (item.type === DEMO_SEQUENCE_TYPE.MOSAIC
+                        ? 'Мультиэкран'
+                        : item.type === DEMO_SEQUENCE_TYPE.TABLEAU
+                          ? 'Художественный'
+                          : 'Этап');
                     return (
                       <li
                         key={item.key}
@@ -516,14 +563,24 @@ export default function DemoStudioModal({
                         >
                           <span className="demo-studio__step-num">{index + 1}</span>
                           <span className="demo-studio__step-icon" aria-hidden="true">
-                            {item.type === DEMO_SEQUENCE_TYPE.MOSAIC ? '▦' : '▶'}
+                            {item.type === DEMO_SEQUENCE_TYPE.MOSAIC
+                              ? '▦'
+                              : item.type === DEMO_SEQUENCE_TYPE.TABLEAU
+                                ? '◇'
+                                : '▶'}
                           </span>
                           <span className="demo-studio__step-text">
                             <span className="demo-studio__step-title">{title}</span>
                             <span className="demo-studio__step-sub">
-                              {item.type === DEMO_SEQUENCE_TYPE.MOSAIC ? 'мультиэкран' : 'этап'}
+                              {item.type === DEMO_SEQUENCE_TYPE.MOSAIC
+                                ? 'мультиэкран'
+                                : item.type === DEMO_SEQUENCE_TYPE.TABLEAU
+                                  ? 'художественный'
+                                  : 'этап'}
                               {item.wait_for_presenter ? ' · по клику' : ' · по времени'}
-                              {item.mosaic_action && item.mosaic_action !== DEMO_MOSAIC_ACTION.SHOW_GRID
+                              {item.type === DEMO_SEQUENCE_TYPE.MOSAIC
+                                && item.mosaic_action
+                                && item.mosaic_action !== DEMO_MOSAIC_ACTION.SHOW_GRID
                                 ? ` · ${item.mosaic_action === DEMO_MOSAIC_ACTION.EXPAND ? 'разворот' : 'свёртка'}`
                                 : ''}
                               {item.enter?.effect && item.enter.effect !== 'none'
@@ -560,6 +617,9 @@ export default function DemoStudioModal({
                       <button type="button" className="demo-btn demo-btn--ghost" onClick={() => handleAddBlock(DEMO_SEQUENCE_TYPE.MOSAIC)}>
                         + Мультиэкран
                       </button>
+                      <button type="button" className="demo-btn demo-btn--ghost" onClick={() => handleAddBlock(DEMO_SEQUENCE_TYPE.TABLEAU)}>
+                        + Художественный
+                      </button>
                     </div>
                   </div>
                 )}
@@ -593,6 +653,30 @@ export default function DemoStudioModal({
                           </option>
                         ))}
                       </select>
+                    </label>
+                  ) : activeItem.type === DEMO_SEQUENCE_TYPE.TABLEAU ? (
+                    <label className="demo-field">
+                      <span className="demo-field__label">Пресет художественного</span>
+                      <select
+                        value={activeItem.preset_id || ''}
+                        onChange={(e) => handleBlockChange({ preset_id: e.target.value || null })}
+                      >
+                        <option value="">Выберите пресет</option>
+                        {(draft.tableau?.presets || []).map((preset) => (
+                          <option key={preset.id} value={preset.id}>{preset.title}</option>
+                        ))}
+                      </select>
+                      {activePreset ? (
+                        <p className="demo-field__hint">
+                          Блоков на сцене: {activePreset.placements?.length || 0}
+                          {activePreset.arrows?.length
+                            ? ` · стрелок: ${activePreset.arrows.length}`
+                            : ''}
+                          {activePreset.stage_id
+                            ? ` · этап: ${findStage(draft.stages, activePreset.stage_id)?.title || '—'}`
+                            : ' · этап не выбран'}
+                        </p>
+                      ) : null}
                     </label>
                   ) : (
                     <>
@@ -891,6 +975,7 @@ export default function DemoStudioModal({
                   disabled={
                     (activeItem.type === DEMO_SEQUENCE_TYPE.STAGE && !activeItem.stage_id)
                     || (activeItem.type === DEMO_SEQUENCE_TYPE.MOSAIC && !activeItem.preset_id)
+                    || (activeItem.type === DEMO_SEQUENCE_TYPE.TABLEAU && !activeItem.preset_id)
                   }
                 >
                   Просмотр блока
@@ -930,6 +1015,22 @@ export default function DemoStudioModal({
             onPreviewMosaic={onPreviewMosaic}
             onOpenStages={() => {
               setMosaicStudioOpen(false);
+              setStageStudioOpen(true);
+            }}
+            readOnly={!canWrite}
+          />
+        )}
+
+        {draft && tableauStudioOpen && (
+          <DemoTableauStudioModal
+            tableau={draft.tableau}
+            stages={draft.stages || []}
+            onChange={(tableau) => patchDraft({ tableau: normalizeScenarioTableau(tableau) })}
+            onClose={() => setTableauStudioOpen(false)}
+            onPreviewTableau={onPreviewTableau}
+            getMapView={getMapView}
+            onOpenStages={() => {
+              setTableauStudioOpen(false);
               setStageStudioOpen(true);
             }}
             readOnly={!canWrite}

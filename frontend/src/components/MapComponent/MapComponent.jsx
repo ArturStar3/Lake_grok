@@ -468,6 +468,7 @@ function NonFlagMarkersLayer({
     iconsById,
     selectedIds,
     currentZoom,
+    forceShowAllMarkers = false,
     pinnedGroupId,
     measureMode,
     eventDrawingActive,
@@ -482,9 +483,9 @@ function NonFlagMarkersLayer({
 }) {
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const candidates = useMemo(() => {
-        if (currentZoom < 6) return [];
+        if (!forceShowAllMarkers && currentZoom < 6) return [];
         return (groupedObjects || []).filter((obj) => !obj.isHidden && selectedSet.has(obj.id));
-    }, [groupedObjects, selectedSet, currentZoom]);
+    }, [groupedObjects, selectedSet, currentZoom, forceShowAllMarkers]);
 
     const visible = useMapViewportMarkers(candidates);
 
@@ -952,6 +953,10 @@ function MapComponent({
     const [isDockVisible, setIsDockVisible] = useState(true);
     const [demoShowDock, setDemoShowDock] = useState(false);
     const isDemoPlayback = Boolean(demoPlayback?.isActive);
+    const forceShowAllMarkers = Boolean(demoPlayback?.forceShowAllMarkers);
+    const freezeMapLayout = Boolean(demoPlayback?.freezeMapLayout);
+    const freezeMapLayoutRef = useRef(freezeMapLayout);
+    freezeMapLayoutRef.current = freezeMapLayout;
     const panelTouchStartX = useRef(0);
     const maplibreMapRef = useRef(null);
     const [maplibreReady, setMaplibreReady] = useState(false);
@@ -971,6 +976,7 @@ function MapComponent({
     const [flagBubbles, setFlagBubbles] = useState([]);
     const [nonFlagBubbles, setNonFlagBubbles] = useState([]);
     const [clusterMode, setClusterModeState] = useState(() => (embed ? 'legacy' : loadMapClusterMode()));
+    const effectiveClusterMode = forceShowAllMarkers ? 'none' : clusterMode;
     const [nonFlagData, setNonFlagData] = useState({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
     const [hoveredGroupId, setHoveredGroupId] = useState(null);
     const [pinnedGroupId, setPinnedGroupId] = useState(null);
@@ -1491,17 +1497,17 @@ function MapComponent({
     // - Non-flag: hidden below non_flag_min_zoom
     // Bubble mode: no zoom filtering — all selected objects participate in clusters.
     const flagObjectsForMap = useMemo(() => {
-      if (clusterMode === 'bubble') return objects;
+      if (forceShowAllMarkers || clusterMode === 'bubble') return objects;
       return filterFlagObjectsForZoom(objects, currentZoom, mapZoomRules);
-    }, [objects, currentZoom, mapZoomRules, clusterMode]);
+    }, [objects, currentZoom, mapZoomRules, clusterMode, forceShowAllMarkers]);
 
     const nonFlagObjectsForMap = useMemo(() => {
-      if (clusterMode === 'bubble') return objects;
+      if (forceShowAllMarkers || clusterMode === 'bubble') return objects;
       if (!shouldShowNonFlagMarkers(currentZoom, mapZoomRules)) {
         return [];
       }
       return objects;
-    }, [objects, currentZoom, mapZoomRules, clusterMode]);
+    }, [objects, currentZoom, mapZoomRules, clusterMode, forceShowAllMarkers]);
 
     useEffect(() => {
       setRuntimeClusterDistancePx(mapZoomRules?.cluster_distance_px);
@@ -1538,11 +1544,11 @@ function MapComponent({
     // The NonFlagMarkerInitializer may not emit a "clear" when its objects prop shrinks,
     // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
     useEffect(() => {
-      if (clusterMode === 'bubble') return;
+      if (forceShowAllMarkers || clusterMode === 'bubble') return;
       if (!shouldShowNonFlagMarkers(currentZoom, mapZoomRules)) {
         setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
       }
-    }, [currentZoom, mapZoomRules, clusterMode]);
+    }, [currentZoom, mapZoomRules, clusterMode, forceShowAllMarkers]);
 
     // Зоны действия: состояния фильтров (actionZoneFilters, showZoneIntersections) и UI панели
     // теперь живут в Formular (sidebar). Здесь только потребление переданных props для рендера зон и точек.
@@ -1570,6 +1576,7 @@ function MapComponent({
         let raf = 0;
         const resize = () => {
             raf = 0;
+            if (freezeMapLayoutRef.current) return;
             const map = mapRef.current;
             if (!map) return;
             try {
@@ -1591,6 +1598,7 @@ function MapComponent({
             }
         };
         const observer = new ResizeObserver(() => {
+            if (freezeMapLayoutRef.current) return;
             if (raf) return;
             raf = requestAnimationFrame(resize);
         });
@@ -1602,6 +1610,40 @@ function MapComponent({
             if (raf) cancelAnimationFrame(raf);
         };
     }, []);
+
+    // На время CSS-наклона фиксируем пиксельный размер карты: родитель сжимается
+    // через overflow/transform, Leaflet не перерисовывает тайлы каждый кадр.
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el || !freezeMapLayout) return undefined;
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return undefined;
+        el.style.setProperty('--tableau-freeze-w', `${Math.round(rect.width)}px`);
+        el.style.setProperty('--tableau-freeze-h', `${Math.round(rect.height)}px`);
+        return () => {
+            el.style.removeProperty('--tableau-freeze-w');
+            el.style.removeProperty('--tableau-freeze-h');
+            const map = mapRef.current;
+            if (!map) return;
+            const restore = () => {
+                try {
+                    map.invalidateSize({ animate: false, pan: false });
+                } catch {
+                    try { map.invalidateSize(); } catch { /* ignore */ }
+                }
+                const ml = maplibreMapRef.current;
+                if (ml?.resize) {
+                    try { ml.resize(); } catch { /* ignore */ }
+                }
+            };
+            // После снятия freeze даём layout догнать 100% контейнер.
+            requestAnimationFrame(() => {
+                restore();
+                requestAnimationFrame(restore);
+            });
+            window.setTimeout(restore, 120);
+        };
+    }, [freezeMapLayout]);
 
     useEffect(() => {
         if (!mapRef.current) return undefined;
@@ -2268,7 +2310,7 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${embed ? "map--embed " : ""}${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${((demoPlayback?.isActive || demoTextEditDraft) && !embed) ? " map--demo" : ""}${isDemoPlayback && demoShowDock && !embed ? " map--demo-dock" : ""}`}
+            className={`map ${embed ? "map--embed " : ""}${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${((demoPlayback?.isActive || demoTextEditDraft) && !embed) ? " map--demo" : ""}${isDemoPlayback && demoShowDock && !embed ? " map--demo-dock" : ""}${freezeMapLayout ? " map--layout-frozen" : ""}`}
             ref={containerRef}
         >
             {isFullscreen && !embed && (
@@ -2450,16 +2492,16 @@ function MapComponent({
                     objects={flagObjectsForMap} 
                     selectedIds={selectedObj} 
                     onMarkersReady={handleMarkersReady}
-                    clusterMode={clusterMode}
+                    clusterMode={effectiveClusterMode}
                 />
                 <NonFlagMarkerInitializer 
                     key={`nonflag-v${markerVersion}`}
                     objects={nonFlagObjectsForMap} 
                     onMarkersReady={handleNonFlagMarkersReady} 
                     selectedIds={selectedObj}
-                    clusterMode={clusterMode}
+                    clusterMode={effectiveClusterMode}
                 />
-                {clusterMode === 'bubble' && (
+                {clusterMode === 'bubble' && !forceShowAllMarkers && (
                     <BubbleClusterLayer
                         bubbles={allBubbleClusters}
                         singles={bubbleModeSingles}
@@ -2472,7 +2514,7 @@ function MapComponent({
                         onAltClickAddTarget={handleAltClickAddTarget}
                     />
                 )}
-                {clusterMode === 'legacy' && (
+                {clusterMode === 'legacy' && !forceShowAllMarkers && (
                 <GroupCircleDisplay 
                     groupedObjects={nonFlagData.groupedObjects} 
                     hoveredGroupId={hoveredGroupId} 
@@ -2586,7 +2628,7 @@ function MapComponent({
                     onDemoRevisionChange={onSituationDemoRevisionChange}
                     demoAnimation={demoAnimation}
                 />
-                {clusterMode === 'legacy' && (
+                {(clusterMode === 'legacy' || forceShowAllMarkers) && (
                 <>
                 <FlagMarkersLayer
                     markers={displayedObjectsForMarkers}
@@ -2605,6 +2647,7 @@ function MapComponent({
                     iconsById={nonFlagData.iconsById}
                     selectedIds={selectedObj}
                     currentZoom={currentZoom}
+                    forceShowAllMarkers={forceShowAllMarkers}
                     pinnedGroupId={pinnedGroupId}
                     measureMode={effectiveMeasureMode}
                     eventDrawingActive={isMapDrawingEvent}

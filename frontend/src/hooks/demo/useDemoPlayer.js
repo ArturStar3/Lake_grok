@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   DEMO_CAMERA_MODE,
+  DEMO_DEFAULT_TABLEAU_MAP_REVEAL,
   DEMO_EASING_CSS,
   DEMO_EFFECT,
   DEMO_MOSAIC_ACTION,
@@ -77,6 +78,32 @@ const EMPTY_MOSAIC = {
   tilesReady: false,
 };
 
+const EMPTY_TABLEAU = {
+  active: false,
+  phase: 'idle',
+  presetId: null,
+  stageId: null,
+  tilt: {
+    perspective: 1200,
+    rotate_x: 58,
+    rotate_z: -8,
+    scale: 0.92,
+    offset_y: 0,
+  },
+  blocks: [],
+  overlay: null,
+  placements: [],
+  mapAnchors: [],
+  arrows: [],
+  caption: null,
+  cardStaggerMs: 350,
+  arrowDrawMs: 900,
+  tiltMs: 700,
+  untiltMs: 700,
+  borderRadiusPx: 14,
+  runId: 0,
+};
+
 function emptyComposedState() {
   return {
     target_ids: [],
@@ -137,6 +164,9 @@ function composedStateForProgramItem(item, beatIndex) {
   if (item?.kind === DEMO_SEQUENCE_TYPE.STAGE && item.stage) {
     return composeStateForStage(item.stage, beatIndex);
   }
+  if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU && item.stage) {
+    return composeStateForStage(item.stage);
+  }
   if (item?.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.focusStage
     && (item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
       || item.mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE)) {
@@ -166,6 +196,7 @@ function nextComposedTexts(items, itemIndex, beatIndex, scenario) {
 function prefetchTargetFromItem(item, stages) {
   if (!item) return null;
   if (item.kind === DEMO_SEQUENCE_TYPE.STAGE) return item.stage;
+  if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) return item.stage;
   const steps = [];
   (item.preset?.screens || []).forEach((screen) => {
     const stage = findStage(stages, screen.stage_id);
@@ -180,6 +211,65 @@ function resolveIdsAgainst(collection, wantedIds, getId = (item) => item.id) {
   return collection
     .filter((item) => wanted.has(String(getId(item))))
     .map((item) => getId(item));
+}
+
+function zoneLeafKey(leaf) {
+  if (!leaf) return '';
+  return `${leaf.country || ''}|${leaf.action_type_id ?? leaf.actionTypeId ?? ''}|${leaf.leaf ?? ''}`;
+}
+
+function sortedIdsKey(ids) {
+  return Array.from(ids || []).map(String).sort().join(',');
+}
+
+function zoneLeafToBatchItem(leaf) {
+  if (!leaf) return null;
+  return {
+    country: leaf.country,
+    actionTypeId: leaf.action_type_id ?? leaf.actionTypeId,
+    leaf: leaf.leaf,
+  };
+}
+
+const TABLEAU_REVEAL_MIN_GAP_MS = 120;
+const TABLEAU_REVEAL_FADE_MS = 450;
+
+function emptyTableauPublished() {
+  return {
+    targetsKey: '',
+    eventsKey: '',
+    zoneKeys: new Set(),
+    zoneLeaves: new Map(),
+  };
+}
+
+function buildTableauRevealPool(state) {
+  const pool = [];
+  (state?.target_ids || []).forEach((id) => {
+    pool.push({ kind: 'target', id: String(id) });
+  });
+  (state?.event_ids || []).forEach((id) => {
+    pool.push({ kind: 'event', id: String(id) });
+  });
+  (state?.zone_leaves || []).forEach((leaf) => {
+    pool.push({
+      kind: 'zone',
+      id: zoneLeafKey(leaf),
+      leaf: {
+        country: leaf.country,
+        action_type_id: leaf.action_type_id,
+        leaf: leaf.leaf,
+      },
+    });
+  });
+  return pool;
+}
+
+function randomBetween(min, max) {
+  const a = Number(min) || 0;
+  const b = Number(max) || 0;
+  if (b <= a) return a;
+  return a + Math.random() * (b - a);
 }
 
 function boundsFromLatLngs(latLngs) {
@@ -238,6 +328,8 @@ export function useDemoPlayer({ actions, data }) {
   const [blackout, setBlackout] = useState(DEMO_BLACKOUT.NONE);
   const [hideFinishedTexts, setHideFinishedTexts] = useState(false);
   const [mosaicRuntime, setMosaicRuntime] = useState(EMPTY_MOSAIC);
+  const [tableauRuntime, setTableauRuntime] = useState(EMPTY_TABLEAU);
+  const [tableauRevealAnim, setTableauRevealAnim] = useState(EMPTY_ANIMATION);
 
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
@@ -269,8 +361,30 @@ export function useDemoPlayer({ actions, data }) {
   const mosaicTilesReadyRef = useRef(false);
   const mosaicRuntimeRef = useRef(EMPTY_MOSAIC);
   mosaicRuntimeRef.current = mosaicRuntime;
+  const tableauRuntimeRef = useRef(EMPTY_TABLEAU);
+  tableauRuntimeRef.current = tableauRuntime;
   const enterTimerRef = useRef(null);
   const exitTimerRef = useRef(null);
+  const tableauPhaseTimerRef = useRef(null);
+  const tableauPoseReadyRef = useRef(false);
+  const tableauPendingEnterRef = useRef(null);
+  const tableauRevealTokenRef = useRef(0);
+  const tableauRevealNextSpawnRef = useRef(null);
+  const tableauRevealRafRef = useRef(null);
+  const tableauRevealFadeClearRef = useRef(null);
+  const tableauRevealSessionRunIdRef = useRef(0);
+  const tableauRevealVisibleRef = useRef({
+    targets: new Set(),
+    events: new Set(),
+    zones: new Map(),
+  });
+  const tableauRevealExpiryRef = useRef(new Map());
+  const tableauRevealPublishedRef = useRef(emptyTableauPublished());
+  const tableauRevealFadingRef = useRef({
+    objects: new Map(),
+    events: new Map(),
+    zones: new Map(),
+  });
 
   const program = useMemo(() => buildProgramPlayback(scenario || {}), [scenario]);
   const programItems = program.items;
@@ -611,7 +725,263 @@ export function useDemoPlayer({ actions, data }) {
       clearTimeout(exitTimerRef.current);
       exitTimerRef.current = null;
     }
+    if (tableauPhaseTimerRef.current) {
+      clearTimeout(tableauPhaseTimerRef.current);
+      tableauPhaseTimerRef.current = null;
+    }
   }, []);
+
+  const clearTableauRevealTimers = useCallback(() => {
+    if (tableauRevealRafRef.current != null) {
+      cancelAnimationFrame(tableauRevealRafRef.current);
+      tableauRevealRafRef.current = null;
+    }
+    if (tableauRevealNextSpawnRef.current != null) {
+      clearTimeout(tableauRevealNextSpawnRef.current);
+      tableauRevealNextSpawnRef.current = null;
+    }
+    if (tableauRevealFadeClearRef.current != null) {
+      clearTimeout(tableauRevealFadeClearRef.current);
+      tableauRevealFadeClearRef.current = null;
+    }
+    tableauRevealExpiryRef.current.forEach((id) => clearTimeout(id));
+    tableauRevealExpiryRef.current.clear();
+    tableauRevealFadingRef.current = {
+      objects: new Map(),
+      events: new Map(),
+      zones: new Map(),
+    };
+  }, []);
+
+  const flushTableauRevealSelection = useCallback(() => {
+    const api = actionsRef.current;
+    const visible = tableauRevealVisibleRef.current;
+    const published = tableauRevealPublishedRef.current;
+
+    const targetsKey = sortedIdsKey(visible.targets);
+    if (targetsKey !== published.targetsKey) {
+      api.setSelectedObj?.(Array.from(visible.targets));
+      published.targetsKey = targetsKey;
+    }
+
+    const eventsKey = sortedIdsKey(visible.events);
+    if (eventsKey !== published.eventsKey) {
+      api.setSelectedEvents?.(Array.from(visible.events));
+      published.eventsKey = eventsKey;
+    }
+
+    const nextZoneKeys = new Set(visible.zones.keys());
+    const removedLeaves = [];
+    published.zoneKeys.forEach((key) => {
+      if (nextZoneKeys.has(key)) return;
+      const leaf = published.zoneLeaves.get(key);
+      const item = zoneLeafToBatchItem(leaf);
+      if (item) removedLeaves.push(item);
+    });
+    const addedLeaves = [];
+    nextZoneKeys.forEach((key) => {
+      if (published.zoneKeys.has(key)) return;
+      const leaf = visible.zones.get(key);
+      const item = zoneLeafToBatchItem(leaf);
+      if (item) addedLeaves.push(item);
+    });
+    if (removedLeaves.length) api.setZoneLeavesBatch?.(removedLeaves, false);
+    if (addedLeaves.length) api.setZoneLeavesBatch?.(addedLeaves, true);
+    published.zoneKeys = nextZoneKeys;
+    published.zoneLeaves = new Map(visible.zones);
+  }, []);
+
+  const publishTableauRevealSelection = useCallback(() => {
+    if (tableauRevealRafRef.current != null) return;
+    tableauRevealRafRef.current = requestAnimationFrame(() => {
+      tableauRevealRafRef.current = null;
+      flushTableauRevealSelection();
+    });
+  }, [flushTableauRevealSelection]);
+
+  const syncTableauRevealFadeAnim = useCallback(() => {
+    const fading = tableauRevealFadingRef.current;
+    const now = Date.now();
+    fading.objects.forEach((until, id) => {
+      if (until <= now) fading.objects.delete(id);
+    });
+    fading.events.forEach((until, id) => {
+      if (until <= now) fading.events.delete(id);
+    });
+    fading.zones.forEach((entry, id) => {
+      if (!entry || entry.until <= now) fading.zones.delete(id);
+    });
+
+    const fadeEntry = {
+      effect: DEMO_EFFECT.FADE_IN,
+      durationMs: TABLEAU_REVEAL_FADE_MS,
+      delayMs: 0,
+      easing: 'ease_out',
+      continuous: false,
+    };
+    const effects = {};
+    if (fading.objects.size) {
+      effects.objects = { ...fadeEntry, targetIds: Array.from(fading.objects.keys()) };
+    }
+    if (fading.events.size) {
+      effects.events = { ...fadeEntry, eventIds: Array.from(fading.events.keys()) };
+    }
+    if (fading.zones.size) {
+      effects.zones = {
+        ...fadeEntry,
+        zoneLeaves: Array.from(fading.zones.values()).map((entry) => entry.leaf),
+      };
+    }
+
+    if (!Object.keys(effects).length) {
+      setTableauRevealAnim(EMPTY_ANIMATION);
+      return;
+    }
+
+    setTableauRevealAnim({
+      active: true,
+      runId: tableauRevealSessionRunIdRef.current,
+      effects,
+    });
+  }, []);
+
+  const stopTableauReveal = useCallback(() => {
+    tableauRevealTokenRef.current += 1;
+    clearTableauRevealTimers();
+    tableauRevealVisibleRef.current = {
+      targets: new Set(),
+      events: new Set(),
+      zones: new Map(),
+    };
+    if (tableauRevealRafRef.current != null) {
+      cancelAnimationFrame(tableauRevealRafRef.current);
+      tableauRevealRafRef.current = null;
+    }
+    flushTableauRevealSelection();
+    tableauRevealPublishedRef.current = emptyTableauPublished();
+    setTableauRevealAnim(EMPTY_ANIMATION);
+  }, [clearTableauRevealTimers, flushTableauRevealSelection]);
+
+  const startTableauReveal = useCallback((fullState, mapReveal) => {
+    stopTableauReveal();
+    const pool = buildTableauRevealPool(fullState);
+    if (!pool.length) return;
+
+    const cfg = mapReveal || DEMO_DEFAULT_TABLEAU_MAP_REVEAL;
+    const lifetimeMs = cfg.lifetime_ms ?? DEMO_DEFAULT_TABLEAU_MAP_REVEAL.lifetime_ms;
+    const gapMin = Math.max(
+      TABLEAU_REVEAL_MIN_GAP_MS,
+      cfg.spawn_gap_min_ms ?? DEMO_DEFAULT_TABLEAU_MAP_REVEAL.spawn_gap_min_ms ?? 0,
+    );
+    const gapMax = Math.max(
+      gapMin,
+      cfg.spawn_gap_max_ms ?? DEMO_DEFAULT_TABLEAU_MAP_REVEAL.spawn_gap_max_ms ?? 1000,
+    );
+    const token = tableauRevealTokenRef.current;
+    tableauRevealSessionRunIdRef.current = Date.now();
+    tableauRevealPublishedRef.current = emptyTableauPublished();
+
+    const scheduleNextSpawn = (delay) => {
+      if (tableauRevealNextSpawnRef.current != null) {
+        clearTimeout(tableauRevealNextSpawnRef.current);
+      }
+      tableauRevealNextSpawnRef.current = window.setTimeout(() => {
+        tableauRevealNextSpawnRef.current = null;
+        spawnOnce();
+      }, delay);
+    };
+
+    const scheduleExpiry = (itemId, fn, delay) => {
+      const prev = tableauRevealExpiryRef.current.get(itemId);
+      if (prev != null) clearTimeout(prev);
+      const id = window.setTimeout(() => {
+        tableauRevealExpiryRef.current.delete(itemId);
+        fn();
+      }, delay);
+      tableauRevealExpiryRef.current.set(itemId, id);
+    };
+
+    const removeItem = (item) => {
+      if (tableauRevealTokenRef.current !== token) return;
+      const visible = tableauRevealVisibleRef.current;
+      if (item.kind === 'target') visible.targets.delete(item.id);
+      else if (item.kind === 'event') visible.events.delete(item.id);
+      else if (item.kind === 'zone') visible.zones.delete(item.id);
+      tableauRevealExpiryRef.current.delete(item.id);
+      publishTableauRevealSelection();
+    };
+
+    const spawnOnce = () => {
+      if (tableauRevealTokenRef.current !== token) return;
+      if (!pool.length) return;
+      const item = pool[Math.floor(Math.random() * pool.length)];
+      const visible = tableauRevealVisibleRef.current;
+      if (item.kind === 'target') visible.targets.add(item.id);
+      else if (item.kind === 'event') visible.events.add(item.id);
+      else if (item.kind === 'zone') visible.zones.set(item.id, item.leaf);
+
+      publishTableauRevealSelection();
+
+      const fadeUntil = Date.now() + TABLEAU_REVEAL_FADE_MS;
+      const fading = tableauRevealFadingRef.current;
+      if (item.kind === 'target') fading.objects.set(item.id, fadeUntil);
+      else if (item.kind === 'event') fading.events.set(item.id, fadeUntil);
+      else if (item.kind === 'zone') fading.zones.set(item.id, { until: fadeUntil, leaf: item.leaf });
+      syncTableauRevealFadeAnim();
+
+      if (tableauRevealFadeClearRef.current != null) {
+        clearTimeout(tableauRevealFadeClearRef.current);
+      }
+      tableauRevealFadeClearRef.current = window.setTimeout(() => {
+        tableauRevealFadeClearRef.current = null;
+        if (tableauRevealTokenRef.current !== token) return;
+        syncTableauRevealFadeAnim();
+      }, TABLEAU_REVEAL_FADE_MS + 16);
+
+      scheduleExpiry(item.id, () => removeItem(item), lifetimeMs);
+      scheduleNextSpawn(randomBetween(gapMin, gapMax));
+    };
+
+    scheduleNextSpawn(randomBetween(gapMin, gapMax));
+  }, [publishTableauRevealSelection, stopTableauReveal, syncTableauRevealFadeAnim]);
+
+  const clearTableauRuntime = useCallback(() => {
+    if (tableauPhaseTimerRef.current) {
+      clearTimeout(tableauPhaseTimerRef.current);
+      tableauPhaseTimerRef.current = null;
+    }
+    tableauPoseReadyRef.current = false;
+    tableauPendingEnterRef.current = null;
+    stopTableauReveal();
+    setTableauRuntime(EMPTY_TABLEAU);
+  }, [stopTableauReveal]);
+
+  const flushTableauPoseEnter = useCallback(() => {
+    if (!tableauPoseReadyRef.current) return;
+    const pending = tableauPendingEnterRef.current;
+    if (!pending) return;
+    if (pending.token !== applyTokenRef.current) {
+      tableauPendingEnterRef.current = null;
+      return;
+    }
+    tableauPendingEnterRef.current = null;
+    // Сброс selection / камера / reveal только после наклона — иначе мерцание во время CSS.
+    if (pending.applyEmptySelection) {
+      applyState({
+        ...pending.revealState,
+        target_ids: [],
+        event_ids: [],
+        zone_leaves: [],
+        cameraStep: null,
+      }, { instant: true });
+    }
+    if (pending.cameraStep) {
+      applyCamera(pending.cameraStep, { instant: true });
+    }
+    if (pending.revealState) {
+      startTableauReveal(pending.revealState, pending.mapReveal);
+    }
+  }, [applyCamera, applyState, startTableauReveal]);
 
   const applyProgramMosaic = useCallback((item, { animate = true, enterEffect = DEMO_PROGRAM_TRANSITION.NONE } = {}) => {
     clearMosaicTransitionTimer();
@@ -619,6 +989,7 @@ export function useDemoPlayer({ actions, data }) {
     const stages = scenario?.stages || [];
 
     if (item?.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.preset) {
+      clearTableauRuntime();
       const action = item.mosaicAction || item.item?.mosaic_action || DEMO_MOSAIC_ACTION.SHOW_GRID;
       const slot = item.slot || item.item?.slot || null;
       const samePreset = Boolean(prev.active && prev.presetId === item.preset.id);
@@ -770,7 +1141,85 @@ export function useDemoPlayer({ actions, data }) {
     }
 
     setMosaicRuntime({ ...EMPTY_MOSAIC });
-  }, [clearMosaicTransitionTimer, scenario?.stages]);
+  }, [clearMosaicTransitionTimer, clearTableauRuntime, scenario?.stages]);
+
+  const applyProgramTableau = useCallback((item, { instant = false } = {}) => {
+    if (tableauPhaseTimerRef.current) {
+      clearTimeout(tableauPhaseTimerRef.current);
+      tableauPhaseTimerRef.current = null;
+    }
+
+    if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU && item.tableauPreset) {
+      const preset = item.tableauPreset;
+      const tiltMs = preset.tilt_ms ?? 700;
+      const untiltMs = preset.untilt_ms ?? 700;
+      const caption = preset.caption?.content
+        ? { ...preset.caption }
+        : null;
+      tableauPoseReadyRef.current = false;
+      tableauPendingEnterRef.current = null;
+      setTableauRuntime({
+        active: true,
+        phase: instant || tiltMs <= 0 ? 'active' : 'entering',
+        presetId: preset.id,
+        stageId: preset.stage_id || item.stage?.id || null,
+        tilt: preset.tilt || EMPTY_TABLEAU.tilt,
+        blocks: item.tableauBlocks || scenario?.tableau?.blocks || [],
+        overlay: preset.overlay || null,
+        placements: preset.placements || [],
+        mapAnchors: preset.map_anchors || [],
+        arrows: preset.arrows || [],
+        caption,
+        cardStaggerMs: preset.card_stagger_ms ?? 350,
+        arrowDrawMs: preset.arrow_draw_ms ?? 900,
+        tiltMs,
+        untiltMs,
+        borderRadiusPx: preset.border_radius_px ?? 14,
+        runId: (tableauRuntimeRef.current?.runId || 0) + 1,
+      });
+      if (instant || tiltMs <= 0) {
+        tableauPoseReadyRef.current = true;
+        flushTableauPoseEnter();
+      } else {
+        tableauPhaseTimerRef.current = setTimeout(() => {
+          // Сначала снимаем freeze / включаем phase active (перерисовка контейнера).
+          tableauPoseReadyRef.current = true;
+          setTableauRuntime((current) => (
+            current.active ? { ...current, phase: 'active' } : current
+          ));
+          // Камера и reveal — после invalidateSize в shell (~tiltMs+40).
+          tableauPhaseTimerRef.current = setTimeout(() => {
+            tableauPhaseTimerRef.current = null;
+            flushTableauPoseEnter();
+          }, 80);
+        }, tiltMs);
+      }
+      if (mosaicRuntimeRef.current?.active) {
+        setMosaicRuntime(EMPTY_MOSAIC);
+      }
+      return;
+    }
+
+    const prev = tableauRuntimeRef.current;
+    if (!prev?.active || prev.phase === 'exiting') {
+      if (prev?.active && instant) clearTableauRuntime();
+      return;
+    }
+    tableauPoseReadyRef.current = false;
+    tableauPendingEnterRef.current = null;
+    const untiltMs = prev.untiltMs ?? 700;
+    if (instant || untiltMs <= 0) {
+      clearTableauRuntime();
+      return;
+    }
+    setTableauRuntime((current) => (
+      current.active ? { ...current, phase: 'exiting' } : current
+    ));
+    tableauPhaseTimerRef.current = setTimeout(() => {
+      tableauPhaseTimerRef.current = null;
+      setTableauRuntime(EMPTY_TABLEAU);
+    }, untiltMs);
+  }, [clearTableauRuntime, flushTableauPoseEnter, scenario?.tableau?.blocks]);
 
   /**
    * Переход на блок программы `index` и такт `beat`. Состояние этапа
@@ -830,6 +1279,7 @@ export function useDemoPlayer({ actions, data }) {
     }
 
     applyProgramMosaic(item, { animate: !instant, enterEffect });
+    applyProgramTableau(item, { instant });
 
     applyTokenRef.current += 1;
     const token = applyTokenRef.current;
@@ -848,19 +1298,45 @@ export function useDemoPlayer({ actions, data }) {
       // применяют срез этапа. applyState здесь только дублирует работу и
       // пересобирает маркеры MapLibre в момент mount N карт.
       if (mosaicGrid) return;
+
+      if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
+        const preset = item.tableauPreset;
+        const camera = preset?.camera;
+        const hasPresetCamera = camera?.mode === DEMO_CAMERA_MODE.FLY_TO
+          && camera.lat != null
+          && camera.lng != null;
+        const cameraStep = hasPresetCamera
+          ? { camera }
+          : (state.cameraStep || null);
+        // Камера, пустой selection и reveal — после CSS-позы (freeze во время наклона).
+        tableauPendingEnterRef.current = {
+          token,
+          cameraStep,
+          revealState: state,
+          mapReveal: preset?.map_reveal,
+          applyEmptySelection: true,
+        };
+        flushTableauPoseEnter();
+        return;
+      }
+
+      stopTableauReveal();
       applyState(state, { instant: instant || mosaicFocus });
     });
     setAnimationRunId((prev) => prev + 1);
     if (autoplay) setStatus(DEMO_STATUS.PLAYING);
   }, [
     applyProgramMosaic,
+    applyProgramTableau,
     applyState,
     clearEnterExitTimers,
+    flushTableauPoseEnter,
     prefetchForMosaic,
     prefetchForStage,
     programItems,
     publishProgress,
     scenario?.stages,
+    stopTableauReveal,
   ]);
 
   const moveToNextItem = useCallback((list = programItems, index = stageIndex) => {
@@ -878,6 +1354,9 @@ export function useDemoPlayer({ actions, data }) {
   const runExitThen = useCallback((item, thenGo) => {
     const effect = item?.item?.exit?.effect || DEMO_PROGRAM_TRANSITION.NONE;
     const duration = item?.item?.exit?.duration_ms || 0;
+    if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
+      applyProgramTableau(null);
+    }
     if (effect === DEMO_PROGRAM_TRANSITION.NONE || duration <= 0) {
       thenGo();
       return;
@@ -894,7 +1373,7 @@ export function useDemoPlayer({ actions, data }) {
       setBlackout(DEMO_BLACKOUT.NONE);
       thenGo();
     }, duration);
-  }, [stopFrameLoop]);
+  }, [applyProgramTableau, stopFrameLoop]);
 
   /** Автоматический переход по таймеру: следующий такт, следующий блок или ожидание докладчика. */
   const advance = useCallback(() => {
@@ -1094,6 +1573,7 @@ export function useDemoPlayer({ actions, data }) {
     setHideFinishedTexts(false);
     setBlackout(DEMO_BLACKOUT.NONE);
     setMosaicRuntime(EMPTY_MOSAIC);
+    clearTableauRuntime();
     pausedElapsedRef.current = 0;
     progressRef.current = EMPTY_PROGRESS;
     setAnimationRunId((prev) => prev + 1);
@@ -1107,7 +1587,7 @@ export function useDemoPlayer({ actions, data }) {
       api.setDetailSituation?.(null);
       api.setDemoContentCardId?.(null);
     }
-  }, [clearEnterExitTimers, clearMosaicTransitionTimer, restoreSnapshot, stopFrameLoop]);
+  }, [clearEnterExitTimers, clearMosaicTransitionTimer, clearTableauRuntime, restoreSnapshot, stopFrameLoop]);
 
   const pause = useCallback(() => {
     // Пока показ ждёт докладчика, таймер и так стоит — паузу ставить не от чего.
@@ -1272,6 +1752,28 @@ export function useDemoPlayer({ actions, data }) {
     });
   }, [start]);
 
+  /** Предпросмотр пресета художественного режима. */
+  const previewTableau = useCallback((preset, stages = [], blocks = []) => {
+    if (!preset) return false;
+    return start({
+      title: preset.title || 'Просмотр художественного',
+      loop: false,
+      auto_advance: true,
+      stages,
+      tableau: {
+        blocks,
+        presets: [preset],
+        active_preset_id: preset.id,
+      },
+      sequence: [createDefaultSequenceItem({
+        type: DEMO_SEQUENCE_TYPE.TABLEAU,
+        preset_id: preset.id,
+        duration_ms: 0,
+        wait_for_presenter: true,
+      })],
+    });
+  }, [start]);
+
   /** Предпросмотр одного блока программы из черновика конструктора. */
   const previewProgramItem = useCallback((draft, item) => {
     if (!draft || !item) return false;
@@ -1288,15 +1790,26 @@ export function useDemoPlayer({ actions, data }) {
     stopFrameLoop();
     clearMosaicTransitionTimer();
     clearEnterExitTimers();
+    stopTableauReveal();
     if (interactionReleaseTimerRef.current) clearTimeout(interactionReleaseTimerRef.current);
-  }, [clearEnterExitTimers, clearMosaicTransitionTimer, stopFrameLoop]);
+  }, [clearEnterExitTimers, clearMosaicTransitionTimer, stopFrameLoop, stopTableauReveal]);
 
   /**
    * Описание активных анимаций для слоёв карты. Берём только шаги текущего
    * такта: содержимое, показанное раньше, не должно проигрывать вход заново.
    */
   const demoAnimation = useMemo(() => {
-    if (!isActive || !currentBeat) return EMPTY_ANIMATION;
+    if (!isActive) return EMPTY_ANIMATION;
+
+    if (tableauRuntime?.active && tableauRevealAnim?.active) {
+      return {
+        active: true,
+        runId: tableauRevealAnim.runId || animationRunId,
+        effects: tableauRevealAnim.effects || {},
+      };
+    }
+
+    if (!currentBeat) return EMPTY_ANIMATION;
 
     const effects = {};
     (currentBeat.steps || []).forEach((step) => {
@@ -1330,6 +1843,9 @@ export function useDemoPlayer({ actions, data }) {
             situationIds: (step.selection?.situation_ids || []).slice(0, 1),
           };
           break;
+        case DEMO_TOOL.FORMULAR:
+          effects.objects = { ...entry, targetIds: step.selection?.target_ids || [] };
+          break;
         case DEMO_TOOL.OBJECTS:
           effects.objects = { ...entry, targetIds: step.selection?.target_ids || [] };
           break;
@@ -1338,8 +1854,12 @@ export function useDemoPlayer({ actions, data }) {
       }
     });
 
-    return { active: true, runId: animationRunId, effects };
-  }, [animationRunId, currentBeat, isActive]);
+    return {
+      active: Object.keys(effects).length > 0,
+      runId: animationRunId,
+      effects,
+    };
+  }, [animationRunId, currentBeat, isActive, tableauRevealAnim, tableauRuntime?.active]);
 
   /**
    * Тексты на карте. `enterToken` меняется только у шагов текущего такта —
@@ -1431,6 +1951,15 @@ export function useDemoPlayer({ actions, data }) {
     stepTools: currentBeat?.steps?.map((step) => step.tool) || [],
     stages: stageSummaries,
     loop: Boolean(scenario?.loop),
+    forceShowAllMarkers: Boolean(
+      tableauRuntime?.active && tableauRuntime?.phase === 'active',
+    ),
+    // Только на вход в планшет: фиксируем fullscreen-размер до CSS-наклона.
+    // На exit freeze ломал восстановление — пин брал inset 88×78% и карта
+    // оставалась «на пол монитора» после выхода.
+    freezeMapLayout: Boolean(
+      tableauRuntime?.active && tableauRuntime?.phase === 'entering',
+    ),
     // Живой прогресс HUD берёт отсюда: значения выше — только срез на момент
     // смены такта, паузы или остановки.
     subscribeProgress,
@@ -1449,6 +1978,8 @@ export function useDemoPlayer({ actions, data }) {
     stageSummaries,
     status,
     subscribeProgress,
+    tableauRuntime?.active,
+    tableauRuntime?.phase,
     waitingForPresenter,
   ]);
 
@@ -1487,6 +2018,7 @@ export function useDemoPlayer({ actions, data }) {
     demoTexts,
     mosaicRuntime,
     onMosaicTilesReady,
+    tableauRuntime,
     isActive,
     start,
     stop,
@@ -1503,6 +2035,7 @@ export function useDemoPlayer({ actions, data }) {
     previewStep,
     previewStage,
     previewMosaic,
+    previewTableau,
     previewProgramItem,
     scenario,
   };

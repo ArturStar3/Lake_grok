@@ -511,3 +511,235 @@ class DemoScenarioApiTests(APITestCase):
         self.assertIsNone(collapse_item.get('expand_animation'))
         self.assertIsNone(collapse_item.get('expand_ms'))
         self.assertIsNone(collapse_item.get('expand_easing'))
+
+    def test_tableau_preset_round_trip(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = '33333333-3333-3333-3333-333333333333'
+        preset_id = 'preset-tableau-1'
+        block_id = 'block-sources-1'
+        bridge_block_id = 'block-bridge-1'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Карта региона',
+                'steps': [build_step(title='Камера')],
+            }],
+            tableau={
+                'blocks': [{
+                    'id': block_id,
+                    'title': 'Источники',
+                    'width': 24,
+                    'height': 30,
+                    'border_radius_px': 12,
+                    'fill': {'color': 'rgba(15,23,42,0.55)', 'opacity': 1},
+                    'border': {'color': 'rgba(255,255,255,0.28)', 'width': 1, 'opacity': 1},
+                    'elements': [{
+                        'type': 'text',
+                        'id': 'el-text-1',
+                        'content': 'Источники информации\n• Официальные сайты\n• Минсвязи',
+                        'x': 8,
+                        'y': 8,
+                        'w': 84,
+                        'h': 80,
+                        'style': {'font_size': 14, 'color': '#f8fafc'},
+                    }, {
+                        'type': 'image',
+                        'id': 'el-img-1',
+                        'src': '/media/demo_tableau/sample.webp',
+                        'x': 10,
+                        'y': 70,
+                        'w': 40,
+                        'h': 25,
+                    }],
+                }, {
+                    'id': bridge_block_id,
+                    'title': 'Сводка источников',
+                    'width': 80,
+                    'height': 16,
+                    'border_radius_px': 12,
+                    'fill': {'color': 'rgba(15,23,42,0.55)', 'opacity': 1},
+                    'border': {'color': 'rgba(255,255,255,0.28)', 'width': 1, 'opacity': 1},
+                    'elements': [{
+                        'type': 'text',
+                        'id': 'el-bridge-text',
+                        'content': 'Сводка источников\n• Астана\n• Алматы',
+                        'x': 8,
+                        'y': 8,
+                        'w': 84,
+                        'h': 84,
+                        'style': {'font_size': 13, 'color': '#f8fafc'},
+                    }],
+                }],
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Источники',
+                    'stage_id': stage_id,
+                    'tilt': {
+                        'perspective': 1400,
+                        'rotate_x': 55,
+                        'rotate_z': -10,
+                        'scale': 0.9,
+                    },
+                    'card_stagger_ms': 400,
+                    'arrow_draw_ms': 800,
+                    'border_radius_px': 18,
+                    'tilt_ms': 800,
+                    'untilt_ms': 650,
+                    'caption': {
+                        'content': 'Источники информации',
+                        'x': 50,
+                        'y': 6,
+                    },
+                    'overlay': {
+                        'cols': 4,
+                        'rows': 2,
+                        'x': 4,
+                        'y': 6,
+                        'width': 92,
+                        'height': 34,
+                        'column_gap': 1.2,
+                        'row_gap': 0.8,
+                        'row_heights': [1.4, 0.8],
+                        'cells': [
+                            {
+                                'id': 'cell-card-a',
+                                'row': 0,
+                                'col': 0,
+                                'col_span': 1,
+                                'role': 'card',
+                                'block_id': block_id,
+                                'content_width': 90,
+                                'content_height': 100,
+                                'align_x': 'center',
+                                'align_y': 'center',
+                                'offset_top': 0,
+                            },
+                            {
+                                'id': 'cell-bridge-a',
+                                'row': 1,
+                                'col': 1,
+                                'col_span': 2,
+                                'role': 'bridge',
+                                'block_id': bridge_block_id,
+                                'content_width': 100,
+                                'content_height': 70,
+                                'align_x': 'center',
+                                'align_y': 'center',
+                                'offset_top': 8,
+                            },
+                        ],
+                        'map_arrow': {
+                            'inset': 14,
+                            'line': 'dashed',
+                            'width': 1.5,
+                            'color': 'rgba(248,250,252,0.88)',
+                            'head': 'end',
+                        },
+                    },
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[
+                {'type': 'tableau', 'preset_id': preset_id, 'duration_ms': 12000},
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIn('tableau', response.data)
+        self.assertEqual(len(response.data['tableau']['blocks']), 2)
+        block = response.data['tableau']['blocks'][0]
+        self.assertEqual(block['id'], block_id)
+        self.assertEqual(len(block['elements']), 2)
+        self.assertEqual(block['elements'][1]['src'], '/media/demo_tableau/sample.webp')
+        preset = response.data['tableau']['presets'][0]
+        self.assertEqual(preset['id'], preset_id)
+        self.assertEqual(preset['stage_id'], stage_id)
+        self.assertEqual(preset['tilt']['perspective'], 1400)
+        self.assertEqual(preset['tilt']['rotate_x'], 55)
+        self.assertEqual(preset['tilt']['rotate_z'], -10)
+        self.assertEqual(preset['tilt']['scale'], 0.9)
+        self.assertEqual(preset['card_stagger_ms'], 400)
+        self.assertEqual(preset['arrow_draw_ms'], 800)
+        self.assertEqual(preset['border_radius_px'], 18)
+        self.assertEqual(preset['tilt_ms'], 800)
+        self.assertEqual(preset['untilt_ms'], 650)
+        self.assertEqual(preset['caption']['content'], 'Источники информации')
+        self.assertEqual(preset['caption']['x'], 50)
+        self.assertEqual(preset['caption']['y'], 6)
+        self.assertIn('overlay', preset)
+        overlay = preset['overlay']
+        self.assertEqual(overlay['cols'], 4)
+        self.assertEqual(overlay['rows'], 2)
+        self.assertEqual(overlay['y'], 6)
+        self.assertEqual(overlay['height'], 34)
+        self.assertEqual(overlay['column_gap'], 1.2)
+        self.assertEqual(overlay['row_gap'], 0.8)
+        self.assertEqual(overlay['row_heights'], [1.4, 0.8])
+        self.assertNotIn('gap', overlay)
+        self.assertEqual(len(overlay['cells']), 2)
+        self.assertEqual(overlay['cells'][0]['role'], 'card')
+        self.assertEqual(overlay['cells'][0]['block_id'], block_id)
+        self.assertEqual(overlay['cells'][0]['content_width'], 90)
+        self.assertEqual(overlay['cells'][0]['content_height'], 100)
+        self.assertEqual(overlay['cells'][0]['align_x'], 'center')
+        self.assertEqual(overlay['cells'][0]['align_y'], 'center')
+        self.assertEqual(overlay['cells'][0]['offset_top'], 0)
+        self.assertEqual(overlay['cells'][1]['role'], 'bridge')
+        self.assertEqual(overlay['cells'][1]['block_id'], bridge_block_id)
+        self.assertEqual(overlay['cells'][1]['col'], 1)
+        self.assertEqual(overlay['cells'][1]['col_span'], 2)
+        self.assertEqual(overlay['cells'][1]['content_width'], 100)
+        self.assertEqual(overlay['cells'][1]['content_height'], 70)
+        self.assertEqual(overlay['cells'][1]['align_x'], 'center')
+        self.assertEqual(overlay['cells'][1]['align_y'], 'center')
+        self.assertEqual(overlay['cells'][1]['offset_top'], 8)
+        self.assertEqual(overlay['map_arrow']['line'], 'dashed')
+        self.assertEqual(overlay['map_arrow']['inset'], 14)
+        self.assertEqual(overlay['map_arrow']['width'], 1.5)
+        self.assertNotIn('cards', preset)
+        self.assertEqual(response.data['sequence'][0]['type'], 'tableau')
+        self.assertEqual(response.data['sequence'][0]['preset_id'], preset_id)
+
+    def test_tableau_legacy_cards_migrate(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = '44444444-4444-4444-4444-444444444444'
+        preset_id = 'preset-legacy-cards'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Legacy',
+                'steps': [build_step(title='Камера')],
+            }],
+            tableau={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Legacy cards',
+                    'stage_id': stage_id,
+                    'cards': [{
+                        'id': 'card-a',
+                        'title': 'Источники информации',
+                        'items': ['Официальные сайты', 'Минсвязи'],
+                        'x': 18,
+                        'y': 14,
+                    }],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'tableau', 'preset_id': preset_id, 'duration_ms': 5000}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        tableau = response.data['tableau']
+        self.assertGreaterEqual(len(tableau['blocks']), 1)
+        preset = tableau['presets'][0]
+        self.assertEqual(len(preset['placements']), 1)
+        self.assertTrue(preset['placements'][0]['block_id'])
+        self.assertGreaterEqual(len(preset['map_anchors']), 1)
+        self.assertGreaterEqual(len(preset['arrows']), 1)
+        self.assertEqual(preset['arrows'][0]['placement_id'], preset['placements'][0]['id'])
+        self.assertEqual(preset['arrows'][0]['map_anchor_id'], preset['map_anchors'][0]['id'])
+        self.assertIn('overlay', preset)
+        overlay_cells = preset['overlay'].get('cells') or []
+        self.assertTrue(any(cell.get('block_id') for cell in overlay_cells))

@@ -25,3 +25,13 @@ export async function updateDemoScenario(id, payload) {
 export async function deleteDemoScenario(id) {
   await apiClient.delete(`${BASE}${id}/`);
 }
+
+/** Загрузка картинки для блока художественного режима. */
+export async function uploadDemoTableauMedia(file) {
+  const form = new FormData();
+  form.append('image', file);
+  const { data } = await apiClient.post('/demo-tableau-media/', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
