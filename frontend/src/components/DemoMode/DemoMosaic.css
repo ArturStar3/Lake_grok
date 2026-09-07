@@ -2,6 +2,7 @@
 
 .demo-mosaic {
   position: relative;
+  isolation: isolate;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -18,7 +19,7 @@
 .demo-mosaic--multi .demo-mosaic__grid {
   position: absolute;
   inset: 10px;
-  z-index: 1;
+  z-index: auto;
   display: grid;
   gap: 8px;
   opacity: 1;
@@ -87,6 +88,13 @@
 
 .demo-mosaic--warming .demo-mosaic__grid {
   pointer-events: none;
+  opacity: 0;
+  transition: none !important;
+}
+
+.demo-mosaic--preloaded:not(.demo-mosaic--warming) .demo-mosaic__grid {
+  opacity: 1;
+  transition: none;
 }
 
 .demo-mosaic--warming .demo-mosaic__cell,
@@ -103,6 +111,28 @@
   opacity: 1 !important;
   visibility: visible !important;
   pointer-events: auto !important;
+}
+
+.demo-mosaic__cell--incoming {
+  z-index: 4;
+  overflow: visible;
+  contain: none;
+  will-change: transform;
+  animation: none;
+}
+
+.demo-mosaic--switching,
+.demo-mosaic--incoming {
+  overflow: visible;
+}
+
+.demo-mosaic--switching .demo-mosaic__grid,
+.demo-mosaic--incoming .demo-mosaic__grid {
+  overflow: visible;
+  isolation: auto;
+  transform: none;
+  filter: none;
+  contain: none;
 }
 
 .demo-mosaic__cell--empty {

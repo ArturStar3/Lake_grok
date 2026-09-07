@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import MapComponent from '../MapComponent/MapComponent';
 import { useDemoStageRunner } from '../../hooks/demo/useDemoStageRunner';
 import {
@@ -74,6 +74,7 @@ function DemoMosaicTile({
   startDelayMs = 0,
   playing = true,
   catalogs: catalogsProp = null,
+  onPainted = null,
 }) {
   const label = screen?.label || DEMO_MOSAIC_SLOT_LABELS[slotId] || slotId.toUpperCase();
   const loop = Boolean(screen?.loop);
@@ -98,26 +99,90 @@ function DemoMosaicTile({
     countriesList: catalogs.countriesList,
   });
 
+  const lastInvalidateSizeRef = useRef({ x: 0, y: 0 });
+  const onPaintedRef = useRef(onPainted);
+  onPaintedRef.current = onPainted;
+  const paintedRef = useRef(false);
   const activeSituationId = runner.selectedSituationIds?.[0] ?? null;
+
+  useEffect(() => {
+    paintedRef.current = false;
+    let cancelled = false;
+    let raf = 0;
+    let fallbackId = 0;
+    let tries = 0;
+
+    const done = () => {
+      if (cancelled || paintedRef.current) return;
+      paintedRef.current = true;
+      onPaintedRef.current?.(slotId);
+    };
+
+    if (!stage) {
+      done();
+      return undefined;
+    }
+
+    const attach = () => {
+      if (cancelled) return;
+      const map = runner.mapRef.current;
+      if (map?.whenReady) {
+        map.whenReady(() => {
+          try {
+            map.invalidateSize({ animate: false, pan: false });
+          } catch {
+            // контейнер ещё без размера
+          }
+          raf = requestAnimationFrame(() => {
+            if (!cancelled) done();
+          });
+        });
+        return;
+      }
+      tries += 1;
+      if (tries > 90) {
+        done();
+        return;
+      }
+      raf = requestAnimationFrame(attach);
+    };
+
+    raf = requestAnimationFrame(attach);
+    fallbackId = window.setTimeout(done, 4000);
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (fallbackId) window.clearTimeout(fallbackId);
+    };
+  }, [runner.mapRef, slotId, stage]);
 
   useEffect(() => {
     if (!playing) return undefined;
     const map = runner.mapRef.current;
     if (!map) return undefined;
-    const run = () => {
+    const size = map.getSize?.() || map._size;
+    const hasSize = size && size.x > 0 && size.y > 0;
+    if (
+      hasSize
+      && size.x === lastInvalidateSizeRef.current.x
+      && size.y === lastInvalidateSizeRef.current.y
+    ) {
+      return undefined;
+    }
+    try {
+      map.invalidateSize({ animate: false, pan: false });
+    } catch {
       try {
-        map.invalidateSize({ animate: false, pan: false });
+        map.invalidateSize();
       } catch {
-        try {
-          map.invalidateSize();
-        } catch {
-          // карта ещё без контейнера
-        }
+        // карта ещё без контейнера
       }
-    };
-    run();
-    const t = window.setTimeout(run, 50);
-    return () => clearTimeout(t);
+    }
+    const nextSize = map.getSize?.() || map._size;
+    if (nextSize && nextSize.x > 0 && nextSize.y > 0) {
+      lastInvalidateSizeRef.current = { x: nextSize.x, y: nextSize.y };
+    }
+    return undefined;
   }, [playing, runner.mapRef]);
 
   return (

@@ -30,6 +30,9 @@ import {
 /** Пауза после ручного взаимодействия с картой, прежде чем таймер пойдёт дальше. */
 const INTERACTION_RESUME_DELAY_MS = 1500;
 
+/** Доля свёртки, которая пересекается со следующим разворотом. */
+const MOSAIC_HANDOFF_OVERLAP = 0.55;
+
 const EMPTY_PROGRESS = {
   beatElapsedMs: 0,
   beatProgress: 0,
@@ -76,6 +79,9 @@ const EMPTY_MOSAIC = {
   warming: false,
   pendingReveal: false,
   tilesReady: false,
+  handoff: false,
+  fromSlot: null,
+  incomingSlot: null,
 };
 
 const EMPTY_TABLEAU = {
@@ -148,7 +154,72 @@ function mosaicRuntimeFromPreset(preset, stages, {
     warming: false,
     pendingReveal: false,
     tilesReady: false,
+    handoff: false,
+    fromSlot: null,
+    incomingSlot: null,
   };
+}
+
+function idsKey(ids) {
+  if (!ids?.length) return '';
+  return ids.map(String).join(',');
+}
+
+function zoneLeavesKey(leaves) {
+  if (!leaves?.length) return '';
+  return leaves
+    .map((leaf) => `${leaf?.country || ''}|${leaf?.action_type_id || ''}|${leaf?.leaf || ''}`)
+    .join(';');
+}
+
+function cameraKey(step) {
+  const camera = step?.camera || {};
+  return [
+    camera.mode || '',
+    camera.lat ?? '',
+    camera.lng ?? '',
+    camera.zoom ?? '',
+    camera.padding ?? '',
+    camera.duration_ms ?? '',
+  ].join(':');
+}
+
+function animationSignature(beat) {
+  if (!beat?.steps?.length) return '';
+  return (beat.steps || []).map((step) => {
+    const animation = step.animation || {};
+    if (!animation.effect || animation.effect === DEMO_EFFECT.NONE) return '';
+    return [
+      step.tool,
+      animation.effect,
+      animation.continuous ? '1' : '0',
+      idsKey(step.selection?.target_ids),
+      idsKey(step.selection?.event_ids),
+      idsKey(step.selection?.situation_ids),
+      zoneLeavesKey(step.selection?.zone_leaves),
+    ].join(':');
+  }).filter(Boolean).join('|');
+}
+
+function isMosaicExpandItem(item) {
+  return item?.kind === DEMO_SEQUENCE_TYPE.MOSAIC
+    && item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
+    && Boolean(item.slot);
+}
+
+/** Момент автоперехода collapse → expand: входящий слот стартует, пока исходящий ещё сжимается. */
+function mosaicCollapseHandoffAtMs(item, nextItem) {
+  if (item?.kind !== DEMO_SEQUENCE_TYPE.MOSAIC) return null;
+  if (item.mosaicAction !== DEMO_MOSAIC_ACTION.COLLAPSE) return null;
+  if (!isMosaicExpandItem(nextItem)) return null;
+  if (item.slot && nextItem.slot && item.slot === nextItem.slot) return null;
+  const morphMs = resolveMosaicSlotTransition(
+    item.preset,
+    item.item,
+    DEMO_MOSAIC_ACTION.COLLAPSE,
+  ).durationMs;
+  const overlap = Math.max(0, Math.floor(morphMs * MOSAIC_HANDOFF_OVERLAP));
+  return Math.max(16, morphMs - overlap);
 }
 
 function firstMosaicPreset(items, startIndex = 0) {
@@ -361,6 +432,11 @@ export function useDemoPlayer({ actions, data }) {
   const mosaicTilesReadyRef = useRef(false);
   const mosaicRuntimeRef = useRef(EMPTY_MOSAIC);
   mosaicRuntimeRef.current = mosaicRuntime;
+  const lastAppliedStateRef = useRef(null);
+  const lastAnimationSigRef = useRef('');
+  const mosaicHandoffStateRef = useRef(null);
+  const mosaicHandoffHiddenRef = useRef(false);
+  const autoplayDurationRef = useRef(0);
   const tableauRuntimeRef = useRef(EMPTY_TABLEAU);
   tableauRuntimeRef.current = tableauRuntime;
   const enterTimerRef = useRef(null);
@@ -617,50 +693,100 @@ export function useDemoPlayer({ actions, data }) {
   const applyState = useCallback((state, { instant = false } = {}) => {
     const api = actionsRef.current;
     const current = dataRef.current;
+    const next = state || emptyComposedState();
+    const prev = lastAppliedStateRef.current;
 
-    api.setSelectedObj?.(resolveIdsAgainst(current.objects, state.target_ids));
-    api.setSelectedEvents?.(resolveIdsAgainst(current.events, state.event_ids));
+    const sameTargets = prev && idsKey(prev.target_ids) === idsKey(next.target_ids);
+    const sameEvents = prev && idsKey(prev.event_ids) === idsKey(next.event_ids);
+    const sameSituations = prev && idsKey(prev.situation_ids) === idsKey(next.situation_ids);
+    const sameZones = prev && zoneLeavesKey(prev.zone_leaves) === zoneLeavesKey(next.zone_leaves);
+    const sameOverlays = prev
+      && idsKey(prev.overlay_layer_ids) === idsKey(next.overlay_layer_ids);
+    const sameCamera = prev && cameraKey(prev.cameraStep) === cameraKey(next.cameraStep);
+    const sameContent = prev && Boolean(prev.contentStep) === Boolean(next.contentStep);
 
-    const situationIds = resolveIdsAgainst(current.situations, state.situation_ids).slice(0, 1);
-    if (situationIds.length) {
-      const situation = (current.situations || []).find(
-        (item) => String(item.id) === String(situationIds[0]),
-      );
-      api.setSelectedSituations?.(situationIds);
-      api.setFocusedSituationId?.(situationIds[0]);
-      api.setDetailSituation?.(situation || null);
-    } else {
-      api.setSelectedSituations?.([]);
-      api.setFocusedSituationId?.(null);
-      api.setDetailSituation?.(null);
-      api.setTimelineRevisionId?.(null);
+    if (!sameTargets) {
+      api.setSelectedObj?.(resolveIdsAgainst(current.objects, next.target_ids));
+    }
+    if (!sameEvents) {
+      api.setSelectedEvents?.(resolveIdsAgainst(current.events, next.event_ids));
     }
 
-    api.resetZoneFilters?.(false);
-    if (state.zone_leaves.length) {
-      api.setZoneLeavesBatch?.(
-        state.zone_leaves.map((leaf) => ({
-          country: leaf.country,
-          actionTypeId: leaf.action_type_id,
-          leaf: leaf.leaf,
-        })),
-        true,
-      );
+    if (!sameSituations) {
+      const situationIds = resolveIdsAgainst(current.situations, next.situation_ids).slice(0, 1);
+      if (situationIds.length) {
+        const situation = (current.situations || []).find(
+          (item) => String(item.id) === String(situationIds[0]),
+        );
+        api.setSelectedSituations?.(situationIds);
+        api.setFocusedSituationId?.(situationIds[0]);
+        api.setDetailSituation?.(situation || null);
+      } else {
+        api.setSelectedSituations?.([]);
+        api.setFocusedSituationId?.(null);
+        api.setDetailSituation?.(null);
+        api.setTimelineRevisionId?.(null);
+      }
     }
 
-    if (Array.isArray(state.overlay_layer_ids)) {
-      api.setOverlayLayers?.(state.overlay_layer_ids);
+    if (!sameZones) {
+      api.resetZoneFilters?.(false);
+      if ((next.zone_leaves || []).length) {
+        api.setZoneLeavesBatch?.(
+          next.zone_leaves.map((leaf) => ({
+            country: leaf.country,
+            actionTypeId: leaf.action_type_id,
+            leaf: leaf.leaf,
+          })),
+          true,
+        );
+      }
     }
 
-    if (!state.contentStep) {
+    if (!sameOverlays && Array.isArray(next.overlay_layer_ids)) {
+      api.setOverlayLayers?.(next.overlay_layer_ids);
+    }
+
+    if (!sameContent && !next.contentStep) {
       api.setSelectedTargetId?.(null);
       api.setSelectedCountryIso?.(null);
       api.setDemoContentCardId?.(null);
       lastContentKeyRef.current = null;
     }
 
-    if (state.cameraStep) applyCamera(state.cameraStep, { instant });
+    if (!sameCamera && next.cameraStep) applyCamera(next.cameraStep, { instant });
+    lastAppliedStateRef.current = next;
   }, [applyCamera]);
+
+  const flushMosaicHandoffApply = useCallback(() => {
+    const pending = mosaicHandoffStateRef.current;
+    if (!pending || !mosaicHandoffHiddenRef.current) return;
+    if (applyTokenRef.current !== pending.token) return;
+    mosaicHandoffStateRef.current = null;
+    mosaicHandoffHiddenRef.current = false;
+    applyState(pending.state, { instant: pending.instant });
+  }, [applyState]);
+
+  const onMosaicHandoffPrepare = useCallback(() => {
+    mosaicHandoffHiddenRef.current = true;
+    flushMosaicHandoffApply();
+  }, [flushMosaicHandoffApply]);
+
+  const onMosaicSwitchComplete = useCallback(() => {
+    setMosaicRuntime((current) => {
+      if (!current.active || current.mode !== 'switching') return current;
+      const nextSlot = current.incomingSlot || current.focusSlot;
+      return {
+        ...current,
+        mode: 'focus',
+        focusSlot: nextSlot,
+        fromSlot: null,
+        incomingSlot: null,
+        handoff: false,
+        transitioning: null,
+      };
+    });
+  }, []);
 
   const stopFrameLoop = useCallback(() => {
     if (frameRef.current != null) {
@@ -983,7 +1109,11 @@ export function useDemoPlayer({ actions, data }) {
     }
   }, [applyCamera, applyState, startTableauReveal]);
 
-  const applyProgramMosaic = useCallback((item, { animate = true, enterEffect = DEMO_PROGRAM_TRANSITION.NONE } = {}) => {
+  const applyProgramMosaic = useCallback((item, {
+    animate = true,
+    enterEffect = DEMO_PROGRAM_TRANSITION.NONE,
+    nextItem = null,
+  } = {}) => {
     clearMosaicTransitionTimer();
     const prev = mosaicRuntimeRef.current;
     const stages = scenario?.stages || [];
@@ -1019,6 +1149,9 @@ export function useDemoPlayer({ actions, data }) {
           expandAnimation: slotTransition.animation,
           easing: slotTransition.easing,
           cssEasing: slotTransition.cssEasing,
+          handoff: false,
+          fromSlot: null,
+          incomingSlot: null,
         }
         : mosaicRuntimeFromPreset(item.preset, stages, {
           transitioning: fade ? 'enter' : null,
@@ -1037,6 +1170,31 @@ export function useDemoPlayer({ actions, data }) {
 
       if (action === DEMO_MOSAIC_ACTION.EXPAND && slot
         && (item.preset.expandable_slots || []).includes(slot)) {
+        const outgoingSlot = prev.fromSlot || prev.focusSlot;
+        const fromCollapse = prev.mode === 'collapsing'
+          || prev.mode === 'switching'
+          || Boolean(prev.handoff);
+        const switching = Boolean(
+          animate
+          && fromCollapse
+          && outgoingSlot
+          && outgoingSlot !== slot,
+        );
+        if (switching) {
+          setMosaicRuntime({
+            ...base,
+            warming: false,
+            pendingReveal: false,
+            mode: 'switching',
+            focusHidden: false,
+            focusSlot: outgoingSlot,
+            fromSlot: outgoingSlot,
+            incomingSlot: slot,
+            transitioning: 'expand',
+            handoff: true,
+          });
+          return;
+        }
         setMosaicRuntime({
           ...base,
           warming: false,
@@ -1044,7 +1202,10 @@ export function useDemoPlayer({ actions, data }) {
           mode: animate ? 'expanding' : 'focus',
           focusHidden: false,
           focusSlot: slot,
+          fromSlot: null,
+          incomingSlot: null,
           transitioning: animate ? 'expand' : null,
+          handoff: false,
         });
         if (animate) {
           mosaicTransitionTimerRef.current = setTimeout(() => {
@@ -1052,6 +1213,9 @@ export function useDemoPlayer({ actions, data }) {
               ...current,
               mode: 'focus',
               transitioning: null,
+              handoff: false,
+              fromSlot: null,
+              incomingSlot: null,
             }));
           }, base.transitionMs || 700);
         }
@@ -1060,7 +1224,15 @@ export function useDemoPlayer({ actions, data }) {
 
       if (action === DEMO_MOSAIC_ACTION.COLLAPSE) {
         const fromSlot = prev.focusSlot || slot;
-        const wasFocused = prev.mode === 'focus' || prev.mode === 'expanding' || !prev.focusHidden;
+        const wasFocused = prev.mode === 'focus'
+          || prev.mode === 'expanding'
+          || prev.mode === 'switching'
+          || !prev.focusHidden;
+        const willHandoff = Boolean(
+          fromSlot
+          && isMosaicExpandItem(nextItem)
+          && nextItem.slot !== fromSlot,
+        );
         if (animate && wasFocused && fromSlot) {
           setMosaicRuntime({
             ...base,
@@ -1069,16 +1241,24 @@ export function useDemoPlayer({ actions, data }) {
             mode: 'collapsing',
             focusHidden: false,
             focusSlot: fromSlot,
+            fromSlot: fromSlot,
+            incomingSlot: null,
             transitioning: 'collapse',
+            handoff: willHandoff,
           });
-          mosaicTransitionTimerRef.current = setTimeout(() => {
-            setMosaicRuntime((current) => ({
-              ...current,
-              mode: 'grid',
-              focusHidden: true,
-              transitioning: null,
-            }));
-          }, base.transitionMs || 700);
+          if (!willHandoff) {
+            mosaicTransitionTimerRef.current = setTimeout(() => {
+              setMosaicRuntime((current) => ({
+                ...current,
+                mode: 'grid',
+                focusHidden: true,
+                transitioning: null,
+                handoff: false,
+                fromSlot: null,
+                incomingSlot: null,
+              }));
+            }, base.transitionMs || 700);
+          }
           return;
         }
         setMosaicRuntime({
@@ -1089,6 +1269,9 @@ export function useDemoPlayer({ actions, data }) {
           focusHidden: true,
           focusSlot: null,
           transitioning: null,
+          handoff: false,
+          fromSlot: null,
+          incomingSlot: null,
         });
         return;
       }
@@ -1103,6 +1286,9 @@ export function useDemoPlayer({ actions, data }) {
         focusHidden: tilesReady,
         focusSlot: action === DEMO_MOSAIC_ACTION.SHOW_GRID ? null : (base.focusSlot || null),
         transitioning: tilesReady ? base.transitioning : null,
+        handoff: false,
+        fromSlot: null,
+        incomingSlot: null,
       });
       if (tilesReady && base.transitioning) {
         mosaicTransitionTimerRef.current = setTimeout(() => {
@@ -1124,6 +1310,9 @@ export function useDemoPlayer({ actions, data }) {
           focusSlot: null,
           reveal: DEMO_MOSAIC_REVEAL.ALL,
           staggerMs: 0,
+          handoff: false,
+          fromSlot: null,
+          incomingSlot: null,
         });
       };
       if (animate && !prev.warming) {
@@ -1254,9 +1443,16 @@ export function useDemoPlayer({ actions, data }) {
     lastFrameAtRef.current = performance.now();
     lastContentKeyRef.current = null;
 
+    const nextProgramItem = list[boundedIndex + 1] || null;
+    const handoffAtMs = mosaicCollapseHandoffAtMs(item, nextProgramItem);
+    const beatDurationMs = handoffAtMs != null
+      ? handoffAtMs
+      : (beats[boundedBeat]?.durationMs || 0);
+    autoplayDurationRef.current = beatDurationMs;
+
     const itemDuration = (item.enterMs || 0) + (item.durationMs || 0) + (item.exitMs || 0);
     timelineRef.current = {
-      beatDurationMs: beats[boundedBeat]?.durationMs || 0,
+      beatDurationMs,
       beatStartMs: (beats[boundedBeat]?.startMs || 0) + (item.enterMs || 0),
       stageDurationMs: itemDuration,
       stageStartMs: item.startMs || 0,
@@ -1278,17 +1474,34 @@ export function useDemoPlayer({ actions, data }) {
       setBlackout(DEMO_BLACKOUT.NONE);
     }
 
-    applyProgramMosaic(item, { animate: !instant, enterEffect });
+    applyProgramMosaic(item, {
+      animate: !instant,
+      enterEffect,
+      nextItem: nextProgramItem,
+    });
     applyProgramTableau(item, { instant });
 
     applyTokenRef.current += 1;
     const token = applyTokenRef.current;
     const state = composedStateForProgramItem(item, boundedBeat);
-    const mosaicFocus = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC
-      && (item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND
-        || item.mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE);
+    const mosaicExpand = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC
+      && item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND;
+    const mosaicCollapse = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC
+      && item.mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE;
+    const mosaicFocus = mosaicExpand || mosaicCollapse;
     const mosaicGrid = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC && !mosaicFocus;
     const stages = scenario?.stages || [];
+    const prevMosaic = mosaicRuntimeRef.current;
+    const deferApplyForHandoff = mosaicExpand && (
+      Boolean(prevMosaic?.handoff)
+      || prevMosaic?.mode === 'collapsing'
+      || prevMosaic?.mode === 'switching'
+    );
+    mosaicHandoffHiddenRef.current = false;
+    mosaicHandoffStateRef.current = null;
+    if (deferApplyForHandoff) {
+      mosaicHandoffStateRef.current = { token, state, instant: true };
+    }
     const prefetchPromise = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC && item.preset
       ? prefetchForMosaic(item.preset, stages)
       : prefetchForStage(prefetchTargetFromItem(item, stages));
@@ -1298,6 +1511,7 @@ export function useDemoPlayer({ actions, data }) {
       // применяют срез этапа. applyState здесь только дублирует работу и
       // пересобирает маркеры MapLibre в момент mount N карт.
       if (mosaicGrid) return;
+      if (mosaicCollapse) return;
 
       if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
         const preset = item.tableauPreset;
@@ -1321,15 +1535,26 @@ export function useDemoPlayer({ actions, data }) {
       }
 
       stopTableauReveal();
+      if (deferApplyForHandoff) {
+        flushMosaicHandoffApply();
+        return;
+      }
       applyState(state, { instant: instant || mosaicFocus });
     });
-    setAnimationRunId((prev) => prev + 1);
+    const nextSig = animationSignature(beats[boundedBeat]);
+    const skipAnimBump = mosaicCollapse
+      || (mosaicExpand && nextSig === lastAnimationSigRef.current);
+    if (!skipAnimBump) {
+      lastAnimationSigRef.current = nextSig;
+      setAnimationRunId((prev) => prev + 1);
+    }
     if (autoplay) setStatus(DEMO_STATUS.PLAYING);
   }, [
     applyProgramMosaic,
     applyProgramTableau,
     applyState,
     clearEnterExitTimers,
+    flushMosaicHandoffApply,
     flushTableauPoseEnter,
     prefetchForMosaic,
     prefetchForStage,
@@ -1428,7 +1653,6 @@ export function useDemoPlayer({ actions, data }) {
       return undefined;
     }
 
-    const duration = currentBeat.durationMs;
     const tick = (now) => {
       const delta = now - (lastFrameAtRef.current || now);
       lastFrameAtRef.current = now;
@@ -1442,7 +1666,8 @@ export function useDemoPlayer({ actions, data }) {
       }
 
       const elapsed = now - beatStartedAtRef.current;
-      if (elapsed >= duration) {
+      const durationMs = autoplayDurationRef.current || currentBeat.durationMs;
+      if (elapsed >= durationMs) {
         stopFrameLoop();
         advanceRef.current();
         return;
@@ -1578,6 +1803,11 @@ export function useDemoPlayer({ actions, data }) {
     progressRef.current = EMPTY_PROGRESS;
     setAnimationRunId((prev) => prev + 1);
     lastContentKeyRef.current = null;
+    lastAppliedStateRef.current = null;
+    lastAnimationSigRef.current = '';
+    mosaicHandoffStateRef.current = null;
+    mosaicHandoffHiddenRef.current = false;
+    autoplayDurationRef.current = 0;
     if (restore) restoreSnapshot();
     else {
       snapshotRef.current = null;
@@ -1958,7 +2188,12 @@ export function useDemoPlayer({ actions, data }) {
     // На exit freeze ломал восстановление — пин брал inset 88×78% и карта
     // оставалась «на пол монитора» после выхода.
     freezeMapLayout: Boolean(
-      tableauRuntime?.active && tableauRuntime?.phase === 'entering',
+      (tableauRuntime?.active && tableauRuntime?.phase === 'entering')
+      || (mosaicRuntime?.active && (
+        mosaicRuntime?.mode === 'expanding'
+        || mosaicRuntime?.mode === 'collapsing'
+        || mosaicRuntime?.mode === 'switching'
+      )),
     ),
     // Живой прогресс HUD берёт отсюда: значения выше — только срез на момент
     // смены такта, паузы или остановки.
@@ -1980,6 +2215,8 @@ export function useDemoPlayer({ actions, data }) {
     subscribeProgress,
     tableauRuntime?.active,
     tableauRuntime?.phase,
+    mosaicRuntime?.active,
+    mosaicRuntime?.mode,
     waitingForPresenter,
   ]);
 
@@ -2018,6 +2255,8 @@ export function useDemoPlayer({ actions, data }) {
     demoTexts,
     mosaicRuntime,
     onMosaicTilesReady,
+    onMosaicHandoffPrepare,
+    onMosaicSwitchComplete,
     tableauRuntime,
     isActive,
     start,

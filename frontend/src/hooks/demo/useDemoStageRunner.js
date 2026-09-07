@@ -115,6 +115,18 @@ function computeStepBounds(step, data) {
   return null;
 }
 
+function cameraKeyFromStep(step) {
+  const camera = step?.camera || {};
+  return [
+    camera.mode || '',
+    camera.lat ?? '',
+    camera.lng ?? '',
+    camera.zoom ?? '',
+    camera.padding ?? '',
+    camera.duration_ms ?? '',
+  ].join(':');
+}
+
 function applyCameraToMap(map, step, data, { instant = false } = {}) {
   if (!map || !step) return;
   const camera = step.camera || {};
@@ -203,6 +215,8 @@ export function useDemoStageRunner({
   const cameraTimersRef = useRef([]);
   const dataRef = useRef({ objects, events, situations, countriesList });
   dataRef.current = { objects, events, situations, countriesList };
+  const lastSizeRef = useRef({ x: 0, y: 0 });
+  const lastCameraKeyRef = useRef('');
   const lastCameraRunRef = useRef(-1);
   const [, setPlaybackVersion] = useState(0);
 
@@ -257,14 +271,30 @@ export function useDemoStageRunner({
   const requestCamera = useCallback((step, instant) => {
     clearCameraTimers();
     if (!step) return;
+    const stepKey = cameraKeyFromStep(step);
     const apply = () => {
       const map = mapRef.current;
       if (!map) return false;
-      try {
-        map.invalidateSize();
-      } catch {
-        // карта ещё без размеров — повтор ниже
+      const size = map.getSize?.() || map._size;
+      const hasSize = size && size.x > 0 && size.y > 0;
+      const sizeChanged = hasSize
+        && (size.x !== lastSizeRef.current.x || size.y !== lastSizeRef.current.y);
+      if (sizeChanged || !hasSize) {
+        if (hasSize) lastSizeRef.current = { x: size.x, y: size.y };
+        try {
+          map.invalidateSize({ animate: false, pan: false });
+        } catch {
+          try {
+            map.invalidateSize();
+          } catch {
+            // карта ещё без размеров — повтор ниже
+          }
+        }
       }
+      if (!sizeChanged && hasSize && stepKey === lastCameraKeyRef.current) {
+        return true;
+      }
+      lastCameraKeyRef.current = stepKey;
       applyCameraToMap(map, step, dataRef.current, { instant });
       return true;
     };
@@ -305,9 +335,16 @@ export function useDemoStageRunner({
     () => resolveIds(situations, composed?.situation_ids).slice(0, 1),
     [composed?.situation_ids, situations],
   );
+  const zoneKey = Array.isArray(composed?.zone_leaves)
+    ? composed.zone_leaves
+      .map((leaf) => `${leaf?.country || ''}|${leaf?.action_type_id || ''}|${leaf?.leaf || ''}`)
+      .join(';')
+    : '';
   const actionZoneFilters = useMemo(
     () => zoneLeavesToFilters(composed?.zone_leaves),
-    [composed?.zone_leaves],
+    // ключ стабилен при том же наборе листьев — не пересобираем фильтры каждый бит
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [zoneKey],
   );
   const overlayKey = Array.isArray(composed?.overlay_layer_ids)
     ? composed.overlay_layer_ids.map(String).join(',')

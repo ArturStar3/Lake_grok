@@ -147,6 +147,8 @@ function DemoMosaicShell({
   countriesList = [],
   stages = [],
   onTilesReady = null,
+  onHandoffPrepare = null,
+  onSwitchComplete = null,
   children,
 }) {
   const rootRef = useRef(null);
@@ -156,6 +158,12 @@ function DemoMosaicShell({
   const morphGenRef = useRef(0);
   const morphingRef = useRef(false);
   const slotOriginRef = useRef(null);
+  const prevModeRef = useRef(null);
+  const incomingGenRef = useRef(0);
+  const incomingTimerRef = useRef(null);
+  const incomingRafRef = useRef(0);
+  const incomingRunningRef = useRef(null);
+  const paintedSlotsRef = useRef(new Set());
 
   const [focusGeom, setFocusGeom] = useState(null);
   const [translate, setTranslate] = useState(ZERO_TX);
@@ -165,6 +173,13 @@ function DemoMosaicShell({
   const [phaseMs, setPhaseMs] = useState(350);
   const [flipPrep, setFlipPrep] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
+  const [incomingSlotId, setIncomingSlotId] = useState(null);
+  const [incomingTx, setIncomingTx] = useState(ZERO_TX);
+  const [incomingScale, setIncomingScale] = useState(IDENTITY_SCALE);
+  const [incomingMs, setIncomingMs] = useState(700);
+  const [incomingPrep, setIncomingPrep] = useState(false);
+  const [incomingAnim, setIncomingAnim] = useState(false);
+  const [paintedCount, setPaintedCount] = useState(0);
 
   const active = Boolean(mosaicRuntime?.active);
   const warming = Boolean(mosaicRuntime?.warming);
@@ -184,6 +199,8 @@ function DemoMosaicShell({
   const cssEasing = mosaicRuntime?.cssEasing
     || DEMO_EASING_CSS[mosaicRuntime?.easing]
     || DEMO_EASING_CSS.ease_out;
+  const incomingSlot = mosaicRuntime?.incomingSlot || null;
+  const fromSlot = mosaicRuntime?.fromSlot || null;
   const staggerMs = mosaicRuntime?.staggerMs || 0;
   const reveal = mosaicRuntime?.reveal || 'all';
 
@@ -228,9 +245,147 @@ function DemoMosaicShell({
     resizeLiveMap(mapRef?.current);
   }, [mapRef]);
 
+  const clearIncomingTimers = useCallback(() => {
+    if (incomingTimerRef.current) {
+      clearTimeout(incomingTimerRef.current);
+      incomingTimerRef.current = null;
+    }
+    if (incomingRafRef.current) {
+      cancelAnimationFrame(incomingRafRef.current);
+      incomingRafRef.current = 0;
+    }
+  }, []);
+
+  const clearIncomingVisual = useCallback(() => {
+    incomingRunningRef.current = null;
+    setIncomingSlotId(null);
+    setIncomingTx(ZERO_TX);
+    setIncomingScale(IDENTITY_SCALE);
+    setIncomingPrep(false);
+    setIncomingAnim(false);
+  }, []);
+
   const holdFull = useCallback(() => {
     commitFull();
   }, [commitFull]);
+
+  const runIncomingExpand = useCallback((toSlot, { retry = 0 } = {}) => {
+    clearIncomingTimers();
+    const gen = ++incomingGenRef.current;
+    incomingRunningRef.current = toSlot;
+
+    const reduced = prefersReducedMotion();
+    const rect = toSlot ? readSlotRect(toSlot) : null;
+
+    if (!rect && retry < 2) {
+      incomingRafRef.current = requestAnimationFrame(() => {
+        if (gen !== incomingGenRef.current) return;
+        incomingRunningRef.current = null;
+        runIncomingExpand(toSlot, { retry: retry + 1 });
+      });
+      return;
+    }
+
+    const afterIncomingPaint = (fn) => {
+      incomingRafRef.current = requestAnimationFrame(() => {
+        if (gen !== incomingGenRef.current) return;
+        incomingRafRef.current = requestAnimationFrame(() => {
+          if (gen !== incomingGenRef.current) return;
+          fn();
+        });
+      });
+    };
+
+    const finishIncoming = () => {
+      if (gen !== incomingGenRef.current) return;
+      onHandoffPrepare?.();
+      // Плитка уже закрывает экран: останавливаем исходящую свёртку,
+      // чтобы её таймеры не сжали основную карту после commitFull.
+      morphGenRef.current += 1;
+      clearTimers();
+      morphingRef.current = false;
+      commitFull();
+      afterIncomingPaint(() => {
+        clearIncomingTimers();
+        clearIncomingVisual();
+        onSwitchComplete?.();
+      });
+    };
+
+    if (!rect || reduced) {
+      finishIncoming();
+      return;
+    }
+
+    const root = rootRef.current;
+    const cell = root?.querySelector(`.demo-mosaic__cell--${toSlot}`) || root;
+    const full = rootFullRect(root);
+    const toCenter = {
+      x: full.w / 2 - (rect.l + rect.w / 2),
+      y: full.h / 2 - (rect.t + rect.h / 2),
+    };
+    const scaleFromSlot = fillScale(rect, full);
+    const { first: ms1, second: ms2 } = splitDuration(transitionMs);
+
+    flushSync(() => {
+      setIncomingPrep(true);
+      setIncomingAnim(false);
+      setIncomingSlotId(toSlot);
+      setIncomingTx(ZERO_TX);
+      setIncomingScale(IDENTITY_SCALE);
+      setIncomingMs(useCenterThenStretch ? ms1 : transitionMs);
+    });
+    forceReflow(cell);
+
+    if (!useCenterThenStretch) {
+      afterIncomingPaint(() => {
+        flushSync(() => {
+          setIncomingPrep(false);
+          setIncomingAnim(true);
+          setIncomingTx(toCenter);
+          setIncomingScale(scaleFromSlot);
+        });
+        incomingTimerRef.current = setTimeout(finishIncoming, transitionMs);
+      });
+      return;
+    }
+
+    afterIncomingPaint(() => {
+      flushSync(() => {
+        setIncomingPrep(false);
+        setIncomingAnim(true);
+        setIncomingTx(toCenter);
+        setIncomingScale(IDENTITY_SCALE);
+      });
+      incomingTimerRef.current = setTimeout(() => {
+        if (gen !== incomingGenRef.current) return;
+        flushSync(() => {
+          setIncomingPrep(true);
+          setIncomingAnim(false);
+          setIncomingMs(ms2);
+        });
+        forceReflow(cell);
+        flushSync(() => setIncomingPrep(false));
+        afterIncomingPaint(() => {
+          flushSync(() => {
+            setIncomingAnim(true);
+            setIncomingScale(scaleFromSlot);
+          });
+          incomingTimerRef.current = setTimeout(finishIncoming, ms2);
+        });
+      }, ms1);
+    });
+  }, [
+    clearIncomingTimers,
+    clearIncomingVisual,
+    clearTimers,
+    commitFull,
+    onHandoffPrepare,
+    onSwitchComplete,
+    readSlotRect,
+    transitionMs,
+    useCenterThenStretch,
+  ]);
 
   const runMorph = useCallback((direction, { retry = 0 } = {}) => {
     clearTimers();
@@ -446,8 +601,12 @@ function DemoMosaicShell({
 
   useLayoutEffect(() => {
     if (!active) {
+      prevModeRef.current = null;
       morphGenRef.current += 1;
+      incomingGenRef.current += 1;
+      incomingRunningRef.current = null;
       clearTimers();
+      clearIncomingTimers();
       morphingRef.current = false;
       slotOriginRef.current = null;
       setFlipPrep(false);
@@ -457,25 +616,45 @@ function DemoMosaicShell({
       setScale(IDENTITY_SCALE);
       setFocusPhase(FOCUS_PHASE.SLOT);
       setAnimKind(ANIM.NONE);
+      clearIncomingVisual();
+      return undefined;
+    }
+
+    if (mode === 'switching') {
+      prevModeRef.current = mode;
+      if (incomingSlot && incomingRunningRef.current !== incomingSlot) {
+        runIncomingExpand(incomingSlot);
+      }
       return undefined;
     }
 
     if (mode === 'expanding' && focusSlot) {
+      prevModeRef.current = mode;
       runMorph('expand');
       return undefined;
     }
 
     if (mode === 'collapsing' && focusSlot) {
+      prevModeRef.current = mode;
+      incomingGenRef.current += 1;
+      clearIncomingTimers();
+      clearIncomingVisual();
       runMorph('collapse');
       return undefined;
     }
 
     if (mode === 'focus') {
-      if (!morphingRef.current) {
+      prevModeRef.current = mode;
+      if (!morphingRef.current && focusPhase !== FOCUS_PHASE.FULL) {
         holdFull();
       }
       return undefined;
     }
+
+    prevModeRef.current = mode;
+    incomingGenRef.current += 1;
+    clearIncomingTimers();
+    clearIncomingVisual();
 
     morphGenRef.current += 1;
     clearTimers();
@@ -487,25 +666,39 @@ function DemoMosaicShell({
     setFocusPhase(FOCUS_PHASE.SLOT);
     setAnimKind(ANIM.NONE);
     return undefined;
-  }, [active, clearTimers, focusSlot, holdFull, layout, mode, runMorph]);
+  }, [
+    active,
+    clearIncomingTimers,
+    clearIncomingVisual,
+    clearTimers,
+    focusSlot,
+    holdFull,
+    incomingSlot,
+    layout,
+    mode,
+    runIncomingExpand,
+    runMorph,
+  ]);
 
   useEffect(() => () => {
     morphGenRef.current += 1;
+    incomingGenRef.current += 1;
     clearTimers();
-  }, [clearTimers]);
+    clearIncomingTimers();
+  }, [clearIncomingTimers, clearTimers]);
 
   // Resize только в steady fullscreen (не во время morph).
   useEffect(() => {
     if (!active || !panelVisible) return undefined;
-    if (mode === 'expanding' || mode === 'collapsing') return undefined;
+    if (mode === 'expanding' || mode === 'collapsing' || mode === 'switching') return undefined;
     if (focusPhase !== FOCUS_PHASE.FULL) return undefined;
     resizeLiveMap(mapRef?.current);
     return undefined;
   }, [active, focusPhase, mapRef, mode, panelVisible]);
 
-  const tilesPlaying = mode === 'grid' && !warming;
+  const tilesPlaying = mode === 'grid' && !warming && !mosaicRuntime?.handoff;
   const showFocus = active && !warming && panelVisible
-    && (mode === 'expanding' || mode === 'focus' || mode === 'collapsing');
+    && (mode === 'expanding' || mode === 'focus' || mode === 'collapsing' || mode === 'switching');
   const isFull = focusPhase === FOCUS_PHASE.FULL;
   const coverMain = warming || showFocus;
 
@@ -525,6 +718,17 @@ function DemoMosaicShell({
   });
 
   useEffect(() => {
+    paintedSlotsRef.current = new Set();
+    setPaintedCount(0);
+  }, [active, mosaicRuntime?.presetId]);
+
+  const onTilePainted = useCallback((slotId) => {
+    if (!slotId || paintedSlotsRef.current.has(slotId)) return;
+    paintedSlotsRef.current.add(slotId);
+    setPaintedCount(paintedSlotsRef.current.size);
+  }, []);
+
+  useEffect(() => {
     if (!onTilesReady) return undefined;
     if (!active) {
       onTilesReady(false);
@@ -532,19 +736,21 @@ function DemoMosaicShell({
     }
     const allMounted = mountSlotIds.length > 0
       && mountSlotIds.every((id) => mountedSlots.has(id));
-    if (!allMounted) {
+    const allPainted = allMounted
+      && mountSlotIds.every((id) => paintedSlotsRef.current.has(id));
+    if (!allPainted) {
       onTilesReady(false);
       return undefined;
     }
     let timeoutId = 0;
     const raf = requestAnimationFrame(() => {
-      timeoutId = window.setTimeout(() => onTilesReady(true), 80);
+      timeoutId = window.setTimeout(() => onTilesReady(true), 120);
     });
     return () => {
       cancelAnimationFrame(raf);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [active, mosaicRuntime?.presetId, mountSlotIds, mountedSlots, onTilesReady]);
+  }, [active, mosaicRuntime?.presetId, mountSlotIds, mountedSlots, onTilesReady, paintedCount]);
 
   const catalogsByStageId = useMemo(() => {
     const map = new Map();
@@ -584,6 +790,7 @@ function DemoMosaicShell({
     active ? 'demo-mosaic--multi' : 'demo-mosaic--mono',
     `demo-mosaic--layout-${layout}`,
     `demo-mosaic--${mode}`,
+    incomingSlotId ? 'demo-mosaic--incoming' : '',
     showFocus ? 'demo-mosaic--focus-mode' : '',
     transitioning ? `demo-mosaic--${transitioning}` : '',
     focusHidden && mode === 'grid' && !warming ? 'demo-mosaic--focus-hidden' : '',
@@ -596,6 +803,7 @@ function DemoMosaicShell({
     active,
     flipPrep,
     focusHidden,
+    incomingSlotId,
     isFull,
     layout,
     mode,
@@ -626,6 +834,7 @@ function DemoMosaicShell({
       transition,
       borderRadius: isFull ? 0 : undefined,
       boxShadow: isFull ? '0 0 0 0 transparent' : undefined,
+      zIndex: incomingSlotId ? 3 : undefined,
     };
     if (focusGeom) {
       style.top = `${focusGeom.t}px`;
@@ -648,6 +857,7 @@ function DemoMosaicShell({
     cssEasing,
     flipPrep,
     focusGeom,
+    incomingSlotId,
     isFull,
     phaseMs,
     scale.x,
@@ -673,10 +883,23 @@ function DemoMosaicShell({
                 </div>
               );
             }
-            const isVacated = Boolean(focusSlot && focusSlot === slotId && showFocus);
+            const isIncoming = incomingSlotId === slotId;
+            const vacatedSlot = fromSlot || focusSlot;
+            const isVacated = Boolean(vacatedSlot && vacatedSlot === slotId && showFocus && !isIncoming);
             const screen = screens[slotId];
             const delay = reveal === 'stagger' ? index * staggerMs : 0;
             const mapMounted = mountedSlots.has(slotId);
+            const incomingStyle = isIncoming
+              ? {
+                animationDelay: `${delay}ms`,
+                transformOrigin: 'center center',
+                transform: `translate3d(${incomingTx.x}px, ${incomingTx.y}px, 0) scale(${incomingScale.x}, ${incomingScale.y})`,
+                transition: (!incomingPrep && incomingAnim)
+                  ? `transform ${incomingMs}ms ${cssEasing}`
+                  : 'none',
+                zIndex: 4,
+              }
+              : { animationDelay: `${delay}ms` };
             return (
               <div
                 key={slotId}
@@ -684,9 +907,10 @@ function DemoMosaicShell({
                   'demo-mosaic__cell',
                   `demo-mosaic__cell--${slotId}`,
                   isVacated ? 'demo-mosaic__cell--vacated' : '',
+                  isIncoming ? 'demo-mosaic__cell--incoming' : '',
                   mapMounted ? '' : 'demo-mosaic__cell--pending',
                 ].filter(Boolean).join(' ')}
-                style={{ animationDelay: `${delay}ms` }}
+                style={incomingStyle}
               >
                 {mapMounted ? (
                   <DemoMosaicTile
@@ -695,6 +919,7 @@ function DemoMosaicShell({
                     stages={stages}
                     startDelayMs={0}
                     playing={tilesPlaying && !isVacated}
+                    onPainted={onTilePainted}
                     catalogs={
                       screen?.stage_id != null
                         ? (catalogsByStageId.get(String(screen.stage_id)) || null)
