@@ -683,12 +683,8 @@
   cursor: pointer;
 }
 
-.demo-tableau-studio-modal__scene.is-gallery-nomap {
-  background: var(--il-bg, #0f172a);
-}
-
 .demo-tableau-studio-modal__map-guide.is-nomap {
-  background: var(--il-bg, #0f172a);
+  background: transparent;
   border: none;
   box-shadow: none;
   border-radius: 0;

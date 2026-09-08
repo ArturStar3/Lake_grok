@@ -2,15 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Circle, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import DashCrossZoneLayer from './DashCrossZoneLayer';
-import { buildVisibleZones } from '../../utils/buildVisibleZones';
 import {
   getZonePolygonStrokeStyle,
   getZoneStrokeStyle,
   usesDashCrossMarkers,
   ZONE_STROKE_WEIGHT,
 } from '../../utils/actionZoneStyle';
-import { getZonePolygonPositions, isInundationZone, isPolygonZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
-import { isPointInPolygon } from '../../utils/inundationZone';
+import { getZonePolygonPositions, isPointInPolygon } from '../../utils/inundationZone';
+import { isInundationZone, isPolygonZone, isTerrainZoneEnabled } from '../../utils/computeLosZone';
 import { DEMO_EFFECT } from '../../utils/demoScenario';
 import {
   demoFadeClassName,
@@ -25,6 +24,8 @@ import {
 import './demo/DemoAnimations.css';
 
 const VIEWPORT_DEBOUNCE_MS = 150;
+const METERS_PER_DEG_LAT = 111320;
+const EMPTY_ZONES = [];
 
 function buildZoneEntryId(zone) {
   // Стабильный идентификатор на основе zoneKey (не зависит от позиции в
@@ -35,14 +36,32 @@ function buildZoneEntryId(zone) {
 
 function getZonesAtLatLng(zones, latlng, toleranceMeters = 1) {
   if (!latlng || !zones?.length) return [];
-  const point = L.latLng(latlng.lat, latlng.lng);
-  return zones.filter((zone) => {
+  const { lat, lng } = latlng;
+  const point = L.latLng(lat, lng);
+  const hits = [];
+  for (let i = 0; i < zones.length; i += 1) {
+    const zone = zones[i];
     if (zone.isPolygonZone && zone.polygonPositions?.length) {
-      return isPointInPolygon(latlng.lat, latlng.lng, zone.polygonPositions);
+      const bounds = zone.polygonBounds;
+      if (
+        bounds
+        && (lat < bounds.minLat || lat > bounds.maxLat || lng < bounds.minLng || lng > bounds.maxLng)
+      ) {
+        continue;
+      }
+      if (isPointInPolygon(lat, lng, zone.polygonPositions)) hits.push(zone);
+      continue;
     }
-    const dist = L.latLng(zone.centerLat, zone.centerLng).distanceTo(point);
-    return dist <= zone.radiusMeters + toleranceMeters;
-  });
+    const radius = (zone.radiusMeters || 0) + toleranceMeters;
+    const latDelta = radius / METERS_PER_DEG_LAT;
+    if (Math.abs(lat - zone.centerLat) > latDelta) continue;
+    const cosLat = Math.max(0.2, Math.cos((zone.centerLat * Math.PI) / 180));
+    if (Math.abs(lng - zone.centerLng) > latDelta / cosLat) continue;
+    if (point.distanceTo(L.latLng(zone.centerLat, zone.centerLng)) <= radius) {
+      hits.push(zone);
+    }
+  }
+  return hits;
 }
 
 function isZoneInViewport(zone, bounds) {
@@ -70,10 +89,11 @@ function useZonesInViewport(zones) {
   const map = useMap();
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
+  const zonesKey = zones?.length ? zones.map((z) => z.zoneKey).join('|') : '';
 
   const filterZones = useCallback(() => {
     const list = zonesRef.current;
-    if (!map || !list?.length) return list ?? [];
+    if (!map || !list?.length) return list ?? EMPTY_ZONES;
     const bounds = map.getBounds().pad(0.1);
     return list.filter((zone) => isZoneInViewport(zone, bounds));
   }, [map]);
@@ -95,17 +115,12 @@ function useZonesInViewport(zones) {
       map.off('zoomend', schedule);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [map, filterZones]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setInViewport(filterZones()), VIEWPORT_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [zones, filterZones]);
+  }, [map, filterZones, zonesKey]);
 
   return inViewport;
 }
 
-function ZoneCircleLayer({
+const ZoneCircleLayer = React.memo(function ZoneCircleLayer({
   zone,
   entryId,
   hoverController,
@@ -150,28 +165,29 @@ function ZoneCircleLayer({
   }), [onZonePointer, onZonePointerEnd, onZoneClick]);
 
   const className = demoFadeClassName('action-radius-circle', demoEffect);
+  const pathOptions = useMemo(() => ({
+    color,
+    fillColor: color,
+    fillOpacity: baseStyle.fillOpacity,
+    weight: ZONE_STROKE_WEIGHT,
+    opacity: baseStyle.opacity,
+    dashArray: baseStyle.dashArray,
+    className,
+    interactive: true,
+  }), [color, baseStyle, className]);
 
   return (
     <Circle
       ref={circleRef}
       center={[centerLat, centerLng]}
       radius={revealEnabled ? MIN_REVEAL_RADIUS_M : radiusMeters}
-      pathOptions={{
-        color,
-        fillColor: color,
-        fillOpacity: baseStyle.fillOpacity,
-        weight: ZONE_STROKE_WEIGHT,
-        opacity: baseStyle.opacity,
-        dashArray: baseStyle.dashArray,
-        className,
-        interactive: true,
-      }}
+      pathOptions={pathOptions}
       eventHandlers={pointerHandlers}
     />
   );
-}
+});
 
-function ZonePolygonLayer({
+const ZonePolygonLayer = React.memo(function ZonePolygonLayer({
   zone,
   entryId,
   positions,
@@ -194,7 +210,7 @@ function ZonePolygonLayer({
   const wipeEnabled = demoEffect?.effect === DEMO_EFFECT.DIRECTIONAL_WIPE;
   const renderPositions = useMemo(
     () => (revealEnabled ? collapsePositionsToCentroid(positions, centroid) : positions),
-    [revealEnabled, demoEffect?.runId, entryId, centroid, positions?.length],
+    [revealEnabled, centroid, positions],
   );
 
   useEffect(() => {
@@ -239,32 +255,31 @@ function ZonePolygonLayer({
     click: onZoneClick,
   }), [onZonePointer, onZonePointerEnd, onZoneClick]);
 
-  if (!positions?.length) return null;
-
   const className = demoFadeClassName(polygonClassName, demoEffect);
+  const pathOptions = useMemo(() => ({
+    color,
+    fillColor: color,
+    fillOpacity: baseStyle.fillOpacity,
+    weight: ZONE_STROKE_WEIGHT,
+    opacity: baseStyle.opacity,
+    dashArray: baseStyle.dashArray,
+    className,
+    interactive: true,
+  }), [color, baseStyle, className]);
+
+  if (!positions?.length) return null;
 
   return (
     <Polygon
       ref={polygonRef}
       positions={renderPositions}
-      pathOptions={{
-        color,
-        fillColor: color,
-        fillOpacity: baseStyle.fillOpacity,
-        weight: ZONE_STROKE_WEIGHT,
-        opacity: baseStyle.opacity,
-        dashArray: baseStyle.dashArray,
-        className,
-        interactive: true,
-      }}
+      pathOptions={pathOptions}
       eventHandlers={pointerHandlers}
     />
   );
-}
+});
 
 const ActionZonesLayer = React.memo(function ActionZonesLayer({
-  zoneObjects = [],
-  actionZoneFilters,
   visibleZones: visibleZonesProp,
   hoverController,
   skipHoverRef,
@@ -275,10 +290,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   losGeometryByZoneKey = {},
   demoAnimation = null,
 }) {
-  const visibleZones = useMemo(
-    () => visibleZonesProp ?? buildVisibleZones(zoneObjects, actionZoneFilters),
-    [visibleZonesProp, zoneObjects, actionZoneFilters],
-  );
+  const visibleZones = visibleZonesProp ?? EMPTY_ZONES;
 
   const zonesInViewport = useZonesInViewport(visibleZones);
 

@@ -10,7 +10,7 @@ from unfold.decorators import action
 from infolake.admin_base import ModelAdmin, TabularInline
 
 from .admin_forms import ChangePasswordForm, UserAdminCreationForm
-from .models import AuthAuditLog, PasswordResetRequest, SecurityGroup, UserProfile
+from .models import AuthAuditLog, MapFavorite, PasswordResetRequest, SecurityGroup, UserProfile
 from .password_utils import generate_compliant_password, validate_password_for_user
 from .services.audit import log_auth_event
 from .services.password_reset_requests import resolve_password_reset_requests
@@ -95,6 +95,15 @@ class AuthAuditLogAdmin(ModelAdmin):
     list_filter_submit = True
     search_fields = ('user__username', 'details')
     readonly_fields = ('created_at', 'action', 'user', 'actor', 'ip_address', 'details')
+
+
+@admin.register(MapFavorite)
+class MapFavoriteAdmin(ModelAdmin):
+    list_display = ('user', 'kind', 'title', 'entity_id', 'updated_at')
+    list_filter = ('kind',)
+    search_fields = ('title', 'source_title', 'entity_id', 'user__username')
+    autocomplete_fields = ('user',)
+    readonly_fields = ('created_at', 'updated_at')
 
 
 class UserAdmin(DjangoUserAdmin, ModelAdmin):

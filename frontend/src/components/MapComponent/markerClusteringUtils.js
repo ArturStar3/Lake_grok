@@ -83,29 +83,11 @@ export const calcDistancePx = (p1, p2) => {
   return Math.sqrt(dx * dx + dy * dy);
 };
 
-/**
- * Находит все объекты, находящиеся на расстоянии менее CLUSTER_DISTANCE_PX от базового объекта
- * @param {Object} baseObj - Базовый объект
- * @param {Array} candidates - Массив кандидатов для проверки
- * @param {Object} map - Инстанс Leaflet карты
- * @returns {Array} Массив объектов, находящихся близко
- */
-export const findNearbyObjects = (baseObj, candidates, map, distancePx = getRuntimeClusterDistancePx()) => {
-  if (!map || !baseObj) return [];
-
-  const basePixel = latLngToPixel(map, baseObj.lat, baseObj.lng);
-  if (!basePixel) return [];
-
-  return candidates.filter(candidate => {
-    if (candidate.id === baseObj.id) return true; // Включаем сам базовый объект
-
-    const candidatePixel = latLngToPixel(map, candidate.lat, candidate.lng);
-    if (!candidatePixel) return false;
-
-    const distance = calcDistancePx(basePixel, candidatePixel);
-    return distance <= distancePx;
-  });
-};
+/** Стабильный ключ набора маркеров: id объекта и id SVG-маркера. */
+export function selectionIdsKey(objects) {
+  if (!objects?.length) return '';
+  return objects.map((o) => `${o.id}:${o.marker?.id || 'none'}`).sort().join(',');
+}
 
 /**
  * Группирует объекты в кластеры на основе близости на карте (spatial hash, O(n) среднее).

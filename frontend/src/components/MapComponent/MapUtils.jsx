@@ -2,28 +2,21 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import axios from "axios";
-import { processMarkerClustering, calculateMarkerPosition, computeCountryBubbleClusters } from "./markerClusteringUtils";
+import { processMarkerClustering, calculateMarkerPosition, computeCountryBubbleClusters, selectionIdsKey } from "./markerClusteringUtils";
 import { enrichSvg, wrapMarkerSvg } from "../../utils/svgUtils";
-import { getViewBoxSize } from "../../utils/svgUtils";
 import { getCountryMarkerPalette, markerPaletteCacheKey } from "../../utils/markerPalette";
 import { MAP_CONSTANTS } from "../../constants/mapConstants";
 import { filterFlagMarkers } from "../../utils/markerFilters";
 import { buildIconCacheKey, getOrCreateDivIcon } from "../../utils/markerIconCache";
+import { computeIconDimensions } from "../../utils/markerIconFactory";
 import { resolveMediaUrl } from "../../utils/mediaUrl";
 
-// Функция для обогащения объектов реальными размерами из viewBox SVG
 function enrichMarkersWithSvgSize(objects, svgCache) {
   return objects.map(o => {
     const path = resolveMediaUrl(o.marker?.path);
     const svg = path ? svgCache.get(path) ?? "" : "";
     const markerScale = parseFloat(o.marker?.scale) || 1;
-    let iconWidth = ICON_WIDTH * markerScale;
-    let iconHeight = ICON_HEIGHT * markerScale;
-    const vb = getViewBoxSize(svg);
-    if (vb && vb.width > 0) {
-      const aspect = vb.height / vb.width;
-      iconHeight = iconWidth * aspect;
-    }
+    const { iconWidth, iconHeight } = computeIconDimensions(svg, markerScale);
     return {
       ...o,
       marker: {
@@ -67,8 +60,8 @@ function enrichMarkersWithSvgSizeCached(objects, svgCache, cacheRef) {
   return result;
 }
 
-function selectionIdsKey(objects) {
-  return objects.map((o) => `${o.id}:${o.marker?.id || 'none'}`).sort().join(',');
+function layoutFingerprint(objects) {
+  return objects.map((o) => `${o.id}:${o.marker?._computedIconHeight || 0}`).join(',');
 }
 
 const { ICON_WIDTH, ICON_HEIGHT } = MAP_CONSTANTS;
@@ -123,16 +116,6 @@ function fitMarkerLabel(text, maxWidthPx, maxFont = LABEL_FONT_MAX, minFont = LA
   };
 }
 
-// const latLngToPixel = (map, lat, lng) => {
-//     const point = map.latLngToLayerPoint({lat, lng});
-//     return { x: point.x, y: point.y };
-// }
-
-// // Утилита вычисления расстояния между точками
-// const calcDistance = (p1, p2) => {
-//     return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
-// };
-
 export default function LabelGeneration({ objects, selectedIds = [], onMarkersReady, clusterMode = 'legacy' }) {
   const mapInstance = useMapEvents({});
   const [svgCache, setSvgCache] = useState(new Map());
@@ -140,6 +123,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
   const loadingPathsRef = useRef(new Set()); // Отслеживание текущих загрузок
   const enrichCacheRef = useRef(new Map());
   const lastNoneIdsKeyRef = useRef('');
+  const lastLayoutKeyRef = useRef('');
   const [clusteredObjects, setClusteredObjects] = useState(objects);
   const [bubbleClusters, setBubbleClusters] = useState([]);
   const [zoom, setZoom] = useState(mapInstance?.getZoom?.() || 0);
@@ -161,26 +145,23 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     return () => mapInstance.off('zoomend', handleZoomEnd);
   }, [mapInstance]);
 
-  // Мемоизируем строку путей для стабильных зависимостей
+  const selectedFlagObjects = useMemo(
+    () => filterFlagMarkers(objects, selectedIds),
+    [objects, selectedIds],
+  );
+
   const pathsKey = useMemo(() => {
-    if (!objects || !Array.isArray(objects) || objects.length === 0) return '';
-    
-    const selectedFlagObjects = filterFlagMarkers(objects, selectedIds);
-    
+    if (!selectedFlagObjects.length) return '';
     const uniquePaths = Array.from(new Set(selectedFlagObjects.map(o => resolveMediaUrl(o.marker?.path)).filter(Boolean)));
     return uniquePaths.sort().join('|');
-  }, [objects, selectedIds]);
+  }, [selectedFlagObjects]);
 
-  // Мемоизируем ключ для кластеризации
   const clusterKey = useMemo(() => {
-    if (!objects || !Array.isArray(objects) || objects.length === 0) return '';
-    const selectedFlagObjects = filterFlagMarkers(objects, selectedIds);
-    // Ключ только по id, marker.id и zoom
+    if (!selectedFlagObjects.length) return '';
     const ids = selectionIdsKey(selectedFlagObjects);
-    // Mode `none` (tableau force-show): zoom does not change layout — omit it.
     if (clusterMode === 'none') return `${ids}:none`;
     return `${ids}:${zoom}`;
-  }, [objects, selectedIds, zoom, clusterMode]);
+  }, [selectedFlagObjects, zoom, clusterMode]);
 
   // Отдельный useEffect для загрузки SVG (только при изменении путей)
   useEffect(() => {
@@ -224,9 +205,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
     loadSvgs();
   }, [pathsKey]);
 
-  // Отдельный useEffect для кластеризации
   useEffect(() => {
-    const selectedFlagObjects = filterFlagMarkers(objects, selectedIds);
     if (mapInstance) {
       if (clusterMode === 'none') {
         const enrichedObjects = enrichMarkersWithSvgSizeCached(
@@ -234,33 +213,38 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
           svgCache,
           enrichCacheRef,
         );
-        const idsKey = selectionIdsKey(enrichedObjects);
-        const sizeFp = enrichedObjects
-          .map((o) => `${o.id}:${o.marker?._computedIconHeight || 0}`)
-          .join(',');
-        const noneKey = `${idsKey}|${sizeFp}`;
+        const noneKey = `${selectionIdsKey(enrichedObjects)}|${layoutFingerprint(enrichedObjects)}`;
         if (noneKey === lastNoneIdsKeyRef.current) return;
         lastNoneIdsKeyRef.current = noneKey;
+        lastLayoutKeyRef.current = '';
         setBubbleClusters((prev) => (prev.length ? [] : prev));
         setClusteredObjects(enrichedObjects);
       } else if (clusterMode === 'bubble') {
         const enrichedObjects = enrichMarkersWithSvgSize(selectedFlagObjects, svgCache);
+        const layoutKey = `bubble|${clusterKey}|${layoutFingerprint(enrichedObjects)}`;
+        if (layoutKey === lastLayoutKeyRef.current) return;
+        lastLayoutKeyRef.current = layoutKey;
         lastNoneIdsKeyRef.current = '';
         const { visible, bubbles } = computeCountryBubbleClusters(enrichedObjects, mapInstance);
         setClusteredObjects(visible);
         setBubbleClusters(bubbles);
       } else {
         const enrichedObjects = enrichMarkersWithSvgSize(selectedFlagObjects, svgCache);
+        const layoutKey = `legacy|${clusterKey}|${layoutFingerprint(enrichedObjects)}`;
+        if (layoutKey === lastLayoutKeyRef.current) return;
+        lastLayoutKeyRef.current = layoutKey;
         lastNoneIdsKeyRef.current = '';
         setBubbleClusters([]);
         const processedObjects = processMarkerClustering(enrichedObjects, mapInstance);
         setClusteredObjects(processedObjects);
       }
     } else {
+      lastLayoutKeyRef.current = '';
+      lastNoneIdsKeyRef.current = '';
       setClusteredObjects(selectedFlagObjects);
       setBubbleClusters([]);
     }
-  }, [clusterKey, objects, selectedIds, mapInstance, svgCache, clusterMode]);
+  }, [clusterKey, selectedFlagObjects, mapInstance, svgCache, clusterMode]);
 
   const iconsById = useMemo(() => {
     if (!L || !L.DivIcon) {
@@ -277,19 +261,7 @@ export default function LabelGeneration({ objects, selectedIds = [], onMarkersRe
         }
         const svg = path ? svgCache.get(path) ?? "" : "";
         const markerScale = parseFloat(o.marker?.scale) || 1;
-        let iconWidth = ICON_WIDTH * markerScale;
-        let iconHeight = ICON_HEIGHT * markerScale;
-        const vb = getViewBoxSize(svg);
-        if (vb && vb.width > 0) {
-          // width оставляем прежним, только корректируем высоту
-          const aspect = vb.height / vb.width;
-          iconHeight = iconWidth * aspect;
-        }
-        // Прокидываем iconHeight в marker для offsetY
-        o.marker = {
-          ...o.marker,
-          _computedIconHeight: iconHeight
-        };
+        const { iconWidth, iconHeight } = computeIconDimensions(svg, markerScale);
         const labelTop = o.marker?.top || 0;
         const labelHeight = o.marker?.height || 100;
         const labelWidth = o.marker?.width || 100;

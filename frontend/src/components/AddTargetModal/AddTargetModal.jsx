@@ -15,14 +15,10 @@ import {
 import './AddTargetModal.css';
 
 import { API_URL } from '../../config/api';
+import { formatCoordValue } from '../../utils/polygonDrawUtils';
 import { isPolygonZoneMode } from '../../utils/inundationZone';
 
 const API_ROOT = API_URL;
-
-const formatCoord = (value) => {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return '';
-    return Number(value).toFixed(6);
-};
 
 export default function AddTargetModal({
     isOpen,
@@ -121,8 +117,8 @@ export default function AddTargetModal({
 
         setFormData((prev) => ({
             ...prev,
-            lat: formatCoord(initialCoords.lat),
-            lng: formatCoord(initialCoords.lng),
+            lat: formatCoordValue(initialCoords.lat),
+            lng: formatCoordValue(initialCoords.lng),
             country: countryId || prev.country,
         }));
     }, [isOpen, initialCoords, countries]);

@@ -1,8 +1,23 @@
-.demo-tableau-gallery {
+.demo-tableau-gallery__callout {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  z-index: 6;
+  overflow: visible;
+  z-index: 90;
+}
+
+.demo-tableau-gallery__callout-shape {
+  fill: rgba(248, 250, 252, 0.08);
+  stroke: rgba(248, 250, 252, 0.9);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+
+.demo-tableau-gallery__frame--enter-from_object {
+  transform: none;
 }
 
 .demo-tableau-gallery__frame {
@@ -27,19 +42,6 @@
   height: 100%;
   object-fit: cover;
   pointer-events: none;
-}
-
-.demo-tableau-gallery__frame figcaption {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  padding: 6px 10px;
-  font-size: 12px;
-  line-height: 1.3;
-  color: #f8fafc;
-  background: linear-gradient(transparent, rgba(15, 23, 42, 0.78));
 }
 
 .demo-tableau-gallery__frame--enter-center_zoom {
@@ -77,6 +79,12 @@
 .demo-tableau-gallery__frame.is-holding,
 .demo-tableau-gallery__frame.is-settled {
   transition: none;
+}
+
+.demo-tableau-gallery__frame--enter-from_object.is-holding.is-shown,
+.demo-tableau-gallery__frame--enter-from_object.is-settling.is-shown,
+.demo-tableau-gallery__frame--enter-from_object.is-settled.is-shown {
+  transition: opacity 180ms ease;
 }
 
 .demo-tableau-gallery__frame.is-settling {

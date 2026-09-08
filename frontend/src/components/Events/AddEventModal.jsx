@@ -3,7 +3,8 @@ import axios from "axios";
 import { useDropdownWithSearch } from "../../hooks/useDropdownWithSearch";
 import MarkdownEditor from "../common/MarkdownEditor/MarkdownEditor";
 import PolygonCoordinateEditor from "../common/PolygonCoordinateEditor/PolygonCoordinateEditor";
-import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoints } from "../../utils/polygonDrawUtils";
+import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoints, formatCoordValue } from "../../utils/polygonDrawUtils";
+import { calcDistanceMeters } from "../../utils/geoUtils";
 import "./AddEventModal.css";
 
 import { API_URL as API_ROOT } from '../../config/api';
@@ -159,24 +160,6 @@ export default function AddEventModal({
 		return "Форма";
 	};
 
-	const formatCoord = (value) => {
-		if (value === null || value === undefined) return "";
-		return Number(value).toFixed(6);
-	};
-
-	const toRadians = (deg) => (deg * Math.PI) / 180;
-	const calcDistanceMeters = (from, to) => {
-		const R = 6371e3;
-		const phi1 = toRadians(from.lat);
-		const phi2 = toRadians(to.lat);
-		const deltaPhi = toRadians(to.lat - from.lat);
-		const deltaLambda = toRadians(to.lng - from.lng);
-
-		const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
-		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-		return R * c;
-	};
-
 	useEffect(() => {
 		if (!isOpen) return;
 		if (!drawMode) {
@@ -186,7 +169,7 @@ export default function AddEventModal({
 		if (drawMode === "point" && drawPoints[0]) {
 			setGeoForm({
 				mode: drawMode,
-				points: [{ lat: formatCoord(drawPoints[0].lat), lng: formatCoord(drawPoints[0].lng) }],
+				points: [{ lat: formatCoordValue(drawPoints[0].lat), lng: formatCoordValue(drawPoints[0].lng) }],
 				centerLat: "",
 				centerLng: "",
 				radiusMeters: ""
@@ -198,8 +181,8 @@ export default function AddEventModal({
 			setGeoForm({
 				mode: drawMode,
 				points: [],
-				centerLat: formatCoord(drawPoints[0].lat),
-				centerLng: formatCoord(drawPoints[0].lng),
+				centerLat: formatCoordValue(drawPoints[0].lat),
+				centerLng: formatCoordValue(drawPoints[0].lng),
 				radiusMeters: String(radiusMeters)
 			});
 			return;
@@ -208,8 +191,8 @@ export default function AddEventModal({
 			setGeoForm({
 				mode: drawMode,
 				points: drawPoints.map((point) => ({
-					lat: formatCoord(point.lat),
-					lng: formatCoord(point.lng)
+					lat: formatCoordValue(point.lat),
+					lng: formatCoordValue(point.lng)
 				})),
 				centerLat: "",
 				centerLng: "",

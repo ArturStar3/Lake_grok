@@ -107,6 +107,10 @@ export function setDemoAnimationMap(map) {
   mapInstance = map || null;
 }
 
+export function getDemoAnimationMap() {
+  return mapInstance;
+}
+
 /**
  * @param {string} key уникальный ключ анимации
  * @param {{ update: (elapsedMs: number, now: number) => void, center?: import('leaflet').LatLng, map?: import('leaflet').Map }} entry
@@ -130,17 +134,5 @@ export function unregisterDemoAnimation(key, map) {
   const mapId = map?._leaflet_id;
   if (mapId != null) entries.delete(`${mapId}:${key}`);
   entries.delete(key);
-  stopIfIdle();
-}
-
-/** Сбрасывает время старта — используется при перезапуске шага демонстрации. */
-export function restartDemoAnimation(key) {
-  const entry = entries.get(key);
-  if (!entry) return;
-  entry.startedAt = performance.now();
-}
-
-export function clearDemoAnimations() {
-  entries.clear();
   stopIfIdle();
 }

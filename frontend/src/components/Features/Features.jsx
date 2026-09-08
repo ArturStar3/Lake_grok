@@ -1,11 +1,12 @@
 import "./Features.css";
+import { formatCoordValue } from "../../utils/polygonDrawUtils";
 
 const formatDistance = (meters) => {
     if (!meters) return "0 м";
     return meters >= 1000 ? `${(meters / 1000).toFixed(2)} км` : `${meters.toFixed(0)} м`;
 };
 
-const formatCoord = (value) => value.toFixed(5);
+const formatCoord = (value) => formatCoordValue(value, 5);
 
 export default function Features({ 
   isMeasureMode, 

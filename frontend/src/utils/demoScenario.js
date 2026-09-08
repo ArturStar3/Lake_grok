@@ -432,6 +432,7 @@ export const DEMO_TABLEAU_GALLERY_ENTER = {
   SLIDE_LEFT: 'slide_left',
   SLIDE_RIGHT: 'slide_right',
   BLUR_IN: 'blur_in',
+  FROM_OBJECT: 'from_object',
 };
 
 export const DEMO_TABLEAU_GALLERY_EXIT = {
@@ -454,6 +455,7 @@ export const DEMO_TABLEAU_GALLERY_ENTER_EFFECTS = [
   { id: DEMO_TABLEAU_GALLERY_ENTER.SLIDE_LEFT, label: 'Слева' },
   { id: DEMO_TABLEAU_GALLERY_ENTER.SLIDE_RIGHT, label: 'Справа' },
   { id: DEMO_TABLEAU_GALLERY_ENTER.BLUR_IN, label: 'Проявление с размытием' },
+  { id: DEMO_TABLEAU_GALLERY_ENTER.FROM_OBJECT, label: 'Из объекта' },
 ];
 
 export const DEMO_TABLEAU_GALLERY_EXIT_EFFECTS = [
@@ -1599,6 +1601,7 @@ export function normalizeTableauGalleryImage(raw, index = 0) {
     id,
     src,
     title,
+    target_id: optionalTableauId(data.target_id),
     rest: {
       x: clampFloat(restRaw.x, 0, 100, 10 + (index % 3) * 24),
       y: clampFloat(restRaw.y, 0, 100, 10 + Math.floor(index / 3) * 28),
@@ -1664,6 +1667,18 @@ export function normalizeTableauGallery(raw) {
 
 export function isTableauGalleryPreset(preset) {
   return preset?.variant === DEMO_TABLEAU_VARIANT.GALLERY;
+}
+
+export function galleryImageTargetIds(gallery) {
+  const ids = [];
+  const seen = new Set();
+  (gallery?.images || []).forEach((image) => {
+    const id = image?.target_id != null ? String(image.target_id).trim() : '';
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
 }
 
 export function tableauGalleryDurationMs(gallery) {

@@ -1,16 +1,32 @@
-import { useMemo } from 'react';
-import { Marker, Tooltip, CircleMarker } from 'react-leaflet';
+import { memo, useMemo } from 'react';
+import { Marker, Tooltip, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { useMap } from 'react-leaflet';
 
 const BUBBLE_BASE_RADIUS = 14;
 const BUBBLE_LOG_K = 4;
 
-/** Одиночные точки и обводка кластеров: флаг vs non-flag */
 const FLAG_FILL = '#2563eb';
 const NON_FLAG_FILL = '#ea580c';
 const FLAG_BUBBLE_BG = 'rgba(37, 99, 235, 0.92)';
 const NON_FLAG_BUBBLE_BG = 'rgba(234, 88, 12, 0.92)';
+
+const FLAG_POINT_STYLE = Object.freeze({
+  radius: 7,
+  color: '#ffffff',
+  weight: 2,
+  fillColor: FLAG_FILL,
+  fillOpacity: 0.92,
+});
+
+const NON_FLAG_POINT_STYLE = Object.freeze({
+  radius: 6,
+  color: '#ffffff',
+  weight: 2,
+  fillColor: NON_FLAG_FILL,
+  fillOpacity: 0.92,
+});
+
+const bubbleIconCache = new Map();
 
 function bubbleDiameter(count) {
   const r = BUBBLE_BASE_RADIUS + BUBBLE_LOG_K * Math.log(Math.max(count, 2));
@@ -40,17 +56,17 @@ function createBubbleDivIcon(count, isFlag) {
   });
 }
 
-function singlePointStyle(isFlag) {
-  return {
-    radius: isFlag ? 7 : 6,
-    color: '#ffffff',
-    weight: 2,
-    fillColor: isFlag ? FLAG_FILL : NON_FLAG_FILL,
-    fillOpacity: 0.92,
-  };
+function getBubbleDivIcon(count, isFlag) {
+  const key = `${count}|${isFlag ? 1 : 0}`;
+  let icon = bubbleIconCache.get(key);
+  if (!icon) {
+    icon = createBubbleDivIcon(count, isFlag);
+    bubbleIconCache.set(key, icon);
+  }
+  return icon;
 }
 
-export default function BubbleClusterLayer({
+const BubbleClusterLayer = memo(function BubbleClusterLayer({
   bubbles = [],
   singles = [],
   onMarkerClick,
@@ -66,19 +82,6 @@ export default function BubbleClusterLayer({
   const clusterItems = useMemo(() => bubbles || [], [bubbles]);
   const singleItems = useMemo(() => singles || [], [singles]);
 
-  const handleSingleClick = (obj) => (e) => {
-    if (eventDrawingActive) {
-      onEventMapClick?.(e.latlng, e.target._map);
-      return;
-    }
-    if (altAddTargetActive && e.originalEvent?.altKey) {
-      onAltClickAddTarget?.({ lat: e.latlng.lat, lng: e.latlng.lng });
-      return;
-    }
-    if (measureMode && e.originalEvent?.ctrlKey) return;
-    if (obj?.id) onMarkerClick?.(obj.id);
-  };
-
   if (!clusterItems.length && !singleItems.length) return null;
 
   return (
@@ -87,7 +90,7 @@ export default function BubbleClusterLayer({
         <Marker
           key={bubble.id}
           position={[bubble.lat, bubble.lng]}
-          icon={createBubbleDivIcon(bubble.count, Boolean(bubble.isFlag))}
+          icon={getBubbleDivIcon(bubble.count, Boolean(bubble.isFlag))}
           zIndexOffset={400}
           eventHandlers={{
             click: (e) => {
@@ -112,10 +115,21 @@ export default function BubbleClusterLayer({
           <CircleMarker
             key={`bubble-single-${obj.id}`}
             center={[obj.lat, obj.lng]}
-            pathOptions={singlePointStyle(isFlag)}
+            pathOptions={isFlag ? FLAG_POINT_STYLE : NON_FLAG_POINT_STYLE}
             zIndexOffset={350}
             eventHandlers={{
-              click: handleSingleClick(obj),
+              click: (e) => {
+                if (eventDrawingActive) {
+                  onEventMapClick?.(e.latlng, e.target._map);
+                  return;
+                }
+                if (altAddTargetActive && e.originalEvent?.altKey) {
+                  onAltClickAddTarget?.({ lat: e.latlng.lat, lng: e.latlng.lng });
+                  return;
+                }
+                if (measureMode && e.originalEvent?.ctrlKey) return;
+                if (obj?.id) onMarkerClick?.(obj.id);
+              },
               mouseover: () => onMarkerHover?.(obj.id),
               mouseout: () => onMarkerHover?.(null),
             }}
@@ -137,6 +151,6 @@ export default function BubbleClusterLayer({
       })}
     </>
   );
-}
+});
 
-export { FLAG_FILL, NON_FLAG_FILL };
+export default BubbleClusterLayer;

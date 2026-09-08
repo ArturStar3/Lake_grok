@@ -4,18 +4,8 @@ import {
   relationTypeToForm,
   useRelationTypesAdmin,
 } from '../../hooks/referenceData/useRelationTypesAdmin';
+import { formatApiError } from '../../hooks/referenceData/formatApiError';
 import './EquipmentCatalogPanel.css';
-
-function formatApiError(detail, fallback) {
-  if (!detail) return fallback;
-  if (typeof detail === 'string') return detail;
-  if (typeof detail === 'object') {
-    return Object.entries(detail)
-      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-      .join('; ');
-  }
-  return fallback;
-}
 
 function filterItems(search, items) {
   const q = search.trim().toLowerCase();

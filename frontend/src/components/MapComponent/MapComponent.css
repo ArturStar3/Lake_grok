@@ -2,6 +2,25 @@
     pointer-events: none;
 }
 
+.map--demo-suspend {
+    background:
+        radial-gradient(circle at 50% 18%, rgba(47, 128, 237, 0.22), transparent 50%),
+        #0b1220;
+}
+
+.map--demo-suspend .leaflet-container {
+    background: transparent;
+    pointer-events: none;
+}
+
+.map--demo-suspend .leaflet-control-container {
+    display: none;
+}
+
+.map--demo-suspend .map__cursor-coords {
+    display: none !important;
+}
+
 .map--embed .leaflet-control-container {
     display: none;
 }

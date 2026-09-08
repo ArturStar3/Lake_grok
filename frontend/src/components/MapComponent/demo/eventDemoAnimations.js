@@ -1,9 +1,5 @@
 import { DEMO_EFFECT } from '../../../utils/demoScenario';
-import { cachedBucketData, idSet } from './demoEffectCache';
-
-function loopClass(continuous) {
-  return continuous ? 'demo-anim--continuous' : 'demo-anim--once';
-}
+import { cachedBucketData, demoLoopClass, idSet } from './demoEffectCache';
 
 /**
  * Эффект демонстрации для конкретного события.
@@ -63,7 +59,7 @@ export function resolveSituationDemoEffect(situationId, demoAnimation) {
 /** Класс CSS для фигуры/маркера события по активному эффекту. */
 export function demoEffectClassName(demoEffect) {
   if (!demoEffect) return '';
-  const loop = loopClass(demoEffect.continuous);
+  const loop = demoLoopClass(demoEffect.continuous);
   if (demoEffect.effect === DEMO_EFFECT.BLINK) return `demo-blink ${loop}`;
   if (demoEffect.effect === DEMO_EFFECT.FADE_IN) return `demo-fade-in ${loop}`;
   return '';
@@ -72,7 +68,7 @@ export function demoEffectClassName(demoEffect) {
 /** Маркер события: отдельный класс мигания на корне divIcon. */
 export function demoMarkerIconClass(demoEffect) {
   if (!demoEffect) return '';
-  const loop = loopClass(demoEffect.continuous);
+  const loop = demoLoopClass(demoEffect.continuous);
   if (demoEffect.effect === DEMO_EFFECT.BLINK) return ` event-marker-icon--demo-blink ${loop}`;
   if (demoEffect.effect === DEMO_EFFECT.FADE_IN) return ` demo-fade-in ${loop}`;
   return '';

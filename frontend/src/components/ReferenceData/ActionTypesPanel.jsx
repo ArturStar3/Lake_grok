@@ -5,6 +5,7 @@ import {
   actionTypeToForm,
   useActionTypesAdmin,
 } from '../../hooks/referenceData/useActionTypesAdmin';
+import { formatApiError } from '../../hooks/referenceData/formatApiError';
 import { LINE_TYPE_LABELS, getZoneDashArray, normalizeHexColor } from '../../utils/actionZoneStyle';
 import ZoneColorPicker from './ZoneColorPicker';
 import './EquipmentCatalogPanel.css';
@@ -13,17 +14,6 @@ const LINE_TYPE_OPTIONS = Object.entries(LINE_TYPE_LABELS).map(([value, label]) 
   value,
   label,
 }));
-
-function formatApiError(detail, fallback) {
-  if (!detail) return fallback;
-  if (typeof detail === 'string') return detail;
-  if (typeof detail === 'object') {
-    return Object.entries(detail)
-      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-      .join('; ');
-  }
-  return fallback;
-}
 
 function filterActionTypes(search, items) {
   const q = search.trim().toLowerCase();

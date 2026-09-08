@@ -23,7 +23,7 @@ import EditTargetModal from "../EditTargetModal/EditTargetModal";
 import AddEventModal from "../Events/AddEventModal";
 import { buildDrawPointsFromEvent, getEventCenter } from "../../utils/eventGeometry";
 import { geoJsonToDrawPolygons, pointsToGeoJsonPolygon } from "../../utils/inundationZone";
-import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituations, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
+import { buildSituationRequestBody, findSituationById, findSituationRevision, filterRevisionsForSituations, getSituationCenter, getSituationDisplayRevision, getSituationId, getSituationTitle, resolveActiveSituationId } from "../../utils/situationUtils";
 import { toggleIdInList, toggleIdsInList } from "../../utils/selectionUtils";
 import { useTargetsList } from "../../hooks/formular/useTargetsList";
 import { useFormularReferenceLists } from "../../hooks/formular/useFormularReferenceLists";
@@ -36,6 +36,7 @@ import { useAutoLosZoneGeometries } from "../../hooks/formular/useAutoLosZoneGeo
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
 import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
+import { useMapFavorites, FAVORITE_KIND } from "../../hooks/useMapFavorites";
 import { buildVisibleZones } from "../../utils/buildVisibleZones";
 import { getActionFilterDimensions } from "../../utils/inundationZone";
 import { useMapDisplaySettings } from "../../hooks/map/useMapDisplaySettings";
@@ -55,6 +56,7 @@ const DataExchangeModal = lazy(() => import("../DataExchange/DataExchangeModal")
 export default function Formular({ onMapFullscreenChange }) {
     const { user } = useAuth();
     const canEditTargets = canWriteModule(user, 'targets');
+    const canReadEvents = canReadModule(user, 'events');
     const canReadSituations = canReadModule(user, 'operational_situations');
     const canEditSituations = canWriteModule(user, 'operational_situations');
     const canRemoveTargets = canDeleteModule(user, 'targets');
@@ -116,6 +118,7 @@ export default function Formular({ onMapFullscreenChange }) {
     const [demoStudioOpen, setDemoStudioOpen] = useState(false);
     const [demoStudioPreviewHide, setDemoStudioPreviewHide] = useState(null);
     const [demoContentCardId, setDemoContentCardId] = useState(null);
+    const [formularInitialCardId, setFormularInitialCardId] = useState(null);
     const [demoTextEditSession, setDemoTextEditSession] = useState(null);
     const demoTextEditSessionRef = useRef(null);
     const demoTextMapApplyRef = useRef(null);
@@ -274,6 +277,13 @@ export default function Formular({ onMapFullscreenChange }) {
     } = useMeasurePoints();
 
     const { flyTo, flyToBounds, flyToSituation } = useMapFlyTo(mapRef);
+    const {
+        items: favoriteItems,
+        addItem: addFavorite,
+        removeItem: removeFavorite,
+        updateItem: updateFavorite,
+        loading: favoritesLoading,
+    } = useMapFavorites(user?.id);
 
     const {
         scenarios: demoScenarios,
@@ -507,6 +517,26 @@ export default function Formular({ onMapFullscreenChange }) {
     const handleCloseReferenceData = useCallback(() => {
         setReferenceDataOpen(false);
         setReferenceEquipmentId(null);
+    }, []);
+
+    const handleOpenReference = useCallback(() => {
+        setReferenceDataOpen(true);
+    }, []);
+
+    const handleOpenReports = useCallback(() => {
+        setReportsOpen(true);
+    }, []);
+
+    const handleCloseReports = useCallback(() => {
+        setReportsOpen(false);
+    }, []);
+
+    const handleOpenDataExchange = useCallback(() => {
+        setDataExchangeOpen(true);
+    }, []);
+
+    const handleCloseDataExchange = useCallback(() => {
+        setDataExchangeOpen(false);
     }, []);
 
     const handleEventFlyTo = useCallback((eventItem) => {
@@ -940,6 +970,109 @@ export default function Formular({ onMapFullscreenChange }) {
         }
     }, [isFullscreen, flyToSituation, setSelectedSituations]);
 
+    const showFavoriteSituation = useCallback((situation) => {
+        setFocusedSituationId(situation.id);
+        setTimelineRevisionId(null);
+        setHighlightedSituationId(situation.id);
+        setSelectedSituations((prev) => toggleIdInList(prev, situation.id, true));
+        setDetailSituation(situation);
+        const displayRevision = getSituationDisplayRevision(situation);
+        const polys = geoJsonToDrawPolygons(displayRevision?.geometry);
+        setSituationDrawPolygons(polys);
+        setSituationDrawPoints(polys[0] || []);
+        flyToSituation(displayRevision || situation);
+    }, [flyToSituation, setSelectedSituations]);
+
+    const handleFavoriteSelect = useCallback((item) => {
+        if (!item) return 'Пункт не найден.';
+        if (item.kind === FAVORITE_KIND.OBJECT) {
+            const obj = objects.find((row) => String(row.id) === String(item.entityId));
+            if (!obj) return 'Объект больше недоступен.';
+            if (obj.lat == null || obj.lng == null) return 'У объекта нет координат.';
+            setSelectedObj((prev) => toggleIdInList(prev, obj.id, true));
+            flyTo(obj.lat, obj.lng);
+            return null;
+        }
+        if (item.kind === FAVORITE_KIND.EVENT) {
+            const eventItem = events.find((row) => String(row.id) === String(item.entityId));
+            if (!eventItem) {
+                fetchEvents?.();
+                return 'Событие не загружено. Откройте избранное ещё раз.';
+            }
+            const center = getEventCenter(eventItem);
+            if (!center) return 'У события нет координат.';
+            setSelectedEvents((prev) => toggleIdInList(prev, eventItem.id, true));
+            flyTo(center[0], center[1]);
+            return null;
+        }
+        if (item.kind === FAVORITE_KIND.FORMULAR) {
+            const obj = objects.find((row) => String(row.id) === String(item.entityId));
+            if (!obj) return 'Объект формуляра больше недоступен.';
+            if (obj.lat != null && obj.lng != null) flyTo(obj.lat, obj.lng);
+            setSelectedObj((prev) => toggleIdInList(prev, obj.id, true));
+            setFormularInitialCardId(item.cardId || null);
+            setSelectedTargetId(obj.id);
+            return obj.lat == null || obj.lng == null ? 'Формуляр открыт, координат нет.' : null;
+        }
+        if (item.kind === FAVORITE_KIND.SITUATION) {
+            const situation = situations.find((row) => String(row.id) === String(item.entityId));
+            if (!situation) {
+                fetchSituations?.();
+                return 'Обстановка не загружена. Откройте избранное ещё раз.';
+            }
+            showFavoriteSituation(situation);
+            const displayRevision = getSituationDisplayRevision(situation);
+            if (!getSituationCenter(displayRevision || situation)) {
+                return 'Обстановка показана, координат нет.';
+            }
+            return null;
+        }
+        return 'Неизвестный тип пункта.';
+    }, [
+        objects,
+        events,
+        situations,
+        flyTo,
+        fetchEvents,
+        fetchSituations,
+        setSelectedEvents,
+        showFavoriteSituation,
+    ]);
+
+    const favoritesMenu = useMemo(() => ({
+        items: favoriteItems,
+        onAdd: addFavorite,
+        onRemove: removeFavorite,
+        onUpdate: updateFavorite,
+        onSelect: handleFavoriteSelect,
+        loading: favoritesLoading,
+        objects,
+        events,
+        situations,
+        canReadEvents,
+        canReadSituations,
+        eventsLoading,
+        situationsLoading,
+        onNeedEvents: canReadEvents ? fetchEvents : undefined,
+        onNeedSituations: canReadSituations ? fetchSituations : undefined,
+    }), [
+        favoriteItems,
+        addFavorite,
+        removeFavorite,
+        updateFavorite,
+        handleFavoriteSelect,
+        favoritesLoading,
+        objects,
+        events,
+        situations,
+        canReadEvents,
+        canReadSituations,
+        eventsLoading,
+        situationsLoading,
+        fetchEvents,
+        fetchSituations,
+    ]);
+
     const handleSituationMapClick = useCallback((situationId, revision = null) => {
         if (!situationId) return;
         const situation = situations.find((item) => String(item.id) === String(situationId));
@@ -1228,6 +1361,7 @@ export default function Formular({ onMapFullscreenChange }) {
     // убирает карточку и продолжает с той же точки сценария.
     const handleFormularModalClose = useCallback(() => {
         setSelectedTargetId(null);
+        setFormularInitialCardId(null);
     }, []);
 
     const handleCountryModalClose = useCallback(() => {
@@ -1445,7 +1579,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 <button
                                     className="btn button__tools"
                                     type="button"
-                                    onClick={() => setReferenceDataOpen(true)}
+                                    onClick={handleOpenReference}
                                 >
                                     Справочники
                                 </button>
@@ -1704,6 +1838,7 @@ export default function Formular({ onMapFullscreenChange }) {
                             <DemoTableauShell
                                 tableauRuntime={demoPlayer.tableauRuntime}
                                 mapRef={mapRef}
+                                objects={objects}
                             >
                             <MapComponent
                                 objects={filteredObjects}
@@ -1808,11 +1943,11 @@ export default function Formular({ onMapFullscreenChange }) {
                                 canEditTargets={canEditTargets}
                                 onOpenAddTarget={handleOpenAddTargetModal}
                                 canOpenReference={canOpenReference}
-                                onOpenReference={() => setReferenceDataOpen(true)}
+                                onOpenReference={handleOpenReference}
                                 canOpenReports={canOpenReports}
-                                onOpenReports={() => setReportsOpen(true)}
+                                onOpenReports={handleOpenReports}
                                 canOpenDataExchange={canOpenDataExchange}
-                                onOpenDataExchange={() => setDataExchangeOpen(true)}
+                                onOpenDataExchange={handleOpenDataExchange}
                                 eventDrawRequest={eventDrawRequest}
                                 situations={situations}
                                 selectedSituationIds={selectedSituations}
@@ -1860,6 +1995,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 demoTexts={demoPlayer.demoTexts}
                                 demoContentCardId={demoContentCardId}
                                 demoMenu={demoMenu}
+                                favoritesMenu={favoritesMenu}
                                 demoTextEditDraft={demoTextEditSession?.draft || null}
                                 onDemoTextEditChange={handleDemoTextMapChange}
                                 onDemoTextEditFinish={handleFinishDemoTextMapEdit}
@@ -1902,7 +2038,11 @@ export default function Formular({ onMapFullscreenChange }) {
                     onHideAllTargetZones={handleHideAllTargetZones}
                     actionZoneFilters={actionZoneFilters}
                     onVulnerabilityPreviewChange={handleVulnerabilityPreviewChange}
-                    initialCardId={demoPlayer.isActive ? demoContentCardId : null}
+                    initialCardId={
+                        demoPlayer.isActive
+                          ? demoContentCardId
+                          : formularInitialCardId
+                    }
                     initialShowVulnerabilitiesOnMap={
                         Boolean(
                             vulnerabilityMapPreview?.visible
@@ -1972,7 +2112,7 @@ export default function Formular({ onMapFullscreenChange }) {
                 {canOpenReports && (
                 <ReportBuilderModal
                     isOpen={isReportsOpen}
-                    onClose={() => setReportsOpen(false)}
+                    onClose={handleCloseReports}
                     selectedTargetIds={selectedObj}
                     targets={objects}
                     targetTypes={targetTypes}
@@ -1981,7 +2121,7 @@ export default function Formular({ onMapFullscreenChange }) {
                 {canOpenDataExchange && (
                 <DataExchangeModal
                     isOpen={isDataExchangeOpen}
-                    onClose={() => setDataExchangeOpen(false)}
+                    onClose={handleCloseDataExchange}
                 />
                 )}
             </Suspense>

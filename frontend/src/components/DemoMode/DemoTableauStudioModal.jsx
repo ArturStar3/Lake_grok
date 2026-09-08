@@ -26,6 +26,7 @@ import {
   bridgeSpacerPercent,
   buildTableauOverlayArrows,
   cellAlignStyle,
+  composeStateForStage,
   createDefaultTableauPreset,
   findStage,
   findTableauBlock,
@@ -272,6 +273,7 @@ function unmergeBridge(cells, bridgeId) {
 export default function DemoTableauStudioModal({
   tableau,
   stages = [],
+  objects = [],
   onChange,
   onClose,
   onOpenStages,
@@ -319,6 +321,18 @@ export default function DemoTableauStudioModal({
   const gallery = preset?.gallery || DEMO_DEFAULT_TABLEAU_GALLERY;
   galleryRef.current = gallery;
   libraryRef.current = library;
+
+  const galleryTargetOptions = useMemo(() => {
+    if (!assignedStage) return [];
+    const ids = composeStateForStage(assignedStage).target_ids || [];
+    return ids.map((id) => {
+      const obj = (objects || []).find((item) => String(item.id) === String(id));
+      return {
+        id: String(id),
+        label: obj?.title || obj?.label || String(id),
+      };
+    });
+  }, [assignedStage, objects]);
 
   const allowedBlockIds = useMemo(
     () => new Set((library.blocks || []).map((b) => b.id)),
@@ -581,6 +595,13 @@ export default function DemoTableauStudioModal({
       settle: DEMO_TABLEAU_GALLERY_SETTLE.FREE,
       images,
     });
+  };
+
+  const patchGalleryImage = (imageId, partial) => {
+    const images = (gallery.images || []).map((item) => (
+      item.id === imageId ? { ...item, ...partial } : item
+    ));
+    patchGallery({ images });
   };
 
   const startGalleryPointerEdit = (mode, image, event, rect = null) => {
@@ -1683,6 +1704,31 @@ export default function DemoTableauStudioModal({
                         );
                       })}
                     </div>
+                    {!assignedStage ? (
+                      <p className="demo-tableau-studio-modal__hint">
+                        Выберите этап слева, чтобы привязать кадр к объекту на карте.
+                      </p>
+                    ) : galleryTargetOptions.length === 0 ? (
+                      <p className="demo-tableau-studio-modal__hint">
+                        На выбранном этапе нет объектов. Добавьте шаг «Объекты» в этапе.
+                      </p>
+                    ) : (
+                      <label className="demo-field">
+                        <span className="demo-field__label">Объект на карте</span>
+                        <select
+                          value={selectedGalleryImage.target_id || ''}
+                          onChange={(e) => patchGalleryImage(
+                            selectedGalleryImage.id,
+                            { target_id: e.target.value || null },
+                          )}
+                        >
+                          <option value="">Не выбран</option>
+                          {galleryTargetOptions.map((item) => (
+                            <option key={item.id} value={item.id}>{item.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                   </>
                 ) : (
                   <p className="demo-tableau-studio-modal__hint">

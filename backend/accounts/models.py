@@ -190,3 +190,50 @@ class AuthAuditLog(models.Model):
 
     def __str__(self):
         return f'{self.action} ({self.created_at})'
+
+
+class MapFavoriteKind(models.TextChoices):
+    OBJECT = 'object', 'Объект'
+    EVENT = 'event', 'Событие'
+    FORMULAR = 'formular', 'Формуляр'
+    SITUATION = 'situation', 'Обстановка'
+
+
+MAP_FAVORITES_MAX = 24
+
+
+class MapFavorite(models.Model):
+    """Персональное избранное карты: объект, событие, пункт формуляра или обстановка."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='map_favorites',
+        verbose_name='Пользователь',
+    )
+    kind = models.CharField(
+        max_length=16,
+        choices=MapFavoriteKind.choices,
+        verbose_name='Тип',
+    )
+    entity_id = models.CharField(max_length=128, verbose_name='Идентификатор сущности')
+    card_id = models.CharField(max_length=128, blank=True, default='', verbose_name='Раздел формуляра')
+    title = models.CharField(max_length=160, verbose_name='Подпись')
+    source_title = models.CharField(max_length=160, blank=True, default='', verbose_name='Исходное название')
+    subtitle = models.CharField(max_length=160, blank=True, default='', verbose_name='Подзаголовок')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создан')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Обновлён')
+
+    class Meta:
+        verbose_name = 'Избранное карты'
+        verbose_name_plural = 'Избранное карты'
+        ordering = ['created_at', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('user', 'kind', 'entity_id', 'card_id'),
+                name='uniq_map_favorite_user_entity',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user_id}: {self.title}'

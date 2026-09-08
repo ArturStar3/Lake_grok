@@ -26,3 +26,7 @@ export function cachedBucketData(bucket, build) {
 export function idSet(ids) {
   return ids?.length ? new Set(ids.map(String)) : null;
 }
+
+export function demoLoopClass(continuous) {
+  return continuous ? 'demo-anim--continuous' : 'demo-anim--once';
+}

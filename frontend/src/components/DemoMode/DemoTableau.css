@@ -82,27 +82,18 @@
 }
 
 .demo-tableau--gallery-nomap {
-  background: var(--il-bg, #0f172a);
-}
-
-.demo-tableau--gallery-nomap .demo-tableau__plane {
-  isolation: isolate;
-  z-index: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.demo-tableau--gallery-nomap .demo-tableau__map {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(47, 128, 237, 0.22), transparent 50%),
+    #0b1220;
 }
 
 .demo-tableau__nomap-bg {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  background: var(--il-bg, #0f172a);
+  z-index: 0;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(47, 128, 237, 0.22), transparent 50%),
+    #0b1220;
   pointer-events: none;
 }
 

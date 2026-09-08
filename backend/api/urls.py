@@ -39,6 +39,7 @@ from .views import (
     DemoTableauMediaViewSet,
     DemoMosaicMediaViewSet,
 )
+from .map_favorites import MapFavoriteViewSet
 from reports.views import ReportTemplateViewSet
 from data_exchange.views import DataExchangeExportView, ImportSessionViewSet
 
@@ -234,6 +235,12 @@ router.register(
     r'demo-mosaic-media',
     DemoMosaicMediaViewSet,
     basename='demo-mosaic-media',
+)
+
+router.register(
+    r'map-favorites',
+    MapFavoriteViewSet,
+    basename='map-favorites',
 )
 
 urlpatterns = [

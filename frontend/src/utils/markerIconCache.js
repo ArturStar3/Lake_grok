@@ -19,7 +19,7 @@ export function getOrCreateDivIcon(key, factory) {
   return icon;
 }
 
-/** Сброс при смене набора объектов (objectsDataKey). */
+/** Сброс при смене состава объектов/маркеров (не координат). */
 export function clearMarkerIconCache() {
   iconCache.clear();
 }

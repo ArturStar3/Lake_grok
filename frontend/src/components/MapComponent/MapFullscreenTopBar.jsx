@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { canManageUsers } from '../../utils/permissions';
 import logo from '../../assets/images/logo.png';
 import MapFullscreenToolsMenu from './MapFullscreenToolsMenu';
+import MapFavoritesMenu from './MapFavoritesMenu';
 import ThemeToggle from '../common/ThemeToggle/ThemeToggle';
 
 export default function MapFullscreenTopBar({
@@ -29,17 +30,23 @@ export default function MapFullscreenTopBar({
   onOpenDataExchange,
   searchControl = null,
   demoMenu = null,
+  favoritesMenu = null,
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const accountMenuRef = useRef(null);
+  const favoritesMenuRef = useRef(null);
   const displayName = user?.full_name || user?.username || 'Пользователь';
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
         setAccountMenuOpen(false);
+      }
+      if (favoritesMenuRef.current && !favoritesMenuRef.current.contains(e.target)) {
+        setFavoritesOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -124,6 +131,25 @@ export default function MapFullscreenTopBar({
         <button type="button" className="map-fs-topbar__btn map-fs-topbar__btn--ghost" onClick={onOpenDataExchange}>
           Импорт / экспорт
         </button>
+      )}
+      {favoritesMenu && (
+        <div className="map-fs-topbar__tools-wrap" ref={favoritesMenuRef}>
+          <button
+            type="button"
+            className={`map-fs-topbar__btn${favoritesOpen ? ' map-fs-topbar__btn--tools-open' : ''}`}
+            onClick={() => {
+              setFavoritesOpen((v) => !v);
+              setAccountMenuOpen(false);
+            }}
+            aria-expanded={favoritesOpen}
+          >
+            Избранное
+            <span className="map-fs-topbar__chev" aria-hidden>▼</span>
+          </button>
+          {favoritesOpen && (
+            <MapFavoritesMenu {...favoritesMenu} />
+          )}
+        </div>
       )}
       <div className="map-fs-topbar__tools-wrap" ref={toolsMenuRef}>
         <button

@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { API_URL } from '../config/api';
 import {
-  getZonePolygonPositions,
   isInundationZoneType,
   isPolygonZoneMode,
   ZONE_GEOMETRY_LOS_RADAR,
@@ -54,8 +53,6 @@ export async function computeZoneLos(zone, antennaHeightM = null) {
   }
   return computeLosZone(zone.obj.id, zone.actionId, antennaHeightM);
 }
-
-export { getZonePolygonPositions };
 
 export function isLosRadarZoneMode(zoneMode) {
   return zoneMode === ZONE_GEOMETRY_LOS_RADAR;

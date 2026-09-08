@@ -79,9 +79,9 @@ export function useMapViewportMarkers(items, options = {}) {
     if (enabled) {
       setVisibleIfChanged(filterByBounds());
     } else {
-      setVisibleIfChanged(items ?? []);
+      setVisibleIfChanged(itemsRef.current ?? []);
     }
-  }, [itemsKey, enabled, filterByBounds, setVisibleIfChanged, items]);
+  }, [itemsKey, enabled, filterByBounds, setVisibleIfChanged]);
 
   return visible;
 }

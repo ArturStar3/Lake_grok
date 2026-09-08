@@ -4,8 +4,9 @@
   1. Три конструктора (витрина) — этапы, 2+3, программа с переходами.
   2. Мультиэкран: обзор возможностей — короткий показ сетки 2+3.
   3. Художественный: планшетный обзор — наклон карты и карточки.
-  4. Все возможности карты (тест) — планшет, сетка 2+3 и развороты слоёв.
-  5. Обзор возможностей карты (тест) — инструменты карты по шагам.
+  4. Галерея: из объекта (тест) — разворот кадра из маркера, с картой и без.
+  5. Все возможности карты (тест) — планшет, сетка 2+3 и развороты слоёв.
+  6. Обзор возможностей карты (тест) — инструменты карты по шагам.
 
 Использование:
   python manage.py seed_demo_showcases --replace
@@ -35,6 +36,7 @@ class Command(BaseCommand):
         kwargs = {'replace': True} if replace else {}
         call_command('seed_mosaic_demo_scenario', **kwargs)
         call_command('seed_tableau_demo_scenario', **kwargs)
+        call_command('seed_gallery_demo_scenario', **kwargs)
         call_command('seed_map_capabilities_demo_scenario', **kwargs)
         call_command('seed_sample_demo_scenario', **kwargs)
         call_command(
@@ -45,6 +47,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             'Готово. В конструкторе сценарии: «Три конструктора (витрина)», '
             '«Мультиэкран: обзор возможностей», «Художественный: планшетный обзор», '
+            '«Галерея: из объекта (тест)», '
             '«Все возможности карты (тест)», '
             '«Обзор возможностей карты (тест)».'
         ))

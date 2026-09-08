@@ -1032,6 +1032,7 @@ export default function DemoStudioModal({
           <DemoTableauStudioModal
             tableau={draft.tableau}
             stages={draft.stages || []}
+            objects={objects}
             onChange={(tableau) => patchDraft({ tableau: normalizeScenarioTableau(tableau) })}
             onClose={() => setTableauStudioOpen(false)}
             onPreviewTableau={onPreviewTableau}

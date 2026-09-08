@@ -114,6 +114,7 @@ function prepareArrowDrawables(overlayArrows) {
 function DemoTableauShell({
   tableauRuntime = null,
   mapRef = null,
+  objects = [],
   children,
 }) {
   const [tilted, setTilted] = useState(false);
@@ -439,19 +440,19 @@ function DemoTableauShell({
       ].filter(Boolean).join(' ')}
       style={rootStyle}
     >
+      {isGallery && tableauRuntime?.gallery?.show_map === false ? (
+        <div className="demo-tableau__nomap-bg" aria-hidden="true" />
+      ) : null}
+
       <div className="demo-tableau__plane">
         <div className="demo-tableau__map">
           {children}
         </div>
       </div>
 
-      {isGallery && tableauRuntime?.gallery?.show_map === false ? (
-        <div className="demo-tableau__nomap-bg" aria-hidden="true" />
-      ) : null}
-
       {active && isGallery ? (
         <>
-          <DemoTableauGalleryLayer tableauRuntime={tableauRuntime} />
+          <DemoTableauGalleryLayer tableauRuntime={tableauRuntime} objects={objects} />
           {caption?.content ? (
             <div
               className="demo-tableau__caption demo-tableau__caption--visible"

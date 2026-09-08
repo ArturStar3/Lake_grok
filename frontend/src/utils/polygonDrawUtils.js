@@ -105,10 +105,10 @@ export function validatePolygonPoints(points) {
   return null;
 }
 
-export function formatCoordValue(value) {
+export function formatCoordValue(value, digits = 6) {
   if (value === null || value === undefined || value === '') return '';
   const n = Number(value);
-  return Number.isNaN(n) ? String(value) : n.toFixed(6);
+  return Number.isNaN(n) ? String(value) : n.toFixed(digits);
 }
 
 export function drawPointsToEditable(points) {

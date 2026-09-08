@@ -163,6 +163,7 @@ DEFAULT_TABLEAU_CAMERA = {
 TABLEAU_VARIANTS = ('tablet', 'gallery')
 TABLEAU_GALLERY_ENTER = (
     'center_zoom', 'fade_scale', 'slide_up', 'slide_left', 'slide_right', 'blur_in',
+    'from_object',
 )
 TABLEAU_GALLERY_EXIT = ('fade', 'fade_scale', 'slide_out')
 TABLEAU_GALLERY_SETTLE = ('row', 'row_fit', 'overlap', 'free')
@@ -1259,6 +1260,7 @@ def normalize_tableau_gallery_image(raw, index=0):
         'id': image_id,
         'src': src,
         'title': title.strip()[:120],
+        'target_id': _optional_id(data.get('target_id')),
         'rest': {
             'x': _clamp_float(rest_raw.get('x', 10 + (index % 3) * 24), 0, 100, 10 + (index % 3) * 24),
             'y': _clamp_float(rest_raw.get('y', 10 + (index // 3) * 28), 0, 100, 10 + (index // 3) * 28),

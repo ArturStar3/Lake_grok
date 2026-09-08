@@ -244,13 +244,3 @@ export function bakeGalleryLayoutIntoRest(images, gallery, settle) {
     };
   });
 }
-
-export function galleryEnterDurationMs(gallery) {
-  const images = takeImages(gallery?.images);
-  if (!images.length) return 0;
-  const stagger = Number(gallery?.stagger_ms) || 0;
-  const enter = Number(gallery?.enter_ms) || 0;
-  const hold = Number(gallery?.hold_ms) || 0;
-  const settle = Number(gallery?.settle_ms) || 0;
-  return Math.max(0, (images.length - 1) * stagger + enter + hold + settle);
-}

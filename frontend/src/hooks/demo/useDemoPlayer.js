@@ -21,6 +21,7 @@ import {
   resolveMosaicScreen,
   resolveMosaicSlotTransition,
   tableauGalleryDurationMs,
+  galleryImageTargetIds,
 } from '../../utils/demoScenario';
 import { getEventCenter } from '../../utils/eventGeometry';
 import { getSituationBounds } from '../../utils/situationUtils';
@@ -86,6 +87,18 @@ const EMPTY_MOSAIC = {
   fromSlot: null,
   incomingSlot: null,
 };
+
+function isGalleryNomapPreset(preset) {
+  return isTableauGalleryPreset(preset) && preset?.gallery?.show_map === false;
+}
+
+function isGalleryNomapRuntime(runtime) {
+  return Boolean(
+    runtime?.active
+    && runtime?.variant === DEMO_TABLEAU_VARIANT.GALLERY
+    && runtime?.gallery?.show_map === false
+  );
+}
 
 const EMPTY_TABLEAU = {
   active: false,
@@ -1380,7 +1393,11 @@ export function useDemoPlayer({ actions, data }) {
       });
       if (isGallery) {
         tableauPoseReadyRef.current = true;
-        flushTableauPoseEnter();
+        if (gallery?.show_map === false) {
+          tableauPendingEnterRef.current = null;
+        } else {
+          flushTableauPoseEnter();
+        }
         if (!(instant || galleryEnterMs <= 0)) {
           tableauPhaseTimerRef.current = setTimeout(() => {
             tableauPhaseTimerRef.current = null;
@@ -1538,6 +1555,26 @@ export function useDemoPlayer({ actions, data }) {
 
       if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
         const preset = item.tableauPreset;
+        if (isGalleryNomapPreset(preset)) {
+          tableauPendingEnterRef.current = null;
+          stopTableauReveal();
+          const targetIds = galleryImageTargetIds(preset.gallery);
+          const camera = preset?.camera;
+          const hasPresetCamera = camera?.mode === DEMO_CAMERA_MODE.FLY_TO
+            && camera.lat != null
+            && camera.lng != null;
+          const cameraStep = hasPresetCamera
+            ? { camera }
+            : (state.cameraStep || null);
+          applyState({
+            ...emptyComposedState(),
+            target_ids: targetIds,
+          }, { instant: true });
+          if (cameraStep) {
+            applyCamera(cameraStep, { instant: true });
+          }
+          return;
+        }
         const camera = preset?.camera;
         const hasPresetCamera = camera?.mode === DEMO_CAMERA_MODE.FLY_TO
           && camera.lat != null
@@ -1576,6 +1613,7 @@ export function useDemoPlayer({ actions, data }) {
     applyProgramMosaic,
     applyProgramTableau,
     applyState,
+    applyCamera,
     clearEnterExitTimers,
     flushMosaicHandoffApply,
     flushTableauPoseEnter,
@@ -2204,8 +2242,11 @@ export function useDemoPlayer({ actions, data }) {
     stepTools: currentBeat?.steps?.map((step) => step.tool) || [],
     stages: stageSummaries,
     loop: Boolean(scenario?.loop),
+    suspendMap: isGalleryNomapRuntime(tableauRuntime),
     forceShowAllMarkers: Boolean(
-      tableauRuntime?.active && (
+      tableauRuntime?.active
+      && !isGalleryNomapRuntime(tableauRuntime)
+      && (
         tableauRuntime?.phase === 'active'
         || tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY
       ),
@@ -2244,6 +2285,7 @@ export function useDemoPlayer({ actions, data }) {
     tableauRuntime?.active,
     tableauRuntime?.phase,
     tableauRuntime?.variant,
+    tableauRuntime?.gallery?.show_map,
     mosaicRuntime?.active,
     mosaicRuntime?.mode,
     waitingForPresenter,

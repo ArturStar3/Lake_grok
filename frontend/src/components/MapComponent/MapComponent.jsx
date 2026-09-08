@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMapEvents, Polyline, Circle, CircleMarker, useMap, Polygon } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMapEvents, Polyline, useMap, Polygon, Circle } from "react-leaflet";
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -42,7 +42,6 @@ import {
 import { TILE_RASTER_URL, USE_VECTOR_MAP } from "../../config/tiles";
 import { useMapViewportMarkers } from "../../hooks/useMapViewportMarkers";
 import { clearMarkerIconCache } from "../../utils/markerIconCache";
-import { clearEnrichSvgCache } from "../../utils/svgUtils";
 import { getCountryMarkerPalette } from "../../utils/markerPalette";
 import { ensureNonFlagIconsForObjects } from "../../utils/markerIconFactory";
 import { resolveMediaUrl } from "../../utils/mediaUrl";
@@ -104,6 +103,269 @@ function getEventMarkerIconCached({ markerId, path, svg, demoEffect }) {
     eventMarkerIconCache.set(cacheKey, icon);
     return icon;
 }
+
+const LAYER_NON_INTERACTIVE = Object.freeze({ interactive: false, bubblingMouseEvents: false });
+const MEASURE_SEGMENT_STYLE = Object.freeze({ color: "#008DD2", weight: 2, dashArray: "6,4" });
+const MEASURE_TOTAL_STYLE = Object.freeze({ color: "#FF6B6B", weight: 1, opacity: 0.6 });
+
+const measureIconCache = new Map();
+function getMeasureIcon(label) {
+    const key = String(label);
+    let icon = measureIconCache.get(key);
+    if (icon) return icon;
+    icon = L.divIcon({
+        className: "measure-marker",
+        html: `<div class="measure-marker__circle">${label}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+    });
+    measureIconCache.set(key, icon);
+    return icon;
+}
+
+const measureTotalIconCache = new Map();
+function getMeasureTotalIcon(text) {
+    let icon = measureTotalIconCache.get(text);
+    if (icon) return icon;
+    icon = L.divIcon({
+        className: "measure-total-label",
+        html: `<div class="measure-total-label__text">${text}</div>`,
+        iconSize: [60, 24],
+        iconAnchor: [30, 12],
+    });
+    measureTotalIconCache.set(text, icon);
+    return icon;
+}
+
+function formatDistance(meters) {
+    if (!meters) return "0 м";
+    return meters >= 1000 ? `${(meters / 1000).toFixed(2)} км` : `${meters.toFixed(0)} м`;
+}
+
+function getEventShapeCentroid(shape) {
+    if (!shape?.geometry) return null;
+    if (shape.type === "point" || shape.type === "circle") {
+        return [shape.geometry.lat, shape.geometry.lng];
+    }
+    if (shape.type === "area" && shape.geometry.points?.length > 0) {
+        const pts = shape.geometry.points;
+        let lat = 0;
+        let lng = 0;
+        for (let i = 0; i < pts.length; i += 1) {
+            lat += pts[i].lat;
+            lng += pts[i].lng;
+        }
+        return [lat / pts.length, lng / pts.length];
+    }
+    return null;
+}
+
+const circleFallbackIconCache = new Map();
+function getCircleFallbackIcon(fill) {
+    let icon = circleFallbackIconCache.get(fill);
+    if (icon) return icon;
+    icon = L.divIcon({
+        html: `<div class="circle-item-marker" style="cursor: pointer; opacity: 0.9;"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="${fill}" stroke="#FFFFFF" stroke-width="2"/></svg></div>`,
+        className: "circle-item-div-icon",
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+    });
+    circleFallbackIconCache.set(fill, icon);
+    return icon;
+}
+
+const EventPopup = React.memo(function EventPopup({ eventItem }) {
+    const dateLabel = eventItem.date_start
+        ? `с ${eventItem.date_start}${eventItem.date_end ? ` по ${eventItem.date_end}` : ""}`
+        : "—";
+    const timeLabel = eventItem.time_start
+        ? `с ${eventItem.time_start}${eventItem.time_end ? ` по ${eventItem.time_end}` : ""}`
+        : "—";
+    const description = eventItem.description?.trim() || "";
+    return (
+        <Popup
+            autoPan={false}
+            closeOnClick={false}
+            className="event-popup"
+            eventHandlers={{
+                click: (e) => e.originalEvent?.stopPropagation(),
+                mousedown: (e) => e.originalEvent?.stopPropagation(),
+            }}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+                <strong>{eventItem.title || "Событие"}</strong>
+                <br />
+                Объект: {eventItem.object_name || "—"}
+                <br />
+                Страна: {eventItem.country?.title || "—"}
+                <br />
+                Дата: {dateLabel}
+                <br />
+                Время: {timeLabel}
+                <br />
+                Доп. информация:{' '}
+                {description ? (
+                    <MarkdownContent variant="popup">{description}</MarkdownContent>
+                ) : (
+                    '—'
+                )}
+            </div>
+        </Popup>
+    );
+});
+
+const EventShapeLayer = React.memo(function EventShapeLayer({
+    eventItem,
+    markerSvg,
+    isMapDrawingActive,
+    demoAnimation,
+}) {
+    const shape = eventItem?.shape;
+    const eventColor = eventItem.color || "#2f80ed";
+    const demoEventEffect = resolveEventDemoEffect(eventItem, demoAnimation);
+    const shapeClassName = demoEffectClassName(demoEventEffect) || undefined;
+    const pathOptions = useMemo(() => ({
+        color: eventColor,
+        fillColor: eventColor,
+        fillOpacity: 0.2,
+        weight: 1,
+        className: shapeClassName,
+    }), [eventColor, shapeClassName]);
+    const demoShapeHandlers = useMemo(
+        () => (demoEventEffect
+            ? { add: (e) => applyDemoEffectCssVars(e.target, demoEventEffect) }
+            : undefined),
+        [demoEventEffect],
+    );
+    const polygonPositions = useMemo(
+        () => (shape?.type === "area" && shape.geometry?.points
+            ? shape.geometry.points.map((p) => [p.lat, p.lng])
+            : null),
+        [shape],
+    );
+
+    if (!shape || !shape.type) return null;
+
+    const layerInteraction = isMapDrawingActive ? LAYER_NON_INTERACTIVE : undefined;
+    const markerPath = resolveMediaUrl(eventItem.marker?.path);
+    const icon = getEventMarkerIconCached({
+        markerId: eventItem.marker?.id,
+        path: markerPath,
+        svg: markerSvg,
+        demoEffect: demoEventEffect,
+    });
+    const markerPosition = getEventShapeCentroid(shape);
+    const popup = <EventPopup eventItem={eventItem} />;
+
+    if (shape.type === "point" && shape.geometry) {
+        return (
+            <Marker
+                position={[shape.geometry.lat, shape.geometry.lng]}
+                icon={icon}
+                {...layerInteraction}
+            >
+                {popup}
+            </Marker>
+        );
+    }
+
+    if (shape.type === "circle" && shape.geometry) {
+        return (
+            <>
+                <Circle
+                    center={[shape.geometry.lat, shape.geometry.lng]}
+                    radius={shape.geometry.radius || 0}
+                    pathOptions={pathOptions}
+                    eventHandlers={demoShapeHandlers}
+                    {...layerInteraction}
+                >
+                    {popup}
+                </Circle>
+                {markerPosition && (
+                    <Marker
+                        position={markerPosition}
+                        icon={icon}
+                        {...layerInteraction}
+                    />
+                )}
+            </>
+        );
+    }
+
+    if (shape.type === "area" && polygonPositions?.length) {
+        return (
+            <>
+                <Polygon
+                    positions={polygonPositions}
+                    pathOptions={pathOptions}
+                    eventHandlers={demoShapeHandlers}
+                    {...layerInteraction}
+                >
+                    {popup}
+                </Polygon>
+                {markerPosition && (
+                    <Marker
+                        position={markerPosition}
+                        icon={icon}
+                        {...layerInteraction}
+                    />
+                )}
+            </>
+        );
+    }
+
+    return null;
+});
+
+const MeasureOverlay = React.memo(function MeasureOverlay({ points }) {
+    if (!points?.length) return null;
+    const last = points[points.length - 1];
+    const totalText = formatDistance(points.reduce((sum, p) => sum + (p.distance || 0), 0));
+    return (
+        <>
+            {points.map((point, idx) => {
+                if (idx === 0) return null;
+                const prev = points[idx - 1];
+                return (
+                    <Polyline
+                        key={`measure-line-${point.id}`}
+                        positions={[[prev.lat, prev.lng], [point.lat, point.lng]]}
+                        pathOptions={MEASURE_SEGMENT_STYLE}
+                    />
+                );
+            })}
+            {points.length >= 2 && (
+                <>
+                    <Polyline
+                        key="measure-total-line"
+                        positions={[[points[0].lat, points[0].lng], [last.lat, last.lng]]}
+                        pathOptions={MEASURE_TOTAL_STYLE}
+                    />
+                    <Marker
+                        key="measure-total-label"
+                        position={[
+                            (points[0].lat + last.lat) / 2,
+                            (points[0].lng + last.lng) / 2,
+                        ]}
+                        icon={getMeasureTotalIcon(totalText)}
+                        interactive={false}
+                    />
+                </>
+            )}
+            {points.map((point) => (
+                <Marker
+                    key={`measure-point-${point.id}`}
+                    position={[point.lat, point.lng]}
+                    icon={getMeasureIcon(point.index)}
+                    interactive={false}
+                />
+            ))}
+        </>
+    );
+});
 
 function FullscreenControl({ isFullscreen, onToggle, sidebarOpen = false }) {
     return (
@@ -251,30 +513,6 @@ function MapScaleBar({ isFullscreen }) {
     );
 }
 
-// Компонент для инициализации маркеров ВНУТРИ MapContainer
-function MarkerInitializer({ objects, selectedIds, onMarkersReady, clusterMode }) {
-    return (
-        <LabelGeneration
-            objects={objects}
-            selectedIds={selectedIds}
-            onMarkersReady={onMarkersReady}
-            clusterMode={clusterMode}
-        />
-    );
-}
-
-// Компонент для инициализации non-flag маркеров ВНУТРИ MapContainer
-function NonFlagMarkerInitializer({ objects, onMarkersReady, selectedIds, clusterMode }) {
-    return (
-        <NonFlagLabelGeneration
-            objects={objects}
-            onMarkersReady={onMarkersReady}
-            selectedIds={selectedIds}
-            clusterMode={clusterMode}
-        />
-    );
-}
-
 const FlagMapMarker = React.memo(function FlagMapMarker({
     obj,
     icon,
@@ -336,7 +574,7 @@ function getFlagMarkerKey(o, demoEffect) {
     return `${o.id}-${markerId}${objectDemoMarkerKeySuffix(demoEffect)}`;
 }
 
-function FlagMarkersLayer({
+const FlagMarkersLayer = React.memo(function FlagMarkersLayer({
     markers,
     iconsById,
     measureMode,
@@ -367,7 +605,7 @@ function FlagMarkersLayer({
             />
         );
     });
-}
+});
 
 const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
     obj,
@@ -463,7 +701,7 @@ const NonFlagMapMarker = React.memo(function NonFlagMapMarker({
     );
 });
 
-function NonFlagMarkersLayer({
+const NonFlagMarkersLayer = React.memo(function NonFlagMarkersLayer({
     groupedObjects,
     iconsById,
     selectedIds,
@@ -514,7 +752,7 @@ function NonFlagMarkersLayer({
             />
         );
     });
-}
+});
 
 // Компонент для отображения элементов группы в круге при наведении.
 // Оптимизация: React.memo + вычисления зависят только от displayGroupId + groupedObjects.
@@ -610,9 +848,6 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
         onPinGroup(null);
     };
 
-    // Не рендерим, если нет активной группы или центра
-    if (!circleCenter || circleMarkers.length === 0 || !displayGroupId) return null;
-
     return (
         <>
             {/* Маркеры элементов в круге */}
@@ -624,12 +859,7 @@ const GroupCircleDisplay = React.memo(function GroupCircleDisplay({ groupedObjec
                     <Marker
                         key={`circle-marker-${displayGroupId}-${idx}`}
                         position={[marker.lat, marker.lng]}
-                        icon={markerIcon || L.divIcon({
-                            html: `<div class="circle-item-marker" style="cursor: pointer; opacity: 0.9;"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="${circleFill}" stroke="#FFFFFF" stroke-width="2"/></svg></div>`,
-                            className: "circle-item-div-icon",
-                            iconSize: [40, 40],
-                            iconAnchor: [20, 20]
-                        })}
+                        icon={markerIcon || getCircleFallbackIcon(circleFill)}
                         draggable={false}
                         eventHandlers={{
                             mouseover: () => {
@@ -921,6 +1151,7 @@ function MapComponent({
     demoPlayback = null,
     demoTexts = null,
     demoMenu = null,
+    favoritesMenu = null,
     demoContentCardId = null,
     demoTextEditDraft = null,
     onDemoTextEditChange,
@@ -953,12 +1184,15 @@ function MapComponent({
     const [isDockVisible, setIsDockVisible] = useState(true);
     const [demoShowDock, setDemoShowDock] = useState(false);
     const isDemoPlayback = Boolean(demoPlayback?.isActive);
+    const demoSuspendMap = Boolean(demoPlayback?.suspendMap);
     const forceShowAllMarkers = Boolean(demoPlayback?.forceShowAllMarkers);
     const freezeMapLayout = Boolean(demoPlayback?.freezeMapLayout);
     const freezeMapLayoutRef = useRef(freezeMapLayout);
     freezeMapLayoutRef.current = freezeMapLayout;
     const panelTouchStartX = useRef(0);
     const maplibreMapRef = useRef(null);
+    const demoSuspendMapRef = useRef(demoSuspendMap);
+    demoSuspendMapRef.current = demoSuspendMap;
     const [maplibreReady, setMaplibreReady] = useState(false);
     const [vectorMapError, setVectorMapError] = useState(null);
     const { enabledById: overlayEnabledById, toggleLayer: toggleOverlayLayer, setAllLayers: setAllOverlayLayers, setOnlyLayers: setOnlyOverlayLayers, activeLayers: activeOverlayLayers } = useMapOverlayLayers(maplibreMapRef, maplibreReady, { persist: !embed });
@@ -989,12 +1223,19 @@ function MapComponent({
     }, [countryControlled, onCountryIsoChange]);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
-    const [markerVersion, setMarkerVersion] = useState(0);
 
     useEffect(() => {
         if (!embed) return;
         setOnlyOverlayLayers(embedOverlayLayerIds || []);
     }, [embed, embedOverlayLayerIds, setOnlyOverlayLayers]);
+
+    useEffect(() => {
+        if (!demoSuspendMap) return;
+        maplibreMapRef.current = null;
+        setMaplibreReady(false);
+        const el = cursorCoordsRef.current;
+        if (el) el.style.display = 'none';
+    }, [demoSuspendMap]);
 
     useEffect(() => {
         if (!maplibreReady) return undefined;
@@ -1007,6 +1248,7 @@ function MapComponent({
     }, [embed, embedPlaying, maplibreReady, suspendMap]);
 
     const handleMaplibreReady = useCallback((map) => {
+        if (demoSuspendMapRef.current) return;
         maplibreMapRef.current = map;
         setVectorMapError(null);
         setMaplibreReady(true);
@@ -1322,21 +1564,17 @@ function MapComponent({
         return validateEditablePolygonPoints(situationPolygonEditable);
     }, [isSituationDrawingActive, situationPolygonEditable]);
 
-    // Пересоздаём маркеры только при изменении полного набора объектов, а не при filterCountry на карте
-    const objectsDataKey = useMemo(() => {
+    // Сбрасываем кэш иконок только при смене состава объектов/маркеров, не при сдвиге координат.
+    const objectsIdentityKey = useMemo(() => {
         const source = zoneObjects.length > 0 ? zoneObjects : objects;
         return source
-            .map((o) => `${o.id}:${o.marker?.id ?? ''}:${o.lat}:${o.lng}`)
+            .map((o) => `${o.id}:${o.marker?.id ?? ''}`)
             .join('|');
     }, [zoneObjects, objects]);
 
     useEffect(() => {
         clearMarkerIconCache();
-        clearEnrichSvgCache();
-        setMarkerVersion(prev => prev + 1);
-        setMarkerData({ iconsById: {}, clusteredObjects: [] });
-        setNonFlagData({ iconsById: {}, groupedObjects: [], svgCache: new Map() });
-    }, [objectsDataKey]);
+    }, [objectsIdentityKey]);
 
     useEffect(() => {
         const markersToFetch = new Map();
@@ -1541,7 +1779,7 @@ function MapComponent({
     }, [clusterMode, markerData.clusteredObjects, nonFlagData.groupedObjects, selectedSet]);
 
     // Force-clear nonFlagData when zooming out below non_flag_min_zoom (legacy only).
-    // The NonFlagMarkerInitializer may not emit a "clear" when its objects prop shrinks,
+    // NonFlagLabelGeneration may not emit a "clear" when its objects prop shrinks,
     // so we ensure the rendered non-flag markers (and GroupCircle) disappear.
     useEffect(() => {
       if (forceShowAllMarkers || clusterMode === 'bubble') return;
@@ -1844,6 +2082,7 @@ function MapComponent({
 
     // Трекер координат курсора (обновляет DOM напрямую, без ре-рендера React).
     mapEventApiRef.current.onMouseMove = (e) => {
+        if (demoSuspendMap) return;
         if (isEventPointDraggingRef.current) return;
         if (isEventPointPointerDownRef.current) return;
         if (eventsDrawingEnabled && eventDrawing.drawMode) {
@@ -1960,170 +2199,6 @@ function MapComponent({
         zoneHoverControllerRef.current?.setHoveredEntries(candidates.map((z) => z.entryId));
     }, [isFullscreen, onCheckboxChange, selectedSet, isMapDrawingActive, handleEventMapClick]);
 
-    const createMeasureIcon = (label) => L.divIcon({
-        className: "measure-marker",
-        html: `<div class="measure-marker__circle">${label}</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-    });
-
-    const formatDistance = (meters) => {
-        if (!meters) return "0 м";
-        return meters >= 1000 ? `${(meters / 1000).toFixed(2)} км` : `${meters.toFixed(0)} м`;
-    };
-
-    const renderEventShape = (eventItem) => {
-        const shape = eventItem?.shape;
-        if (!shape || !shape.type) return null;
-
-        const layerInteraction = isMapDrawingActive
-            ? { interactive: false, bubblingMouseEvents: false }
-            : {};
-
-        const dateLabel = eventItem.date_start
-            ? `с ${eventItem.date_start}${eventItem.date_end ? ` по ${eventItem.date_end}` : ""}`
-            : "—";
-        const timeLabel = eventItem.time_start
-            ? `с ${eventItem.time_start}${eventItem.time_end ? ` по ${eventItem.time_end}` : ""}`
-            : "—";
-        const countryTitle = eventItem.country?.title || "—";
-        const objectName = eventItem.object_name || "—";
-        const description = eventItem.description?.trim() || "";
-        const markerPath = resolveMediaUrl(eventItem.marker?.path);
-        const markerSvg = eventItem.marker?.id ? eventMarkerSvgs.get(eventItem.marker.id) : null;
-        const eventColor = eventItem.color || "#2f80ed";
-        const demoEventEffect = resolveEventDemoEffect(eventItem, demoAnimation);
-        const shapeClassName = demoEffectClassName(demoEventEffect) || undefined;
-        const demoShapeHandlers = demoEventEffect
-            ? { add: (e) => applyDemoEffectCssVars(e.target, demoEventEffect) }
-            : undefined;
-        const popupContent = (
-            <Popup
-                autoPan={false}
-                closeOnClick={false}
-                className="event-popup"
-                eventHandlers={{
-                    click: (e) => e.originalEvent?.stopPropagation(),
-                    mousedown: (e) => e.originalEvent?.stopPropagation()
-                }}
-            >
-                <div
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                >
-                    <strong>{eventItem.title || "Событие"}</strong>
-                    <br />
-                    Объект: {objectName}
-                    <br />
-                    Страна: {countryTitle}
-                    <br />
-                    Дата: {dateLabel}
-                    <br />
-                    Время: {timeLabel}
-                    <br />
-                    Доп. информация:{' '}
-                    {description ? (
-                        <MarkdownContent variant="popup">{description}</MarkdownContent>
-                    ) : (
-                        '—'
-                    )}
-                </div>
-            </Popup>
-        );
-
-        const getEventMarkerIcon = (path, svg) => getEventMarkerIconCached({
-            markerId: eventItem.marker?.id,
-            path,
-            svg,
-            demoEffect: demoEventEffect,
-        });
-
-        const getEventMarkerPosition = () => {
-            if (shape.type === "point" && shape.geometry) {
-                return [shape.geometry.lat, shape.geometry.lng];
-            }
-            if (shape.type === "circle" && shape.geometry) {
-                return [shape.geometry.lat, shape.geometry.lng];
-            }
-            if (shape.type === "area" && shape.geometry?.points?.length > 0) {
-                const sum = shape.geometry.points.reduce(
-                    (acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }),
-                    { lat: 0, lng: 0 }
-                );
-                return [sum.lat / shape.geometry.points.length, sum.lng / shape.geometry.points.length];
-            }
-            return null;
-        };
-
-        if (shape.type === "point" && shape.geometry) {
-            const icon = getEventMarkerIcon(markerPath, markerSvg);
-            return (
-                <Marker
-                    key={`event-point-${eventItem.id}`}
-                    position={[shape.geometry.lat, shape.geometry.lng]}
-                    icon={icon}
-                    {...layerInteraction}
-                >
-                    {popupContent}
-                </Marker>
-            );
-        }
-
-        if (shape.type === "circle" && shape.geometry) {
-            const icon = getEventMarkerIcon(markerPath, markerSvg);
-            const markerPosition = getEventMarkerPosition();
-            return (
-                <React.Fragment key={`event-circle-${eventItem.id}`}>
-                    <Circle
-                        center={[shape.geometry.lat, shape.geometry.lng]}
-                        radius={shape.geometry.radius || 0}
-                        pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1, className: shapeClassName }}
-                        eventHandlers={demoShapeHandlers}
-                        {...layerInteraction}
-                    >
-                        {popupContent}
-                    </Circle>
-                    {markerPosition && (
-                        <Marker
-                            key={`event-circle-marker-${eventItem.id}`}
-                            position={markerPosition}
-                            icon={icon}
-                            {...layerInteraction}
-                        />
-                    )}
-                </React.Fragment>
-            );
-        }
-
-        if (shape.type === "area" && shape.geometry?.points?.length > 0) {
-            const icon = getEventMarkerIcon(markerPath, markerSvg);
-            const markerPosition = getEventMarkerPosition();
-            return (
-                <React.Fragment key={`event-area-${eventItem.id}`}>
-                    <Polygon
-                        positions={shape.geometry.points.map((p) => [p.lat, p.lng])}
-                        pathOptions={{ color: eventColor, fillColor: eventColor, fillOpacity: 0.2, weight: 1, className: shapeClassName }}
-                        eventHandlers={demoShapeHandlers}
-                        {...layerInteraction}
-                    >
-                        {popupContent}
-                    </Polygon>
-                    {markerPosition && (
-                        <Marker
-                            key={`event-area-marker-${eventItem.id}`}
-                            position={markerPosition}
-                            icon={icon}
-                            {...layerInteraction}
-                        />
-                    )}
-                </React.Fragment>
-            );
-        }
-
-        return null;
-    };
-
-
     const fullscreenMeasurements = useMemo(() => {
         return measurePoints.map((point, idx) => {
             if (idx === 0) {
@@ -2133,6 +2208,14 @@ function MapComponent({
             return { ...point, index: idx + 1, distance: calcDistanceMeters(prev, point) };
         });
     }, [measurePoints]);
+
+    const measureOverlayPoints = isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints;
+
+    const visibleIntersections = useMemo(() => {
+        if (!showActionRadius || !showZoneIntersections || !intersections?.length) return [];
+        const selected = new Set(selectedIntersections);
+        return intersections.filter((point) => selected.has(point.id));
+    }, [showActionRadius, showZoneIntersections, intersections, selectedIntersections]);
 
     const fullscreenTabCounts = useMemo(() => ({
         objects: objects?.length ?? 0,
@@ -2310,7 +2393,7 @@ function MapComponent({
 
     return (
         <div
-            className={`map ${embed ? "map--embed " : ""}${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${((demoPlayback?.isActive || demoTextEditDraft) && !embed) ? " map--demo" : ""}${isDemoPlayback && demoShowDock && !embed ? " map--demo-dock" : ""}${freezeMapLayout ? " map--layout-frozen" : ""}`}
+            className={`map ${embed ? "map--embed " : ""}${isFullscreen ? "map--fullscreen" : ""}${isFullscreen && isSidebarOpen ? " map--fs-panel-open" : ""}${isFullscreen && !fsDockVisible ? " map--fs-dock-hidden" : ""}${isMapDrawingEvent ? " map--drawing-event" : ""}${((demoPlayback?.isActive || demoTextEditDraft) && !embed) ? " map--demo" : ""}${isDemoPlayback && demoShowDock && !embed ? " map--demo-dock" : ""}${freezeMapLayout ? " map--layout-frozen" : ""}${demoSuspendMap ? " map--demo-suspend" : ""}`}
             ref={containerRef}
         >
             {isFullscreen && !embed && (
@@ -2328,6 +2411,7 @@ function MapComponent({
                         onClusterBubble={handleFsClusterBubble}
                         onResetAll={handleFsResetAll}
                         demoMenu={demoMenu}
+                        favoritesMenu={favoritesMenu}
                         onExitFullscreen={toggleFullscreen}
                         canEditTargets={canEditTargets}
                         onOpenAddTarget={onOpenAddTarget}
@@ -2466,12 +2550,12 @@ function MapComponent({
                     editText={embed ? null : demoTextEditDraft}
                     onEditChange={onDemoTextEditChange}
                 />
-                {(USE_VECTOR_MAP && !embedLite) ? (
+                {(USE_VECTOR_MAP && !embedLite && !demoSuspendMap) ? (
                     <MapVectorBaseLayer
                         onMapReady={handleMaplibreReady}
                         onError={handleMaplibreError}
                     />
-                ) : (
+                ) : (!demoSuspendMap ? (
                     <>
                         <TileLayer
                             url={TILE_RASTER_URL}
@@ -2486,18 +2570,16 @@ function MapComponent({
                             <MapOverlayLayers activeLayers={activeOverlayLayers} />
                         )}
                     </>
-                )}
-                <MarkerInitializer 
-                    key={`markers-v${markerVersion}`}
-                    objects={flagObjectsForMap} 
-                    selectedIds={selectedObj} 
+                ) : null)}
+                <LabelGeneration
+                    objects={flagObjectsForMap}
+                    selectedIds={selectedObj}
                     onMarkersReady={handleMarkersReady}
                     clusterMode={effectiveClusterMode}
                 />
-                <NonFlagMarkerInitializer 
-                    key={`nonflag-v${markerVersion}`}
-                    objects={nonFlagObjectsForMap} 
-                    onMarkersReady={handleNonFlagMarkersReady} 
+                <NonFlagLabelGeneration
+                    objects={nonFlagObjectsForMap}
+                    onMarkersReady={handleNonFlagMarkersReady}
                     selectedIds={selectedObj}
                     clusterMode={effectiveClusterMode}
                 />
@@ -2534,7 +2616,7 @@ function MapComponent({
                 {vulnerabilityMapPoints.length > 0 && (
                     <VulnerabilityPointsLayer points={vulnerabilityMapPoints} />
                 )}
-                {geoData && !embed && (
+                {geoData && !embed && !demoSuspendMap && (
                         <MemoGeoJSON
                             data={geoData}
                             onEachFeature={onEachCountry}
@@ -2616,7 +2698,15 @@ function MapComponent({
                         }
                     />
                 )}
-                {visibleMapEvents.map((item) => renderEventShape(item))}
+                {visibleMapEvents.map((item) => (
+                    <EventShapeLayer
+                        key={`event-${item.id}`}
+                        eventItem={item}
+                        markerSvg={item.marker?.id ? eventMarkerSvgs.get(item.marker.id) : null}
+                        isMapDrawingActive={isMapDrawingActive}
+                        demoAnimation={demoAnimation}
+                    />
+                ))}
                 <OperationalSituationLayer
                     situations={situations}
                     selectedSituationIds={selectedSituationIds}
@@ -2662,62 +2752,12 @@ function MapComponent({
                 />
                 </>
                 )}
-                {(() => {
-                    const arr = isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints;
-                    return arr.length > 0 && arr.map((point, idx) => {
-                        if (idx === 0) return null;
-                        const prev = arr[idx - 1];
-                        return (
-                            <Polyline
-                                key={`measure-line-${point.id}`}
-                                positions={[[prev.lat, prev.lng], [point.lat, point.lng]]}
-                                pathOptions={{ color: "#008DD2", weight: 2, dashArray: "6,4" }}
-                            />
-                        );
-                    });
-                })()}
-                {(() => {
-                    const arr = isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints;
-                    if (arr.length < 2) return null;
-                    return (
-                        <>
-                            <Polyline
-                                key="measure-total-line"
-                                positions={[[arr[0].lat, arr[0].lng], [arr[arr.length - 1].lat, arr[arr.length - 1].lng]]}
-                                pathOptions={{ color: "#FF6B6B", weight: 1, opacity: 0.6 }}
-                            />
-                            <Marker
-                                key="measure-total-label"
-                                position={[
-                                    (arr[0].lat + arr[arr.length - 1].lat) / 2,
-                                    (arr[0].lng + arr[arr.length - 1].lng) / 2
-                                ]}
-                                icon={L.divIcon({
-                                    className: "measure-total-label",
-                                    html: `<div class="measure-total-label__text">${formatDistance(arr.reduce((sum, p) => sum + p.distance, 0))}</div>`,
-                                    iconSize: [60, 24],
-                                    iconAnchor: [30, 12]
-                                })}
-                                interactive={false}
-                            />
-                        </>
-                    );
-                })()}
-                {(isFullscreen ? fullscreenMeasurements : effectiveMeasurePoints).map((point) => (
-                    <Marker
-                        key={`measure-point-${point.id}`}
-                        position={[point.lat, point.lng]}
-                        icon={createMeasureIcon(point.index)}
-                        interactive={false}
-                    />
-                ))}
-                {showActionRadius && showZoneIntersections && intersections
-                    .filter(point => selectedIntersections.includes(point.id))
-                    .map((point) => (
+                <MeasureOverlay points={measureOverlayPoints} />
+                {visibleIntersections.map((point) => (
                     <Marker
                         key={`intersection-point-${point.id}`}
                         position={[point.lat, point.lng]}
-                        icon={createMeasureIcon(point.id)}
+                        icon={getMeasureIcon(point.id)}
                         interactive={false}
                     />
                 ))}

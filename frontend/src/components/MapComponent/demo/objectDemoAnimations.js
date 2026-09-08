@@ -1,7 +1,5 @@
 import { DEMO_EFFECT } from '../../../utils/demoScenario';
-import { cachedBucketData, idSet } from './demoEffectCache';
-
-const OBJECT_DEMO_CLASS_PREFIX = 'demo-obj-';
+import { cachedBucketData, demoLoopClass, idSet } from './demoEffectCache';
 
 const EFFECT_CLASS_BY_ID = {
   [DEMO_EFFECT.FADE_IN]: 'demo-obj-fade-in',
@@ -17,10 +15,6 @@ const ALL_OBJECT_DEMO_CLASSES = [
   'demo-anim--continuous',
   'demo-anim--once',
 ];
-
-function loopClass(continuous) {
-  return continuous ? 'demo-anim--continuous' : 'demo-anim--once';
-}
 
 /**
  * Эффект демонстрации для маркера объекта.
@@ -57,7 +51,7 @@ export function objectDemoEffectClassName(demoEffect) {
   if (!demoEffect) return '';
   const effectClass = EFFECT_CLASS_BY_ID[demoEffect.effect];
   if (!effectClass) return '';
-  return `${effectClass} ${loopClass(demoEffect.continuous)}`;
+  return `${effectClass} ${demoLoopClass(demoEffect.continuous)}`;
 }
 
 function clearObjectDemoClasses(el) {
@@ -103,5 +97,3 @@ export function objectDemoMarkerKeySuffix(demoEffect) {
   if (demoEffect.effect === DEMO_EFFECT.FADE_IN) return '';
   return `-demo-${demoEffect.runId || 0}-${demoEffect.effect}`;
 }
-
-export { OBJECT_DEMO_CLASS_PREFIX };

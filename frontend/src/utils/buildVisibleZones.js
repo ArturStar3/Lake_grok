@@ -15,13 +15,13 @@ import {
   ZONE_LEAF_MANUAL,
 } from './inundationZone';
 
-export const ZONE_GEOMETRY_LOS_RADAR = 'los_radar';
-export const ZONE_GEOMETRY_POLYGON = 'polygon';
-
-/** @deprecated */
-export const ZONE_GEOMETRY_INUNDATION = ZONE_GEOMETRY_POLYGON;
-
-export { ZONE_LEAF_MANUAL, makeParamLeaf };
+export {
+  ZONE_GEOMETRY_LOS_RADAR,
+  ZONE_GEOMETRY_POLYGON,
+  ZONE_GEOMETRY_INUNDATION,
+  ZONE_LEAF_MANUAL,
+  makeParamLeaf,
+} from './inundationZone';
 
 export function buildZoneKey(objId, action, actionIndex) {
   const deploymentId = action._deploymentId ?? 'm';
