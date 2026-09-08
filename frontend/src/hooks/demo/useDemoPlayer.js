@@ -10,14 +10,17 @@ import {
   DEMO_MOSAIC_REVEAL,
   DEMO_PROGRAM_TRANSITION,
   DEMO_SEQUENCE_TYPE,
+  DEMO_TABLEAU_VARIANT,
   DEMO_TOOL,
   buildProgramPlayback,
   composeStateForStage,
   createDefaultSequenceItem,
   findStage,
+  isTableauGalleryPreset,
   normalizeScenario,
   resolveMosaicScreen,
   resolveMosaicSlotTransition,
+  tableauGalleryDurationMs,
 } from '../../utils/demoScenario';
 import { getEventCenter } from '../../utils/eventGeometry';
 import { getSituationBounds } from '../../utils/situationUtils';
@@ -89,6 +92,8 @@ const EMPTY_TABLEAU = {
   phase: 'idle',
   presetId: null,
   stageId: null,
+  variant: DEMO_TABLEAU_VARIANT.TABLET,
+  gallery: null,
   tilt: {
     perspective: 1200,
     rotate_x: 58,
@@ -1340,18 +1345,25 @@ export function useDemoPlayer({ actions, data }) {
 
     if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU && item.tableauPreset) {
       const preset = item.tableauPreset;
-      const tiltMs = preset.tilt_ms ?? 700;
-      const untiltMs = preset.untilt_ms ?? 700;
+      const isGallery = isTableauGalleryPreset(preset);
+      const gallery = preset.gallery || null;
+      const tiltMs = isGallery ? 0 : (preset.tilt_ms ?? 700);
+      const untiltMs = isGallery
+        ? (gallery?.exit_ms ?? 420)
+        : (preset.untilt_ms ?? 700);
       const caption = preset.caption?.content
         ? { ...preset.caption }
         : null;
+      const galleryEnterMs = isGallery ? tableauGalleryDurationMs(gallery) : tiltMs;
       tableauPoseReadyRef.current = false;
       tableauPendingEnterRef.current = null;
       setTableauRuntime({
         active: true,
-        phase: instant || tiltMs <= 0 ? 'active' : 'entering',
+        phase: instant || galleryEnterMs <= 0 ? 'active' : 'entering',
         presetId: preset.id,
         stageId: preset.stage_id || item.stage?.id || null,
+        variant: isGallery ? DEMO_TABLEAU_VARIANT.GALLERY : DEMO_TABLEAU_VARIANT.TABLET,
+        gallery,
         tilt: preset.tilt || EMPTY_TABLEAU.tilt,
         blocks: item.tableauBlocks || scenario?.tableau?.blocks || [],
         overlay: preset.overlay || null,
@@ -1361,12 +1373,23 @@ export function useDemoPlayer({ actions, data }) {
         caption,
         cardStaggerMs: preset.card_stagger_ms ?? 350,
         arrowDrawMs: preset.arrow_draw_ms ?? 900,
-        tiltMs,
+        tiltMs: isGallery ? galleryEnterMs : tiltMs,
         untiltMs,
         borderRadiusPx: preset.border_radius_px ?? 14,
         runId: (tableauRuntimeRef.current?.runId || 0) + 1,
       });
-      if (instant || tiltMs <= 0) {
+      if (isGallery) {
+        tableauPoseReadyRef.current = true;
+        flushTableauPoseEnter();
+        if (!(instant || galleryEnterMs <= 0)) {
+          tableauPhaseTimerRef.current = setTimeout(() => {
+            tableauPhaseTimerRef.current = null;
+            setTableauRuntime((current) => (
+              current.active ? { ...current, phase: 'active' } : current
+            ));
+          }, galleryEnterMs);
+        }
+      } else if (instant || tiltMs <= 0) {
         tableauPoseReadyRef.current = true;
         flushTableauPoseEnter();
       } else {
@@ -2182,13 +2205,18 @@ export function useDemoPlayer({ actions, data }) {
     stages: stageSummaries,
     loop: Boolean(scenario?.loop),
     forceShowAllMarkers: Boolean(
-      tableauRuntime?.active && tableauRuntime?.phase === 'active',
+      tableauRuntime?.active && (
+        tableauRuntime?.phase === 'active'
+        || tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY
+      ),
     ),
     // Только на вход в планшет: фиксируем fullscreen-размер до CSS-наклона.
     // На exit freeze ломал восстановление — пин брал inset 88×78% и карта
     // оставалась «на пол монитора» после выхода.
     freezeMapLayout: Boolean(
-      (tableauRuntime?.active && tableauRuntime?.phase === 'entering')
+      (tableauRuntime?.active
+        && tableauRuntime?.phase === 'entering'
+        && tableauRuntime?.variant !== DEMO_TABLEAU_VARIANT.GALLERY)
       || (mosaicRuntime?.active && (
         mosaicRuntime?.mode === 'expanding'
         || mosaicRuntime?.mode === 'collapsing'
@@ -2215,6 +2243,7 @@ export function useDemoPlayer({ actions, data }) {
     subscribeProgress,
     tableauRuntime?.active,
     tableauRuntime?.phase,
+    tableauRuntime?.variant,
     mosaicRuntime?.active,
     mosaicRuntime?.mode,
     waitingForPresenter,

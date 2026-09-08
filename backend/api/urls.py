@@ -37,6 +37,7 @@ from .views import (
     EquipmentImageViewSet,
     DemoScenarioViewSet,
     DemoTableauMediaViewSet,
+    DemoMosaicMediaViewSet,
 )
 from reports.views import ReportTemplateViewSet
 from data_exchange.views import DataExchangeExportView, ImportSessionViewSet
@@ -227,6 +228,12 @@ router.register(
     r'demo-tableau-media',
     DemoTableauMediaViewSet,
     basename='demo-tableau-media',
+)
+
+router.register(
+    r'demo-mosaic-media',
+    DemoMosaicMediaViewSet,
+    basename='demo-mosaic-media',
 )
 
 urlpatterns = [

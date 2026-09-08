@@ -3,6 +3,7 @@ import {
   DEMO_DEFAULT_TABLEAU_BORDER_RADIUS,
   DEMO_DEFAULT_TABLEAU_CAPTION,
   DEMO_DEFAULT_TABLEAU_CAMERA,
+  DEMO_DEFAULT_TABLEAU_GALLERY,
   DEMO_DEFAULT_TABLEAU_MAP_REVEAL,
   DEMO_DEFAULT_TABLEAU_OVERLAY,
   DEMO_DEFAULT_TABLEAU_TILT,
@@ -12,7 +13,14 @@ import {
   DEMO_TABLEAU_ARROW_HEADS,
   DEMO_TABLEAU_ARROW_LINES,
   DEMO_TABLEAU_CELL_ALIGNS,
+  DEMO_TABLEAU_GALLERY_ENTER_EFFECTS,
+  DEMO_TABLEAU_GALLERY_EXIT_EFFECTS,
+  DEMO_TABLEAU_GALLERY_MAX_IMAGES,
+  DEMO_TABLEAU_GALLERY_SETTLE,
+  DEMO_TABLEAU_GALLERY_SETTLES,
   DEMO_TABLEAU_MAP_FRAME,
+  DEMO_TABLEAU_VARIANT,
+  DEMO_TABLEAU_VARIANTS,
   DEMO_TEXT_FONTS,
   DEMO_TEXT_WEIGHTS,
   bridgeSpacerPercent,
@@ -22,12 +30,20 @@ import {
   findStage,
   findTableauBlock,
   findTableauPreset,
+  isTableauGalleryPreset,
   normalizeScenarioTableau,
+  normalizeTableauGallery,
   normalizeTableauOverlay,
   normalizeTableauPreset,
   normalizeTableauRowHeights,
   overlayGridStyle,
 } from '../../utils/demoScenario';
+import {
+  bakeGalleryLayoutIntoRest,
+  computeGallerySettleRects,
+} from '../../utils/demoTableauGalleryLayout';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { uploadDemoTableauMedia } from '../../api/demoScenarios';
 import ZoneColorPicker from '../ReferenceData/ZoneColorPicker';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauBlockStudioModal from './DemoTableauBlockStudioModal';
@@ -270,6 +286,7 @@ export default function DemoTableauStudioModal({
   const [selectedCellIds, setSelectedCellIds] = useState(() => new Set());
   const [blockStudioOpen, setBlockStudioOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [galleryBusy, setGalleryBusy] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
   const [monitorAspect, setMonitorAspect] = useState(() => {
     if (typeof window === 'undefined') return 16 / 9;
@@ -284,6 +301,9 @@ export default function DemoTableauStudioModal({
 
   const sceneRef = useRef(null);
   const paletteRef = useRef(null);
+  const galleryFileRef = useRef(null);
+  const galleryRef = useRef(null);
+  const libraryRef = useRef(library);
 
   const preset = findTableauPreset(library, presetId) || library.presets[0] || null;
   const tilt = preset?.tilt || DEMO_DEFAULT_TABLEAU_TILT;
@@ -295,6 +315,10 @@ export default function DemoTableauStudioModal({
   const overlay = preset?.overlay || DEMO_DEFAULT_TABLEAU_OVERLAY;
   const mapArrow = overlay.map_arrow || DEMO_DEFAULT_TABLEAU_OVERLAY.map_arrow;
   const cells = overlay.cells || [];
+  const isGallery = isTableauGalleryPreset(preset);
+  const gallery = preset?.gallery || DEMO_DEFAULT_TABLEAU_GALLERY;
+  galleryRef.current = gallery;
+  libraryRef.current = library;
 
   const allowedBlockIds = useMemo(
     () => new Set((library.blocks || []).map((b) => b.id)),
@@ -317,6 +341,12 @@ export default function DemoTableauStudioModal({
   const selectedCellBlock = selectedCell
     ? findTableauBlock(library.blocks, selectedCell.block_id)
     : null;
+  const selectedGalleryImage = selection.type === 'gallery-image'
+    ? (gallery.images || []).find((item) => item.id === selection.id) || null
+    : null;
+  const selectedGalleryRectIndex = selectedGalleryImage
+    ? (gallery.images || []).findIndex((item) => item.id === selectedGalleryImage.id)
+    : -1;
   const bridgeCell = cells.find((c) => c.role === 'bridge') || null;
 
   const canMakeBridge = useMemo(() => {
@@ -369,6 +399,16 @@ export default function DemoTableauStudioModal({
 
   const patchOverlayCells = (nextCells) => {
     patchOverlay({ cells: nextCells });
+  };
+
+  const patchGallery = (partial) => {
+    if (!preset) return;
+    patchPreset({
+      gallery: normalizeTableauGallery({
+        ...(preset.gallery || {}),
+        ...partial,
+      }),
+    });
   };
 
   const handleAddPreset = () => {
@@ -496,6 +536,130 @@ export default function DemoTableauStudioModal({
     setBlockStudioOpen(true);
   };
 
+  const handleGalleryFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !preset || readOnly) return;
+    const current = gallery.images || [];
+    if (current.length >= DEMO_TABLEAU_GALLERY_MAX_IMAGES) return;
+    setGalleryBusy(true);
+    try {
+      const data = await uploadDemoTableauMedia(file);
+      const src = data?.url || '';
+      if (!src) return;
+      patchGallery({
+        images: [
+          ...current,
+          {
+            src,
+            title: file.name.replace(/\.[^.]+$/, '').slice(0, 120),
+          },
+        ],
+      });
+    } catch {
+      // ошибка загрузки — оставляем текущий список
+    } finally {
+      setGalleryBusy(false);
+    }
+  };
+
+  const galleryRects = useMemo(
+    () => computeGallerySettleRects(gallery.images || [], gallery),
+    [gallery],
+  );
+  const selectedGalleryRect = selectedGalleryRectIndex >= 0
+    ? galleryRects[selectedGalleryRectIndex]
+    : null;
+
+  const patchGalleryImageRest = (imageId, restPartial) => {
+    const images = (gallery.images || []).map((item) => (
+      item.id === imageId
+        ? { ...item, rest: { ...item.rest, ...restPartial } }
+        : item
+    ));
+    patchGallery({
+      settle: DEMO_TABLEAU_GALLERY_SETTLE.FREE,
+      images,
+    });
+  };
+
+  const startGalleryPointerEdit = (mode, image, event, rect = null) => {
+    if (readOnly || !image || !preset) return;
+    if (event.button != null && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelection({ type: 'gallery-image', id: image.id });
+    setSelectedCellIds(new Set());
+
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const bounds = scene.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+
+    const originX = event.clientX;
+    const originY = event.clientY;
+    const orig = {
+      x: Number(rect?.x ?? image.rest?.x) || 0,
+      y: Number(rect?.y ?? image.rest?.y) || 0,
+      w: Number(rect?.w ?? image.rest?.w) || 22,
+      h: Number(rect?.h ?? image.rest?.h) || 28,
+    };
+    const presetKey = preset.id;
+
+    const onMove = (ev) => {
+      const dx = ((ev.clientX - originX) / bounds.width) * 100;
+      const dy = ((ev.clientY - originY) / bounds.height) * 100;
+      let nextRest;
+      if (mode === 'resize') {
+        nextRest = {
+          ...orig,
+          w: clamp(orig.w + dx, 4, 100 - orig.x),
+          h: clamp(orig.h + dy, 4, 100 - orig.y),
+        };
+      } else {
+        nextRest = {
+          ...orig,
+          x: clamp(orig.x + dx, 0, 100 - orig.w),
+          y: clamp(orig.y + dy, 0, 100 - orig.h),
+        };
+      }
+      const currentLibrary = libraryRef.current;
+      const currentPreset = findTableauPreset(currentLibrary, presetKey);
+      if (!currentPreset) return;
+      const currentGallery = currentPreset.gallery || {};
+      const images = (currentGallery.images || []).map((item) => (
+        item.id === image.id ? { ...item, rest: nextRest } : item
+      ));
+      const nextPreset = normalizeTableauPreset(
+        {
+          ...currentPreset,
+          gallery: normalizeTableauGallery({
+            ...currentGallery,
+            settle: DEMO_TABLEAU_GALLERY_SETTLE.FREE,
+            images,
+          }),
+        },
+        allowedBlockIds,
+      );
+      delete nextPreset._migrated_blocks;
+      const presets = currentLibrary.presets.map((item) => (
+        item.id === presetKey ? nextPreset : item
+      ));
+      onChange(normalizeScenarioTableau({
+        ...currentLibrary,
+        presets,
+        active_preset_id: nextPreset.id,
+      }));
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return undefined;
@@ -561,7 +725,9 @@ export default function DemoTableauStudioModal({
           <div>
             <h2>Художественный режим</h2>
             <p className="demo-tableau-studio-modal__hint">
-              Сцена: сетка блоков и стрелки к карте. Вид карты — из этапа.
+              {isGallery
+                ? 'Галерея: кадры проявляются в центре и садятся на заданные места. Карту можно скрыть.'
+                : 'Планшетный режим: сетка блоков и стрелки к карте. Вид карты — из этапа.'}
             </p>
           </div>
           <div className="demo-tableau-studio-modal__header-actions">
@@ -570,9 +736,11 @@ export default function DemoTableauStudioModal({
                 Этапы…
               </button>
             ) : null}
-            <button type="button" className="demo-btn demo-btn--ghost" onClick={handleOpenBlocks}>
-              Блоки…
-            </button>
+            {!isGallery ? (
+              <button type="button" className="demo-btn demo-btn--ghost" onClick={handleOpenBlocks}>
+                Блоки…
+              </button>
+            ) : null}
             <button
               type="button"
               className="demo-btn demo-btn--ghost"
@@ -587,7 +755,10 @@ export default function DemoTableauStudioModal({
           </div>
         </header>
 
-        <div className="demo-tableau-studio-modal__body">
+        <div className={[
+          'demo-tableau-studio-modal__body',
+          isGallery ? 'is-gallery' : '',
+        ].filter(Boolean).join(' ')}>
           <aside className="demo-tableau-studio-modal__presets">
             <div className="demo-tableau-studio-modal__presets-head">
               <h3>Пресеты</h3>
@@ -655,6 +826,20 @@ export default function DemoTableauStudioModal({
                   </p>
                 )}
 
+                <label className="demo-field">
+                  <span className="demo-field__label">Вариант оформления</span>
+                  <select
+                    value={preset.variant || DEMO_TABLEAU_VARIANT.TABLET}
+                    onChange={(e) => patchPreset({ variant: e.target.value })}
+                  >
+                    {DEMO_TABLEAU_VARIANTS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {!isGallery ? (
+                  <>
                 <label className="demo-field">
                   <span className="demo-field__label">Перспектива ({tilt.perspective})</span>
                   <input
@@ -761,6 +946,8 @@ export default function DemoTableauStudioModal({
                     onChange={(e) => patchPreset({ untilt_ms: Number(e.target.value) })}
                   />
                 </label>
+                  </>
+                ) : null}
 
                 <fieldset className="demo-inspector__group" disabled={readOnly}>
                   <legend>Карта / камера</legend>
@@ -1039,7 +1226,10 @@ export default function DemoTableauStudioModal({
               <>
                 <div
                   ref={sceneRef}
-                  className="demo-tableau-studio-modal__scene"
+                  className={[
+                    'demo-tableau-studio-modal__scene',
+                    isGallery && gallery.show_map === false ? 'is-gallery-nomap' : '',
+                  ].filter(Boolean).join(' ')}
                   style={{
                     perspective: `${tilt.perspective}px`,
                     aspectRatio: `${monitorAspect}`,
@@ -1050,15 +1240,26 @@ export default function DemoTableauStudioModal({
                     {`Граница экрана · ${monitorSize.w}×${monitorSize.h}`}
                   </div>
                   <div
-                    className="demo-tableau-studio-modal__map-guide"
-                    style={{
-                      left: `${DEMO_TABLEAU_MAP_FRAME.left}%`,
-                      top: `${DEMO_TABLEAU_MAP_FRAME.top + (tilt.offset_y ?? 0)}%`,
-                      width: `${DEMO_TABLEAU_MAP_FRAME.width}%`,
-                      height: `${DEMO_TABLEAU_MAP_FRAME.height}%`,
-                      transform: `rotateX(${tilt.rotate_x}deg) rotateZ(${tilt.rotate_z}deg) scale(${tilt.scale})`,
-                      borderRadius: `${borderRadius}px`,
-                    }}
+                    className={[
+                      'demo-tableau-studio-modal__map-guide',
+                      isGallery && gallery.show_map === false ? 'is-nomap' : '',
+                    ].filter(Boolean).join(' ')}
+                    style={isGallery
+                      ? {
+                        left: '0%',
+                        top: '0%',
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: 0,
+                      }
+                      : {
+                        left: `${DEMO_TABLEAU_MAP_FRAME.left}%`,
+                        top: `${DEMO_TABLEAU_MAP_FRAME.top + (tilt.offset_y ?? 0)}%`,
+                        width: `${DEMO_TABLEAU_MAP_FRAME.width}%`,
+                        height: `${DEMO_TABLEAU_MAP_FRAME.height}%`,
+                        transform: `rotateX(${tilt.rotate_x}deg) rotateZ(${tilt.rotate_z}deg) scale(${tilt.scale})`,
+                        borderRadius: `${borderRadius}px`,
+                      }}
                     aria-hidden="true"
                   />
 
@@ -1082,6 +1283,53 @@ export default function DemoTableauStudioModal({
                     </div>
                   ) : null}
 
+                  {isGallery ? (
+                    <>
+                      {(gallery.images || []).map((image, index) => {
+                        const rect = galleryRects[index];
+                        if (!rect) return null;
+                        const src = resolveMediaUrl(image.src);
+                        if (!src) return null;
+                        const selected = selectedGalleryImage?.id === image.id;
+                        return (
+                          <figure
+                            key={image.id}
+                            className={[
+                              'demo-tableau-studio-modal__gallery-frame',
+                              selected ? 'is-selected' : '',
+                              readOnly ? 'is-readonly' : '',
+                            ].filter(Boolean).join(' ')}
+                            style={{
+                              left: `${rect.x}%`,
+                              top: `${rect.y}%`,
+                              width: `${rect.w}%`,
+                              height: `${rect.h}%`,
+                              zIndex: selected ? 20 : (rect.z ?? 0) + 1,
+                              transform: `rotate(${rect.rotate || 0}deg)`,
+                            }}
+                            onPointerDown={(event) => {
+                              if (readOnly) {
+                                event.stopPropagation();
+                                setSelection({ type: 'gallery-image', id: image.id });
+                                return;
+                              }
+                              startGalleryPointerEdit('move', image, event, rect);
+                            }}
+                          >
+                            <img src={src} alt={image.title || ''} draggable={false} />
+                            {selected && !readOnly ? (
+                              <span
+                                className="demo-tableau-studio-modal__gallery-resize"
+                                onPointerDown={(event) => startGalleryPointerEdit('resize', image, event, rect)}
+                                title="Изменить размер"
+                              />
+                            ) : null}
+                          </figure>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <>
                   <div className="demo-tableau-studio-modal__grid" style={gridStyle}>
                     {cells.map((cell) => {
                       const block = cell.block_id
@@ -1200,8 +1448,11 @@ export default function DemoTableauStudioModal({
                       );
                     })}
                   </svg>
+                    </>
+                  )}
                 </div>
 
+                {!isGallery ? (
                 <div className="demo-tableau-studio-modal__used" ref={paletteRef}>
                   <div className="demo-tableau-studio-modal__presets-head">
                     <h3>Ячейки сетки</h3>
@@ -1283,6 +1534,7 @@ export default function DemoTableauStudioModal({
                     Клик — выбрать ячейку. Ctrl/Cmd+клик — несколько ячеек одного ряда для моста.
                   </p>
                 </div>
+                ) : null}
               </>
             )}
           </section>
@@ -1291,6 +1543,277 @@ export default function DemoTableauStudioModal({
             <h3>Инспектор</h3>
             {!preset ? (
               <p className="demo-tableau-studio-modal__empty">Создайте пресет слева.</p>
+            ) : isGallery ? (
+              <fieldset className="demo-inspector__group" disabled={readOnly}>
+                <legend>Галерея</legend>
+                <input
+                  ref={galleryFileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  onChange={handleGalleryFile}
+                />
+                <button
+                  type="button"
+                  className="demo-btn demo-btn--ghost"
+                  disabled={galleryBusy || (gallery.images || []).length >= DEMO_TABLEAU_GALLERY_MAX_IMAGES}
+                  onClick={() => galleryFileRef.current?.click()}
+                >
+                  {galleryBusy ? 'Загрузка…' : 'Добавить изображение'}
+                </button>
+                <p className="demo-tableau-studio-modal__hint">
+                  До {DEMO_TABLEAU_GALLERY_MAX_IMAGES} кадров. JPEG, PNG или WebP.
+                  Перетаскивайте кадры на превью и меняйте размер за угол.
+                </p>
+                <label className="demo-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={gallery.show_map !== false}
+                    onChange={(e) => patchGallery({ show_map: e.target.checked })}
+                  />
+                  <span className="demo-checkbox__text">Показывать карту</span>
+                </label>
+                <ul className="demo-tableau-gallery-studio__list">
+                  {(gallery.images || []).map((image, index) => (
+                    <li
+                      key={image.id}
+                      className={[
+                        'demo-tableau-gallery-studio__item',
+                        selectedGalleryImage?.id === image.id ? 'is-selected' : '',
+                      ].filter(Boolean).join(' ')}
+                      onClick={() => {
+                        setSelection({ type: 'gallery-image', id: image.id });
+                        setSelectedCellIds(new Set());
+                      }}
+                    >
+                      <img src={resolveMediaUrl(image.src)} alt="" />
+                      <input
+                        type="text"
+                        value={image.title || ''}
+                        placeholder="Подпись"
+                        onChange={(e) => {
+                          const images = (gallery.images || []).map((item) => (
+                            item.id === image.id ? { ...item, title: e.target.value } : item
+                          ));
+                          patchGallery({ images });
+                        }}
+                      />
+                      <div className="demo-tableau-gallery-studio__move">
+                        <button
+                          type="button"
+                          className="demo-btn demo-btn--ghost"
+                          disabled={index === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const images = [...(gallery.images || [])];
+                            [images[index - 1], images[index]] = [images[index], images[index - 1]];
+                            patchGallery({ images });
+                          }}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="demo-btn demo-btn--ghost"
+                          disabled={index === (gallery.images || []).length - 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const images = [...(gallery.images || [])];
+                            [images[index + 1], images[index]] = [images[index], images[index + 1]];
+                            patchGallery({ images });
+                          }}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="demo-btn demo-btn--ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (selection.id === image.id) {
+                              setSelection({ type: null, id: null });
+                            }
+                            patchGallery({
+                              images: (gallery.images || []).filter((item) => item.id !== image.id),
+                            });
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {selectedGalleryImage ? (
+                  <>
+                    <p className="demo-tableau-studio-modal__hint">
+                      Конечная позиция на экране. Можно также перетащить кадр на превью.
+                    </p>
+                    <div className="demo-tableau-gallery-studio__rest">
+                      {['x', 'y', 'w', 'h'].map((key) => {
+                        const labels = {
+                          x: 'X (%)',
+                          y: 'Y (%)',
+                          w: 'Ширина (%)',
+                          h: 'Высота (%)',
+                        };
+                        return (
+                          <label key={key} className="demo-field">
+                            <span className="demo-field__label">{labels[key]}</span>
+                            <input
+                              type="number"
+                              min={key === 'w' || key === 'h' ? 4 : 0}
+                              max={100}
+                              step={0.5}
+                              value={Number(
+                                (selectedGalleryRect || selectedGalleryImage.rest)?.[key]
+                              ) || 0}
+                              onChange={(e) => {
+                                const base = selectedGalleryRect || selectedGalleryImage.rest || {};
+                                patchGalleryImageRest(selectedGalleryImage.id, {
+                                  x: base.x,
+                                  y: base.y,
+                                  w: base.w,
+                                  h: base.h,
+                                  [key]: Number(e.target.value),
+                                });
+                              }}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <p className="demo-tableau-studio-modal__hint">
+                    Выберите кадр на превью или в списке, чтобы задать
+                    конечные координаты и размер.
+                  </p>
+                )}
+                <label className="demo-field">
+                  <span className="demo-field__label">Вход</span>
+                  <select
+                    value={gallery.enter_effect}
+                    onChange={(e) => patchGallery({ enter_effect: e.target.value })}
+                  >
+                    {DEMO_TABLEAU_GALLERY_ENTER_EFFECTS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Выход</span>
+                  <select
+                    value={gallery.exit_effect}
+                    onChange={(e) => patchGallery({ exit_effect: e.target.value })}
+                  >
+                    {DEMO_TABLEAU_GALLERY_EXIT_EFFECTS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Раскладка после входа</span>
+                  <select
+                    value={gallery.settle}
+                    onChange={(e) => {
+                      const settle = e.target.value;
+                      patchGallery({
+                        settle,
+                        images: bakeGalleryLayoutIntoRest(
+                          gallery.images || [],
+                          gallery,
+                          settle,
+                        ),
+                      });
+                    }}
+                  >
+                    {DEMO_TABLEAU_GALLERY_SETTLES.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Пауза между появлениями, мс</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={8000}
+                    step={20}
+                    value={gallery.stagger_ms}
+                    onChange={(e) => patchGallery({ stagger_ms: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Длительность проявления, мс</span>
+                  <input
+                    type="number"
+                    min={120}
+                    max={2000}
+                    step={20}
+                    value={gallery.enter_ms}
+                    onChange={(e) => patchGallery({ enter_ms: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Пауза в центре, мс</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={8000}
+                    step={20}
+                    value={gallery.hold_ms ?? 800}
+                    onChange={(e) => patchGallery({ hold_ms: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Выход на позицию, мс</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={3000}
+                    step={20}
+                    value={gallery.settle_ms}
+                    onChange={(e) => patchGallery({ settle_ms: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Выход, мс</span>
+                  <input
+                    type="number"
+                    min={80}
+                    max={2000}
+                    step={20}
+                    value={gallery.exit_ms}
+                    onChange={(e) => patchGallery({ exit_ms: Number(e.target.value) })}
+                  />
+                </label>
+                {gallery.settle !== DEMO_TABLEAU_GALLERY_SETTLE.FREE ? (
+                  ['x', 'y', 'width', 'height'].map((key) => {
+                    const labels = {
+                      x: 'Зона X (%)',
+                      y: 'Зона Y (%)',
+                      width: 'Ширина зоны (%)',
+                      height: 'Высота зоны (%)',
+                    };
+                    return (
+                      <label key={key} className="demo-field">
+                        <span className="demo-field__label">{labels[key]}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          value={gallery.band?.[key] ?? 0}
+                          onChange={(e) => patchGallery({
+                            band: { ...gallery.band, [key]: Number(e.target.value) },
+                          })}
+                        />
+                      </label>
+                    );
+                  })
+                ) : null}
+              </fieldset>
             ) : (
               <>
                 <fieldset className="demo-inspector__group" disabled={readOnly}>

@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   DEMO_EASINGS,
+  DEMO_MOSAIC_CONTENTS,
+  DEMO_MOSAIC_CONTENT,
   DEMO_MOSAIC_EXPAND_ANIMATIONS,
   DEMO_MOSAIC_LAYOUTS,
   DEMO_MOSAIC_REVEAL,
@@ -9,9 +11,12 @@ import {
   findMosaicPreset,
   findStage,
   getMosaicLayoutDef,
+  mosaicScreenHasVideo,
   normalizeMosaicPreset,
   normalizeScenarioMosaic,
 } from '../../utils/demoScenario';
+import { uploadDemoMosaicMedia } from '../../api/demoScenarios';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import './DemoMosaicStudioModal.css';
 
 /**
@@ -29,6 +34,8 @@ export default function DemoMosaicStudioModal({
   const library = useMemo(() => normalizeScenarioMosaic(mosaic), [mosaic]);
   const [presetId, setPresetId] = useState(library.active_preset_id || library.presets[0]?.id || null);
   const [screenId, setScreenId] = useState('a');
+  const [videoBusy, setVideoBusy] = useState(false);
+  const videoInputRef = useRef(null);
 
   const preset = findMosaicPreset(library, presetId) || library.presets[0] || null;
   const screen = preset?.screens?.find((item) => item.id === screenId) || preset?.screens?.[0] || null;
@@ -301,7 +308,9 @@ export default function DemoMosaicStudioModal({
                           {item?.label || DEMO_MOSAIC_SLOT_LABELS[id] || id.toUpperCase()}
                         </span>
                         <span className="demo-mosaic-preview__bar">
-                          {stage?.title || 'Этап не назначен'}
+                          {mosaicScreenHasVideo(item)
+                            ? `Видео${stage?.title ? ` · ${stage.title}` : ''}`
+                            : (stage?.title || 'Этап не назначен')}
                         </span>
                       </button>
                     );
@@ -334,17 +343,103 @@ export default function DemoMosaicStudioModal({
                     onChange={(e) => patchScreen({ label: e.target.value })}
                   />
                 </label>
-                <label className="demo-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(screen.loop)}
-                    onChange={(e) => patchScreen({ loop: e.target.checked })}
-                  />
-                  <span>Пульсация маркеров на мини-карте</span>
-                </label>
+                {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO ? null : (
+                  <label className="demo-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(screen.loop)}
+                      onChange={(e) => patchScreen({ loop: e.target.checked })}
+                    />
+                    <span>Пульсация маркеров на мини-карте</span>
+                  </label>
+                )}
 
                 <label className="demo-field">
-                  <span className="demo-field__label">Этап на этом экране</span>
+                  <span className="demo-field__label">Содержимое слота</span>
+                  <select
+                    value={screen.content_type || DEMO_MOSAIC_CONTENT.STAGE}
+                    onChange={(e) => patchScreen({ content_type: e.target.value })}
+                  >
+                    {DEMO_MOSAIC_CONTENTS.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO ? (
+                  <div className="demo-field">
+                    <span className="demo-field__label">Видеофайл</span>
+                    <input
+                      ref={videoInputRef}
+                      type="file"
+                      accept="video/mp4,video/webm"
+                      hidden
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = '';
+                        if (!file || readOnly) return;
+                        setVideoBusy(true);
+                        try {
+                          const data = await uploadDemoMosaicMedia(file);
+                          patchScreen({
+                            content_type: DEMO_MOSAIC_CONTENT.VIDEO,
+                            video_url: data?.url || null,
+                            video_media_id: data?.id || null,
+                          });
+                        } catch (err) {
+                          window.alert(
+                            err?.response?.data?.video?.[0]
+                            || err?.response?.data?.detail
+                            || err?.message
+                            || 'Не удалось загрузить видео',
+                          );
+                        } finally {
+                          setVideoBusy(false);
+                        }
+                      }}
+                    />
+                    {screen.video_url ? (
+                      <video
+                        className="demo-mosaic-studio-modal__video-preview"
+                        src={resolveMediaUrl(screen.video_url)}
+                        muted
+                        controls
+                        playsInline
+                      />
+                    ) : (
+                      <p className="demo-field__hint">Файл ещё не выбран. MP4 или WebM, до 80 МБ.</p>
+                    )}
+                    <div className="demo-mosaic-studio-modal__video-actions">
+                      <button
+                        type="button"
+                        className="demo-btn demo-btn--ghost"
+                        disabled={videoBusy}
+                        onClick={() => videoInputRef.current?.click()}
+                      >
+                        {videoBusy ? 'Загрузка…' : (screen.video_url ? 'Заменить видео' : 'Загрузить видео')}
+                      </button>
+                      {screen.video_url ? (
+                        <button
+                          type="button"
+                          className="demo-btn demo-btn--ghost"
+                          onClick={() => patchScreen({
+                            video_url: null,
+                            video_media_id: null,
+                          })}
+                        >
+                          Удалить видео
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                <label className="demo-field">
+                  <span className="demo-field__label">
+                    {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO
+                      ? 'Этап при разворачивании'
+                      : 'Этап на этом экране'}
+                  </span>
                   <select
                     value={screen.stage_id || ''}
                     onChange={(e) => patchScreen({ stage_id: e.target.value || null })}
@@ -369,7 +464,9 @@ export default function DemoMosaicStudioModal({
                 )}
                 {assignedStage && (
                   <p className="demo-field__hint">
-                    Камера и объекты берутся из этапа «{assignedStage.title || 'Без названия'}».
+                    {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO
+                      ? `При разворачивании показывается живая карта этапа «${assignedStage.title || 'Без названия'}».`
+                      : `Камера и объекты берутся из этапа «${assignedStage.title || 'Без названия'}».`}
                   </p>
                 )}
               </fieldset>

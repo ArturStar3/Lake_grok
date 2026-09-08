@@ -35,3 +35,14 @@ export async function uploadDemoTableauMedia(file) {
   });
   return data;
 }
+
+/** Загрузка видео для слота мультиэкрана. */
+export async function uploadDemoMosaicMedia(file) {
+  const form = new FormData();
+  form.append('video', file);
+  const { data } = await apiClient.post('/demo-mosaic-media/', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 180000,
+  });
+  return data;
+}

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   findTableauBlock,
   DEMO_TABLEAU_MAP_FRAME,
+  DEMO_TABLEAU_VARIANT,
   buildTableauOverlayArrows,
   overlayGridStyle,
   cellAlignStyle,
@@ -9,6 +10,7 @@ import {
 } from '../../utils/demoScenario';
 import DemoTableauArrowSpark from './DemoTableauArrowSpark';
 import DemoTableauBlockView from './DemoTableauBlockView';
+import DemoTableauGalleryLayer from './DemoTableauGalleryLayer';
 import './DemoTableauBlockView.css';
 import './DemoTableau.css';
 
@@ -121,6 +123,7 @@ function DemoTableauShell({
   const overlayArrowsRef = useRef([]);
 
   const active = Boolean(tableauRuntime?.active);
+  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY;
   const phase = tableauRuntime?.phase || (active ? 'active' : 'idle');
   const tilt = tableauRuntime?.tilt || {};
   const blocks = tableauRuntime?.blocks || [];
@@ -130,7 +133,7 @@ function DemoTableauShell({
   const untiltMs = tableauRuntime?.untiltMs ?? 700;
   const borderRadius = tableauRuntime?.borderRadiusPx ?? 14;
   const runId = tableauRuntime?.runId || 0;
-  const overlaysVisible = active && overlaysReady && phase !== 'exiting';
+  const overlaysVisible = active && overlaysReady && phase !== 'exiting' && !isGallery;
 
   const mapFrame = useMemo(() => {
     const offsetY = tilt.offset_y ?? 0;
@@ -164,6 +167,11 @@ function DemoTableauShell({
 
   const rootStyle = useMemo(() => {
     if (!active) return undefined;
+    if (isGallery) {
+      return {
+        '--tableau-tilt-ms': '0ms',
+      };
+    }
     const perspective = tilt.perspective || 1200;
     const rotateX = tilt.rotate_x ?? 58;
     const rotateZ = tilt.rotate_z ?? -8;
@@ -190,12 +198,18 @@ function DemoTableauShell({
     tilt.offset_y,
     tiltMs,
     untiltMs,
+    isGallery,
   ]);
 
   const gridStyle = useMemo(() => overlayGridStyle(overlay), [overlay]);
 
   useEffect(() => {
     if (!active) {
+      setTilted(false);
+      setOverlaysReady(false);
+      return undefined;
+    }
+    if (isGallery) {
       setTilted(false);
       setOverlaysReady(false);
       return undefined;
@@ -210,19 +224,19 @@ function DemoTableauShell({
       cancelAnimationFrame(raf1);
       if (raf2) cancelAnimationFrame(raf2);
     };
-  }, [active, runId]);
+  }, [active, runId, isGallery]);
 
   useEffect(() => {
-    if (!active) return undefined;
+    if (!active || isGallery) return undefined;
     if (phase === 'exiting') {
       setTilted(false);
       setOverlaysReady(false);
     }
     return undefined;
-  }, [active, phase]);
+  }, [active, isGallery, phase]);
 
   useEffect(() => {
-    if (!active || !tilted || phase === 'exiting') return undefined;
+    if (!active || isGallery || !tilted || phase === 'exiting') return undefined;
     const map = mapRef?.current;
     if (!map) return undefined;
     const delay = Math.min(tiltMs + 40, 1200);
@@ -250,10 +264,10 @@ function DemoTableauShell({
       if (wasDragging) dragging?.enable?.();
       if (wasScroll) scroll?.enable?.();
     };
-  }, [active, mapRef, phase, runId, tiltMs, tilted]);
+  }, [active, isGallery, mapRef, phase, runId, tiltMs, tilted]);
 
   useEffect(() => {
-    if (!active || phase !== 'exiting') return undefined;
+    if (!active || isGallery || phase !== 'exiting') return undefined;
     const map = mapRef?.current;
     if (!map) return undefined;
     const restoreSize = () => {
@@ -276,7 +290,7 @@ function DemoTableauShell({
       clearTimeout(t0);
       clearTimeout(t1);
     };
-  }, [active, mapRef, phase, runId, untiltMs]);
+  }, [active, isGallery, mapRef, phase, runId, untiltMs]);
 
   useEffect(() => {
     if (active) return undefined;
@@ -304,6 +318,22 @@ function DemoTableauShell({
       clearTimeout(t2);
     };
   }, [active, mapRef, runId]);
+
+  useEffect(() => {
+    if (!active || !isGallery) return undefined;
+    const map = mapRef?.current;
+    if (!map) return undefined;
+    const dragging = map.dragging;
+    const scroll = map.scrollWheelZoom;
+    const wasDragging = dragging?.enabled?.();
+    const wasScroll = scroll?.enabled?.();
+    dragging?.disable?.();
+    scroll?.disable?.();
+    return () => {
+      if (wasDragging) dragging?.enable?.();
+      if (wasScroll) scroll?.enable?.();
+    };
+  }, [active, isGallery, mapRef, runId]);
 
   useEffect(() => {
     if (!active || phase === 'exiting') {
@@ -402,7 +432,9 @@ function DemoTableauShell({
       className={[
         'demo-tableau',
         active ? 'demo-tableau--active' : 'demo-tableau--idle',
-        active && tilted ? 'demo-tableau--tilted' : '',
+        active && tilted && !isGallery ? 'demo-tableau--tilted' : '',
+        isGallery ? 'demo-tableau--gallery' : '',
+        isGallery && tableauRuntime?.gallery?.show_map === false ? 'demo-tableau--gallery-nomap' : '',
         phase === 'exiting' ? 'demo-tableau--exiting' : '',
       ].filter(Boolean).join(' ')}
       style={rootStyle}
@@ -413,7 +445,34 @@ function DemoTableauShell({
         </div>
       </div>
 
-      {active && (
+      {isGallery && tableauRuntime?.gallery?.show_map === false ? (
+        <div className="demo-tableau__nomap-bg" aria-hidden="true" />
+      ) : null}
+
+      {active && isGallery ? (
+        <>
+          <DemoTableauGalleryLayer tableauRuntime={tableauRuntime} />
+          {caption?.content ? (
+            <div
+              className="demo-tableau__caption demo-tableau__caption--visible"
+              style={{
+                left: `${caption.x}%`,
+                top: `${caption.y}%`,
+                fontFamily: caption.font_family || 'Roboto',
+                fontSize: `${caption.font_size ?? 17}px`,
+                fontWeight: caption.font_weight ?? 700,
+                color: caption.color || '#f8fafc',
+                background: caption.background || 'rgba(15, 23, 42, 0.82)',
+                border: `${caption.border?.width ?? 1}px solid ${caption.border?.color || 'rgba(255, 255, 255, 0.28)'}`,
+              }}
+            >
+              {caption.content}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {active && !isGallery && (
         <>
           <svg
             className="demo-tableau__arrows"

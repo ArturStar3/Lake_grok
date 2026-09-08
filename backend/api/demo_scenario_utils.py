@@ -160,6 +160,30 @@ DEFAULT_TABLEAU_CAMERA = {
     'ease_linearity': 0.3,
     'padding': 72,
 }
+TABLEAU_VARIANTS = ('tablet', 'gallery')
+TABLEAU_GALLERY_ENTER = (
+    'center_zoom', 'fade_scale', 'slide_up', 'slide_left', 'slide_right', 'blur_in',
+)
+TABLEAU_GALLERY_EXIT = ('fade', 'fade_scale', 'slide_out')
+TABLEAU_GALLERY_SETTLE = ('row', 'row_fit', 'overlap', 'free')
+TABLEAU_GALLERY_MAX_IMAGES = 6
+DEFAULT_TABLEAU_GALLERY = {
+    'show_map': True,
+    'stagger_ms': 160,
+    'enter_ms': 600,
+    'hold_ms': 800,
+    'exit_ms': 420,
+    'enter_effect': 'center_zoom',
+    'exit_effect': 'fade_scale',
+    'settle': 'free',
+    'settle_ms': 520,
+    'band': {'x': 6, 'y': 8, 'width': 88, 'height': 42},
+    'gap_pct': 1.2,
+    'overlap_offset_pct': 4,
+    'overlap_rotate_deg': 3,
+    'images': [],
+}
+MOSAIC_CONTENT_TYPES = ('stage', 'video')
 DEFAULT_SEQUENCE_TRANSITION = {
     'effect': 'none',
     'duration_ms': 400,
@@ -638,6 +662,13 @@ def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=No
         'label': label[:120],
         'loop': _as_bool(data.get('loop'), False),
         'stage_id': stage_id,
+        'content_type': _choice(data.get('content_type'), MOSAIC_CONTENT_TYPES, 'stage'),
+        'video_url': (
+            str(data.get('video_url')).strip()[:2000]
+            if isinstance(data.get('video_url'), str) and data.get('video_url').strip()
+            else None
+        ),
+        'video_media_id': _optional_id(data.get('video_media_id')),
         'camera': normalize_camera(data.get('camera')),
         'selection': {
             'target_ids': _normalize_id_list(selection_raw.get('target_ids')),
@@ -915,7 +946,11 @@ def normalize_tableau_element(raw, index=0):
     if el_type == 'image':
         src = data.get('src') if isinstance(data.get('src'), str) else ''
         src = src.strip()[:500]
-        return {**base, 'src': src}
+        return {
+            **base,
+            'src': src,
+            'rotation': _clamp_float(data.get('rotation', 0), -180.0, 180.0, 0.0),
+        }
     content = data.get('content') if isinstance(data.get('content'), str) else ''
     content = content[:2000]
     return {
@@ -1198,6 +1233,102 @@ def _legacy_card_to_block_and_placement(card, index):
     return block, placement
 
 
+def normalize_tableau_gallery_band(raw):
+    data = raw if isinstance(raw, dict) else {}
+    defaults = DEFAULT_TABLEAU_GALLERY['band']
+    return {
+        'x': _clamp_float(data.get('x', defaults['x']), 0, 92, defaults['x']),
+        'y': _clamp_float(data.get('y', defaults['y']), 0, 90, defaults['y']),
+        'width': _clamp_float(data.get('width', defaults['width']), 12, 100, defaults['width']),
+        'height': _clamp_float(data.get('height', defaults['height']), 10, 90, defaults['height']),
+    }
+
+
+def normalize_tableau_gallery_image(raw, index=0):
+    data = raw if isinstance(raw, dict) else {}
+    image_id = data.get('id')
+    if not image_id or not str(image_id).strip():
+        image_id = f'gimg-{index}-{uuid.uuid4().hex[:8]}'
+    else:
+        image_id = str(image_id).strip()[:80]
+    src = data.get('src') if isinstance(data.get('src'), str) else ''
+    src = src.strip()[:2000]
+    title = data.get('title') if isinstance(data.get('title'), str) else ''
+    rest_raw = data.get('rest') if isinstance(data.get('rest'), dict) else {}
+    return {
+        'id': image_id,
+        'src': src,
+        'title': title.strip()[:120],
+        'rest': {
+            'x': _clamp_float(rest_raw.get('x', 10 + (index % 3) * 24), 0, 100, 10 + (index % 3) * 24),
+            'y': _clamp_float(rest_raw.get('y', 10 + (index // 3) * 28), 0, 100, 10 + (index // 3) * 28),
+            'w': _clamp_float(rest_raw.get('w', 22), 4, 100, 22),
+            'h': _clamp_float(rest_raw.get('h', 28), 4, 100, 28),
+        },
+    }
+
+
+def normalize_tableau_gallery(raw):
+    data = raw if isinstance(raw, dict) else {}
+    images = []
+    seen = set()
+    incoming = data.get('images') if isinstance(data.get('images'), list) else []
+    for index, item in enumerate(incoming[:TABLEAU_GALLERY_MAX_IMAGES]):
+        image = normalize_tableau_gallery_image(item, index)
+        if not image['src']:
+            continue
+        if image['id'] in seen:
+            image['id'] = f'gimg-{index}-{uuid.uuid4().hex[:8]}'
+        seen.add(image['id'])
+        images.append(image)
+    return {
+        'show_map': _as_bool(data.get('show_map'), DEFAULT_TABLEAU_GALLERY['show_map']),
+        'stagger_ms': _clamp(
+            data.get('stagger_ms', DEFAULT_TABLEAU_GALLERY['stagger_ms']),
+            0, 8000, DEFAULT_TABLEAU_GALLERY['stagger_ms'],
+        ),
+        'enter_ms': _clamp(
+            data.get('enter_ms', DEFAULT_TABLEAU_GALLERY['enter_ms']),
+            120, 2000, DEFAULT_TABLEAU_GALLERY['enter_ms'],
+        ),
+        'hold_ms': _clamp(
+            data.get('hold_ms', DEFAULT_TABLEAU_GALLERY['hold_ms']),
+            0, 8000, DEFAULT_TABLEAU_GALLERY['hold_ms'],
+        ),
+        'exit_ms': _clamp(
+            data.get('exit_ms', DEFAULT_TABLEAU_GALLERY['exit_ms']),
+            80, 2000, DEFAULT_TABLEAU_GALLERY['exit_ms'],
+        ),
+        'enter_effect': _choice(
+            data.get('enter_effect'), TABLEAU_GALLERY_ENTER, DEFAULT_TABLEAU_GALLERY['enter_effect'],
+        ),
+        'exit_effect': _choice(
+            data.get('exit_effect'), TABLEAU_GALLERY_EXIT, DEFAULT_TABLEAU_GALLERY['exit_effect'],
+        ),
+        'settle': _choice(
+            data.get('settle'), TABLEAU_GALLERY_SETTLE, DEFAULT_TABLEAU_GALLERY['settle'],
+        ),
+        'settle_ms': _clamp(
+            data.get('settle_ms', DEFAULT_TABLEAU_GALLERY['settle_ms']),
+            0, 3000, DEFAULT_TABLEAU_GALLERY['settle_ms'],
+        ),
+        'band': normalize_tableau_gallery_band(data.get('band')),
+        'gap_pct': _clamp_float(
+            data.get('gap_pct', DEFAULT_TABLEAU_GALLERY['gap_pct']),
+            0, 8, DEFAULT_TABLEAU_GALLERY['gap_pct'],
+        ),
+        'overlap_offset_pct': _clamp_float(
+            data.get('overlap_offset_pct', DEFAULT_TABLEAU_GALLERY['overlap_offset_pct']),
+            0.5, 16, DEFAULT_TABLEAU_GALLERY['overlap_offset_pct'],
+        ),
+        'overlap_rotate_deg': _clamp_float(
+            data.get('overlap_rotate_deg', DEFAULT_TABLEAU_GALLERY['overlap_rotate_deg']),
+            0, 12, DEFAULT_TABLEAU_GALLERY['overlap_rotate_deg'],
+        ),
+        'images': images,
+    }
+
+
 def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None):
     data = raw if isinstance(raw, dict) else {}
     preset_id = data.get('id')
@@ -1285,6 +1416,8 @@ def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None
         'id': preset_id,
         'title': title[:120],
         'stage_id': stage_id,
+        'variant': _choice(data.get('variant'), TABLEAU_VARIANTS, 'tablet'),
+        'gallery': normalize_tableau_gallery(data.get('gallery')),
         'tilt': normalize_tableau_tilt(data.get('tilt')),
         'border_radius_px': _clamp(
             data.get('border_radius_px', DEFAULT_TABLEAU_BORDER_RADIUS),

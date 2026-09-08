@@ -37,6 +37,7 @@ from formular.models import (
     DemoStepStartMode,
     DemoStepTool,
     DemoTableauMedia,
+    DemoMosaicMedia,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -1802,5 +1803,40 @@ class DemoTableauMediaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Допустимы JPEG, PNG или WebP')
         if value.size > 5 * 1024 * 1024:
             raise serializers.ValidationError('Максимальный размер файла — 5 МБ')
+        return value
+
+
+class DemoMosaicMediaSerializer(serializers.ModelSerializer):
+    """Загрузка видео для слотов мультиэкранной демонстрации."""
+
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DemoMosaicMedia
+        fields = ('id', 'video', 'url', 'created_at')
+        read_only_fields = ('id', 'url', 'created_at')
+
+    def get_url(self, obj):
+        request = self.context.get('request')
+        if not obj.video:
+            return None
+        url = obj.video.url
+        if request is not None:
+            return request.build_absolute_uri(url)
+        return url
+
+    def validate_video(self, value):
+        if not value:
+            raise serializers.ValidationError('Файл обязателен')
+        content_type = getattr(value, 'content_type', '') or ''
+        name = (getattr(value, 'name', '') or '').lower()
+        allowed = (
+            content_type in ('video/mp4', 'video/webm', 'video/quicktime')
+            or name.endswith(('.mp4', '.webm', '.mov'))
+        )
+        if not allowed:
+            raise serializers.ValidationError('Допустимы MP4 или WebM')
+        if value.size > 80 * 1024 * 1024:
+            raise serializers.ValidationError('Максимальный размер файла — 80 МБ')
         return value
 

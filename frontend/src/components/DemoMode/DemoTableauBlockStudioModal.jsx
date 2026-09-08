@@ -22,6 +22,14 @@ function clampPct(value, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
+function wrapRotation(deg) {
+  let n = Number(deg);
+  if (!Number.isFinite(n)) return 0;
+  while (n > 180) n -= 360;
+  while (n < -180) n += 360;
+  return Math.max(-180, Math.min(180, n));
+}
+
 /**
  * Вложенный редактор шаблонов блоков художественного режима.
  */
@@ -167,19 +175,31 @@ export default function DemoTableauBlockStudioModal({
       y: targetElement.y,
       w: targetElement.w,
       h: targetElement.h,
+      rotation: targetElement.rotation || 0,
     };
 
     const blockKey = block.id;
+    const centerX = rect.left + ((orig.x + orig.w / 2) / 100) * rect.width;
+    const centerY = rect.top + ((orig.y + orig.h / 2) / 100) * rect.height;
+    const startAngle = Math.atan2(originY - centerY, originX - centerX);
+
     const onMove = (ev) => {
-      const dx = ((ev.clientX - originX) / rect.width) * 100;
-      const dy = ((ev.clientY - originY) / rect.height) * 100;
       let next;
-      if (mode === 'resize') {
+      if (mode === 'rotate') {
+        const angle = Math.atan2(ev.clientY - centerY, ev.clientX - centerX);
+        let deg = orig.rotation + ((angle - startAngle) * 180) / Math.PI;
+        if (ev.shiftKey) deg = Math.round(deg / 15) * 15;
+        next = { rotation: wrapRotation(deg) };
+      } else if (mode === 'resize') {
+        const dx = ((ev.clientX - originX) / rect.width) * 100;
+        const dy = ((ev.clientY - originY) / rect.height) * 100;
         next = {
           w: clampPct(orig.w + dx, MIN_SIZE, 100 - orig.x),
           h: clampPct(orig.h + dy, MIN_SIZE, 100 - orig.y),
         };
       } else {
+        const dx = ((ev.clientX - originX) / rect.width) * 100;
+        const dy = ((ev.clientY - originY) / rect.height) * 100;
         next = {
           x: clampPct(orig.x + dx, 0, 100 - orig.w),
           y: clampPct(orig.y + dy, 0, 100 - orig.h),
@@ -307,6 +327,8 @@ export default function DemoTableauBlockStudioModal({
                             top: `${el.y}%`,
                             width: `${el.w}%`,
                             height: `${el.h}%`,
+                            transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                            transformOrigin: 'center center',
                           }}
                           onPointerDown={(event) => {
                             if (readOnly) {
@@ -318,11 +340,20 @@ export default function DemoTableauBlockStudioModal({
                           }}
                         >
                           {selected && !readOnly ? (
-                            <span
-                              className="demo-tableau-block-studio-modal__resize"
-                              onPointerDown={(event) => startPointerEdit('resize', el, event)}
-                              title="Изменить размер"
-                            />
+                            <>
+                              {el.type === 'image' ? (
+                                <span
+                                  className="demo-tableau-block-studio-modal__rotate"
+                                  onPointerDown={(event) => startPointerEdit('rotate', el, event)}
+                                  title="Повернуть"
+                                />
+                              ) : null}
+                              <span
+                                className="demo-tableau-block-studio-modal__resize"
+                                onPointerDown={(event) => startPointerEdit('resize', el, event)}
+                                title="Изменить размер"
+                              />
+                            </>
                           ) : null}
                         </div>
                       );
@@ -596,6 +627,21 @@ export default function DemoTableauBlockStudioModal({
                             readOnly
                             value={element.src || ''}
                             title={resolveMediaUrl(element.src) || ''}
+                          />
+                        </label>
+                        <label className="demo-field">
+                          <span className="demo-field__label">
+                            Поворот ({Math.round(element.rotation || 0)}°)
+                          </span>
+                          <input
+                            type="range"
+                            min={-180}
+                            max={180}
+                            step={1}
+                            value={element.rotation || 0}
+                            onChange={(e) => patchElement({
+                              rotation: wrapRotation(Number(e.target.value)),
+                            })}
                           />
                         </label>
                         <label className="demo-field">

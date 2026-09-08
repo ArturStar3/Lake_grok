@@ -50,6 +50,8 @@ export default function DemoTableauBlockView({
                 top: `${el.y}%`,
                 width: `${el.w}%`,
                 height: `${el.h}%`,
+                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                transformOrigin: 'center center',
               }}
             >
               {src ? (

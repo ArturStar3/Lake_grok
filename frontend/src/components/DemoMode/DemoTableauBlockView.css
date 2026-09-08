@@ -17,7 +17,7 @@
 }
 
 .demo-tableau-block__el--image {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .demo-tableau-block__el--image img {

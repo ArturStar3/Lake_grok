@@ -415,6 +415,89 @@ export const DEMO_DEFAULT_TABLEAU_CAMERA = {
   padding: 72,
 };
 
+export const DEMO_TABLEAU_VARIANT = {
+  TABLET: 'tablet',
+  GALLERY: 'gallery',
+};
+
+export const DEMO_TABLEAU_VARIANTS = [
+  { id: DEMO_TABLEAU_VARIANT.TABLET, label: 'Планшетный режим' },
+  { id: DEMO_TABLEAU_VARIANT.GALLERY, label: 'Галерея на карте' },
+];
+
+export const DEMO_TABLEAU_GALLERY_ENTER = {
+  CENTER_ZOOM: 'center_zoom',
+  FADE_SCALE: 'fade_scale',
+  SLIDE_UP: 'slide_up',
+  SLIDE_LEFT: 'slide_left',
+  SLIDE_RIGHT: 'slide_right',
+  BLUR_IN: 'blur_in',
+};
+
+export const DEMO_TABLEAU_GALLERY_EXIT = {
+  FADE: 'fade',
+  FADE_SCALE: 'fade_scale',
+  SLIDE_OUT: 'slide_out',
+};
+
+export const DEMO_TABLEAU_GALLERY_SETTLE = {
+  ROW: 'row',
+  ROW_FIT: 'row_fit',
+  OVERLAP: 'overlap',
+  FREE: 'free',
+};
+
+export const DEMO_TABLEAU_GALLERY_ENTER_EFFECTS = [
+  { id: DEMO_TABLEAU_GALLERY_ENTER.CENTER_ZOOM, label: 'Проявление с увеличением' },
+  { id: DEMO_TABLEAU_GALLERY_ENTER.FADE_SCALE, label: 'Проявление с масштабом' },
+  { id: DEMO_TABLEAU_GALLERY_ENTER.SLIDE_UP, label: 'Снизу вверх' },
+  { id: DEMO_TABLEAU_GALLERY_ENTER.SLIDE_LEFT, label: 'Слева' },
+  { id: DEMO_TABLEAU_GALLERY_ENTER.SLIDE_RIGHT, label: 'Справа' },
+  { id: DEMO_TABLEAU_GALLERY_ENTER.BLUR_IN, label: 'Проявление с размытием' },
+];
+
+export const DEMO_TABLEAU_GALLERY_EXIT_EFFECTS = [
+  { id: DEMO_TABLEAU_GALLERY_EXIT.FADE, label: 'Затухание' },
+  { id: DEMO_TABLEAU_GALLERY_EXIT.FADE_SCALE, label: 'Затухание с масштабом' },
+  { id: DEMO_TABLEAU_GALLERY_EXIT.SLIDE_OUT, label: 'Уход в сторону' },
+];
+
+export const DEMO_TABLEAU_GALLERY_SETTLES = [
+  { id: DEMO_TABLEAU_GALLERY_SETTLE.ROW, label: 'Рядом без изменения размера' },
+  { id: DEMO_TABLEAU_GALLERY_SETTLE.ROW_FIT, label: 'Рядом с подгонкой размера' },
+  { id: DEMO_TABLEAU_GALLERY_SETTLE.OVERLAP, label: 'Наплыв друг на друга' },
+  { id: DEMO_TABLEAU_GALLERY_SETTLE.FREE, label: 'Свободное расположение' },
+];
+
+export const DEMO_TABLEAU_GALLERY_MAX_IMAGES = 6;
+
+export const DEMO_DEFAULT_TABLEAU_GALLERY = {
+  show_map: true,
+  stagger_ms: 160,
+  enter_ms: 600,
+  hold_ms: 800,
+  exit_ms: 420,
+  enter_effect: DEMO_TABLEAU_GALLERY_ENTER.CENTER_ZOOM,
+  exit_effect: DEMO_TABLEAU_GALLERY_EXIT.FADE_SCALE,
+  settle: DEMO_TABLEAU_GALLERY_SETTLE.FREE,
+  settle_ms: 520,
+  band: { x: 6, y: 8, width: 88, height: 42 },
+  gap_pct: 1.2,
+  overlap_offset_pct: 4,
+  overlap_rotate_deg: 3,
+  images: [],
+};
+
+export const DEMO_MOSAIC_CONTENT = {
+  STAGE: 'stage',
+  VIDEO: 'video',
+};
+
+export const DEMO_MOSAIC_CONTENTS = [
+  { id: DEMO_MOSAIC_CONTENT.STAGE, label: 'Живая мини-карта' },
+  { id: DEMO_MOSAIC_CONTENT.VIDEO, label: 'Видеофайл' },
+];
+
 export const DEMO_PROGRAM_TRANSITION = {
   NONE: 'none',
   FADE: 'fade',
@@ -578,6 +661,9 @@ export function createDefaultMosaicScreen(slotId, overrides = {}) {
     label: DEMO_MOSAIC_SLOT_LABELS[slotId] || `Экран ${String(slotId).toUpperCase()}`,
     loop: false,
     stage_id: null,
+    content_type: DEMO_MOSAIC_CONTENT.STAGE,
+    video_url: null,
+    video_media_id: null,
     ...overrides,
   }, slotId);
 }
@@ -742,7 +828,11 @@ export function normalizeTableauElement(raw, index = 0) {
   };
   if (elType === 'image') {
     const src = typeof data.src === 'string' ? data.src.trim().slice(0, 500) : '';
-    return { ...base, src };
+    return {
+      ...base,
+      src,
+      rotation: clampFloat(data.rotation, -180, 180, 0),
+    };
   }
   const content = typeof data.content === 'string' ? data.content.slice(0, 2000) : '';
   return {
@@ -1486,6 +1576,113 @@ function legacyCardToBlockAndPlacement(card, index) {
   return { block, placement };
 }
 
+export function normalizeTableauGalleryBand(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const def = DEMO_DEFAULT_TABLEAU_GALLERY.band;
+  return {
+    x: clampFloat(data.x, 0, 92, def.x),
+    y: clampFloat(data.y, 0, 90, def.y),
+    width: clampFloat(data.width, 12, 100, def.width),
+    height: clampFloat(data.height, 10, 90, def.height),
+  };
+}
+
+export function normalizeTableauGalleryImage(raw, index = 0) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const id = data.id != null && String(data.id).trim()
+    ? String(data.id).trim().slice(0, 80)
+    : makeLocalTableauId('gimg', index);
+  const src = typeof data.src === 'string' ? data.src.trim().slice(0, 2000) : '';
+  const title = typeof data.title === 'string' ? data.title.trim().slice(0, 120) : '';
+  const restRaw = data.rest && typeof data.rest === 'object' ? data.rest : {};
+  return {
+    id,
+    src,
+    title,
+    rest: {
+      x: clampFloat(restRaw.x, 0, 100, 10 + (index % 3) * 24),
+      y: clampFloat(restRaw.y, 0, 100, 10 + Math.floor(index / 3) * 28),
+      w: clampFloat(restRaw.w, 4, 100, 22),
+      h: clampFloat(restRaw.h, 4, 100, 28),
+    },
+  };
+}
+
+export function normalizeTableauGallery(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const images = [];
+  const seen = new Set();
+  (Array.isArray(data.images) ? data.images : []).slice(0, DEMO_TABLEAU_GALLERY_MAX_IMAGES)
+    .forEach((item, index) => {
+      const image = normalizeTableauGalleryImage(item, index);
+      if (!image.src) return;
+      if (seen.has(image.id)) {
+        image.id = makeLocalTableauId('gimg', index);
+      }
+      seen.add(image.id);
+      images.push(image);
+    });
+  return {
+    show_map: data.show_map === undefined ? true : Boolean(data.show_map),
+    stagger_ms: clampInt(data.stagger_ms, 0, 8000, DEMO_DEFAULT_TABLEAU_GALLERY.stagger_ms),
+    enter_ms: clampInt(data.enter_ms, 120, 2000, DEMO_DEFAULT_TABLEAU_GALLERY.enter_ms),
+    hold_ms: clampInt(data.hold_ms, 0, 8000, DEMO_DEFAULT_TABLEAU_GALLERY.hold_ms),
+    exit_ms: clampInt(data.exit_ms, 80, 2000, DEMO_DEFAULT_TABLEAU_GALLERY.exit_ms),
+    enter_effect: pickChoice(
+      data.enter_effect,
+      Object.values(DEMO_TABLEAU_GALLERY_ENTER),
+      DEMO_DEFAULT_TABLEAU_GALLERY.enter_effect,
+    ),
+    exit_effect: pickChoice(
+      data.exit_effect,
+      Object.values(DEMO_TABLEAU_GALLERY_EXIT),
+      DEMO_DEFAULT_TABLEAU_GALLERY.exit_effect,
+    ),
+    settle: pickChoice(
+      data.settle,
+      Object.values(DEMO_TABLEAU_GALLERY_SETTLE),
+      DEMO_DEFAULT_TABLEAU_GALLERY.settle,
+    ),
+    settle_ms: clampInt(data.settle_ms, 0, 3000, DEMO_DEFAULT_TABLEAU_GALLERY.settle_ms),
+    band: normalizeTableauGalleryBand(data.band),
+    gap_pct: clampFloat(data.gap_pct, 0, 8, DEMO_DEFAULT_TABLEAU_GALLERY.gap_pct),
+    overlap_offset_pct: clampFloat(
+      data.overlap_offset_pct,
+      0.5,
+      16,
+      DEMO_DEFAULT_TABLEAU_GALLERY.overlap_offset_pct,
+    ),
+    overlap_rotate_deg: clampFloat(
+      data.overlap_rotate_deg,
+      0,
+      12,
+      DEMO_DEFAULT_TABLEAU_GALLERY.overlap_rotate_deg,
+    ),
+    images,
+  };
+}
+
+export function isTableauGalleryPreset(preset) {
+  return preset?.variant === DEMO_TABLEAU_VARIANT.GALLERY;
+}
+
+export function tableauGalleryDurationMs(gallery) {
+  const images = gallery?.images || [];
+  if (!images.length) return DEMO_DEFAULT_STEP_DURATION_MS;
+  const stagger = gallery.stagger_ms ?? DEMO_DEFAULT_TABLEAU_GALLERY.stagger_ms;
+  const enter = gallery.enter_ms ?? DEMO_DEFAULT_TABLEAU_GALLERY.enter_ms;
+  const hold = gallery.hold_ms ?? DEMO_DEFAULT_TABLEAU_GALLERY.hold_ms;
+  const settle = gallery.settle_ms ?? DEMO_DEFAULT_TABLEAU_GALLERY.settle_ms;
+  return Math.max(
+    DEMO_DEFAULT_STEP_DURATION_MS,
+    (images.length - 1) * stagger + enter + hold + settle,
+  );
+}
+
+export function mosaicScreenHasVideo(screen) {
+  return screen?.content_type === DEMO_MOSAIC_CONTENT.VIDEO && Boolean(screen.video_url);
+}
+
 export function normalizeTableauPreset(raw, allowedBlockIds = null) {
   const data = raw && typeof raw === 'object' ? raw : {};
   const id = data.id != null && String(data.id).trim()
@@ -1572,6 +1769,12 @@ export function normalizeTableauPreset(raw, allowedBlockIds = null) {
     id,
     title,
     stage_id: stageId,
+    variant: pickChoice(
+      data.variant,
+      Object.values(DEMO_TABLEAU_VARIANT),
+      DEMO_TABLEAU_VARIANT.TABLET,
+    ),
+    gallery: normalizeTableauGallery(data.gallery),
     tilt: normalizeTableauTilt(data.tilt),
     border_radius_px: clampInt(
       data.border_radius_px,
@@ -1649,6 +1852,8 @@ export function createDefaultTableauPreset(overrides = {}) {
     id: makeLocalPresetId(),
     title: 'Художественный',
     stage_id: null,
+    variant: DEMO_TABLEAU_VARIANT.TABLET,
+    gallery: { ...DEMO_DEFAULT_TABLEAU_GALLERY, images: [] },
     tilt: { ...DEMO_DEFAULT_TABLEAU_TILT },
     border_radius_px: DEMO_DEFAULT_TABLEAU_BORDER_RADIUS,
     tilt_ms: DEMO_DEFAULT_TABLEAU_TILT_MS,
@@ -1811,6 +2016,15 @@ export function normalizeMosaicScreen(raw, slotId, defaultLabel = '') {
     label,
     loop: Boolean(data.loop),
     stage_id: stageId,
+    content_type: pickChoice(
+      data.content_type,
+      Object.values(DEMO_MOSAIC_CONTENT),
+      DEMO_MOSAIC_CONTENT.STAGE,
+    ),
+    video_url: typeof data.video_url === 'string' && data.video_url.trim()
+      ? data.video_url.trim().slice(0, 2000)
+      : null,
+    video_media_id: optionalTableauId(data.video_media_id),
     camera: normalizeCamera(data.camera),
     selection: {
       target_ids: toIdList(selectionRaw.target_ids),
@@ -2731,6 +2945,9 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
     const preset = findTableauPreset(tableau, item.preset_id);
     const stage = findStage(stages, preset?.stage_id);
     const stageMs = buildStageBeats(stage?.steps || []).durationMs;
+    if (isTableauGalleryPreset(preset)) {
+      return Math.max(stageMs, tableauGalleryDurationMs(preset.gallery), DEMO_DEFAULT_STEP_DURATION_MS);
+    }
     const placements = preset?.placements || [];
     const stagger = preset?.card_stagger_ms || 0;
     const arrow = preset?.arrow_draw_ms || 900;

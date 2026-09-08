@@ -575,7 +575,9 @@ export default function DemoStudioModal({
                               {item.type === DEMO_SEQUENCE_TYPE.MOSAIC
                                 ? 'мультиэкран'
                                 : item.type === DEMO_SEQUENCE_TYPE.TABLEAU
-                                  ? 'художественный'
+                                  ? (playback?.tableauPreset?.variant === 'gallery'
+                                    ? 'галерея на карте'
+                                    : 'планшетный режим')
                                   : 'этап'}
                               {item.wait_for_presenter ? ' · по клику' : ' · по времени'}
                               {item.type === DEMO_SEQUENCE_TYPE.MOSAIC
@@ -663,13 +665,18 @@ export default function DemoStudioModal({
                       >
                         <option value="">Выберите пресет</option>
                         {(draft.tableau?.presets || []).map((preset) => (
-                          <option key={preset.id} value={preset.id}>{preset.title}</option>
+                          <option key={preset.id} value={preset.id}>
+                            {preset.title}
+                            {preset.variant === 'gallery' ? ' · галерея' : ' · планшет'}
+                          </option>
                         ))}
                       </select>
                       {activePreset ? (
                         <p className="demo-field__hint">
-                          Блоков на сцене: {activePreset.placements?.length || 0}
-                          {activePreset.arrows?.length
+                          {activePreset.variant === 'gallery'
+                            ? `Галерея на карте · кадров: ${activePreset.gallery?.images?.length || 0}`
+                            : `Планшетный режим · блоков на сцене: ${activePreset.placements?.length || 0}`}
+                          {activePreset.variant !== 'gallery' && activePreset.arrows?.length
                             ? ` · стрелок: ${activePreset.arrows.length}`
                             : ''}
                           {activePreset.stage_id

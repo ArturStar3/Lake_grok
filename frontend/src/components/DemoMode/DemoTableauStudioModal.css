@@ -55,6 +55,10 @@
   overflow: hidden;
 }
 
+.demo-tableau-studio-modal__body.is-gallery {
+  grid-template-columns: 220px minmax(0, 1fr) 280px;
+}
+
 .demo-tableau-studio-modal__presets,
 .demo-tableau-studio-modal__main,
 .demo-tableau-studio-modal__inspector {
@@ -668,4 +672,113 @@
 .demo-tableau-studio-modal__grid-cell.is-empty {
   border: 1px dashed rgba(248, 250, 252, 0.4);
   background: rgba(15, 23, 42, 0.28);
+}
+
+.demo-tableau-studio-modal .demo-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 10px;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.demo-tableau-studio-modal__scene.is-gallery-nomap {
+  background: var(--il-bg, #0f172a);
+}
+
+.demo-tableau-studio-modal__map-guide.is-nomap {
+  background: var(--il-bg, #0f172a);
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.demo-tableau-gallery-studio__list {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.demo-tableau-gallery-studio__item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.demo-tableau-gallery-studio__item.is-selected {
+  background: rgba(96, 165, 250, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.demo-tableau-gallery-studio__item img {
+  width: 44px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #0f172a;
+}
+
+.demo-tableau-gallery-studio__move {
+  display: flex;
+  gap: 2px;
+}
+
+.demo-tableau-gallery-studio__rest {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  margin-bottom: 10px;
+}
+
+.demo-tableau-studio-modal__gallery-frame {
+  position: absolute;
+  margin: 0;
+  overflow: visible;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  cursor: move;
+  box-sizing: border-box;
+}
+
+.demo-tableau-studio-modal__gallery-frame.is-readonly {
+  cursor: default;
+}
+
+.demo-tableau-studio-modal__gallery-frame.is-selected {
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.45),
+    0 0 0 2px #60a5fa;
+}
+
+.demo-tableau-studio-modal__gallery-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  border-radius: 8px;
+  display: block;
+}
+
+.demo-tableau-studio-modal__gallery-resize {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  background: #60a5fa;
+  border: 1px solid #1e3a8a;
+  border-radius: 1px;
+  cursor: se-resize;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 2;
 }

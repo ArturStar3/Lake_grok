@@ -85,6 +85,7 @@ from .serializers import (
     DemoScenarioSerializer,
     DemoScenarioWriteSerializer,
     DemoTableauMediaSerializer,
+    DemoMosaicMediaSerializer,
 )
 from formular.models import (
     Target,
@@ -119,6 +120,7 @@ from formular.models import (
     DemoScenarioStage,
     DemoScenarioStep,
     DemoTableauMedia,
+    DemoMosaicMedia,
 )
 from equipment.models import (
     EquipmentCategory,
@@ -1509,6 +1511,33 @@ class DemoTableauMediaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if self.action == 'list':
             return DemoTableauMedia.objects.none()
+        return super().get_queryset()
+
+    def create(self, request, *args, **kwargs):
+        ensure_can_write(request.user, 'demo_scenarios')
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(
+            created_by=self.request.user if self.request.user.is_authenticated else None,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        ensure_can_delete(request.user, 'demo_scenarios')
+        return super().destroy(request, *args, **kwargs)
+
+
+class DemoMosaicMediaViewSet(viewsets.ModelViewSet):
+    """Загрузка видео для слотов мультиэкранной демонстрации."""
+
+    permission_classes = [DemoScenariosPermission]
+    serializer_class = DemoMosaicMediaSerializer
+    queryset = DemoMosaicMedia.objects.all().order_by('-created_at')
+    http_method_names = ['get', 'post', 'head', 'options', 'delete']
+
+    def get_queryset(self):
+        if self.action == 'list':
+            return DemoMosaicMedia.objects.none()
         return super().get_queryset()
 
     def create(self, request, *args, **kwargs):

@@ -5,7 +5,9 @@ import {
   DEMO_MOSAIC_SLOT_LABELS,
   DEMO_TOOL,
   findStage,
+  mosaicScreenHasVideo,
 } from '../../utils/demoScenario';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { sliceCatalogsForStage } from '../../utils/demoMosaicCatalog';
 import {
   COUNTRY_SYNTHETIC_CARDS,
@@ -77,10 +79,12 @@ function DemoMosaicTile({
   onPainted = null,
 }) {
   const label = screen?.label || DEMO_MOSAIC_SLOT_LABELS[slotId] || slotId.toUpperCase();
+  const isVideo = mosaicScreenHasVideo(screen);
+  const videoUrl = isVideo ? resolveMediaUrl(screen.video_url) : null;
   const loop = Boolean(screen?.loop);
   const stage = useMemo(
-    () => findStage(stages, screen?.stage_id),
-    [stages, screen?.stage_id],
+    () => (isVideo ? null : findStage(stages, screen?.stage_id)),
+    [isVideo, stages, screen?.stage_id],
   );
   const catalogs = useMemo(
     () => catalogsProp || sliceCatalogsForStage(stage, {}),
@@ -90,8 +94,8 @@ function DemoMosaicTile({
   const runner = useDemoStageRunner({
     stage,
     loop,
-    enabled: Boolean(stage),
-    paused: !playing,
+    enabled: Boolean(stage) && !isVideo,
+    paused: !playing || isVideo,
     startDelayMs,
     objects: catalogs.objects,
     events: catalogs.events,
@@ -100,6 +104,7 @@ function DemoMosaicTile({
   });
 
   const lastInvalidateSizeRef = useRef({ x: 0, y: 0 });
+  const videoRef = useRef(null);
   const onPaintedRef = useRef(onPainted);
   onPaintedRef.current = onPainted;
   const paintedRef = useRef(false);
@@ -117,6 +122,11 @@ function DemoMosaicTile({
       paintedRef.current = true;
       onPaintedRef.current?.(slotId);
     };
+
+    if (isVideo) {
+      done();
+      return undefined;
+    }
 
     if (!stage) {
       done();
@@ -154,7 +164,7 @@ function DemoMosaicTile({
       if (raf) cancelAnimationFrame(raf);
       if (fallbackId) window.clearTimeout(fallbackId);
     };
-  }, [runner.mapRef, slotId, stage]);
+  }, [isVideo, runner.mapRef, slotId, stage]);
 
   useEffect(() => {
     if (!playing) return undefined;
@@ -185,10 +195,36 @@ function DemoMosaicTile({
     return undefined;
   }, [playing, runner.mapRef]);
 
+  useEffect(() => {
+    const node = videoRef.current;
+    if (!node || !isVideo) return undefined;
+    if (playing) {
+      const play = node.play();
+      if (play?.catch) play.catch(() => null);
+    } else {
+      node.pause();
+    }
+    return undefined;
+  }, [isVideo, playing, videoUrl]);
+
   return (
-    <div className={`demo-mosaic-tile demo-mosaic-tile--${slotId}`}>
+    <div className={`demo-mosaic-tile demo-mosaic-tile--${slotId}${isVideo ? ' demo-mosaic-tile--video' : ''}`}>
       <div className="demo-mosaic-tile__map">
-        {stage ? (
+        {isVideo && videoUrl ? (
+          <video
+            ref={videoRef}
+            className="demo-mosaic-tile__video"
+            src={videoUrl}
+            muted
+            loop
+            playsInline
+            autoPlay={playing}
+            preload="auto"
+            onLoadedData={() => onPaintedRef.current?.(slotId)}
+          />
+        ) : isVideo ? (
+          <div className="demo-mosaic-tile__empty">Нет видео</div>
+        ) : stage ? (
           <MapComponent
             embed
             embedLite
@@ -219,11 +255,13 @@ function DemoMosaicTile({
           <div className="demo-mosaic-tile__empty">Нет этапа</div>
         )}
       </div>
-      <DemoMosaicPeek
-        contentStep={runner.contentStep}
-        objects={catalogs.objects}
-        countriesList={catalogs.countriesList}
-      />
+      {isVideo ? null : (
+        <DemoMosaicPeek
+          contentStep={runner.contentStep}
+          objects={catalogs.objects}
+          countriesList={catalogs.countriesList}
+        />
+      )}
       <div className="demo-mosaic-tile__label">
         <span>{label}</span>
         {loop ? <span className="demo-mosaic-tile__loop" title="Повтор этапа">∞</span> : null}

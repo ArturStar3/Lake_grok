@@ -6,7 +6,9 @@ import {
   DEMO_MOSAIC_EXPAND_ANIMATION,
   DEMO_MOSAIC_SLOT_LABELS,
   getMosaicLayoutDef,
+  mosaicScreenHasVideo,
 } from '../../utils/demoScenario';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { sliceCatalogsForStage } from '../../utils/demoMosaicCatalog';
 import { setMosaicClockEnabled } from '../../hooks/demo/mosaicStageClock';
 import { useMosaicTileMountQueue } from '../../hooks/demo/useMosaicTileMountQueue';
@@ -180,6 +182,7 @@ function DemoMosaicShell({
   const [incomingPrep, setIncomingPrep] = useState(false);
   const [incomingAnim, setIncomingAnim] = useState(false);
   const [paintedCount, setPaintedCount] = useState(0);
+  const [liveMapVisible, setLiveMapVisible] = useState(true);
 
   const active = Boolean(mosaicRuntime?.active);
   const warming = Boolean(mosaicRuntime?.warming);
@@ -702,6 +705,32 @@ function DemoMosaicShell({
   const isFull = focusPhase === FOCUS_PHASE.FULL;
   const coverMain = warming || showFocus;
 
+  const coverVideoUrl = useMemo(() => {
+    if (!active || !showFocus) return null;
+    const outgoingId = fromSlot || focusSlot;
+    const coverId = mode === 'switching' ? outgoingId : focusSlot;
+    const screen = coverId ? screens[coverId] : null;
+    if (!mosaicScreenHasVideo(screen)) return null;
+    return resolveMediaUrl(screen.video_url);
+  }, [active, focusSlot, fromSlot, mode, screens, showFocus]);
+
+  useEffect(() => {
+    if (!coverVideoUrl) {
+      setLiveMapVisible(true);
+      return undefined;
+    }
+    if (mode === 'expanding' || mode === 'collapsing' || mode === 'switching') {
+      setLiveMapVisible(false);
+      return undefined;
+    }
+    if (mode === 'focus') {
+      const timer = window.setTimeout(() => setLiveMapVisible(true), 40);
+      return () => window.clearTimeout(timer);
+    }
+    setLiveMapVisible(false);
+    return undefined;
+  }, [coverVideoUrl, mode]);
+
   useEffect(() => {
     setMosaicClockEnabled(Boolean(active && tilesPlaying));
     return () => setMosaicClockEnabled(false);
@@ -945,7 +974,28 @@ function DemoMosaicShell({
         style={focusStyle}
         aria-hidden={!coverMain}
       >
-        {children}
+        <div
+          className={[
+            'demo-mosaic__focus-live',
+            coverVideoUrl && !liveMapVisible ? 'demo-mosaic__focus-live--hidden' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          {children}
+        </div>
+        {coverVideoUrl ? (
+          <video
+            className={[
+              'demo-mosaic__focus-video',
+              liveMapVisible ? 'demo-mosaic__focus-video--hidden' : '',
+            ].filter(Boolean).join(' ')}
+            src={coverVideoUrl}
+            muted
+            loop
+            playsInline
+            autoPlay
+            preload="auto"
+          />
+        ) : null}
       </div>
     </div>
   );
