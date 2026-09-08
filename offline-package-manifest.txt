@@ -1,17 +1,17 @@
 ﻿InfoLake offline package manifest
-Generated: 2026-09-07 13:03:05
+Generated: 2026-09-08 19:12:37
 Git branch: develop_demonstration
 Mode: PRODUCTION (docker-compose.server.yml)
 
 Docker images in infolake_full_offline_prod.tar:
+  - maptiler/tileserver-gl:latest
   - infolake-backend:latest
   - infolake-nginx:latest
-  - maptiler/tileserver-gl:latest
 
 Archive:
   Stable:    .\infolake_full_offline_prod.tar
-  Timestamp: .\infolake_full_offline_prod_20260907_130230.tar
-  Size:      1590.1 MB
+  Timestamp: .\infolake_full_offline_prod_20260908_191217.tar
+  Size:      1599.7 MB
 
 Copy to offline server:
   1. infolake_full_offline_prod.tar (this archive)
