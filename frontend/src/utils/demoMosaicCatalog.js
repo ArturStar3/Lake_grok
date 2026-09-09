@@ -1,5 +1,5 @@
 import { filterRevisionsForSituations } from './situationUtils';
-import { composeStateForStage, findStage } from './demoScenario';
+import { composeStateForStage, findStage, mosaicScreenStageIds } from './demoScenario';
 
 const CACHE_LIMIT = 24;
 const sliceCache = new Map();
@@ -115,8 +115,10 @@ export function getCachedComposeStateForStage(stage, beatIndex = Infinity) {
 export function warmMosaicPresetCatalogs(preset, stages, catalogs = {}) {
   const screens = preset?.screens || [];
   screens.forEach((screen) => {
-    const stage = findStage(stages, screen.stage_id);
-    if (stage) sliceCatalogsForStage(stage, catalogs);
+    mosaicScreenStageIds(screen).forEach((stageId) => {
+      const stage = findStage(stages, stageId);
+      if (stage) sliceCatalogsForStage(stage, catalogs);
+    });
   });
 }
 
@@ -143,7 +145,11 @@ export function sliceCatalogsForStage(stage, catalogs = {}) {
     ? objects.filter((obj) => {
       if (ids.target_ids.has(String(obj.id))) return true;
       const title = obj.country?.title;
-      return Boolean(title && ids.zone_countries.has(String(title)));
+      const iso = String(obj.country?.iso_code || '').trim().toUpperCase();
+      return Boolean(
+        (title && ids.zone_countries.has(String(title)))
+        || (iso && ids.zone_countries.has(iso)),
+      );
     })
     : slicedObjects;
 

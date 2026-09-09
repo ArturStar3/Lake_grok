@@ -12,6 +12,7 @@ import {
 } from '../../utils/demoScenario';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import DemoTableauBlockView from './DemoTableauBlockView.jsx';
+import DemoStudioSaveActions from './DemoStudioSaveActions';
 import './DemoTableauBlockStudioModal.css';
 
 const MIN_SIZE = 4;
@@ -38,6 +39,11 @@ export default function DemoTableauBlockStudioModal({
   onChange,
   onClose,
   readOnly = false,
+  canWrite = false,
+  onSave,
+  saveBusy = false,
+  saveNotice = '',
+  saveDisabled = false,
 }) {
   const [blockId, setBlockId] = useState(blocks[0]?.id || null);
   const [elementId, setElementId] = useState(null);
@@ -240,6 +246,13 @@ export default function DemoTableauBlockStudioModal({
             </p>
           </div>
           <div className="demo-tableau-block-studio-modal__header-actions">
+            <DemoStudioSaveActions
+              canWrite={canWrite}
+              onSave={onSave}
+              busy={saveBusy}
+              notice={saveNotice}
+              disabled={saveDisabled}
+            />
             <button type="button" className="demo-btn" onClick={onClose}>
               Готово
             </button>

@@ -85,7 +85,12 @@ function isZoneInViewport(zone, bounds) {
   return corners.some((corner) => center.distanceTo(corner) <= zone.radiusMeters);
 }
 
-function useZonesInViewport(zones) {
+function mapHasSize(map) {
+  const size = map?.getSize?.() || map?._size;
+  return Boolean(size && size.x > 0 && size.y > 0);
+}
+
+function useZonesInViewport(zones, { enabled = true } = {}) {
   const map = useMap();
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
@@ -93,14 +98,20 @@ function useZonesInViewport(zones) {
 
   const filterZones = useCallback(() => {
     const list = zonesRef.current;
+    if (!enabled) return list ?? EMPTY_ZONES;
     if (!map || !list?.length) return list ?? EMPTY_ZONES;
+    if (!mapHasSize(map)) return list ?? EMPTY_ZONES;
     const bounds = map.getBounds().pad(0.1);
     return list.filter((zone) => isZoneInViewport(zone, bounds));
-  }, [map]);
+  }, [enabled, map]);
 
   const [inViewport, setInViewport] = useState(() => filterZones());
 
   useEffect(() => {
+    if (!enabled) {
+      setInViewport(zonesRef.current ?? EMPTY_ZONES);
+      return undefined;
+    }
     let timeoutId = null;
     const schedule = () => {
       if (timeoutId) clearTimeout(timeoutId);
@@ -110,14 +121,18 @@ function useZonesInViewport(zones) {
     schedule();
     map.on('moveend', schedule);
     map.on('zoomend', schedule);
+    map.on('resize', schedule);
+    map.on('viewreset', schedule);
     return () => {
       map.off('moveend', schedule);
       map.off('zoomend', schedule);
+      map.off('resize', schedule);
+      map.off('viewreset', schedule);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [map, filterZones, zonesKey]);
+  }, [enabled, map, filterZones, zonesKey]);
 
-  return inViewport;
+  return enabled ? inViewport : (zones ?? EMPTY_ZONES);
 }
 
 const ZoneCircleLayer = React.memo(function ZoneCircleLayer({
@@ -289,10 +304,11 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
   considerTerrain,
   losGeometryByZoneKey = {},
   demoAnimation = null,
+  cullToViewport = true,
 }) {
   const visibleZones = visibleZonesProp ?? EMPTY_ZONES;
 
-  const zonesInViewport = useZonesInViewport(visibleZones);
+  const zonesInViewport = useZonesInViewport(visibleZones, { enabled: cullToViewport });
 
   const zonesWithEntryIds = useMemo(
     () => zonesInViewport.map((zone) => ({

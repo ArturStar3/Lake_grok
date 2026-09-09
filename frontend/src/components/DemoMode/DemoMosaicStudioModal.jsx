@@ -11,12 +11,14 @@ import {
   findMosaicPreset,
   findStage,
   getMosaicLayoutDef,
+  mosaicScreenExpandStageId,
   mosaicScreenHasVideo,
   normalizeMosaicPreset,
   normalizeScenarioMosaic,
 } from '../../utils/demoScenario';
 import { uploadDemoMosaicMedia } from '../../api/demoScenarios';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import DemoStudioSaveActions from './DemoStudioSaveActions';
 import './DemoMosaicStudioModal.css';
 
 /**
@@ -30,6 +32,11 @@ export default function DemoMosaicStudioModal({
   onOpenStages,
   onPreviewMosaic,
   readOnly = false,
+  canWrite = false,
+  onSave,
+  saveBusy = false,
+  saveNotice = '',
+  saveDisabled = false,
 }) {
   const library = useMemo(() => normalizeScenarioMosaic(mosaic), [mosaic]);
   const [presetId, setPresetId] = useState(library.active_preset_id || library.presets[0]?.id || null);
@@ -40,6 +47,7 @@ export default function DemoMosaicStudioModal({
   const preset = findMosaicPreset(library, presetId) || library.presets[0] || null;
   const screen = preset?.screens?.find((item) => item.id === screenId) || preset?.screens?.[0] || null;
   const assignedStage = findStage(stages, screen?.stage_id);
+  const assignedExpandStage = findStage(stages, mosaicScreenExpandStageId(screen));
 
   const patchLibrary = (partial) => {
     onChange(normalizeScenarioMosaic({ ...library, ...partial }));
@@ -98,11 +106,20 @@ export default function DemoMosaicStudioModal({
         <header className="demo-mosaic-studio-modal__header">
           <div>
             <h2>Конструктор мультиэкрана</h2>
-            <p>Раскладка экранов. На каждый слот назначается один этап из библиотеки.</p>
+            <p>Раскладка экранов. На слот можно назначить разные этапы для сетки и для разворота.</p>
           </div>
-          <button type="button" className="demo-btn demo-btn--ghost" onClick={onClose}>
-            Закрыть
-          </button>
+          <div className="demo-mosaic-studio-modal__header-actions">
+            <DemoStudioSaveActions
+              canWrite={canWrite}
+              onSave={onSave}
+              busy={saveBusy}
+              notice={saveNotice}
+              disabled={saveDisabled}
+            />
+            <button type="button" className="demo-btn demo-btn--ghost" onClick={onClose}>
+              Закрыть
+            </button>
+          </div>
         </header>
 
         <div className="demo-mosaic-studio-modal__body">
@@ -292,7 +309,25 @@ export default function DemoMosaicStudioModal({
                 <div className={`demo-mosaic-preview demo-mosaic-preview--${preset.layout}`}>
                   {layoutSlots.map((id) => {
                     const item = preset.screens.find((screenItem) => screenItem.id === id);
-                    const stage = findStage(stages, item?.stage_id);
+                    const gridStage = findStage(stages, item?.stage_id);
+                    const expandStage = findStage(stages, mosaicScreenExpandStageId(item));
+                    const expandDiffers = Boolean(
+                      expandStage
+                      && gridStage
+                      && String(expandStage.id || expandStage.key) !== String(gridStage.id || gridStage.key),
+                    );
+                    let barLabel = 'Этап не назначен';
+                    if (mosaicScreenHasVideo(item)) {
+                      barLabel = expandStage?.title
+                        ? `Видео · ${expandStage.title}`
+                        : 'Видео';
+                    } else if (expandDiffers) {
+                      barLabel = `${gridStage.title || 'Сетка'} → ${expandStage.title || 'Разворот'}`;
+                    } else if (gridStage?.title) {
+                      barLabel = gridStage.title;
+                    } else if (expandStage?.title) {
+                      barLabel = expandStage.title;
+                    }
                     return (
                       <button
                         type="button"
@@ -308,9 +343,7 @@ export default function DemoMosaicStudioModal({
                           {item?.label || DEMO_MOSAIC_SLOT_LABELS[id] || id.toUpperCase()}
                         </span>
                         <span className="demo-mosaic-preview__bar">
-                          {mosaicScreenHasVideo(item)
-                            ? `Видео${stage?.title ? ` · ${stage.title}` : ''}`
-                            : (stage?.title || 'Этап не назначен')}
+                          {barLabel}
                         </span>
                       </button>
                     );
@@ -343,16 +376,14 @@ export default function DemoMosaicStudioModal({
                     onChange={(e) => patchScreen({ label: e.target.value })}
                   />
                 </label>
-                {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO ? null : (
-                  <label className="demo-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(screen.loop)}
-                      onChange={(e) => patchScreen({ loop: e.target.checked })}
-                    />
-                    <span>Пульсация маркеров на мини-карте</span>
-                  </label>
-                )}
+                <label className="demo-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(screen.loop)}
+                    onChange={(e) => patchScreen({ loop: e.target.checked })}
+                  />
+                  <span>Повторять этап в сетке и на развороте</span>
+                </label>
 
                 <label className="demo-field">
                   <span className="demo-field__label">Содержимое слота</span>
@@ -434,21 +465,50 @@ export default function DemoMosaicStudioModal({
                   </div>
                 ) : null}
 
-                <label className="demo-field">
-                  <span className="demo-field__label">
-                    {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO
-                      ? 'Этап при разворачивании'
-                      : 'Этап на этом экране'}
-                  </span>
-                  <select
-                    value={screen.stage_id || ''}
-                    onChange={(e) => patchScreen({ stage_id: e.target.value || null })}
-                  >
-                    {stageOptions.map((option) => (
-                      <option key={option.id || 'none'} value={option.id}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
+                {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO ? (
+                  <label className="demo-field">
+                    <span className="demo-field__label">Этап при разворачивании</span>
+                    <select
+                      value={mosaicScreenExpandStageId(screen) || ''}
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        patchScreen({ expand_stage_id: value, stage_id: value });
+                      }}
+                    >
+                      {stageOptions.map((option) => (
+                        <option key={option.id || 'none'} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <>
+                    <label className="demo-field">
+                      <span className="demo-field__label">Этап в сетке</span>
+                      <select
+                        value={screen.stage_id || ''}
+                        onChange={(e) => patchScreen({ stage_id: e.target.value || null })}
+                      >
+                        {stageOptions.map((option) => (
+                          <option key={option.id || 'none'} value={option.id}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="demo-field">
+                      <span className="demo-field__label">Этап при разворачивании</span>
+                      <select
+                        value={screen.expand_stage_id || ''}
+                        onChange={(e) => patchScreen({ expand_stage_id: e.target.value || null })}
+                      >
+                        <option value="">Как в сетке</option>
+                        {stages.map((stage) => (
+                          <option key={stage.id || stage.key} value={String(stage.id || stage.key)}>
+                            {stage.title || 'Без названия'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
                 {!stages.length && (
                   <p className="demo-field__hint">
                     Сначала создайте этапы в конструкторе этапов.
@@ -462,13 +522,31 @@ export default function DemoMosaicStudioModal({
                     )}
                   </p>
                 )}
-                {assignedStage && (
-                  <p className="demo-field__hint">
-                    {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO
-                      ? `При разворачивании показывается живая карта этапа «${assignedStage.title || 'Без названия'}».`
-                      : `Камера и объекты берутся из этапа «${assignedStage.title || 'Без названия'}».`}
-                  </p>
-                )}
+                {(() => {
+                  if (!assignedExpandStage) return null;
+                  if (screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO) {
+                    return (
+                      <p className="demo-field__hint">
+                        {`При разворачивании проигрывается этап «${assignedExpandStage.title || 'Без названия'}».`}
+                      </p>
+                    );
+                  }
+                  const sameStage = assignedStage
+                    && String(assignedStage.id || assignedStage.key)
+                      === String(assignedExpandStage.id || assignedExpandStage.key);
+                  if (!sameStage && assignedStage) {
+                    return (
+                      <p className="demo-field__hint">
+                        {`В сетке — «${assignedStage.title || 'Без названия'}», на развороте проигрывается «${assignedExpandStage.title || 'Без названия'}».`}
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="demo-field__hint">
+                      {`Камера и объекты берутся из этапа «${assignedExpandStage.title || 'Без названия'}». На развороте этап проигрывается на полной карте.`}
+                    </p>
+                  );
+                })()}
               </fieldset>
             )}
           </section>

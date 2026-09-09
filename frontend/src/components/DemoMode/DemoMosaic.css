@@ -31,6 +31,11 @@
   grid-template-rows: 1fr;
 }
 
+.demo-mosaic--layout-1x3 .demo-mosaic__grid {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
 .demo-mosaic--layout-2x1 .demo-mosaic__grid {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr 1fr;

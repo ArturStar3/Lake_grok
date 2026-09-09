@@ -319,8 +319,8 @@ export function useDemoStageRunner({
   }, [clearCameraTimers]);
 
   const composed = useMemo(
-    () => (stage && clockReady ? getCachedComposeStateForStage(stage, boundedBeat) : null),
-    [clockReady, stage, boundedBeat],
+    () => (stage ? getCachedComposeStateForStage(stage, clockReady ? boundedBeat : 0) : null),
+    [boundedBeat, clockReady, stage],
   );
 
   const selectedObj = useMemo(

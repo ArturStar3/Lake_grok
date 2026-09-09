@@ -48,6 +48,7 @@ import { uploadDemoTableauMedia } from '../../api/demoScenarios';
 import ZoneColorPicker from '../ReferenceData/ZoneColorPicker';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauBlockStudioModal from './DemoTableauBlockStudioModal';
+import DemoStudioSaveActions from './DemoStudioSaveActions';
 import './DemoTableauBlockView.css';
 import './DemoTableauStudioModal.css';
 
@@ -281,6 +282,11 @@ export default function DemoTableauStudioModal({
   onOpenBlocks,
   getMapView,
   readOnly = false,
+  canWrite = false,
+  onSave,
+  saveBusy = false,
+  saveNotice = '',
+  saveDisabled = false,
 }) {
   const library = useMemo(() => normalizeScenarioTableau(tableau), [tableau]);
   const [presetId, setPresetId] = useState(library.active_preset_id || library.presets[0]?.id || null);
@@ -770,6 +776,13 @@ export default function DemoTableauStudioModal({
             >
               Просмотр
             </button>
+            <DemoStudioSaveActions
+              canWrite={canWrite}
+              onSave={onSave}
+              busy={saveBusy}
+              notice={saveNotice}
+              disabled={saveDisabled}
+            />
             <button type="button" className="demo-btn" onClick={onClose}>
               Готово
             </button>
@@ -2166,6 +2179,11 @@ export default function DemoTableauStudioModal({
           onChange={(blocks) => patchLibrary({ blocks })}
           onClose={() => setBlockStudioOpen(false)}
           readOnly={readOnly}
+          canWrite={canWrite}
+          onSave={onSave}
+          saveBusy={saveBusy}
+          saveNotice={saveNotice}
+          saveDisabled={saveDisabled}
         />
       )}
     </div>

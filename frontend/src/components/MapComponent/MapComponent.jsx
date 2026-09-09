@@ -63,6 +63,7 @@ import DemoPlaybackBar from "../DemoMode/DemoPlaybackBar";
 import DemoTextMapEditor from "../DemoMode/DemoTextMapEditor";
 import DemoTextLayer from "./demo/DemoTextLayer";
 import { alignDemoText } from "../../utils/demoScenario";
+import { buildVisibleZones } from "../../utils/buildVisibleZones";
 
 // delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -72,6 +73,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const MemoGeoJSON = React.memo(GeoJSON);
+const EMPTY_VISIBLE_ZONES = [];
 
 /**
  * Иконки событий кэшируются по маркеру и активному эффекту демонстрации:
@@ -986,12 +988,17 @@ function DemoMapBridge({ onOverlayLayersRef, setOnlyOverlayLayers, overlayEnable
  * этом не прерывается, лишь отсчёт текущего такта придерживается, пока идёт
  * перетаскивание или зум — иначе автопереход выдернул бы камеру из-под руки.
  */
-function DemoInteractionBridge({ active, onHold, onRelease }) {
+function DemoInteractionBridge({ active, onHold, onRelease, suspendHold = false }) {
     const map = useMap();
+    const suspendHoldRef = useRef(suspendHold);
+    suspendHoldRef.current = suspendHold;
 
     useEffect(() => {
         if (!active || !map) return undefined;
-        const hold = () => onHold?.();
+        const hold = () => {
+            if (suspendHoldRef.current) return;
+            onHold?.();
+        };
         const release = () => onRelease?.();
 
         map.on('dragstart zoomstart mousedown', hold);
@@ -1631,6 +1638,11 @@ function MapComponent({
     }, [isFullscreen, tableTab]);
 
     const showActionRadius = externalShowActionRadius;
+    const resolvedVisibleZones = useMemo(() => {
+        if (visibleZones != null) return visibleZones;
+        if (!showActionRadius) return EMPTY_VISIBLE_ZONES;
+        return buildVisibleZones(zoneObjectsSource, actionZoneFilters);
+    }, [actionZoneFilters, showActionRadius, visibleZones, zoneObjectsSource]);
     const effectiveMeasureMode = isFullscreen ? isMeasureMode : measureMode;
     const effectiveMeasurePoints = isFullscreen ? measurePoints : measurements;
 
@@ -2540,6 +2552,7 @@ function MapComponent({
                 {!embed && (
                     <DemoInteractionBridge
                         active={Boolean(demoPlayback?.isActive)}
+                        suspendHold={freezeMapLayout}
                         onHold={onDemoInteractionHold}
                         onRelease={onDemoInteractionRelease}
                     />
@@ -2765,7 +2778,7 @@ function MapComponent({
                     <ActionZonesLayer
                         zoneObjects={zoneObjectsSource}
                         actionZoneFilters={actionZoneFilters}
-                        visibleZones={visibleZones}
+                        visibleZones={resolvedVisibleZones}
                         hoverController={zoneHoverControllerRef.current}
                         skipHoverRef={skipZoneHoverUpdatesRef}
                         isZonePanelPinned={Boolean(pinnedZonePanel)}
@@ -2774,6 +2787,7 @@ function MapComponent({
                         considerTerrain={mapConsiderTerrain}
                         losGeometryByZoneKey={losGeometryByZoneKey}
                         demoAnimation={demoAnimation}
+                        cullToViewport={!embedLite}
                     />
                 )}
 

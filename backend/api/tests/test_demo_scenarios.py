@@ -512,6 +512,148 @@ class DemoScenarioApiTests(APITestCase):
         self.assertIsNone(collapse_item.get('expand_ms'))
         self.assertIsNone(collapse_item.get('expand_easing'))
 
+    def test_mosaic_expand_stage_id_round_trip(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        grid_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+        expand_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+        preset_id = 'preset-expand-stage'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[
+                {'id': grid_id, 'title': 'Сетка', 'steps': [build_step(title='Камера')]},
+                {'id': expand_id, 'title': 'Разворот', 'steps': [build_step(title='Зоны', tool='zones')]},
+            ],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '2x2',
+                    'expandable_slots': ['a'],
+                    'screens': [{
+                        'id': 'a',
+                        'label': 'A',
+                        'stage_id': grid_id,
+                        'expand_stage_id': expand_id,
+                    }],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[
+                {'type': 'mosaic', 'preset_id': preset_id, 'mosaic_action': 'show_grid'},
+                {
+                    'type': 'mosaic',
+                    'preset_id': preset_id,
+                    'mosaic_action': 'expand',
+                    'slot': 'a',
+                },
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        screen = response.data['mosaic']['presets'][0]['screens'][0]
+        self.assertEqual(screen['stage_id'], grid_id)
+        self.assertEqual(screen['expand_stage_id'], expand_id)
+
+    def test_mosaic_expand_stage_id_unknown_dropped(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        grid_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+        preset_id = 'preset-expand-unknown'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': grid_id,
+                'title': 'Сетка',
+                'steps': [build_step(title='Камера')],
+            }],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '2x2',
+                    'screens': [{
+                        'id': 'a',
+                        'label': 'A',
+                        'stage_id': grid_id,
+                        'expand_stage_id': '99999999-9999-9999-9999-999999999999',
+                    }],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'mosaic', 'preset_id': preset_id}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        screen = response.data['mosaic']['presets'][0]['screens'][0]
+        self.assertEqual(screen['stage_id'], grid_id)
+        self.assertIsNone(screen['expand_stage_id'])
+
+    def test_mosaic_expand_stage_id_same_as_grid_is_null(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+        preset_id = 'preset-expand-same'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Один этап',
+                'steps': [build_step(title='Камера')],
+            }],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '2x2',
+                    'screens': [{
+                        'id': 'a',
+                        'label': 'A',
+                        'stage_id': stage_id,
+                        'expand_stage_id': stage_id,
+                    }],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'mosaic', 'preset_id': preset_id}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        screen = response.data['mosaic']['presets'][0]['screens'][0]
+        self.assertEqual(screen['stage_id'], stage_id)
+        self.assertIsNone(screen['expand_stage_id'])
+
+    def test_mosaic_expand_stage_id_remaps_local_ids(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        preset_id = 'preset-expand-remap'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[
+                {'id': 'local-grid', 'title': 'Сетка', 'steps': [build_step(title='Камера')]},
+                {'id': 'local-expand', 'title': 'Разворот', 'steps': [build_step(title='Зоны', tool='zones')]},
+            ],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '2x2',
+                    'screens': [{
+                        'id': 'a',
+                        'label': 'A',
+                        'stage_id': 'local-grid',
+                        'expand_stage_id': 'local-expand',
+                    }],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'mosaic', 'preset_id': preset_id}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        titles = {stage['title']: str(stage['id']) for stage in response.data['stages']}
+        screen = response.data['mosaic']['presets'][0]['screens'][0]
+        self.assertEqual(screen['stage_id'], titles['Сетка'])
+        self.assertEqual(screen['expand_stage_id'], titles['Разворот'])
+        self.assertNotEqual(screen['stage_id'], 'local-grid')
+        self.assertNotEqual(screen['expand_stage_id'], 'local-expand')
+
     def test_tableau_preset_round_trip(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         stage_id = '33333333-3333-3333-3333-333333333333'

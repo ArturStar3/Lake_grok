@@ -221,6 +221,7 @@ export const DEMO_TEXT_MAX_LENGTH = 4000;
 
 export const DEMO_MOSAIC_LAYOUT = {
   ROW2: '1x2',
+  ROW3: '1x3',
   COL2: '2x1',
   ONE_PLUS_TWO: '1+2',
   GRID2: '2x2',
@@ -230,6 +231,7 @@ export const DEMO_MOSAIC_LAYOUT = {
 
 export const DEMO_MOSAIC_LAYOUTS = [
   { id: DEMO_MOSAIC_LAYOUT.ROW2, label: 'Два экрана рядом', slots: ['a', 'b'] },
+  { id: DEMO_MOSAIC_LAYOUT.ROW3, label: 'Сетка 1×3', slots: ['a', 'b', 'c'] },
   { id: DEMO_MOSAIC_LAYOUT.COL2, label: 'Два экрана сверху и снизу', slots: ['a', 'b'] },
   { id: DEMO_MOSAIC_LAYOUT.ONE_PLUS_TWO, label: 'Один крупный + два', slots: ['a', 'b', 'c'] },
   { id: DEMO_MOSAIC_LAYOUT.GRID2, label: 'Сетка 2×2', slots: ['a', 'b', 'c', 'd'] },
@@ -521,7 +523,9 @@ export const DEMO_PROGRAM_EXIT_EFFECTS = [
 ];
 
 export function getMosaicLayoutDef(layoutId) {
-  return DEMO_MOSAIC_LAYOUTS.find((item) => item.id === layoutId) || DEMO_MOSAIC_LAYOUTS[3];
+  return DEMO_MOSAIC_LAYOUTS.find((item) => item.id === layoutId)
+    || DEMO_MOSAIC_LAYOUTS.find((item) => item.id === DEMO_MOSAIC_LAYOUT.GRID2)
+    || DEMO_MOSAIC_LAYOUTS[0];
 }
 
 export function getMosaicActionLabel(action) {
@@ -663,6 +667,7 @@ export function createDefaultMosaicScreen(slotId, overrides = {}) {
     label: DEMO_MOSAIC_SLOT_LABELS[slotId] || `Экран ${String(slotId).toUpperCase()}`,
     loop: false,
     stage_id: null,
+    expand_stage_id: null,
     content_type: DEMO_MOSAIC_CONTENT.STAGE,
     video_url: null,
     video_media_id: null,
@@ -1698,6 +1703,29 @@ export function mosaicScreenHasVideo(screen) {
   return screen?.content_type === DEMO_MOSAIC_CONTENT.VIDEO && Boolean(screen.video_url);
 }
 
+export function mosaicScreenGridStageId(screen) {
+  if (screen?.stage_id == null || screen.stage_id === '') return null;
+  return String(screen.stage_id);
+}
+
+export function mosaicScreenExpandStageId(screen) {
+  if (screen?.expand_stage_id != null && String(screen.expand_stage_id).trim()) {
+    return String(screen.expand_stage_id).trim();
+  }
+  return mosaicScreenGridStageId(screen);
+}
+
+export function mosaicScreenStageIds(screen) {
+  const ids = [];
+  const seen = new Set();
+  [mosaicScreenGridStageId(screen), mosaicScreenExpandStageId(screen)].forEach((id) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
+}
+
 export function normalizeTableauPreset(raw, allowedBlockIds = null) {
   const data = raw && typeof raw === 'object' ? raw : {};
   const id = data.id != null && String(data.id).trim()
@@ -2026,11 +2054,16 @@ export function normalizeMosaicScreen(raw, slotId, defaultLabel = '') {
   const stageId = data.stage_id != null && String(data.stage_id).trim()
     ? String(data.stage_id).trim().slice(0, 80)
     : null;
+  let expandStageId = data.expand_stage_id != null && String(data.expand_stage_id).trim()
+    ? String(data.expand_stage_id).trim().slice(0, 80)
+    : null;
+  if (expandStageId && stageId && expandStageId === stageId) expandStageId = null;
   return {
     id: slotId,
     label,
     loop: Boolean(data.loop),
     stage_id: stageId,
+    expand_stage_id: expandStageId,
     content_type: pickChoice(
       data.content_type,
       Object.values(DEMO_MOSAIC_CONTENT),
@@ -2935,9 +2968,65 @@ export function composeStateForStage(stage, beatIndex = Infinity) {
   return composeStateAtStage([playback], 0, beatIndex);
 }
 
+/**
+ * Подгоняет такты этапа под длительность блока: обрезка, удержание последнего
+ * кадра или повтор, если слот с loop.
+ */
+export function fitStageBeatsToDuration(stageBeats, durationMs, { loop = false } = {}) {
+  const source = (stageBeats || []).filter((beat) => (beat?.durationMs || 0) > 0);
+  const target = Math.max(0, durationMs || 0);
+  if (!source.length) {
+    return [{ steps: [], indices: [], durationMs: target, startMs: 0, endMs: target }];
+  }
+  if (!target) {
+    let cursor = 0;
+    return source.map((beat) => {
+      const startMs = cursor;
+      cursor += beat.durationMs;
+      return { ...beat, startMs, endMs: cursor };
+    });
+  }
+
+  const result = [];
+  const sourceTotal = source.reduce((sum, beat) => sum + beat.durationMs, 0);
+  if (!loop && sourceTotal <= target) {
+    let cursor = 0;
+    source.forEach((beat) => {
+      result.push({ ...beat, startMs: cursor, endMs: cursor + beat.durationMs, durationMs: beat.durationMs });
+      cursor += beat.durationMs;
+    });
+    const remain = target - cursor;
+    if (remain > 0 && result.length) {
+      const last = result[result.length - 1];
+      last.durationMs += remain;
+      last.endMs = target;
+    }
+    return result;
+  }
+
+  let cursor = 0;
+  let srcIndex = 0;
+  while (cursor < target) {
+    const beat = source[srcIndex % source.length];
+    const take = Math.min(beat.durationMs, target - cursor);
+    result.push({
+      ...beat,
+      durationMs: take,
+      startMs: cursor,
+      endMs: cursor + take,
+    });
+    cursor += take;
+    srcIndex += 1;
+    if (!loop && srcIndex >= source.length) break;
+  }
+  return result.length
+    ? result
+    : [{ steps: [], indices: [], durationMs: target, startMs: 0, endMs: target }];
+}
+
 export function mosaicDurationMs(preset, stages = []) {
   const fromStages = (preset?.screens || []).reduce((max, screen) => {
-    const stage = findStage(stages, screen.stage_id);
+    const stage = findStage(stages, mosaicScreenGridStageId(screen));
     if (!stage) return max;
     const duration = buildStageBeats(stage.steps).durationMs;
     return Math.max(max, duration);
@@ -2951,8 +3040,16 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
   if (item.type === DEMO_SEQUENCE_TYPE.MOSAIC) {
     const preset = findMosaicPreset(mosaic, item.preset_id);
     const action = normalizeSequenceMosaicAction(item.mosaic_action);
-    if (action === DEMO_MOSAIC_ACTION.EXPAND || action === DEMO_MOSAIC_ACTION.COLLAPSE) {
+    if (action === DEMO_MOSAIC_ACTION.COLLAPSE) {
       return resolveMosaicSlotTransition(preset, item, action).durationMs;
+    }
+    if (action === DEMO_MOSAIC_ACTION.EXPAND) {
+      const morphMs = resolveMosaicSlotTransition(preset, item, action).durationMs;
+      const slot = item.slot || preset?.expandable_slots?.[0] || preset?.screens?.[0]?.id || null;
+      const screen = (preset?.screens || []).find((entry) => entry.id === slot);
+      const stage = findStage(stages, mosaicScreenExpandStageId(screen));
+      const stageMs = buildStageBeats(stage?.steps || []).durationMs;
+      return Math.max(morphMs, stageMs, DEMO_DEFAULT_STEP_DURATION_MS);
     }
     return mosaicDurationMs(preset, stages);
   }
@@ -3006,7 +3103,7 @@ export function buildProgramPlayback(scenario) {
         slot = lastMosaicFocus.slot;
       }
       const screen = (preset?.screens || []).find((entry) => entry.id === slot);
-      let focusStage = findStage(stages, screen?.stage_id);
+      let focusStage = findStage(stages, mosaicScreenExpandStageId(screen));
       if (!focusStage && mosaicAction === DEMO_MOSAIC_ACTION.COLLAPSE
         && lastMosaicFocus.presetId === preset?.id) {
         focusStage = lastMosaicFocus.focusStage;
@@ -3020,6 +3117,12 @@ export function buildProgramPlayback(scenario) {
       } else if (mosaicAction === DEMO_MOSAIC_ACTION.SHOW_GRID) {
         lastMosaicFocus = { presetId: preset?.id || null, slot: null, focusStage: null };
       }
+      const expandPlayback = mosaicAction === DEMO_MOSAIC_ACTION.EXPAND && focusStage
+        ? buildStageBeats(focusStage.steps || [])
+        : null;
+      const beats = expandPlayback?.beats?.length
+        ? fitStageBeatsToDuration(expandPlayback.beats, durationMs, { loop: Boolean(screen?.loop) })
+        : [{ steps: [], indices: [], durationMs, startMs: 0, endMs: durationMs }];
       items.push({
         index,
         item,
@@ -3030,8 +3133,8 @@ export function buildProgramPlayback(scenario) {
         exitMs,
         startMs,
         endMs,
-        beats: [{ steps: [], indices: [], durationMs, startMs: 0, endMs: durationMs }],
-        stage: null,
+        beats,
+        stage: mosaicAction === DEMO_MOSAIC_ACTION.EXPAND ? focusStage : null,
         preset,
         mosaicAction,
         slot,
@@ -3085,7 +3188,7 @@ export function buildProgramPlayback(scenario) {
 
 export function resolveMosaicScreen(screen, stages = []) {
   if (!screen) return screen;
-  const stage = findStage(stages, screen.stage_id);
+  const stage = findStage(stages, mosaicScreenGridStageId(screen));
   if (!stage) return screen;
   const composed = composeStateForStage(stage);
   return {

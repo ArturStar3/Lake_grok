@@ -161,6 +161,9 @@ export default function DemoStudioModal({
         screens: (preset.screens || []).map((screen) => ({
           ...screen,
           stage_id: screen.stage_id ? (idMap[String(screen.stage_id)] || null) : null,
+          expand_stage_id: screen.expand_stage_id
+            ? (idMap[String(screen.expand_stage_id)] || null)
+            : null,
         })),
       })),
     });
@@ -288,10 +291,6 @@ export default function DemoStudioModal({
     if (!draft) return;
     if (!draft.title.trim()) {
       setNotice('Укажите название сценария.');
-      return;
-    }
-    if (!draft.sequence.length) {
-      setNotice('Добавьте хотя бы один блок в программу показа.');
       return;
     }
     setBusy(true);
@@ -1010,6 +1009,11 @@ export default function DemoStudioModal({
             overlayLayers={overlayLayers}
             countriesList={countriesList}
             readOnly={!canWrite}
+            canWrite={canWrite}
+            onSave={handleSave}
+            saveBusy={busy}
+            saveNotice={notice}
+            saveDisabled={!draft}
           />
         )}
 
@@ -1025,6 +1029,11 @@ export default function DemoStudioModal({
               setStageStudioOpen(true);
             }}
             readOnly={!canWrite}
+            canWrite={canWrite}
+            onSave={handleSave}
+            saveBusy={busy}
+            saveNotice={notice}
+            saveDisabled={!draft}
           />
         )}
 
@@ -1042,6 +1051,11 @@ export default function DemoStudioModal({
               setStageStudioOpen(true);
             }}
             readOnly={!canWrite}
+            canWrite={canWrite}
+            onSave={handleSave}
+            saveBusy={busy}
+            saveNotice={notice}
+            saveDisabled={!draft}
           />
         )}
 

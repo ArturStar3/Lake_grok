@@ -52,6 +52,15 @@
     gap: 8px;
 }
 
+.demo-studio-save__notice {
+    font-size: 0.82rem;
+    color: #1d4ed8;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .demo-studio__close {
     width: 34px;
     height: 34px;
@@ -851,6 +860,11 @@
 
 .demo-mosaic-preview--1x2 {
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+}
+
+.demo-mosaic-preview--1x3 {
+    grid-template-columns: 1fr 1fr 1fr;
     grid-template-rows: 1fr;
 }
 

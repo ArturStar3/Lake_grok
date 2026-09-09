@@ -1463,7 +1463,7 @@ class DemoScenario(models.Model):
         verbose_name='Мультиэкран (JSON)',
         help_text=(
             'presets[{id, title, layout, reveal, screens[{id, label, loop, stage_id, '
-            'content_type, video_url}]}], active_preset_id'
+            'expand_stage_id, content_type, video_url}]}], active_preset_id'
         ),
     )
     tableau = models.JSONField(

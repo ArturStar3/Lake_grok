@@ -9,6 +9,7 @@ import {
 } from '../../utils/demoScenario';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { sliceCatalogsForStage } from '../../utils/demoMosaicCatalog';
+import { buildVisibleZones } from '../../utils/buildVisibleZones';
 import {
   COUNTRY_SYNTHETIC_CARDS,
   FORMULAR_SYNTHETIC_CARDS,
@@ -16,6 +17,7 @@ import {
 import './DemoMosaic.css';
 
 const noop = () => {};
+const EMPTY_ZONES = [];
 
 function resolveCardTitle(tool, cardId) {
   if (cardId == null || cardId === '') return null;
@@ -103,6 +105,12 @@ function DemoMosaicTile({
     countriesList: catalogs.countriesList,
   });
 
+  const visibleZones = useMemo(() => {
+    if (!runner.hasZones) return EMPTY_ZONES;
+    const source = catalogs.zoneObjects?.length ? catalogs.zoneObjects : catalogs.objects;
+    return buildVisibleZones(source, runner.actionZoneFilters);
+  }, [catalogs.objects, catalogs.zoneObjects, runner.actionZoneFilters, runner.hasZones]);
+
   const lastInvalidateSizeRef = useRef({ x: 0, y: 0 });
   const videoRef = useRef(null);
   const onPaintedRef = useRef(onPainted);
@@ -140,6 +148,7 @@ function DemoMosaicTile({
         map.whenReady(() => {
           try {
             map.invalidateSize({ animate: false, pan: false });
+            map.fire('viewreset');
           } catch {
             // контейнер ещё без размера
           }
@@ -191,6 +200,11 @@ function DemoMosaicTile({
     const nextSize = map.getSize?.() || map._size;
     if (nextSize && nextSize.x > 0 && nextSize.y > 0) {
       lastInvalidateSizeRef.current = { x: nextSize.x, y: nextSize.y };
+      try {
+        map.fire('viewreset');
+      } catch {
+        // слой зон обновится на следующем кадре
+      }
     }
     return undefined;
   }, [playing, runner.mapRef]);
@@ -241,6 +255,7 @@ function DemoMosaicTile({
             activeSituationId={activeSituationId}
             situationRevisions={catalogs.situationRevisions}
             actionZoneFilters={runner.actionZoneFilters}
+            visibleZones={visibleZones}
             showActionRadius={runner.hasZones}
             actionTypes={catalogs.actionTypes}
             countriesList={catalogs.countriesList}

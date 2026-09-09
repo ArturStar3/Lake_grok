@@ -44,7 +44,7 @@ import { isLosRadarZoneMode } from "../../utils/computeLosZone";
 import { MAP_OVERLAY_LAYERS } from "../../config/tiles";
 import { alignDemoText, collectEnabledZoneLeaves, normalizeText } from "../../utils/demoScenario";
 import { useDemoScenarios } from "../../hooks/demo/useDemoScenarios";
-import { useDemoPlayer } from "../../hooks/demo/useDemoPlayer";
+import { useDemoPlayer, DEMO_STATUS } from "../../hooks/demo/useDemoPlayer";
 import { useDemoHotkeys } from "../../hooks/demo/useDemoHotkeys";
 import DemoStudioModal from "../DemoMode/DemoStudioModal";
 
@@ -389,31 +389,31 @@ export default function Formular({ onMapFullscreenChange }) {
     }, [defaultScenario, demoPlayer, demoScenarios, refreshDemoScenarios]);
 
     const handlePreviewDemoStep = useCallback((step) => {
-        setDemoStudioOpen(false);
+        setDemoStudioPreviewHide('preview');
         setDemoTextEditSession(null);
         demoPlayer.previewStep(step);
     }, [demoPlayer]);
 
     const handlePreviewDemoStage = useCallback((stage) => {
-        setDemoStudioOpen(false);
+        setDemoStudioPreviewHide('preview');
         setDemoTextEditSession(null);
         demoPlayer.previewStage(stage);
     }, [demoPlayer]);
 
     const handlePreviewDemoMosaic = useCallback((preset, stages) => {
-        setDemoStudioOpen(false);
+        setDemoStudioPreviewHide('preview');
         setDemoTextEditSession(null);
         demoPlayer.previewMosaic(preset, stages);
     }, [demoPlayer]);
 
     const handlePreviewDemoTableau = useCallback((preset, stages, blocks = []) => {
-        setDemoStudioPreviewHide('tableau');
+        setDemoStudioPreviewHide('preview');
         setDemoTextEditSession(null);
         demoPlayer.previewTableau(preset, stages, blocks);
     }, [demoPlayer]);
 
     const handlePreviewDemoProgramItem = useCallback((draft, item) => {
-        setDemoStudioOpen(false);
+        setDemoStudioPreviewHide('preview');
         setDemoTextEditSession(null);
         demoPlayer.previewProgramItem(draft, item);
     }, [demoPlayer]);
@@ -453,6 +453,22 @@ export default function Formular({ onMapFullscreenChange }) {
         demoPlayer.stop({ restore: true });
         setDemoStudioPreviewHide(null);
     }, [demoPlayer]);
+
+    useEffect(() => {
+        if (!demoStudioPreviewHide) return undefined;
+        if (
+            demoPlayer.playback.status === DEMO_STATUS.PAUSED
+            && demoPlayer.playback.waitingForPresenter
+        ) {
+            handleDemoStop();
+        }
+        return undefined;
+    }, [
+        demoPlayer.playback.status,
+        demoPlayer.playback.waitingForPresenter,
+        demoStudioPreviewHide,
+        handleDemoStop,
+    ]);
 
     useDemoHotkeys({
         active: demoPlayer.playback.isActive,
@@ -2152,7 +2168,7 @@ export default function Formular({ onMapFullscreenChange }) {
             <DemoStudioModal
                 isOpen={demoStudioOpen}
                 mapTextEditActive={Boolean(demoTextEditSession)}
-                previewHideActive={demoStudioPreviewHide === 'tableau'}
+                previewHideActive={Boolean(demoStudioPreviewHide)}
                 onClose={() => {
                     setDemoStudioPreviewHide(null);
                     setDemoStudioOpen(false);

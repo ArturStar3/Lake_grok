@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DemoStepInspector from './DemoStepInspector';
+import DemoStudioSaveActions from './DemoStudioSaveActions';
 import {
   DEMO_START_MODE,
   DEMO_STAGE_TOOLS,
@@ -57,17 +58,35 @@ export default function DemoStageStudioModal({
   overlayLayers,
   countriesList,
   readOnly = false,
+  canWrite = false,
+  onSave,
+  saveBusy = false,
+  saveNotice = '',
+  saveDisabled = false,
 }) {
   const [stageId, setStageId] = useState(stages[0]?.id || stages[0]?.key || null);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const dragIndexRef = useRef(null);
-
-  const stage = findStage(stages, stageId) || stages[0] || null;
+  const stageIndexRef = useRef(0);
 
   useEffect(() => {
-    if (stage) return;
-    if (stages[0]) setStageId(stages[0].id || stages[0].key);
-  }, [stage, stages]);
+    if (!stages.length) {
+      setStageId(null);
+      return;
+    }
+    const found = findStage(stages, stageId);
+    if (found) {
+      stageIndexRef.current = Math.max(0, stages.findIndex((item) => (
+        (item.id || item.key) === (found.id || found.key)
+      )));
+      return;
+    }
+    const idx = Math.min(stageIndexRef.current, stages.length - 1);
+    const next = stages[idx] || stages[0];
+    setStageId(next.id || next.key);
+  }, [stageId, stages]);
+
+  const stage = findStage(stages, stageId) || stages[0] || null;
 
   const patchStages = (next) => {
     onChange(next.map((item, index) => ({ ...item, order: index })));
@@ -95,6 +114,7 @@ export default function DemoStageStudioModal({
     patchStages([...stages, next]);
     setStageId(next.id || next.key);
     setActiveStepIndex(0);
+    stageIndexRef.current = stages.length;
   };
 
   const handleDuplicateStage = () => {
@@ -110,6 +130,7 @@ export default function DemoStageStudioModal({
     list.splice(index + 1, 0, next);
     patchStages(list);
     setStageId(next.id || next.key);
+    stageIndexRef.current = index + 1;
   };
 
   const handleDeleteStage = () => {
@@ -120,6 +141,7 @@ export default function DemoStageStudioModal({
     const fallback = next[0];
     setStageId(fallback ? (fallback.id || fallback.key) : null);
     setActiveStepIndex(0);
+    stageIndexRef.current = 0;
   };
 
   const handleAddStep = (tool = DEMO_TOOL.CAMERA) => {
@@ -191,7 +213,16 @@ export default function DemoStageStudioModal({
             <h2>Конструктор этапов</h2>
             <p>Шаблоны вида карты: камера, объекты, зоны, текст. Этап можно поставить в программу или на экран мультиэкрана.</p>
           </div>
-          <button type="button" className="demo-btn demo-btn--ghost" onClick={onClose}>Закрыть</button>
+          <div className="demo-mosaic-studio-modal__header-actions">
+            <DemoStudioSaveActions
+              canWrite={canWrite}
+              onSave={onSave}
+              busy={saveBusy}
+              notice={saveNotice}
+              disabled={saveDisabled}
+            />
+            <button type="button" className="demo-btn demo-btn--ghost" onClick={onClose}>Закрыть</button>
+          </div>
         </header>
 
         <div className="demo-mosaic-studio-modal__body">
@@ -203,7 +234,7 @@ export default function DemoStageStudioModal({
               )}
             </div>
             <ul>
-              {stages.map((item) => {
+              {stages.map((item, index) => {
                 const key = item.id || item.key;
                 return (
                   <li key={key}>
@@ -213,6 +244,7 @@ export default function DemoStageStudioModal({
                       onClick={() => {
                         setStageId(key);
                         setActiveStepIndex(0);
+                        stageIndexRef.current = index;
                       }}
                     >
                       {item.title || 'Без названия'}

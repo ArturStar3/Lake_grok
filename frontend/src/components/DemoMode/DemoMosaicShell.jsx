@@ -7,6 +7,8 @@ import {
   DEMO_MOSAIC_SLOT_LABELS,
   getMosaicLayoutDef,
   mosaicScreenHasVideo,
+  mosaicScreenGridStageId,
+  mosaicScreenStageIds,
 } from '../../utils/demoScenario';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { sliceCatalogsForStage } from '../../utils/demoMosaicCatalog';
@@ -161,6 +163,7 @@ function DemoMosaicShell({
   const morphingRef = useRef(false);
   const slotOriginRef = useRef(null);
   const prevModeRef = useRef(null);
+  const prevFocusSlotRef = useRef(null);
   const incomingGenRef = useRef(0);
   const incomingTimerRef = useRef(null);
   const incomingRafRef = useRef(0);
@@ -605,6 +608,7 @@ function DemoMosaicShell({
   useLayoutEffect(() => {
     if (!active) {
       prevModeRef.current = null;
+      prevFocusSlotRef.current = null;
       morphGenRef.current += 1;
       incomingGenRef.current += 1;
       incomingRunningRef.current = null;
@@ -632,8 +636,11 @@ function DemoMosaicShell({
     }
 
     if (mode === 'expanding' && focusSlot) {
+      const shouldMorph = prevModeRef.current !== 'expanding'
+        || prevFocusSlotRef.current !== focusSlot;
       prevModeRef.current = mode;
-      runMorph('expand');
+      prevFocusSlotRef.current = focusSlot;
+      if (shouldMorph) runMorph('expand');
       return undefined;
     }
 
@@ -793,7 +800,7 @@ function DemoMosaicShell({
     };
     const wanted = new Set();
     Object.values(screens).forEach((screen) => {
-      if (screen?.stage_id != null) wanted.add(String(screen.stage_id));
+      mosaicScreenStageIds(screen).forEach((id) => wanted.add(String(id)));
     });
     if (!wanted.size) return map;
     (stages || []).forEach((stage) => {
@@ -950,8 +957,8 @@ function DemoMosaicShell({
                     playing={tilesPlaying && !isVacated}
                     onPainted={onTilePainted}
                     catalogs={
-                      screen?.stage_id != null
-                        ? (catalogsByStageId.get(String(screen.stage_id)) || null)
+                      mosaicScreenGridStageId(screen)
+                        ? (catalogsByStageId.get(String(mosaicScreenGridStageId(screen))) || null)
                         : null
                     }
                   />

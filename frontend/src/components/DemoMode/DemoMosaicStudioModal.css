@@ -38,13 +38,21 @@
   flex-shrink: 0;
 }
 
-.demo-mosaic-studio-modal__header > div {
+.demo-mosaic-studio-modal__header > div:first-child {
   min-width: 0;
   flex: 1;
 }
 
 .demo-mosaic-studio-modal__header > .demo-btn {
   flex-shrink: 0;
+}
+
+.demo-mosaic-studio-modal__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .demo-mosaic-studio-modal__header h2 {

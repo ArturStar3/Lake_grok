@@ -43,9 +43,10 @@ TEXT_FONT_FAMILIES = (
 )
 TEXT_MAX_LENGTH = 4000
 
-MOSAIC_LAYOUTS = ('1x2', '2x1', '1+2', '2x2', '2x3', '2+3')
+MOSAIC_LAYOUTS = ('1x2', '1x3', '2x1', '1+2', '2x2', '2x3', '2+3')
 MOSAIC_SLOT_IDS_BY_LAYOUT = {
     '1x2': ('a', 'b'),
+    '1x3': ('a', 'b', 'c'),
     '2x1': ('a', 'b'),
     '1+2': ('a', 'b', 'c'),
     '2x2': ('a', 'b', 'c', 'd'),
@@ -658,11 +659,17 @@ def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=No
     stage_id = _optional_id(data.get('stage_id'))
     if allowed_stage_ids is not None and stage_id and stage_id not in allowed_stage_ids:
         stage_id = None
+    expand_stage_id = _optional_id(data.get('expand_stage_id'))
+    if allowed_stage_ids is not None and expand_stage_id and expand_stage_id not in allowed_stage_ids:
+        expand_stage_id = None
+    if expand_stage_id and stage_id and expand_stage_id == stage_id:
+        expand_stage_id = None
     return {
         'id': slot_id,
         'label': label[:120],
         'loop': _as_bool(data.get('loop'), False),
         'stage_id': stage_id,
+        'expand_stage_id': expand_stage_id,
         'content_type': _choice(data.get('content_type'), MOSAIC_CONTENT_TYPES, 'stage'),
         'video_url': (
             str(data.get('video_url')).strip()[:2000]
@@ -682,6 +689,18 @@ def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=No
         },
         'text': normalize_text(data.get('text')),
     }
+
+
+def mosaic_screen_grid_stage_id(screen):
+    if not isinstance(screen, dict):
+        return None
+    return _optional_id(screen.get('stage_id'))
+
+
+def mosaic_screen_expand_stage_id(screen):
+    if not isinstance(screen, dict):
+        return None
+    return _optional_id(screen.get('expand_stage_id')) or mosaic_screen_grid_stage_id(screen)
 
 
 def normalize_mosaic_preset(raw, allowed_stage_ids=None):
@@ -1632,6 +1651,7 @@ def _remap_mosaic_stage_ids(raw, id_map):
                 continue
             mapped = dict(screen)
             mapped['stage_id'] = _remap_stage_id(screen.get('stage_id'), id_map)
+            mapped['expand_stage_id'] = _remap_stage_id(screen.get('expand_stage_id'), id_map)
             next_screens.append(mapped)
         next_presets.append({**preset, 'screens': next_screens})
     return {**data, 'presets': next_presets}
