@@ -60,6 +60,8 @@ SEQUENCE_MOSAIC_ACTIONS = ('show_grid', 'expand', 'collapse')
 SEQUENCE_TYPES = ('stage', 'mosaic', 'tableau')
 SEQUENCE_TRANSITION_EFFECTS = ('none', 'fade', 'blackout', 'stagger')
 MOSAIC_SLOT_IDS = ('a', 'b', 'c', 'd', 'e', 'f')
+CUE_MIN = 1
+CUE_MAX = 99
 STAGE_TOOLS = (
     DemoStepTool.CAMERA,
     DemoStepTool.OBJECTS,
@@ -650,6 +652,18 @@ def _optional_id(value):
     return text[:80] if text else None
 
 
+def normalize_cue(value):
+    if value in (None, ''):
+        return None
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    if number < CUE_MIN or number > CUE_MAX:
+        return None
+    return number
+
+
 def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=None):
     data = raw if isinstance(raw, dict) else {}
     selection_raw = data.get('selection') if isinstance(data.get('selection'), dict) else {}
@@ -667,6 +681,7 @@ def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=No
     return {
         'id': slot_id,
         'label': label[:120],
+        'cue': normalize_cue(data.get('cue')),
         'loop': _as_bool(data.get('loop'), False),
         'stage_id': stage_id,
         'expand_stage_id': expand_stage_id,
@@ -1711,6 +1726,7 @@ def replace_demo_scenario_library(
             'scenario': scenario,
             'order': index,
             'title': (title or f'Этап {index + 1}')[:255],
+            'cue': normalize_cue(row.get('cue')),
         }
         if stage_id:
             try:

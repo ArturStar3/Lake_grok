@@ -1568,7 +1568,7 @@ class DemoScenarioStageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DemoScenarioStage
-        fields = ('id', 'order', 'title', 'steps')
+        fields = ('id', 'order', 'title', 'cue', 'steps')
 
 
 class DemoScenarioStageWriteSerializer(serializers.Serializer):
@@ -1576,6 +1576,7 @@ class DemoScenarioStageWriteSerializer(serializers.Serializer):
 
     id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=80)
     title = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    cue = serializers.IntegerField(required=False, allow_null=True)
     steps = DemoScenarioStepWriteSerializer(many=True, required=False)
 
 
@@ -1684,6 +1685,7 @@ class DemoScenarioWriteSerializer(serializers.ModelSerializer):
                 {
                     'id': str(stage.id),
                     'title': stage.title,
+                    'cue': stage.cue,
                     'steps': [
                         {
                             'title': step.title,

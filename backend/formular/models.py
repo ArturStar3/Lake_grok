@@ -1462,7 +1462,7 @@ class DemoScenario(models.Model):
         blank=True,
         verbose_name='Мультиэкран (JSON)',
         help_text=(
-            'presets[{id, title, layout, reveal, screens[{id, label, loop, stage_id, '
+            'presets[{id, title, layout, reveal, screens[{id, label, cue, loop, stage_id, '
             'expand_stage_id, content_type, video_url}]}], active_preset_id'
         ),
     )
@@ -1586,6 +1586,12 @@ class DemoScenarioStage(models.Model):
     )
     order = models.PositiveIntegerField(default=0, verbose_name='Порядок')
     title = models.CharField(max_length=255, blank=True, default='', verbose_name='Название этапа')
+    cue = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Номер позиции',
+        help_text='Цифра в углу экрана для докладчика (1–99). Пусто — не показывать.',
+    )
 
     class Meta:
         verbose_name = 'Этап сценария демонстрации'

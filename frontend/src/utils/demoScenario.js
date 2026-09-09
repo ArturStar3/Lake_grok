@@ -644,6 +644,19 @@ function pickChoice(value, allowed, fallback) {
   return allowed.includes(value) ? value : fallback;
 }
 
+export const DEMO_CUE_MIN = 1;
+export const DEMO_CUE_MAX = 99;
+
+/** Номер позиции докладчика: 1–99 или null, если не задан. */
+export function normalizeCue(value) {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const rounded = Math.round(number);
+  if (rounded < DEMO_CUE_MIN || rounded > DEMO_CUE_MAX) return null;
+  return rounded;
+}
+
 function toBool(value, fallback) {
   if (value === true || value === false) return value;
   if (value == null) return fallback;
@@ -2061,6 +2074,7 @@ export function normalizeMosaicScreen(raw, slotId, defaultLabel = '') {
   return {
     id: slotId,
     label,
+    cue: normalizeCue(data.cue),
     loop: Boolean(data.loop),
     stage_id: stageId,
     expand_stage_id: expandStageId,
@@ -2561,6 +2575,7 @@ export function normalizeStage(raw, index = 0) {
     id: data.id ?? null,
     order: Number.isFinite(Number(data.order)) ? Number(data.order) : index,
     title: typeof data.title === 'string' ? data.title : '',
+    cue: normalizeCue(data.cue),
     steps: steps
       .filter((step) => step?.tool !== DEMO_TOOL.MOSAIC)
       .map((step, stepIndex) => normalizeStep(step, stepIndex))
@@ -2828,6 +2843,7 @@ export function serializeScenario(scenario) {
     stages: normalized.stages.map((stage) => ({
       id: stage.id,
       title: stage.title,
+      cue: stage.cue,
       steps: stage.steps.map((step) => ({
         title: step.title,
         tool: step.tool,

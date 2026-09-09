@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import DemoStepInspector from './DemoStepInspector';
 import DemoStudioSaveActions from './DemoStudioSaveActions';
 import {
+  DEMO_CUE_MAX,
+  DEMO_CUE_MIN,
   DEMO_START_MODE,
   DEMO_STAGE_TOOLS,
   DEMO_TOOL,
@@ -15,6 +17,7 @@ import {
   getToolLabel,
   makeLocalStageId,
   makeLocalStepKey,
+  normalizeCue,
   normalizeStage,
   normalizeText,
 } from '../../utils/demoScenario';
@@ -281,6 +284,24 @@ export default function DemoStageStudioModal({
                     disabled={readOnly}
                     onChange={(e) => patchStage({ title: e.target.value })}
                   />
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Номер позиции</span>
+                  <input
+                    type="number"
+                    min={DEMO_CUE_MIN}
+                    max={DEMO_CUE_MAX}
+                    placeholder="нет"
+                    value={stage.cue ?? ''}
+                    disabled={readOnly}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      patchStage({ cue: raw === '' ? null : normalizeCue(raw) });
+                    }}
+                  />
+                  <span className="demo-field__hint">
+                    Цифра в правом верхнем углу на показе ({DEMO_CUE_MIN}–{DEMO_CUE_MAX}). Пусто — не показывать.
+                  </span>
                 </label>
                 <div className="demo-studio__pane-head">
                   <span>Шаги этапа</span>

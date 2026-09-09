@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import {
+  DEMO_CUE_MAX,
+  DEMO_CUE_MIN,
   DEMO_EASINGS,
   DEMO_MOSAIC_CONTENTS,
   DEMO_MOSAIC_CONTENT,
@@ -13,6 +15,7 @@ import {
   getMosaicLayoutDef,
   mosaicScreenExpandStageId,
   mosaicScreenHasVideo,
+  normalizeCue,
   normalizeMosaicPreset,
   normalizeScenarioMosaic,
 } from '../../utils/demoScenario';
@@ -342,6 +345,9 @@ export default function DemoMosaicStudioModal({
                         <span className="demo-mosaic-preview__title">
                           {item?.label || DEMO_MOSAIC_SLOT_LABELS[id] || id.toUpperCase()}
                         </span>
+                        {item?.cue != null ? (
+                          <span className="demo-mosaic-preview__cue">{item.cue}</span>
+                        ) : null}
                         <span className="demo-mosaic-preview__bar">
                           {barLabel}
                         </span>
@@ -375,6 +381,23 @@ export default function DemoMosaicStudioModal({
                     value={screen.label}
                     onChange={(e) => patchScreen({ label: e.target.value })}
                   />
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Номер позиции</span>
+                  <input
+                    type="number"
+                    min={DEMO_CUE_MIN}
+                    max={DEMO_CUE_MAX}
+                    placeholder="нет"
+                    value={screen.cue ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      patchScreen({ cue: raw === '' ? null : normalizeCue(raw) });
+                    }}
+                  />
+                  <span className="demo-field__hint">
+                    Цифра в правом верхнем углу слота ({DEMO_CUE_MIN}–{DEMO_CUE_MAX}). Пусто — не показывать.
+                  </span>
                 </label>
                 <label className="demo-checkbox">
                   <input

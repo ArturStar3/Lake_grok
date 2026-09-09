@@ -548,7 +548,7 @@ class DemoScenarioStepInline(admin.TabularInline):
 class DemoScenarioStageInline(admin.TabularInline):
     model = DemoScenarioStage
     extra = 0
-    fields = ('order', 'title')
+    fields = ('order', 'title', 'cue')
     ordering = ('order',)
     show_change_link = True
 
@@ -580,7 +580,7 @@ class DemoScenarioAdmin(ModelAdmin):
 
 @admin.register(DemoScenarioStage)
 class DemoScenarioStageAdmin(ModelAdmin):
-    list_display = ('__str__', 'scenario', 'order')
+    list_display = ('__str__', 'scenario', 'order', 'cue')
     search_fields = ('title', 'scenario__title')
     list_select_related = ('scenario',)
     autocomplete_fields = ('scenario',)

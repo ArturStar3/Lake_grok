@@ -246,6 +246,18 @@ function isSameMosaicExpandSlot(runtime, presetId, slot) {
   return false;
 }
 
+function resolvePlaybackCue(item, mosaicRuntime) {
+  if (mosaicRuntime?.active) {
+    const mode = mosaicRuntime.mode;
+    if (mode === 'focus' || mode === 'expanding' || mode === 'collapsing' || mode === 'switching') {
+      const slot = mosaicRuntime.focusSlot || mosaicRuntime.fromSlot;
+      return mosaicRuntime.screens?.[slot]?.cue ?? null;
+    }
+    return null;
+  }
+  return item?.stage?.cue ?? item?.focusStage?.cue ?? null;
+}
+
 /** Момент автоперехода collapse → expand: входящий слот стартует, пока исходящий ещё сжимается. */
 function mosaicCollapseHandoffAtMs(item, nextItem) {
   if (item?.kind !== DEMO_SEQUENCE_TYPE.MOSAIC) return null;
@@ -2356,6 +2368,7 @@ export function useDemoPlayer({ actions, data }) {
     stageTitle: currentItem?.title || '',
     stepTitle: currentBeat?.steps?.[0]?.title || currentItem?.title || '',
     stepTools: currentBeat?.steps?.map((step) => step.tool) || [],
+    cue: resolvePlaybackCue(currentItem, mosaicRuntime),
     stages: stageSummaries,
     loop: Boolean(scenario?.loop),
     suspendMap: isGalleryNomapRuntime(tableauRuntime),
@@ -2404,6 +2417,9 @@ export function useDemoPlayer({ actions, data }) {
     tableauRuntime?.gallery?.show_map,
     mosaicRuntime?.active,
     mosaicRuntime?.mode,
+    mosaicRuntime?.focusSlot,
+    mosaicRuntime?.fromSlot,
+    mosaicRuntime?.screens,
     waitingForPresenter,
   ]);
 

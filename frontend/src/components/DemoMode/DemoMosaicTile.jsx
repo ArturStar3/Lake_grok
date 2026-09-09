@@ -14,6 +14,7 @@ import {
   COUNTRY_SYNTHETIC_CARDS,
   FORMULAR_SYNTHETIC_CARDS,
 } from '../../hooks/demo/useDemoContentCards';
+import DemoCueMark from './DemoCueMark';
 import './DemoMosaic.css';
 
 const noop = () => {};
@@ -223,6 +224,7 @@ function DemoMosaicTile({
 
   return (
     <div className={`demo-mosaic-tile demo-mosaic-tile--${slotId}${isVideo ? ' demo-mosaic-tile--video' : ''}`}>
+      <DemoCueMark value={screen?.cue} size="sm" />
       <div className="demo-mosaic-tile__map">
         {isVideo && videoUrl ? (
           <video

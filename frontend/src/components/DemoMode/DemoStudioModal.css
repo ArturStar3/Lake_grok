@@ -907,6 +907,7 @@
 .demo-mosaic-preview--2\+3 .demo-mosaic-preview__cell--e { grid-area: e; }
 
 .demo-mosaic-preview__cell {
+    position: relative;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -935,6 +936,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.demo-mosaic-preview__cue {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.72;
+    pointer-events: none;
 }
 
 .demo-mosaic-preview__title {

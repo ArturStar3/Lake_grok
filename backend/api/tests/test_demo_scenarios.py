@@ -654,6 +654,100 @@ class DemoScenarioApiTests(APITestCase):
         self.assertNotEqual(screen['stage_id'], 'local-grid')
         self.assertNotEqual(screen['expand_stage_id'], 'local-expand')
 
+    def test_stage_and_mosaic_cue_round_trip(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+        preset_id = 'preset-cue'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Брифинг',
+                'cue': 7,
+                'steps': [build_step(title='Камера')],
+            }],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '1x3',
+                    'screens': [
+                        {'id': 'a', 'label': 'A', 'stage_id': stage_id, 'cue': 1},
+                        {'id': 'b', 'label': 'B', 'cue': 2},
+                        {'id': 'c', 'label': 'C'},
+                    ],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'stage', 'stage_id': stage_id}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['stages'][0]['cue'], 7)
+        screens = {item['id']: item for item in response.data['mosaic']['presets'][0]['screens']}
+        self.assertEqual(screens['a']['cue'], 1)
+        self.assertEqual(screens['b']['cue'], 2)
+        self.assertIsNone(screens['c']['cue'])
+
+        patched = self.client.patch(
+            f'/api/v1/demo-scenarios/{response.data["id"]}/',
+            {
+                'mosaic': {
+                    'presets': [{
+                        'id': preset_id,
+                        'title': 'Сетка',
+                        'layout': '1x3',
+                        'screens': [
+                            {'id': 'a', 'label': 'A', 'stage_id': stage_id, 'cue': 3},
+                            {'id': 'b', 'label': 'B', 'cue': 4},
+                            {'id': 'c', 'label': 'C'},
+                        ],
+                    }],
+                    'active_preset_id': preset_id,
+                },
+            },
+            format='json',
+            **headers,
+        )
+        self.assertEqual(patched.status_code, status.HTTP_200_OK, patched.data)
+        self.assertEqual(patched.data['stages'][0]['cue'], 7)
+        patched_screens = {item['id']: item for item in patched.data['mosaic']['presets'][0]['screens']}
+        self.assertEqual(patched_screens['a']['cue'], 3)
+        self.assertEqual(patched_screens['b']['cue'], 4)
+
+    def test_invalid_cue_is_dropped(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+        preset_id = 'preset-bad-cue'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Брифинг',
+                'cue': 0,
+                'steps': [build_step(title='Камера')],
+            }],
+            mosaic={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Сетка',
+                    'layout': '1x2',
+                    'screens': [
+                        {'id': 'a', 'label': 'A', 'cue': 100},
+                        {'id': 'b', 'label': 'B', 'cue': 'x'},
+                    ],
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'stage', 'stage_id': stage_id}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIsNone(response.data['stages'][0]['cue'])
+        screens = {item['id']: item for item in response.data['mosaic']['presets'][0]['screens']}
+        self.assertIsNone(screens['a']['cue'])
+        self.assertIsNone(screens['b']['cue'])
+
     def test_tableau_preset_round_trip(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         stage_id = '33333333-3333-3333-3333-333333333333'

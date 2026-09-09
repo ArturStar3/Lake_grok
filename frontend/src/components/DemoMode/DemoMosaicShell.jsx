@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import DemoMosaicTile from './DemoMosaicTile';
+import DemoCueMark from './DemoCueMark';
 import {
   DEMO_EASING_CSS,
   DEMO_MOSAIC_EXPAND_ANIMATION,
@@ -153,6 +154,7 @@ function DemoMosaicShell({
   onTilesReady = null,
   onHandoffPrepare = null,
   onSwitchComplete = null,
+  cue = null,
   children,
 }) {
   const rootRef = useRef(null);
@@ -964,6 +966,7 @@ function DemoMosaicShell({
                   />
                 ) : (
                   <div className={`demo-mosaic-tile demo-mosaic-tile--${slotId} demo-mosaic-tile--pending`}>
+                    <DemoCueMark value={screen?.cue} size="sm" />
                     <div className="demo-mosaic-tile__skeleton" aria-hidden="true" />
                     <div className="demo-mosaic-tile__label">
                       <span>{screen?.label || DEMO_MOSAIC_SLOT_LABELS[slotId] || slotId.toUpperCase()}</span>
@@ -1004,6 +1007,7 @@ function DemoMosaicShell({
           />
         ) : null}
       </div>
+      <DemoCueMark value={cue} size="lg" />
     </div>
   );
 }

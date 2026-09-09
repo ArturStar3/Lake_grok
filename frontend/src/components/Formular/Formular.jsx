@@ -1850,6 +1850,7 @@ export default function Formular({ onMapFullscreenChange }) {
                                 stages={demoPlayer.scenario?.stages || []}
                                 onHandoffPrepare={demoPlayer.onMosaicHandoffPrepare}
                                 onSwitchComplete={demoPlayer.onMosaicSwitchComplete}
+                                cue={demoPlayer.playback?.cue}
                             >
                             <DemoTableauShell
                                 tableauRuntime={demoPlayer.tableauRuntime}

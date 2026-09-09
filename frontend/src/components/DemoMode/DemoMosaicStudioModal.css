@@ -168,6 +168,21 @@
   margin-top: 12px;
 }
 
+.demo-mosaic-studio-modal__main .demo-mosaic-preview__cell {
+  position: relative;
+}
+
+.demo-mosaic-studio-modal__main .demo-mosaic-preview__cue {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .demo-mosaic-studio-modal__video-preview {
   display: block;
   width: 100%;
