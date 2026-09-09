@@ -1824,6 +1824,7 @@ export function normalizeTableauPreset(raw, allowedBlockIds = null) {
   return {
     id,
     title,
+    cue: normalizeCue(data.cue),
     stage_id: stageId,
     variant: pickChoice(
       data.variant,

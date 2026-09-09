@@ -255,6 +255,9 @@ function resolvePlaybackCue(item, mosaicRuntime) {
     }
     return null;
   }
+  if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
+    return item.tableauPreset?.cue ?? item.preset?.cue ?? null;
+  }
   return item?.stage?.cue ?? item?.focusStage?.cue ?? null;
 }
 

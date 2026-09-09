@@ -21,8 +21,11 @@ import {
   DEMO_TABLEAU_MAP_FRAME,
   DEMO_TABLEAU_VARIANT,
   DEMO_TABLEAU_VARIANTS,
+  DEMO_CUE_MAX,
+  DEMO_CUE_MIN,
   DEMO_TEXT_FONTS,
   DEMO_TEXT_WEIGHTS,
+  normalizeCue,
   bridgeSpacerPercent,
   buildTableauOverlayArrows,
   cellAlignStyle,
@@ -48,6 +51,7 @@ import { uploadDemoTableauMedia } from '../../api/demoScenarios';
 import ZoneColorPicker from '../ReferenceData/ZoneColorPicker';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauBlockStudioModal from './DemoTableauBlockStudioModal';
+import DemoCueMark from './DemoCueMark';
 import DemoStudioSaveActions from './DemoStudioSaveActions';
 import './DemoTableauBlockView.css';
 import './DemoTableauStudioModal.css';
@@ -840,6 +844,23 @@ export default function DemoTableauStudioModal({
                   />
                 </label>
                 <label className="demo-field">
+                  <span className="demo-field__label">Номер позиции</span>
+                  <input
+                    type="number"
+                    min={DEMO_CUE_MIN}
+                    max={DEMO_CUE_MAX}
+                    placeholder="нет"
+                    value={preset.cue ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      patchPreset({ cue: raw === '' ? null : normalizeCue(raw) });
+                    }}
+                  />
+                  <span className="demo-field__hint">
+                    Цифра в правом верхнем углу на показе ({DEMO_CUE_MIN}–{DEMO_CUE_MAX}). Пусто — не показывать.
+                  </span>
+                </label>
+                <label className="demo-field">
                   <span className="demo-field__label">Этап (вид карты)</span>
                   <select
                     value={preset.stage_id || ''}
@@ -1484,6 +1505,7 @@ export default function DemoTableauStudioModal({
                   </svg>
                     </>
                   )}
+                  <DemoCueMark value={preset.cue} size="sm" />
                 </div>
 
                 {!isGallery ? (

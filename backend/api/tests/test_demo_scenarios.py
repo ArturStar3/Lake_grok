@@ -811,6 +811,7 @@ class DemoScenarioApiTests(APITestCase):
                 'presets': [{
                     'id': preset_id,
                     'title': 'Источники',
+                    'cue': 9,
                     'stage_id': stage_id,
                     'tilt': {
                         'perspective': 1400,
@@ -890,6 +891,7 @@ class DemoScenarioApiTests(APITestCase):
         self.assertEqual(block['elements'][1]['src'], '/media/demo_tableau/sample.webp')
         preset = response.data['tableau']['presets'][0]
         self.assertEqual(preset['id'], preset_id)
+        self.assertEqual(preset['cue'], 9)
         self.assertEqual(preset['stage_id'], stage_id)
         self.assertEqual(preset['tilt']['perspective'], 1400)
         self.assertEqual(preset['tilt']['rotate_x'], 55)
@@ -936,6 +938,32 @@ class DemoScenarioApiTests(APITestCase):
         self.assertNotIn('cards', preset)
         self.assertEqual(response.data['sequence'][0]['type'], 'tableau')
         self.assertEqual(response.data['sequence'][0]['preset_id'], preset_id)
+
+    def test_invalid_tableau_cue_is_dropped(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+        preset_id = 'preset-tableau-bad-cue'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'id': stage_id,
+                'title': 'Карта',
+                'steps': [build_step(title='Камера')],
+            }],
+            tableau={
+                'presets': [{
+                    'id': preset_id,
+                    'title': 'Планшет',
+                    'cue': 100,
+                    'stage_id': stage_id,
+                }],
+                'active_preset_id': preset_id,
+            },
+            sequence=[{'type': 'tableau', 'preset_id': preset_id}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIsNone(response.data['tableau']['presets'][0]['cue'])
 
     def test_tableau_legacy_cards_migrate(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)

@@ -1451,6 +1451,7 @@ def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None
     return {
         'id': preset_id,
         'title': title[:120],
+        'cue': normalize_cue(data.get('cue')),
         'stage_id': stage_id,
         'variant': _choice(data.get('variant'), TABLEAU_VARIANTS, 'tablet'),
         'gallery': normalize_tableau_gallery(data.get('gallery')),

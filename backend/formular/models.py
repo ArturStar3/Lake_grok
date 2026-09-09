@@ -1472,7 +1472,7 @@ class DemoScenario(models.Model):
         verbose_name='Художественный режим (JSON)',
         help_text=(
             'blocks[{id,title,width,height,elements}], '
-            'presets[{id,title,variant,stage_id,tilt,gallery,placements,arrows}], active_preset_id'
+            'presets[{id,title,cue,variant,stage_id,tilt,gallery,placements,arrows}], active_preset_id'
         ),
     )
     sequence = models.JSONField(
