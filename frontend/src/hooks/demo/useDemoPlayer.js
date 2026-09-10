@@ -237,6 +237,10 @@ function isMosaicExpandHold(runtime) {
   );
 }
 
+function beatWaitsForClick(beat) {
+  return Boolean(beat?.steps?.some((step) => step.wait_for_click));
+}
+
 function isSameMosaicExpandSlot(runtime, presetId, slot) {
   if (!runtime?.active || !slot || runtime.presetId !== presetId) return false;
   if (runtime.mode === 'switching') {
@@ -1806,6 +1810,15 @@ export function useDemoPlayer({ actions, data }) {
     if (!item) return;
 
     if (beatIndex + 1 < (item.beats?.length || 0)) {
+      if (beatWaitsForClick(item.beats[beatIndex])) {
+        setHideFinishedTexts(false);
+        setWaitingForPresenter(true);
+        const finished = item.beats[beatIndex]?.durationMs || item.durationMs || 0;
+        setBeatElapsedMs(finished);
+        publishProgress(finished);
+        pausedElapsedRef.current = finished;
+        return;
+      }
       goTo(stageIndex, { beat: beatIndex + 1, skipEnter: true });
       return;
     }
@@ -2052,35 +2065,25 @@ export function useDemoPlayer({ actions, data }) {
     else if (status === DEMO_STATUS.PAUSED) resume();
   }, [pause, resume, status]);
 
-  /**
-   * «Вперёд» как в PowerPoint: если этап ещё доигрывает такты — первое нажатие
-   * досрочно показывает его целиком, следующее переводит на новый блок программы.
-   */
+  /** Переход докладчика открывает следующий такт, если он настроен на щелчок; иначе — следующий этап. */
   const next = useCallback(() => {
     if (status === DEMO_STATUS.IDLE) return;
     const item = programItems[stageIndex];
-    if (!item) return;
-
-    const incomplete = !waitingForPresenter && beatIndex + 1 < (item.beats?.length || 0);
-    if (incomplete) {
-      goTo(stageIndex, { beat: item.beats.length - 1, instant: true, skipEnter: true });
+    if (item && beatIndex + 1 < (item.beats?.length || 0)
+      && beatWaitsForClick(item.beats[beatIndex])) {
+      goTo(stageIndex, { beat: beatIndex + 1, skipEnter: true });
       return;
     }
-
-    runExitThen(item, () => {
-      if (moveToNextItem()) return;
-      if (scenario?.loop && programItems.length) goTo(0);
-    });
+    if (moveToNextItem()) return;
+    if (scenario?.loop && programItems.length) goTo(0);
   }, [
     beatIndex,
     goTo,
     moveToNextItem,
     programItems,
-    runExitThen,
     scenario,
     stageIndex,
     status,
-    waitingForPresenter,
   ]);
 
   const prev = useCallback(() => {

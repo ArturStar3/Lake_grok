@@ -2510,6 +2510,7 @@ export function normalizeText(raw) {
       y: clampInt(offset.y, -2000, 2000, 0),
     },
     width: hasWidth ? clampInt(data.width, 40, 2000, 400) : null,
+    persist_until_click: Boolean(data.persist_until_click),
     style: normalizeTextStyle(data.style),
     enter: normalizeTextTransition(data.enter, DEMO_TEXT_ENTER_DEFAULTS, DEMO_TEXT_ENTER_EFFECTS),
     exit: normalizeTextTransition(data.exit, DEMO_TEXT_EXIT_DEFAULTS, DEMO_TEXT_EXIT_EFFECTS),
@@ -2565,6 +2566,7 @@ export function normalizeStep(raw, index = 0) {
       DEMO_START_MODE.ON_CLICK,
     ),
     hold_previous: Boolean(data.hold_previous),
+    wait_for_click: Boolean(data.wait_for_click),
     camera: normalizeCamera(data.camera),
     selection: (() => {
       const selection = normalizeSelection(data.selection);
@@ -2862,6 +2864,7 @@ export function serializeScenario(scenario) {
         duration_ms: step.duration_ms,
         start_mode: step.start_mode,
         hold_previous: step.hold_previous,
+        wait_for_click: step.wait_for_click,
         camera: step.camera,
         selection: step.selection,
         animation: step.animation,
@@ -3343,10 +3346,17 @@ export function composeStateAtStage(stages = [], stageIndex = 0, beatIndex = Inf
       const beat = stage.beats[b];
       if (!beat) continue;
       if (beatClearsPrevious(beat)) {
+        const retainsPersistentTexts = s === lastStage
+          && b > 0
+          && !beat.steps.some((step) => step.wait_for_click);
+        const persistentTexts = retainsPersistentTexts
+          ? state.texts.filter((item) => item.text?.persist_until_click)
+          : [];
         const carriedLayers = state.overlay_layer_ids;
         Object.assign(state, emptyComposedState());
         // Слои карты живут отдельно: их переключает только шаг «Слои карты».
         state.overlay_layer_ids = carriedLayers;
+        state.texts = persistentTexts;
       }
       beat.steps.forEach((step, position) => mergeStepIntoState(state, step, beat.indices[position]));
     }

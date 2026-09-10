@@ -133,8 +133,20 @@ function DemoMosaicTile({
     };
 
     if (isVideo) {
-      done();
-      return undefined;
+      const video = videoRef.current;
+      if (!video || video.readyState >= 2) {
+        done();
+        return undefined;
+      }
+      video.addEventListener('loadeddata', done, { once: true });
+      video.addEventListener('canplay', done, { once: true });
+      fallbackId = window.setTimeout(done, 4000);
+      return () => {
+        cancelled = true;
+        video.removeEventListener('loadeddata', done);
+        video.removeEventListener('canplay', done);
+        if (fallbackId) window.clearTimeout(fallbackId);
+      };
     }
 
     if (!stage) {
@@ -177,7 +189,7 @@ function DemoMosaicTile({
   }, [isVideo, runner.mapRef, slotId, stage]);
 
   useEffect(() => {
-    if (!playing) return undefined;
+    if (!playing || paintedRef.current) return undefined;
     const map = runner.mapRef.current;
     if (!map) return undefined;
     const size = map.getSize?.() || map._size;
@@ -236,7 +248,6 @@ function DemoMosaicTile({
             playsInline
             autoPlay={playing}
             preload="auto"
-            onLoadedData={() => onPaintedRef.current?.(slotId)}
           />
         ) : isVideo ? (
           <div className="demo-mosaic-tile__empty">Нет видео</div>

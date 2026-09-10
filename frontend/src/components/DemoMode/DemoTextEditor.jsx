@@ -569,6 +569,11 @@ export default function DemoTextEditor({
 
       <fieldset className="demo-inspector__group">
         <legend>Исчезновение</legend>
+        <Toggle
+          label="Не исчезать до нового этапа или шага по щелчку"
+          checked={Boolean(value.persist_until_click)}
+          onChange={(persist_until_click) => patch({ persist_until_click })}
+        />
         <Select
           label="Эффект выхода"
           value={value.exit?.effect || 'fade'}

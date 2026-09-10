@@ -95,6 +95,36 @@ class DemoScenarioApiTests(APITestCase):
         self.assertEqual(zone_step['selection']['event_ids'], [])
         self.assertIn('state_cycle', zone_step['animation'])
 
+    def test_step_can_wait_for_presenter_click_before_advancing(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(
+            headers,
+            steps=[
+                build_step(wait_for_click=True),
+                build_step(title='Следующий шаг'),
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(response.data['steps'][0]['wait_for_click'])
+        self.assertFalse(response.data['steps'][1]['wait_for_click'])
+
+        scenario = DemoScenario.objects.get(pk=response.data['id'])
+        self.assertTrue(scenario.steps.order_by('order').first().wait_for_click)
+
+    def test_text_can_persist_until_next_click_or_stage(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(
+            headers,
+            steps=[
+                build_step(
+                    tool='text',
+                    text={'content': 'Сохраняемый текст', 'persist_until_click': True},
+                ),
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(response.data['steps'][0]['text']['persist_until_click'])
+
     def test_update_replaces_steps_and_reindexes_order(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         created = self.create_scenario(headers)

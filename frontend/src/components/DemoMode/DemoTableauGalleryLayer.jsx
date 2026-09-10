@@ -16,6 +16,7 @@ const FRAME_PHASE = {
   SETTLED: 'settled',
   EXITING: 'exiting',
 };
+const EMPTY_IMAGES = [];
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined'
@@ -152,20 +153,38 @@ function GalleryCallout({ origin, rest, progress }) {
   );
 }
 
+const AnimatedGalleryCallout = memo(function AnimatedGalleryCallout({ origin, rest, durationMs }) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    let start = 0;
+    const duration = Math.max(1, Number(durationMs) || 1);
+    const tick = (now) => {
+      if (!start) start = now;
+      const next = Math.min(1, (now - start) / duration);
+      setProgress(next);
+      if (next < 1) raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [durationMs, origin, rest]);
+
+  return <GalleryCallout origin={origin} rest={rest} progress={progress} />;
+});
+
 function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
   const gallery = tableauRuntime?.gallery || null;
   const phase = tableauRuntime?.phase || 'idle';
   const runId = tableauRuntime?.runId || 0;
-  const images = gallery?.images || [];
+  const images = gallery?.images || EMPTY_IMAGES;
   const reduced = prefersReducedMotion();
   const enterEffect = gallery?.enter_effect || 'center_zoom';
 
   const [aspects, setAspects] = useState({});
   const [framePhases, setFramePhases] = useState(() => makePhases(images.length, FRAME_PHASE.HIDDEN));
   const [origins, setOrigins] = useState({});
-  const [calloutNow, setCalloutNow] = useState(0);
   const timersRef = useRef([]);
-  const enterAtRef = useRef([]);
 
   const settleRects = useMemo(
     () => computeGallerySettleRects(images, gallery, aspects),
@@ -214,7 +233,6 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
 
   useEffect(() => {
     clearTimers();
-    enterAtRef.current = [];
     if (!images.length) {
       setFramePhases([]);
       return undefined;
@@ -237,8 +255,6 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
     images.forEach((_, index) => {
       const startAt = reduced ? 0 : index * stagger;
       timersRef.current.push(window.setTimeout(() => {
-        enterAtRef.current[index] = performance.now();
-        setCalloutNow(performance.now());
         setFramePhases((prev) => {
           const next = prev.slice();
           next[index] = FRAME_PHASE.ENTERING;
@@ -281,21 +297,6 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
     runId,
   ]);
 
-  const calloutActive = enterEffect === 'from_object'
-    && !reduced
-    && framePhases.some((item) => item === FRAME_PHASE.ENTERING);
-
-  useEffect(() => {
-    if (!calloutActive) return undefined;
-    let raf = 0;
-    const tick = (now) => {
-      setCalloutNow(now);
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [calloutActive]);
-
   if (!tableauRuntime?.active || !images.length) return null;
 
   const exitEffect = gallery?.exit_effect || 'fade_scale';
@@ -330,10 +331,6 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
         const frameEnter = useCallout ? 'from_object' : (
           enterEffect === 'from_object' ? 'center_zoom' : enterEffect
         );
-        const startedAt = enterAtRef.current[index];
-        const calloutProgress = useCallout && framePhase === FRAME_PHASE.ENTERING && startedAt
-          ? Math.min(1, (calloutNow - startedAt) / enterMs)
-          : 0;
         const frameClass = [
           'demo-tableau-gallery__frame',
           `is-${framePhase}`,
@@ -353,10 +350,10 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
         return (
           <Fragment key={image.id}>
             {useCallout && framePhase === FRAME_PHASE.ENTERING ? (
-              <GalleryCallout
+              <AnimatedGalleryCallout
                 origin={origin}
                 rest={settle}
-                progress={calloutProgress}
+                durationMs={enterMs}
               />
             ) : null}
             <figure

@@ -172,6 +172,7 @@
   opacity: 0;
   pointer-events: none;
   will-change: transform;
+  contain: paint;
   /* top/left/width/height/transform/opacity задаются inline в shell. */
 }
 

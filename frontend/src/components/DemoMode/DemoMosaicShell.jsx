@@ -40,6 +40,7 @@ const ANIM = {
 
 const IDENTITY_SCALE = { x: 1, y: 1 };
 const ZERO_TX = { x: 0, y: 0 };
+const EMPTY_SCREENS = {};
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined'
@@ -90,15 +91,15 @@ function centerTranslate(root, slotRect) {
 /** scale, чтобы box fromRect визуально заполнил full (при origin center). */
 function fillScale(fromRect, full) {
   if (!fromRect?.w || !fromRect?.h || !full?.w || !full?.h) return IDENTITY_SCALE;
+  const scale = Math.max(full.w / fromRect.w, full.h / fromRect.h);
   return {
-    x: full.w / fromRect.w,
-    y: full.h / fromRect.h,
+    x: scale,
+    y: scale,
   };
 }
 
 function forceReflow(el) {
   if (!el) return;
-  // eslint-disable-next-line no-unused-expressions
   void el.offsetWidth;
 }
 
@@ -194,7 +195,7 @@ function DemoMosaicShell({
   const tilesReady = Boolean(mosaicRuntime?.tilesReady);
   const layout = mosaicRuntime?.layout || '2x2';
   const slotDefs = getMosaicLayoutDef(layout).slots;
-  const screens = mosaicRuntime?.screens || {};
+  const screens = mosaicRuntime?.screens || EMPTY_SCREENS;
   const transitioning = mosaicRuntime?.transitioning || null;
   const focusHidden = Boolean(mosaicRuntime?.focusHidden);
   const mode = mosaicRuntime?.mode || 'grid';
@@ -683,6 +684,7 @@ function DemoMosaicShell({
     clearIncomingTimers,
     clearIncomingVisual,
     clearTimers,
+    focusPhase,
     focusSlot,
     holdFull,
     incomingSlot,

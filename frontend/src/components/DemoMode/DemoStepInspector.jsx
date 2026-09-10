@@ -214,6 +214,17 @@ export default function DemoStepInspector({
           />
           <span>Не убирать содержимое предыдущего шага</span>
         </label>
+        <label className="demo-checkbox">
+          <input
+            type="checkbox"
+            checked={Boolean(step.wait_for_click)}
+            onChange={(e) => patch({ wait_for_click: e.target.checked })}
+          />
+          <span>Следующий шаг — по щелчку</span>
+        </label>
+        <p className="demo-field__hint">
+          После завершения анимации показ остановится на этом шаге. Стрелка вправо, пробел или клик «Вперёд» запустят следующий шаг этапа.
+        </p>
       </fieldset>
 
       <fieldset className="demo-inspector__group" disabled={readOnly}>

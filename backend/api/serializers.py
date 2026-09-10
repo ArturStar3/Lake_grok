@@ -1515,6 +1515,7 @@ class DemoScenarioStepSerializer(serializers.ModelSerializer):
             'duration_ms',
             'start_mode',
             'hold_previous',
+            'wait_for_click',
             'camera',
             'selection',
             'animation',
@@ -1539,6 +1540,7 @@ class DemoScenarioStepWriteSerializer(serializers.Serializer):
         default=DemoStepStartMode.ON_CLICK,
     )
     hold_previous = serializers.BooleanField(required=False, default=False)
+    wait_for_click = serializers.BooleanField(required=False, default=False)
     camera = serializers.JSONField(required=False, default=dict)
     selection = serializers.JSONField(required=False, default=dict)
     animation = serializers.JSONField(required=False, default=dict)

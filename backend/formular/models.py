@@ -1657,6 +1657,10 @@ class DemoScenarioStep(models.Model):
         default=False,
         verbose_name='Сохранять содержимое предыдущего шага',
     )
+    wait_for_click = models.BooleanField(
+        default=False,
+        verbose_name='Переход к следующему шагу по щелчку',
+    )
     camera = models.JSONField(
         default=dict,
         blank=True,
