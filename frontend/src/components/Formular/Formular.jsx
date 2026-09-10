@@ -285,6 +285,15 @@ export default function Formular({ onMapFullscreenChange }) {
         loading: favoritesLoading,
     } = useMapFavorites(user?.id);
 
+    useEffect(() => {
+        if (canReadEvents && favoriteItems.some((item) => item.kind === FAVORITE_KIND.EVENT)) {
+            fetchEvents?.();
+        }
+        if (canReadSituations && favoriteItems.some((item) => item.kind === FAVORITE_KIND.SITUATION)) {
+            fetchSituations?.();
+        }
+    }, [favoriteItems, canReadEvents, canReadSituations, fetchEvents, fetchSituations]);
+
     const {
         scenarios: demoScenarios,
         defaultScenario,
@@ -1854,6 +1863,7 @@ export default function Formular({ onMapFullscreenChange }) {
                             >
                             <DemoTableauShell
                                 tableauRuntime={demoPlayer.tableauRuntime}
+                                playing={demoPlayer.playback?.isPlaying}
                                 mapRef={mapRef}
                                 objects={objects}
                             >

@@ -308,6 +308,34 @@ export default function DemoStudioModal({
     }
   }, [draft, onSave]);
 
+  const handleTableauSave = useCallback(async (tableau) => {
+    if (!draft) return;
+    const nextDraft = {
+      ...draft,
+      tableau: normalizeScenarioTableau(tableau),
+    };
+    if (!nextDraft.title.trim()) {
+      setNotice('Укажите название сценария.');
+      return;
+    }
+    // Synchronize the parent immediately: the nested editor can save in the
+    // same browser event in which its last numeric value was committed.
+    setDraft(nextDraft);
+    setBusy(true);
+    setNotice('');
+    try {
+      const saved = await onSave(nextDraft);
+      setDraft(saved);
+      setDirty(false);
+      setNotice('Сценарий сохранён.');
+    } catch (err) {
+      console.error('Не удалось сохранить сценарий демонстрации', err);
+      setNotice(err?.response?.data?.detail || 'Не удалось сохранить сценарий.');
+    } finally {
+      setBusy(false);
+    }
+  }, [draft, onSave]);
+
   const handleDelete = useCallback(async () => {
     if (!draft?.id) return;
     if (!window.confirm(`Удалить сценарий «${draft.title}»?`)) return;
@@ -1052,7 +1080,7 @@ export default function DemoStudioModal({
             }}
             readOnly={!canWrite}
             canWrite={canWrite}
-            onSave={handleSave}
+            onSave={handleTableauSave}
             saveBusy={busy}
             saveNotice={notice}
             saveDisabled={!draft}

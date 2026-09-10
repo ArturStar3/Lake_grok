@@ -33,6 +33,11 @@ const FormularModal = ({
   const [showVulnerabilitiesOnMap, setShowVulnerabilitiesOnMap] = useState(
     () => Boolean(initialShowVulnerabilitiesOnMap),
   );
+  const initialPersonId = useMemo(() => {
+    if (!String(initialCardId || '').startsWith('persons:')) return null;
+    return String(initialCardId).slice('persons:'.length) || null;
+  }, [initialCardId]);
+  const initialSectionCardId = initialPersonId ? 'persons' : initialCardId;
 
   useEffect(() => {
     if (!targetId) return;
@@ -332,7 +337,8 @@ const FormularModal = ({
               cards={sectionCards}
               attachmentsBySection={attachmentsBySection}
               resetKey={targetId}
-              initialCardId={initialCardId}
+              initialCardId={initialSectionCardId}
+              initialPersonId={initialPersonId}
               autoExpandSingle
               onSubordinateFlyTo={onSubordinateFlyTo}
               onSubordinateOpenDetails={onSubordinateOpenDetails}

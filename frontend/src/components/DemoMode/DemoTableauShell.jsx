@@ -11,6 +11,7 @@ import {
 import DemoTableauArrowSpark from './DemoTableauArrowSpark';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauGalleryLayer from './DemoTableauGalleryLayer';
+import DemoScannerLayer from './DemoScannerLayer';
 import './DemoTableauBlockView.css';
 import './DemoTableau.css';
 
@@ -115,6 +116,7 @@ function DemoTableauShell({
   tableauRuntime = null,
   mapRef = null,
   objects = [],
+  playing = true,
   children,
 }) {
   const [tilted, setTilted] = useState(false);
@@ -124,7 +126,8 @@ function DemoTableauShell({
   const overlayArrowsRef = useRef([]);
 
   const active = Boolean(tableauRuntime?.active);
-  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY;
+  const isScanner = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.SCANNER;
+  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY || isScanner;
   const phase = tableauRuntime?.phase || (active ? 'active' : 'idle');
   const tilt = tableauRuntime?.tilt || {};
   const blocks = tableauRuntime?.blocks || [];
@@ -450,7 +453,8 @@ function DemoTableauShell({
         </div>
       </div>
 
-      {active && isGallery ? (
+      {active && isScanner ? <DemoScannerLayer key={runId} scanner={tableauRuntime.scanner} playing={playing && phase !== 'exiting'} /> : null}
+      {active && isGallery && !isScanner ? (
         <>
           <DemoTableauGalleryLayer tableauRuntime={tableauRuntime} objects={objects} />
           {caption?.content ? (

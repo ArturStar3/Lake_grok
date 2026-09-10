@@ -1,11 +1,10 @@
 import React, { useMemo, memo } from 'react';
-import { Polygon } from 'react-leaflet';
-import { getZonePolygonStrokeStyle } from '../../utils/actionZoneStyle';
-import { getZonePolygonPositionsList } from '../../utils/inundationZone';
 import { filterRevisionsForSituation, resolveSituationMapRevision } from '../../utils/situationUtils';
 import { DEMO_EFFECT } from '../../utils/demoScenario';
-import { applyDemoEffectCssVars, resolveSituationDemoEffect } from './demo/eventDemoAnimations';
+import { resolveSituationDemoEffect } from './demo/eventDemoAnimations';
+import SituationPolygon from './SituationPolygon';
 import SituationStateCycleLayer from './demo/SituationStateCycleLayer';
+import SituationStateOverlayLayer from './demo/SituationStateOverlayLayer';
 
 function geometryKey(geometry) {
   if (!geometry) return 'empty';
@@ -15,52 +14,6 @@ function geometryKey(geometry) {
     return 'invalid';
   }
 }
-
-const SituationPolygon = memo(function SituationPolygon({ revision, situationId, onClick, extraClassName = '', demoEffect = null }) {
-  const revisionGeometryKey = geometryKey(revision?.geometry);
-  const rings = useMemo(
-    () => getZonePolygonPositionsList(revision?.geometry),
-    [revision?.geometry, revision?.id, revisionGeometryKey],
-  );
-
-  const pathOptions = useMemo(() => {
-    const style = getZonePolygonStrokeStyle(revision?.color || '#2f80ed', 'solid');
-    return {
-      color: style.color,
-      weight: style.weight,
-      opacity: style.opacity,
-      dashArray: style.dashArray,
-      fillColor: style.fillColor,
-      fillOpacity: style.fillOpacity,
-      className: extraClassName ? `situation-polygon ${extraClassName}` : 'situation-polygon',
-    };
-  }, [revision?.id, revision?.color, extraClassName]);
-
-  const eventHandlers = useMemo(() => ({
-    add: (e) => applyDemoEffectCssVars(e.target, demoEffect),
-    click: (e) => {
-      e.originalEvent?.stopPropagation();
-      onClick?.(situationId, revision);
-    },
-  }), [situationId, revision, onClick, demoEffect]);
-
-  if (!rings?.length || revision?.id == null) return null;
-
-  const layerKey = `${revision.id}-${geometryKey(revision.geometry)}`;
-
-  return (
-    <>
-      {rings.map((positions, ringIndex) => (
-        <Polygon
-          key={`${layerKey}-${ringIndex}`}
-          positions={positions}
-          pathOptions={pathOptions}
-          eventHandlers={eventHandlers}
-        />
-      ))}
-    </>
-  );
-});
 
 export default memo(function OperationalSituationLayer({
   situations = [],
@@ -101,6 +54,27 @@ export default memo(function OperationalSituationLayer({
                 crossFadeMs={demoEffect.crossFadeMs}
                 order={demoEffect.order}
                 continuous={demoEffect.continuous}
+                repeat={demoEffect.repeat}
+                runId={demoEffect.runId}
+                onSituationClick={onSituationClick}
+                onRevisionChange={onDemoRevisionChange}
+              />
+            );
+          }
+        }
+        if (demoEffect?.effect === DEMO_EFFECT.STATE_OVERLAY) {
+          const overlayRevisions = filterRevisionsForSituation(situationRevisions, item.id);
+          if (overlayRevisions.length > 1) {
+            return (
+              <SituationStateOverlayLayer
+                key={`${item.id}-overlay-${demoEffect.runId}`}
+                situationId={item.id}
+                revisions={overlayRevisions}
+                perStateMs={demoEffect.perStateMs}
+                fadeInMs={demoEffect.crossFadeMs}
+                order={demoEffect.order}
+                continuous={demoEffect.continuous}
+                repeat={demoEffect.repeat}
                 runId={demoEffect.runId}
                 onSituationClick={onSituationClick}
                 onRevisionChange={onDemoRevisionChange}
@@ -118,7 +92,7 @@ export default memo(function OperationalSituationLayer({
 
         return (
           <SituationPolygon
-            key={`${item.id}-${rev.id}-${geometryKey(rev.geometry)}`}
+            key={`${item.id}-${rev.id}-${geometryKey(rev.geometry)}-${demoEffect?.runId ?? 0}-${demoEffect?.repeat ?? 0}`}
             situationId={item.id}
             revision={rev}
             onClick={onSituationClick}

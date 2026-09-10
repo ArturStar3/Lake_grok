@@ -1,5 +1,10 @@
 import { DEMO_EFFECT } from '../../../utils/demoScenario';
-import { cachedBucketData, demoLoopClass, idSet } from './demoEffectCache';
+import {
+  cachedBucketData,
+  demoLoopClass,
+  demoRepeatCount,
+  idSet,
+} from './demoEffectCache';
 
 const EFFECT_CLASS_BY_ID = {
   [DEMO_EFFECT.FADE_IN]: 'demo-obj-fade-in',
@@ -37,6 +42,7 @@ export function resolveObjectDemoEffect(obj, demoAnimation) {
       effect: bucket.effect,
       durationMs: bucket.durationMs,
       delayMs: bucket.delayMs,
+      repeat: bucket.repeat,
       continuous: Boolean(bucket.continuous),
       runId: demoAnimation.runId,
     },
@@ -75,6 +81,7 @@ export function applyObjectDemoEffect(marker, demoEffect) {
     el.style.removeProperty('--demo-blink-duration');
     el.style.removeProperty('--demo-effect-duration');
     el.style.removeProperty('--demo-effect-delay');
+    el.style.removeProperty('--demo-repeat-count');
     return;
   }
 
@@ -85,6 +92,7 @@ export function applyObjectDemoEffect(marker, demoEffect) {
   el.style.setProperty('--demo-blink-duration', `${duration}ms`);
   el.style.setProperty('--demo-effect-duration', `${duration}ms`);
   el.style.setProperty('--demo-effect-delay', `${delay}ms`);
+  el.style.setProperty('--demo-repeat-count', String(demoRepeatCount(demoEffect.repeat)));
 
   const className = objectDemoEffectClassName(demoEffect);
   className.split(/\s+/).filter(Boolean).forEach((cls) => el.classList.add(cls));

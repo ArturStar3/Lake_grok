@@ -1492,6 +1492,13 @@ class DemoScenarioViewSet(viewsets.ModelViewSet):
             return DemoScenarioWriteSerializer
         return DemoScenarioSerializer
 
+    @action(detail=False, methods=['post'], url_path='import-scanner-document')
+    def import_scanner_document(self, request):
+        from .demo_scanner import import_docx
+
+        ensure_can_write(request.user, 'demo_scenarios')
+        return Response(import_docx(request.FILES.get('file')))
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
 

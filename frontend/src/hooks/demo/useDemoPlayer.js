@@ -91,14 +91,15 @@ const EMPTY_MOSAIC = {
 };
 
 function isGalleryNomapPreset(preset) {
-  return isTableauGalleryPreset(preset) && preset?.gallery?.show_map === false;
+  return preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+    || (isTableauGalleryPreset(preset) && preset?.gallery?.show_map === false);
 }
 
 function isGalleryNomapRuntime(runtime) {
   return Boolean(
     runtime?.active
-    && runtime?.variant === DEMO_TABLEAU_VARIANT.GALLERY
-    && runtime?.gallery?.show_map === false
+    && (runtime?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+      || (runtime?.variant === DEMO_TABLEAU_VARIANT.GALLERY && runtime?.gallery?.show_map === false))
   );
 }
 
@@ -213,6 +214,7 @@ function animationSignature(beat) {
       step.tool,
       animation.effect,
       animation.continuous ? '1' : '0',
+      animation.repeat ?? '',
       idsKey(step.selection?.target_ids),
       idsKey(step.selection?.event_ids),
       idsKey(step.selection?.situation_ids),
@@ -1462,6 +1464,16 @@ export function useDemoPlayer({ actions, data }) {
 
     if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU && item.tableauPreset) {
       const preset = item.tableauPreset;
+      if (preset.variant === DEMO_TABLEAU_VARIANT.SCANNER) {
+        tableauPoseReadyRef.current = true;
+        tableauPendingEnterRef.current = null;
+        setTableauRuntime({ ...EMPTY_TABLEAU, active: true, phase: 'active',
+          variant: DEMO_TABLEAU_VARIANT.SCANNER, scanner: preset.scanner,
+          presetId: preset.id, untiltMs: 0,
+          runId: (tableauRuntimeRef.current?.runId || 0) + 1 });
+        if (mosaicRuntimeRef.current?.active) setMosaicRuntime(EMPTY_MOSAIC);
+        return;
+      }
       const isGallery = isTableauGalleryPreset(preset);
       const gallery = preset.gallery || null;
       const tiltMs = isGallery ? 0 : (preset.tilt_ms ?? 700);
@@ -1670,6 +1682,11 @@ export function useDemoPlayer({ actions, data }) {
 
       if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
         const preset = item.tableauPreset;
+        if (preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER) {
+          tableauPendingEnterRef.current = null;
+          stopTableauReveal();
+          return;
+        }
         if (isGalleryNomapPreset(preset)) {
           tableauPendingEnterRef.current = null;
           stopTableauReveal();

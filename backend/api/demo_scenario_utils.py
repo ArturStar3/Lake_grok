@@ -4,6 +4,7 @@ import re
 import uuid
 
 from django.db import transaction
+from .demo_scanner import normalize_scanner
 
 from formular.models import (
     DEFAULT_DEMO_STEP_DURATION_MS,
@@ -163,7 +164,7 @@ DEFAULT_TABLEAU_CAMERA = {
     'ease_linearity': 0.3,
     'padding': 72,
 }
-TABLEAU_VARIANTS = ('tablet', 'gallery')
+TABLEAU_VARIANTS = ('tablet', 'gallery', 'scanner')
 TABLEAU_GALLERY_ENTER = (
     'center_zoom', 'fade_scale', 'slide_up', 'slide_left', 'slide_right', 'blur_in',
     'from_object',
@@ -1455,6 +1456,7 @@ def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None
         'stage_id': stage_id,
         'variant': _choice(data.get('variant'), TABLEAU_VARIANTS, 'tablet'),
         'gallery': normalize_tableau_gallery(data.get('gallery')),
+        'scanner': normalize_scanner(data.get('scanner')),
         'tilt': normalize_tableau_tilt(data.get('tilt')),
         'border_radius_px': _clamp(
             data.get('border_radius_px', DEFAULT_TABLEAU_BORDER_RADIUS),

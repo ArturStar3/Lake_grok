@@ -6,7 +6,8 @@
   3. Художественный: планшетный обзор — наклон карты и карточки.
   4. Галерея: из объекта (тест) — разворот кадра из маркера, с картой и без.
   5. Все возможности карты (тест) — планшет, сетка 2+3 и развороты слоёв.
-  6. Обзор возможностей карты (тест) — инструменты карты по шагам.
+  6. Сканирование документов: конфликт в Украине — DOCX и 10 изображений.
+  7. Обзор возможностей карты (тест) — инструменты карты по шагам.
 
 Использование:
   python manage.py seed_demo_showcases --replace
@@ -38,6 +39,7 @@ class Command(BaseCommand):
         call_command('seed_tableau_demo_scenario', **kwargs)
         call_command('seed_gallery_demo_scenario', **kwargs)
         call_command('seed_map_capabilities_demo_scenario', **kwargs)
+        call_command('seed_scanner_demo_scenario', **kwargs)
         call_command('seed_sample_demo_scenario', **kwargs)
         call_command(
             'seed_constructors_demo_scenario',
@@ -49,5 +51,6 @@ class Command(BaseCommand):
             '«Мультиэкран: обзор возможностей», «Художественный: планшетный обзор», '
             '«Галерея: из объекта (тест)», '
             '«Все возможности карты (тест)», '
+            '«Сканирование документов: конфликт в Украине», '
             '«Обзор возможностей карты (тест)».'
         ))

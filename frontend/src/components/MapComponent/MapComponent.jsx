@@ -84,7 +84,7 @@ const eventMarkerIconCache = new Map();
 function getEventMarkerIconCached({ markerId, path, svg, demoEffect }) {
     const demoClass = demoMarkerIconClass(demoEffect);
     const durationKey = demoEffect
-        ? `${demoEffect.durationMs ?? ""}|${demoEffect.continuous ? "1" : "0"}|${demoEffect.runId ?? ""}`
+        ? `${demoEffect.durationMs ?? ""}|${demoEffect.continuous ? "1" : "0"}|${demoEffect.repeat ?? ""}|${demoEffect.runId ?? ""}`
         : "";
     const cacheKey = `${markerId ?? path ?? "fallback"}|${svg ? "svg" : "img"}|${demoClass}|${durationKey}`;
     const cached = eventMarkerIconCache.get(cacheKey);
@@ -237,11 +237,14 @@ const EventShapeLayer = React.memo(function EventShapeLayer({
         className: shapeClassName,
     }), [eventColor, shapeClassName]);
     const demoShapeHandlers = useMemo(
-        () => (demoEventEffect
-            ? { add: (e) => applyDemoEffectCssVars(e.target, demoEventEffect) }
-            : undefined),
-        [demoEventEffect],
+      () => (demoEventEffect
+          ? { add: (e) => applyDemoEffectCssVars(e.target, demoEventEffect) }
+          : undefined),
+      [demoEventEffect],
     );
+    const demoShapeKey = demoEventEffect
+        ? `${demoEventEffect.effect}-${demoEventEffect.runId}-${demoEventEffect.repeat ?? 0}`
+        : 'static';
     const polygonPositions = useMemo(
         () => (shape?.type === "area" && shape.geometry?.points
             ? shape.geometry.points.map((p) => [p.lat, p.lng])
@@ -278,6 +281,7 @@ const EventShapeLayer = React.memo(function EventShapeLayer({
         return (
             <>
                 <Circle
+                    key={`circle-${demoShapeKey}`}
                     center={[shape.geometry.lat, shape.geometry.lng]}
                     radius={shape.geometry.radius || 0}
                     pathOptions={pathOptions}
@@ -301,6 +305,7 @@ const EventShapeLayer = React.memo(function EventShapeLayer({
         return (
             <>
                 <Polygon
+                    key={`area-${demoShapeKey}`}
                     positions={polygonPositions}
                     pathOptions={pathOptions}
                     eventHandlers={demoShapeHandlers}

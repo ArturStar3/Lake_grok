@@ -1422,6 +1422,7 @@ class DemoStepEffect(models.TextChoices):
     COLOR_SHIFT = 'color_shift', 'Переливание цвета'
     SWAY = 'sway', 'Колыхание'
     STATE_CYCLE = 'state_cycle', 'Смена состояний'
+    STATE_OVERLAY = 'state_overlay', 'Наложение состояний'
     DIRECTIONAL_WIPE = 'directional_wipe', 'Направленное появление'
 
 

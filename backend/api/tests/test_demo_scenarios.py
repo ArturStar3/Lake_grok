@@ -113,6 +113,15 @@ class DemoScenarioApiTests(APITestCase):
                         'effect': 'state_cycle',
                         'state_cycle': {'per_state_ms': 1200, 'cross_fade_ms': 400},
                     }),
+                    build_step(title='Наложение обстановки', tool='situations', animation={
+                        'effect': 'state_overlay',
+                        'continuous': False,
+                        'state_cycle': {
+                            'per_state_ms': 1500,
+                            'cross_fade_ms': 500,
+                            'order': 'new_to_old',
+                        },
+                    }),
                 ],
             },
             format='json',
@@ -120,13 +129,20 @@ class DemoScenarioApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         steps = response.data['steps']
-        self.assertEqual([step['order'] for step in steps], [0, 1, 2])
-        self.assertEqual([step['tool'] for step in steps], ['events', 'inundation', 'situations'])
+        self.assertEqual([step['order'] for step in steps], [0, 1, 2, 3])
+        self.assertEqual([step['tool'] for step in steps], ['events', 'inundation', 'situations', 'situations'])
         self.assertEqual(steps[1]['animation']['direction'], 'bottom')
         self.assertEqual(steps[2]['animation']['state_cycle']['per_state_ms'], 1200)
         self.assertTrue(steps[0]['animation']['continuous'])
         self.assertFalse(steps[1]['animation']['continuous'])
         self.assertTrue(steps[2]['animation']['continuous'])
+        self.assertEqual(steps[3]['animation']['effect'], 'state_overlay')
+        self.assertFalse(steps[3]['animation']['continuous'])
+        self.assertEqual(steps[3]['animation']['state_cycle'], {
+            'per_state_ms': 1500,
+            'cross_fade_ms': 500,
+            'order': 'new_to_old',
+        })
 
     def test_formular_and_country_tools_normalize_selection(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
@@ -183,7 +199,7 @@ class DemoScenarioApiTests(APITestCase):
         self.assertEqual(patched.data['steps'][0]['selection']['country_isos'], ['RU', 'BY'])
         self.assertEqual(patched.data['steps'][1]['selection']['target_ids'], ['33'])
 
-    def test_continuous_flag_is_stored_explicitly(self):
+    def test_animation_playback_mode_and_repeat_are_stored_explicitly(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         response = self.create_scenario(
             headers,
@@ -191,19 +207,39 @@ class DemoScenarioApiTests(APITestCase):
                 build_step(
                     title='События',
                     tool='events',
-                    animation={'effect': 'blink', 'continuous': False, 'duration_ms': 900},
+                    animation={'effect': 'blink', 'continuous': False, 'repeat': 3, 'duration_ms': 900},
                 ),
                 build_step(
                     title='Затопление',
                     tool='inundation',
                     animation={'effect': 'directional_wipe', 'continuous': True},
                 ),
+                build_step(
+                    title='Объекты',
+                    tool='objects',
+                    animation={'effect': 'glow', 'continuous': False, 'repeat': 4},
+                ),
+                build_step(
+                    title='Зоны действия',
+                    tool='zones',
+                    animation={'effect': 'reveal_from_center', 'continuous': False, 'repeat': 2},
+                ),
+                build_step(
+                    title='Оперативная обстановка',
+                    tool='situations',
+                    animation={'effect': 'state_cycle', 'continuous': False, 'repeat': 5},
+                ),
             ],
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         steps = response.data['steps']
         self.assertFalse(steps[0]['animation']['continuous'])
+        self.assertEqual(steps[0]['animation']['repeat'], 3)
         self.assertTrue(steps[1]['animation']['continuous'])
+        self.assertFalse(steps[2]['animation']['continuous'])
+        self.assertEqual(steps[2]['animation']['repeat'], 4)
+        self.assertEqual(steps[3]['animation']['repeat'], 2)
+        self.assertEqual(steps[4]['animation']['repeat'], 5)
 
     def test_only_one_default_scenario_remains(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)

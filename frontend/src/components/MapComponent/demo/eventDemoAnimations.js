@@ -1,5 +1,10 @@
 import { DEMO_EFFECT } from '../../../utils/demoScenario';
-import { cachedBucketData, demoLoopClass, idSet } from './demoEffectCache';
+import {
+  cachedBucketData,
+  demoLoopClass,
+  demoRepeatCount,
+  idSet,
+} from './demoEffectCache';
 
 /**
  * Эффект демонстрации для конкретного события.
@@ -18,6 +23,7 @@ export function resolveEventDemoEffect(eventItem, demoAnimation) {
       effect: bucket.effect,
       durationMs: bucket.durationMs,
       delayMs: bucket.delayMs,
+      repeat: bucket.repeat,
       continuous: Boolean(bucket.continuous),
       runId: demoAnimation.runId,
     },
@@ -28,7 +34,7 @@ export function resolveEventDemoEffect(eventItem, demoAnimation) {
 }
 
 /**
- * Эффект демонстрации для обстановки: зацикленная смена состояний.
+ * Эффект демонстрации для обстановки: смена или накопительное наложение состояний.
  * @returns {null | { effect: string, perStateMs: number, crossFadeMs: number, order: string, runId: number, continuous: boolean, durationMs: number }}
  */
 export function resolveSituationDemoEffect(situationId, demoAnimation) {
@@ -46,6 +52,7 @@ export function resolveSituationDemoEffect(situationId, demoAnimation) {
         crossFadeMs: cycle.cross_fade_ms ?? 600,
         order: cycle.order ?? 'old_to_new',
         durationMs: bucket.durationMs,
+        repeat: bucket.repeat,
         continuous: Boolean(bucket.continuous),
         runId: demoAnimation.runId,
       },
@@ -79,11 +86,17 @@ export function applyDemoEffectCssVars(layer, demoEffect) {
   const el = layer?._path || layer?._icon;
   if (!el || !demoEffect) return;
   const duration = Math.max(200, Number(demoEffect.durationMs) || 900);
+  const delay = Math.max(0, Number(demoEffect.delayMs) || 0);
+  const repeat = demoRepeatCount(demoEffect.repeat);
   el.style.setProperty('--demo-fade-duration', `${duration}ms`);
+  el.style.setProperty('--demo-fade-delay', `${delay}ms`);
   el.style.setProperty('--demo-blink-duration', `${duration}ms`);
+  el.style.setProperty('--demo-repeat-count', String(repeat));
 }
 
 export function demoEffectCssVars(demoEffect) {
   const duration = Math.max(200, Number(demoEffect?.durationMs) || 900);
-  return `--demo-fade-duration:${duration}ms;--demo-blink-duration:${duration}ms`;
+  const delay = Math.max(0, Number(demoEffect?.delayMs) || 0);
+  const repeat = demoRepeatCount(demoEffect?.repeat);
+  return `--demo-fade-duration:${duration}ms;--demo-fade-delay:${delay}ms;--demo-blink-duration:${duration}ms;--demo-repeat-count:${repeat}`;
 }

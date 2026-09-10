@@ -35,18 +35,15 @@ export default function MapFullscreenTopBar({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [quickActionsSettingsOpen, setQuickActionsSettingsOpen] = useState(false);
+  const [quickActionNotice, setQuickActionNotice] = useState('');
   const accountMenuRef = useRef(null);
-  const favoritesMenuRef = useRef(null);
   const displayName = user?.full_name || user?.username || 'Пользователь';
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
         setAccountMenuOpen(false);
-      }
-      if (favoritesMenuRef.current && !favoritesMenuRef.current.contains(e.target)) {
-        setFavoritesOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -60,7 +57,8 @@ export default function MapFullscreenTopBar({
   };
 
   return (
-    <header className="map-fs-topbar">
+    <>
+      <header className="map-fs-topbar">
       <div className="map-fs-topbar__brand-wrap" ref={accountMenuRef}>
         <button
           type="button"
@@ -75,6 +73,18 @@ export default function MapFullscreenTopBar({
         {accountMenuOpen && (
           <div className="map-fs-topbar__account-dropdown" role="menu">
             <div className="map-fs-topbar__account-user">{displayName}</div>
+            {favoritesMenu && (
+              <button
+                type="button"
+                className="map-fs-topbar__account-item"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setQuickActionsSettingsOpen(true);
+                }}
+              >
+                Настроить быстрые переходы
+              </button>
+            )}
             <button
               type="button"
               className="map-fs-topbar__account-item"
@@ -110,6 +120,25 @@ export default function MapFullscreenTopBar({
       <span className="map-fs-topbar__title">InfoLake</span>
       <span className="map-fs-topbar__subtitle">Карта · Полный экран</span>
       {searchControl}
+      {favoritesMenu?.items?.length > 0 && (
+        <div className="map-fs-topbar__quick-actions" aria-label="Быстрые переходы">
+          {favoritesMenu.items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="map-fs-topbar__btn map-fs-topbar__btn--quick-action"
+              title={item.sourceTitle || item.title}
+              onClick={() => {
+                setAccountMenuOpen(false);
+                const message = favoritesMenu.onSelect?.(item);
+                setQuickActionNotice(message || '');
+              }}
+            >
+              {item.title}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="map-fs-topbar__spacer" />
       <ThemeToggle compact />
       {canEditTargets && onOpenAddTarget && (
@@ -132,25 +161,7 @@ export default function MapFullscreenTopBar({
           Импорт / экспорт
         </button>
       )}
-      {favoritesMenu && (
-        <div className="map-fs-topbar__tools-wrap" ref={favoritesMenuRef}>
-          <button
-            type="button"
-            className={`map-fs-topbar__btn${favoritesOpen ? ' map-fs-topbar__btn--tools-open' : ''}`}
-            onClick={() => {
-              setFavoritesOpen((v) => !v);
-              setAccountMenuOpen(false);
-            }}
-            aria-expanded={favoritesOpen}
-          >
-            Избранное
-            <span className="map-fs-topbar__chev" aria-hidden>▼</span>
-          </button>
-          {favoritesOpen && (
-            <MapFavoritesMenu {...favoritesMenu} />
-          )}
-        </div>
-      )}
+      {quickActionNotice && <span className="map-fs-topbar__quick-action-notice" role="status">{quickActionNotice}</span>}
       <div className="map-fs-topbar__tools-wrap" ref={toolsMenuRef}>
         <button
           type="button"
@@ -184,6 +195,39 @@ export default function MapFullscreenTopBar({
         </svg>
         Свернуть
       </button>
-    </header>
+      </header>
+      {quickActionsSettingsOpen && favoritesMenu && (
+        <div
+          className="map-fs-quick-actions-modal"
+          role="presentation"
+          onMouseDown={() => setQuickActionsSettingsOpen(false)}
+        >
+          <section
+            className="map-fs-quick-actions-modal__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Настройка быстрых переходов"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="map-fs-quick-actions-modal__header">
+              <h2>Быстрые переходы</h2>
+              <button
+                type="button"
+                className="map-fs-quick-actions-modal__close"
+                aria-label="Закрыть"
+                onClick={() => setQuickActionsSettingsOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <MapFavoritesMenu
+              {...favoritesMenu}
+              embedded
+              settingsOnly
+            />
+          </section>
+        </div>
+      )}
+    </>
   );
 }

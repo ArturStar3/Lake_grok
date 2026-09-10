@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import noUserIcon from '../../assets/images/no_user.png';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import PersonReadContent from './PersonReadContent';
@@ -38,9 +38,15 @@ function PersonFullDetail({ person, onBack, onRelationClick }) {
   );
 }
 
-export default function PersonDetailView({ persons = [] }) {
+export default function PersonDetailView({ persons = [], initialPersonId = null }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [relationModalPerson, setRelationModalPerson] = useState(null);
+
+  useEffect(() => {
+    if (!initialPersonId) return;
+    const person = persons.find((item) => String(item.id) === String(initialPersonId));
+    if (person) setSelectedPerson(person);
+  }, [initialPersonId, persons]);
 
   if (!persons.length) {
     return <p className="person-detail-view__empty">Персоналии не указаны.</p>;

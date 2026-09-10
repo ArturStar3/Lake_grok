@@ -1,4 +1,5 @@
 import { ZONE_LEAF_MANUAL } from './inundationZone';
+import { normalizeScanner, scannerDurationMs } from './demoScanner';
 
 export const DEMO_STEP_MIN_DURATION_MS = 500;
 export const DEMO_STEP_MAX_DURATION_MS = 600_000;
@@ -28,6 +29,7 @@ export const DEMO_EFFECT = {
   COLOR_SHIFT: 'color_shift',
   SWAY: 'sway',
   STATE_CYCLE: 'state_cycle',
+  STATE_OVERLAY: 'state_overlay',
   DIRECTIONAL_WIPE: 'directional_wipe',
 };
 
@@ -75,6 +77,7 @@ export const DEMO_EFFECTS = [
   { id: DEMO_EFFECT.COLOR_SHIFT, label: 'Переливание цвета' },
   { id: DEMO_EFFECT.SWAY, label: 'Колыхание' },
   { id: DEMO_EFFECT.STATE_CYCLE, label: 'Смена состояний (цикл)' },
+  { id: DEMO_EFFECT.STATE_OVERLAY, label: 'Наложение состояний (накопительно)' },
   { id: DEMO_EFFECT.DIRECTIONAL_WIPE, label: 'Направленное появление' },
 ];
 
@@ -420,11 +423,13 @@ export const DEMO_DEFAULT_TABLEAU_CAMERA = {
 export const DEMO_TABLEAU_VARIANT = {
   TABLET: 'tablet',
   GALLERY: 'gallery',
+  SCANNER: 'scanner',
 };
 
 export const DEMO_TABLEAU_VARIANTS = [
   { id: DEMO_TABLEAU_VARIANT.TABLET, label: 'Планшетный режим' },
   { id: DEMO_TABLEAU_VARIANT.GALLERY, label: 'Галерея на карте' },
+  { id: DEMO_TABLEAU_VARIANT.SCANNER, label: 'Сканирование документов' },
 ];
 
 export const DEMO_TABLEAU_GALLERY_ENTER = {
@@ -584,7 +589,12 @@ const EFFECTS_BY_TOOL = {
     DEMO_EFFECT.REVEAL_FROM_CENTER,
     DEMO_EFFECT.DIRECTIONAL_WIPE,
   ],
-  [DEMO_TOOL.SITUATIONS]: [DEMO_EFFECT.NONE, DEMO_EFFECT.FADE_IN, DEMO_EFFECT.STATE_CYCLE],
+  [DEMO_TOOL.SITUATIONS]: [
+    DEMO_EFFECT.NONE,
+    DEMO_EFFECT.FADE_IN,
+    DEMO_EFFECT.STATE_CYCLE,
+    DEMO_EFFECT.STATE_OVERLAY,
+  ],
   [DEMO_TOOL.LAYERS]: [DEMO_EFFECT.NONE],
   [DEMO_TOOL.FORMULAR]: [DEMO_EFFECT.NONE],
   [DEMO_TOOL.COUNTRY]: [DEMO_EFFECT.NONE],
@@ -1832,6 +1842,7 @@ export function normalizeTableauPreset(raw, allowedBlockIds = null) {
       DEMO_TABLEAU_VARIANT.TABLET,
     ),
     gallery: normalizeTableauGallery(data.gallery),
+    scanner: normalizeScanner(data.scanner),
     tilt: normalizeTableauTilt(data.tilt),
     border_radius_px: clampInt(
       data.border_radius_px,
@@ -3076,6 +3087,9 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
     const stageMs = buildStageBeats(stage?.steps || []).durationMs;
     if (isTableauGalleryPreset(preset)) {
       return Math.max(stageMs, tableauGalleryDurationMs(preset.gallery), DEMO_DEFAULT_STEP_DURATION_MS);
+    }
+    if (preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER) {
+      return Math.max(scannerDurationMs(preset.scanner), DEMO_DEFAULT_STEP_DURATION_MS);
     }
     const placements = preset?.placements || [];
     const stagger = preset?.card_stagger_ms || 0;

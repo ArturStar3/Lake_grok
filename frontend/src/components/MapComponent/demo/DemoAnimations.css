@@ -115,7 +115,7 @@
 
 .leaflet-marker-icon.event-marker-icon--demo-blink.demo-anim--once .event-marker-icon__wrap,
 .leaflet-marker-icon.event-marker-icon--demo-blink.demo-anim--once .event-marker-icon__fallback {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 
@@ -126,16 +126,24 @@
 }
 
 .leaflet-overlay-pane path.demo-blink.demo-anim--once {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 
-.leaflet-marker-icon.demo-fade-in,
+.leaflet-marker-icon.demo-fade-in > .event-marker-icon__wrap,
+.leaflet-marker-icon.demo-fade-in > .event-marker-icon__fallback,
 .leaflet-overlay-pane path.demo-fade-in {
     animation: demoFadeIn var(--demo-fade-duration, 900ms) var(--demo-fade-delay, 0ms) ease-out both;
 }
 
-.leaflet-marker-icon.demo-fade-in.demo-anim--continuous,
+.leaflet-marker-icon.demo-fade-in.demo-anim--once > .event-marker-icon__wrap,
+.leaflet-marker-icon.demo-fade-in.demo-anim--once > .event-marker-icon__fallback,
+.leaflet-overlay-pane path.demo-fade-in.demo-anim--once {
+    animation-iteration-count: var(--demo-repeat-count, 1);
+}
+
+.leaflet-marker-icon.demo-fade-in.demo-anim--continuous > .event-marker-icon__wrap,
+.leaflet-marker-icon.demo-fade-in.demo-anim--continuous > .event-marker-icon__fallback,
 .leaflet-overlay-pane path.demo-fade-in.demo-anim--continuous {
     animation-iteration-count: infinite;
     animation-direction: alternate;
@@ -148,6 +156,12 @@
 .leaflet-marker-icon.demo-obj-fade-in > .non-flag-marker,
 .leaflet-marker-icon.demo-obj-fade-in > .group-marker {
     animation: demoFadeIn var(--demo-fade-duration, 900ms) var(--demo-fade-delay, 0ms) ease-out both;
+}
+
+.leaflet-marker-icon.demo-obj-fade-in.demo-anim--once > .custom-marker-label,
+.leaflet-marker-icon.demo-obj-fade-in.demo-anim--once > .non-flag-marker,
+.leaflet-marker-icon.demo-obj-fade-in.demo-anim--once > .group-marker {
+    animation-iteration-count: var(--demo-repeat-count, 1);
 }
 
 .leaflet-marker-icon.demo-obj-fade-in.demo-anim--continuous > .custom-marker-label,
@@ -174,7 +188,7 @@
 .leaflet-marker-icon.demo-obj-blink.demo-anim--once > .custom-marker-label,
 .leaflet-marker-icon.demo-obj-blink.demo-anim--once > .non-flag-marker,
 .leaflet-marker-icon.demo-obj-blink.demo-anim--once > .group-marker {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 
@@ -188,7 +202,7 @@
 .leaflet-marker-icon.demo-obj-flicker.demo-anim--once > .custom-marker-label,
 .leaflet-marker-icon.demo-obj-flicker.demo-anim--once > .non-flag-marker,
 .leaflet-marker-icon.demo-obj-flicker.demo-anim--once > .group-marker {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 
@@ -202,7 +216,7 @@
 .leaflet-marker-icon.demo-obj-glow.demo-anim--once > .custom-marker-label,
 .leaflet-marker-icon.demo-obj-glow.demo-anim--once > .non-flag-marker,
 .leaflet-marker-icon.demo-obj-glow.demo-anim--once > .group-marker {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 
@@ -216,7 +230,7 @@
 .leaflet-marker-icon.demo-obj-color-shift.demo-anim--once > .custom-marker-label,
 .leaflet-marker-icon.demo-obj-color-shift.demo-anim--once > .non-flag-marker,
 .leaflet-marker-icon.demo-obj-color-shift.demo-anim--once > .group-marker {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 
@@ -237,7 +251,7 @@
 .leaflet-marker-icon.demo-obj-sway.demo-anim--once > .custom-marker-label,
 .leaflet-marker-icon.demo-obj-sway.demo-anim--once > .non-flag-marker,
 .leaflet-marker-icon.demo-obj-sway.demo-anim--once > .group-marker {
-    animation-iteration-count: 1;
+    animation-iteration-count: var(--demo-repeat-count, 1);
     animation-fill-mode: both;
 }
 

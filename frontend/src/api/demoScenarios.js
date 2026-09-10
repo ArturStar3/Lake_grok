@@ -2,6 +2,15 @@ import { apiClient } from '../config/axios';
 
 const BASE = '/demo-scenarios/';
 
+export async function importDemoScannerDocument(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post(`${BASE}import-scanner-document/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
 export async function listDemoScenarios() {
   const { data } = await apiClient.get(BASE);
   return Array.isArray(data) ? data : [];

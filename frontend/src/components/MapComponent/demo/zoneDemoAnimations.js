@@ -4,7 +4,7 @@ import { ZONE_LEAF_MANUAL, makeParamLeaf } from '../../../utils/inundationZone';
 import { applyEasing, DEMO_EFFECT } from '../../../utils/demoScenario';
 import { registerDemoAnimation, unregisterDemoAnimation } from './demoRafDriver';
 import { applyDemoEffectCssVars } from './eventDemoAnimations';
-import { cachedBucketData } from './demoEffectCache';
+import { cachedBucketData, demoRepeatCount } from './demoEffectCache';
 
 const MIN_REVEAL_RADIUS_M = 1;
 
@@ -47,6 +47,7 @@ export function resolveZoneDemoEffect(zone, demoAnimation) {
     delayMs: bucket.delayMs,
     easing: bucket.easing,
     direction: bucket.direction,
+    repeat: bucket.repeat,
     continuous: Boolean(bucket.continuous),
     runId: demoAnimation.runId,
   }));
@@ -69,18 +70,19 @@ export function useDemoEffectCssVars(layerRef, demoEffect) {
     }
     const id = window.setTimeout(apply, 50);
     return () => window.clearTimeout(id);
-  }, [layerRef, demoEffect, demoEffect?.durationMs, demoEffect?.runId, demoEffect?.effect]);
+  }, [layerRef, demoEffect, demoEffect?.durationMs, demoEffect?.repeat, demoEffect?.runId, demoEffect?.effect]);
 }
 
-function timedProgress(elapsed, delayMs, durationMs, continuous) {
+function timedProgress(elapsed, delayMs, durationMs, continuous, repeat) {
   const t = elapsed - delayMs;
   if (t <= 0) return { waiting: true, progress: 0, done: false };
   if (!durationMs) return { waiting: false, progress: 1, done: !continuous };
   if (continuous) {
     return { waiting: false, progress: (t % durationMs) / durationMs, done: false };
   }
-  if (t >= durationMs) return { waiting: false, progress: 1, done: true };
-  return { waiting: false, progress: t / durationMs, done: false };
+  const totalDuration = durationMs * demoRepeatCount(repeat);
+  if (t >= totalDuration) return { waiting: false, progress: 1, done: true };
+  return { waiting: false, progress: (t % durationMs) / durationMs, done: false };
 }
 
 function positionsSignature(positions) {
@@ -105,6 +107,7 @@ export function useCircleRevealAnimation(circleRef, {
   delayMs = 0,
   easing = 'ease_out',
   continuous = false,
+  repeat = 1,
   animationKey,
 }) {
   const map = useMap();
@@ -126,7 +129,7 @@ export function useCircleRevealAnimation(circleRef, {
       center: layer.getLatLng(),
       update: (elapsed) => {
         if (finished) return;
-        const { waiting, progress, done } = timedProgress(elapsed, delayMs, durationMs, continuous);
+        const { waiting, progress, done } = timedProgress(elapsed, delayMs, durationMs, continuous, repeat);
         if (waiting) return;
         if (done) {
           finished = true;
@@ -142,7 +145,7 @@ export function useCircleRevealAnimation(circleRef, {
     return () => {
       unregisterDemoAnimation(key, map);
     };
-  }, [circleRef, map, enabled, runId, radiusMeters, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [circleRef, map, enabled, runId, radiusMeters, durationMs, delayMs, easing, continuous, repeat, animationKey]);
 }
 
 function scalePositionsFromCentroid(positions, centroid, factor) {
@@ -177,6 +180,7 @@ export function usePolygonRevealAnimation(polygonRef, {
   delayMs = 0,
   easing = 'ease_out',
   continuous = false,
+  repeat = 1,
   animationKey,
 }) {
   const map = useMap();
@@ -262,7 +266,7 @@ export function usePolygonRevealAnimation(polygonRef, {
       center: { lat: centroid.lat, lng: centroid.lng },
       update: (elapsed) => {
         if (finished) return;
-        const { waiting, progress, done } = timedProgress(elapsed, delayMs, durationMs, continuous);
+        const { waiting, progress, done } = timedProgress(elapsed, delayMs, durationMs, continuous, repeat);
         if (waiting) return;
         if (done) {
           finished = true;
@@ -278,7 +282,7 @@ export function usePolygonRevealAnimation(polygonRef, {
       unregisterDemoAnimation(key, map);
       stopViewSync?.();
     };
-  }, [polygonRef, map, enabled, runId, signature, centroid, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [polygonRef, map, enabled, runId, signature, centroid, durationMs, delayMs, easing, continuous, repeat, animationKey]);
 }
 
 const WIPE_ID_PREFIX = 'demo-wipe-';
@@ -299,6 +303,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
   delayMs = 0,
   easing = 'ease_out',
   continuous = false,
+  repeat = 1,
   animationKey,
 }) {
   const map = useMap();
@@ -416,7 +421,7 @@ export function useDirectionalWipeAnimation(polygonRef, {
         map,
         update: (elapsed) => {
           if (finished) return;
-          const { waiting, progress: raw, done } = timedProgress(elapsed, delayMs, durationMs, continuous);
+          const { waiting, progress: raw, done } = timedProgress(elapsed, delayMs, durationMs, continuous, repeat);
           if (waiting) return;
           if (done) {
             finished = true;
@@ -447,5 +452,5 @@ export function useDirectionalWipeAnimation(polygonRef, {
       if (retryId) window.clearTimeout(retryId);
       cleanupFns.forEach((fn) => fn());
     };
-  }, [polygonRef, map, enabled, runId, signature, direction, durationMs, delayMs, easing, continuous, animationKey]);
+  }, [polygonRef, map, enabled, runId, signature, direction, durationMs, delayMs, easing, continuous, repeat, animationKey]);
 }

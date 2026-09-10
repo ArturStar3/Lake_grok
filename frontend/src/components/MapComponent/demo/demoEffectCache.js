@@ -30,3 +30,13 @@ export function idSet(ids) {
 export function demoLoopClass(continuous) {
   return continuous ? 'demo-anim--continuous' : 'demo-anim--once';
 }
+
+/**
+ * В сохранённых ранее сценариях `repeat` отсутствует или равен нулю.
+ * Для ограниченного режима это означает один полный прогон анимации.
+ */
+export function demoRepeatCount(repeat) {
+  const value = Math.trunc(Number(repeat));
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(100, Math.max(1, value));
+}

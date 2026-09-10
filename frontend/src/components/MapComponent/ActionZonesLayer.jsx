@@ -169,6 +169,7 @@ const ZoneCircleLayer = React.memo(function ZoneCircleLayer({
     delayMs: demoEffect?.delayMs ?? 0,
     easing: demoEffect?.easing,
     continuous: Boolean(demoEffect?.continuous),
+    repeat: demoEffect?.repeat,
     animationKey: entryId,
   });
   useDemoEffectCssVars(circleRef, demoEffect);
@@ -248,6 +249,7 @@ const ZonePolygonLayer = React.memo(function ZonePolygonLayer({
     delayMs: demoEffect?.delayMs ?? 0,
     easing: demoEffect?.easing,
     continuous: Boolean(demoEffect?.continuous),
+    repeat: demoEffect?.repeat,
     animationKey: entryId,
   });
 
@@ -260,6 +262,7 @@ const ZonePolygonLayer = React.memo(function ZonePolygonLayer({
     delayMs: demoEffect?.delayMs ?? 0,
     easing: demoEffect?.easing,
     continuous: Boolean(demoEffect?.continuous),
+    repeat: demoEffect?.repeat,
     animationKey: entryId,
   });
   useDemoEffectCssVars(polygonRef, demoEffect);
@@ -354,6 +357,9 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         const usePolygon = isPolygonZone(zone);
         const useInundationStyle = isInundationZone(zone);
         const demoEffect = resolveZoneDemoEffect(zone, demoAnimation);
+        const demoFadeKey = demoEffect?.effect === DEMO_EFFECT.FADE_IN
+          ? `-demo-${demoEffect.runId}-${demoEffect.repeat ?? 0}`
+          : '';
         const geometry = useTerrainLos
           ? (losGeometryByZoneKey[zone.zoneKey] || zone.zoneGeometry)
           : null;
@@ -367,7 +373,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         if (usePolygon && polygonPositions) {
           return (
             <ZonePolygonLayer
-              key={zone.entryId}
+              key={`${zone.entryId}${demoFadeKey}`}
               zone={zone}
               entryId={zone.entryId}
               positions={polygonPositions}
@@ -387,7 +393,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         if (useTerrainLos && terrainPolygonPositions) {
           return (
             <ZonePolygonLayer
-              key={zone.entryId}
+              key={`${zone.entryId}${demoFadeKey}`}
               zone={zone}
               entryId={zone.entryId}
               positions={terrainPolygonPositions}
@@ -419,7 +425,7 @@ const ActionZonesLayer = React.memo(function ActionZonesLayer({
         }
         return (
           <ZoneCircleLayer
-            key={zone.entryId}
+            key={`${zone.entryId}${demoFadeKey}`}
             zone={zone}
             entryId={zone.entryId}
             hoverController={hoverController}

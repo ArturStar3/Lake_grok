@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEMO_TOOL } from '../../utils/demoScenario';
 import { useDemoContentCards } from '../../hooks/demo/useDemoContentCards';
 import { getSituationDisplayRevision, getSituationTitle } from '../../utils/situationUtils';
+import { apiClient } from '../../config/axios';
 import {
   FAVORITE_KIND,
   FAVORITE_KIND_LABELS,
@@ -41,7 +42,7 @@ function itemSecondary(item) {
   return parts.join(' · ');
 }
 
-function FavoriteRow({ item, onSelect, onRemove, onUpdate, onNotice }) {
+function FavoriteRow({ item, onSelect, onRemove, onUpdate, onNotice, settingsOnly }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.title);
   const skipCommitRef = useRef(false);
@@ -88,6 +89,12 @@ function FavoriteRow({ item, onSelect, onRemove, onUpdate, onNotice }) {
             }
           }}
         />
+      ) : settingsOnly ? (
+        <div className="map-fs-favorites__settings-item">
+          <small>{FAVORITE_KIND_LABELS[item.kind] || item.kind}</small>
+          <span>{item.title}</span>
+          {secondary ? <em>{secondary}</em> : null}
+        </div>
       ) : (
         <button
           type="button"
@@ -208,6 +215,49 @@ function FormularCardStep({ targetId, onPick, onBack }) {
   const { cards, loading } = useDemoContentCards(DEMO_TOOL.FORMULAR, {
     target_ids: [targetId],
   });
+  const [personsOpen, setPersonsOpen] = useState(false);
+  const [persons, setPersons] = useState([]);
+  const [personsLoading, setPersonsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!personsOpen) return undefined;
+    let cancelled = false;
+    setPersonsLoading(true);
+    apiClient.get(`/persons/?target=${targetId}`)
+      .then(({ data }) => {
+        if (!cancelled) setPersons(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setPersons([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPersonsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [personsOpen, targetId]);
+
+  if (personsOpen) {
+    const personItems = persons.map((person) => ({
+      id: `persons:${person.id}`,
+      label: person.full_name || 'Персона',
+      hint: person.position || '',
+    }));
+    return (
+      <div>
+        <button type="button" className="map-fs-favorites__back" onClick={() => setPersonsOpen(false)}>
+          ← К пунктам формуляра
+        </button>
+        <SearchList
+          items={personItems}
+          emptyText="Персоналии не найдены."
+          loading={personsLoading}
+          onPick={onPick}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -218,7 +268,13 @@ function FormularCardStep({ targetId, onPick, onBack }) {
         items={cards.map((card) => ({ id: card.id, label: card.title }))}
         emptyText="Пункты формуляра не найдены."
         loading={loading}
-        onPick={onPick}
+        onPick={(card) => {
+          if (card.id === 'persons') {
+            setPersonsOpen(true);
+            return;
+          }
+          onPick(card);
+        }}
       />
     </div>
   );
@@ -240,6 +296,8 @@ export default function MapFavoritesMenu({
   onNeedEvents,
   onNeedSituations,
   loading = false,
+  embedded = false,
+  settingsOnly = false,
 }) {
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState(FAVORITE_KIND.OBJECT);
@@ -336,57 +394,69 @@ export default function MapFavoritesMenu({
 
   const applyCaption = (fallbackTitle, subtitle = '') => {
     const custom = caption.trim();
+    if (!custom) {
+      setNotice('Введите подпись для кнопки.');
+      return null;
+    }
     return {
-      title: custom || fallbackTitle,
+      title: custom,
       sourceTitle: fallbackTitle,
       subtitle,
     };
   };
 
   const handlePickObject = (item) => {
+    const captionData = applyCaption(item.label, item.hint);
+    if (!captionData) return;
     report(onAdd?.({
       kind: FAVORITE_KIND.OBJECT,
       entityId: item.id,
-      ...applyCaption(item.label, item.hint),
+      ...captionData,
     }));
   };
 
   const handlePickEvent = (item) => {
+    const captionData = applyCaption(item.label, item.hint);
+    if (!captionData) return;
     report(onAdd?.({
       kind: FAVORITE_KIND.EVENT,
       entityId: item.id,
-      ...applyCaption(item.label, item.hint),
+      ...captionData,
     }));
   };
 
   const handlePickSituation = (item) => {
+    const captionData = applyCaption(item.label, item.hint);
+    if (!captionData) return;
     report(onAdd?.({
       kind: FAVORITE_KIND.SITUATION,
       entityId: item.id,
-      ...applyCaption(item.label, item.hint),
+      ...captionData,
     }));
   };
 
   const handlePickFormularCard = (card) => {
+    const captionData = applyCaption(card.label, formularTarget.label);
+    if (!captionData) return;
     report(onAdd?.({
       kind: FAVORITE_KIND.FORMULAR,
       entityId: formularTarget.id,
       cardId: card.id,
-      ...applyCaption(card.label, formularTarget.label),
+      ...captionData,
     }));
   };
 
   return (
-    <div className="map-fs-favorites" role="menu">
+    <div className={`map-fs-favorites${embedded ? ' map-fs-favorites--embedded' : ''}`} role="menu">
       <div className="map-fs-favorites__head">
-        <span>Избранное</span>
+        <span>Быстрые переходы</span>
         <span className="map-fs-favorites__count">{items.length}/{FAVORITES_MAX}</span>
       </div>
       {notice ? <p className="map-fs-favorites__notice">{notice}</p> : null}
       {loading && items.length === 0 && !adding ? (
         <p className="map-fs-favorites__empty">Загрузка…</p>
       ) : items.length === 0 && !adding ? (
-        <p className="map-fs-favorites__empty">Пока пусто. Добавьте объект, событие, пункт формуляра или обстановку.</p>
+        <p className="map-fs-favorites__empty">Добавьте объект, событие, пункт формуляра или оперативную обстановку.</p>
       ) : (
         <ul className="map-fs-favorites__list">
           {items.map((item) => (
@@ -397,6 +467,7 @@ export default function MapFavoritesMenu({
               onRemove={onRemove}
               onUpdate={onUpdate}
               onNotice={setNotice}
+              settingsOnly={settingsOnly}
             />
           ))}
         </ul>
@@ -415,11 +486,11 @@ export default function MapFavoritesMenu({
           <input
             type="text"
             className="map-fs-favorites__search"
-            placeholder="Подпись (необязательно)"
+            placeholder="Подпись кнопки"
             value={caption}
             maxLength={160}
             onChange={(e) => setCaption(e.target.value)}
-            aria-label="Подпись пункта"
+            aria-label="Подпись кнопки"
           />
           {kind === FAVORITE_KIND.OBJECT && (
             <SearchList
@@ -493,7 +564,7 @@ export default function MapFavoritesMenu({
             setNotice('');
           }}
         >
-          Добавить
+          Добавить кнопку
         </button>
       )}
     </div>

@@ -3,6 +3,7 @@ import { FeatureGroup, Polygon, useMap } from 'react-leaflet';
 import { getZonePolygonStrokeStyle } from '../../../utils/actionZoneStyle';
 import { getZonePolygonPositionsList } from '../../../utils/inundationZone';
 import { registerDemoAnimation, unregisterDemoAnimation } from './demoRafDriver';
+import { demoRepeatCount } from './demoEffectCache';
 
 function buildPathOptions(revision) {
   const style = getZonePolygonStrokeStyle(revision?.color || '#2f80ed', 'solid');
@@ -110,6 +111,7 @@ export default function SituationStateCycleLayer({
   crossFadeMs = 600,
   order = 'old_to_new',
   continuous = true,
+  repeat = 1,
   runId = 0,
   onSituationClick,
   onRevisionChange,
@@ -122,31 +124,35 @@ export default function SituationStateCycleLayer({
   const [index, setIndex] = useState(0);
   const [outgoing, setOutgoing] = useState(null);
   const [cycleTick, setCycleTick] = useState(0);
+  const [completedRuns, setCompletedRuns] = useState(0);
+  const repeatCount = demoRepeatCount(repeat);
 
   useEffect(() => {
     setIndex(0);
     setOutgoing(null);
     setCycleTick(0);
-  }, [runId, situationId, ordered.length]);
+    setCompletedRuns(0);
+  }, [continuous, repeatCount, runId, situationId, ordered.length]);
 
   useEffect(() => {
     if (ordered.length < 2 || !perStateMs) return undefined;
-    const timer = setInterval(() => {
-      setIndex((prev) => {
-        if (!continuous && prev >= ordered.length - 1) {
-          return prev;
-        }
-        const nextIndex = continuous
-          ? (prev + 1) % ordered.length
-          : Math.min(prev + 1, ordered.length - 1);
-        if (nextIndex === prev) return prev;
-        setOutgoing(prev);
-        setCycleTick((tick) => tick + 1);
-        return nextIndex;
-      });
+    const atFinalState = index >= ordered.length - 1;
+    if (!continuous && atFinalState && completedRuns + 1 >= repeatCount) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setOutgoing(index);
+      setCycleTick((tick) => tick + 1);
+      if (atFinalState) {
+        if (!continuous) setCompletedRuns((count) => count + 1);
+        setIndex(0);
+      } else {
+        setIndex(index + 1);
+      }
     }, perStateMs);
-    return () => clearInterval(timer);
-  }, [continuous, ordered.length, perStateMs]);
+    return () => clearTimeout(timer);
+  }, [completedRuns, continuous, index, ordered.length, perStateMs, repeatCount]);
 
   useEffect(() => {
     const current = ordered[index];

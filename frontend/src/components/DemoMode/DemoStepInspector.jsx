@@ -113,7 +113,11 @@ export default function DemoStepInspector({
   const isCameraStep = step.tool === DEMO_TOOL.CAMERA;
   const isTextStep = step.tool === DEMO_TOOL.TEXT;
   const showDirection = step.animation.effect === DEMO_EFFECT.DIRECTIONAL_WIPE;
-  const showStateCycle = step.animation.effect === DEMO_EFFECT.STATE_CYCLE;
+  const showStateSequence = (
+    step.animation.effect === DEMO_EFFECT.STATE_CYCLE
+    || step.animation.effect === DEMO_EFFECT.STATE_OVERLAY
+  );
+  const showAnimationPlayback = step.animation.effect !== DEMO_EFFECT.NONE;
   const showFlyToFields = step.camera.mode === DEMO_CAMERA_MODE.FLY_TO;
   const showCameraTiming = step.camera.mode !== DEMO_CAMERA_MODE.NONE;
 
@@ -339,11 +343,30 @@ export default function DemoStepInspector({
             <input
               type="checkbox"
               checked={Boolean(step.animation.continuous)}
-              onChange={(e) => patchAnimation({ continuous: e.target.checked })}
+              onChange={(e) => patchAnimation({
+                continuous: e.target.checked,
+                repeat: e.target.checked
+                  ? step.animation.repeat
+                  : Math.max(1, Number(step.animation.repeat) || 1),
+              })}
             />
             <span>Непрерывно</span>
           </label>
-          {showStateCycle && (
+          {showAnimationPlayback && !step.animation.continuous && (
+            <NumberField
+              label="Количество повторов"
+              value={Math.max(1, Number(step.animation.repeat) || 1)}
+              min={1}
+              max={100}
+              step={1}
+              suffix="раз"
+              hint="После последнего повтора останется конечное состояние"
+              onChange={(repeat) => patchAnimation({
+                repeat: Math.min(100, Math.max(1, Math.trunc(Number(repeat) || 1))),
+              })}
+            />
+          )}
+          {showStateSequence && (
             <>
               <NumberField
                 label="Время на состояние"
@@ -355,7 +378,9 @@ export default function DemoStepInspector({
                 onChange={(per_state_ms) => patchStateCycle({ per_state_ms })}
               />
               <NumberField
-                label="Перекрёстное растворение"
+                label={step.animation.effect === DEMO_EFFECT.STATE_OVERLAY
+                  ? 'Проявление нового состояния'
+                  : 'Перекрёстное растворение'}
                 value={step.animation.state_cycle.cross_fade_ms}
                 min={0}
                 max={20000}
@@ -372,6 +397,12 @@ export default function DemoStepInspector({
                 ]}
                 onChange={(order) => patchStateCycle({ order })}
               />
+              {step.animation.effect === DEMO_EFFECT.STATE_OVERLAY ? (
+                <span className="demo-field__hint">
+                  Каждое следующее состояние плавно добавляется поверх предыдущих. Если включено
+                  «Непрерывно», после последнего состояния последовательность начинается заново.
+                </span>
+              ) : null}
             </>
           )}
         </fieldset>

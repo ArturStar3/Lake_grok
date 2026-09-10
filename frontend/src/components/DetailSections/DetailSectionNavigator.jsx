@@ -14,6 +14,7 @@ export default function DetailSectionNavigator({
   onEditEquipmentInCatalog,
   onTargetOpenDetails,
   initialCardId = null,
+  initialPersonId = null,
   targetZonePreview = null,
   vulnerabilityPreview = null,
   emptyMessage = 'Информация отсутствует.',
@@ -72,6 +73,7 @@ export default function DetailSectionNavigator({
                   onSubordinateOpenDetails={onSubordinateOpenDetails}
                   onEditEquipmentInCatalog={onEditEquipmentInCatalog}
                   onTargetOpenDetails={onTargetOpenDetails}
+                  initialPersonId={selectedCard.kind === 'persons' ? initialPersonId : null}
                   targetZonePreview={targetZonePreview}
                   vulnerabilityPreview={vulnerabilityPreview}
                 />

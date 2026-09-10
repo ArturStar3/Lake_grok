@@ -11,8 +11,8 @@ export const FAVORITE_KIND = {
 export const FAVORITE_KIND_LABELS = {
   [FAVORITE_KIND.OBJECT]: 'Объект',
   [FAVORITE_KIND.EVENT]: 'Событие',
-  [FAVORITE_KIND.FORMULAR]: 'Формуляр',
-  [FAVORITE_KIND.SITUATION]: 'Обстановка',
+  [FAVORITE_KIND.FORMULAR]: 'Пункт формуляра',
+  [FAVORITE_KIND.SITUATION]: 'Оперативная обстановка',
 };
 
 export const FAVORITES_MAX = 24;

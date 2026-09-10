@@ -35,6 +35,7 @@ export default function SectionDetailView({
   onSubordinateOpenDetails,
   onEditEquipmentInCatalog,
   onTargetOpenDetails,
+  initialPersonId,
   targetZonePreview,
   vulnerabilityPreview,
 }) {
@@ -114,7 +115,10 @@ export default function SectionDetailView({
     return (
       <div className="detail-sections__detail">
         <h3 className="detail-sections__group-title">{card.title}</h3>
-        <PersonDetailView persons={card.payload.persons || []} />
+        <PersonDetailView
+          persons={card.payload.persons || []}
+          initialPersonId={initialPersonId}
+        />
       </div>
     );
   }
