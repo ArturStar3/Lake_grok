@@ -14,6 +14,8 @@ import os
 import sys
 import environ
 
+from django.core.exceptions import ImproperlyConfigured
+
 from pathlib import Path
 
 from .unfold_settings import UNFOLD
@@ -34,16 +36,24 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-me44xie!ww&7r=1u#cgowir&+l+9@&gg^&l*2$^9p36v93kk#6')
-
 # SECURITY WARNING: don't run with debug turned on in production!
 # Production: DEBUG=False в backend/.env (см. .env.example). Dev: DEBUG=True.
 DEBUG = env('DEBUG')
 
+# Локальная разработка остаётся простой, но production не может стартовать с
+# известным ключом подписи из исходного кода.
+if DEBUG:
+    SECRET_KEY = env('SECRET_KEY', default='django-insecure-local-development-only')
+else:
+    SECRET_KEY = env('SECRET_KEY', default=None)
+    if not SECRET_KEY:
+        raise ImproperlyConfigured('SECRET_KEY must be set when DEBUG=False')
+
 # Список хостов через запятую в .env, либо '*' для локальной разработки.
 _allowed = env('ALLOWED_HOSTS', default='*')
 ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()] if _allowed != '*' else ['*']
+if not DEBUG and ALLOWED_HOSTS == ['*']:
+    raise ImproperlyConfigured('ALLOWED_HOSTS must be explicit when DEBUG=False')
 
 # URL фронтенда для ссылки «Открыть сайт» в админке (браузер на хосте, не внутри Docker).
 FRONTEND_URL = env('FRONTEND_URL')
@@ -203,6 +213,10 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+X_FRAME_OPTIONS = 'DENY'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+REFERRER_POLICY = 'same-origin'
 
 CACHES = {
     'default': {

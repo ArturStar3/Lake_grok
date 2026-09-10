@@ -2591,14 +2591,14 @@ function MapComponent({
                 ) : null)}
                 <LabelGeneration
                     objects={flagObjectsForMap}
-                    selectedIds={selectedObj}
+                    selectedIds={selectedSet}
                     onMarkersReady={handleMarkersReady}
                     clusterMode={effectiveClusterMode}
                 />
                 <NonFlagLabelGeneration
                     objects={nonFlagObjectsForMap}
                     onMarkersReady={handleNonFlagMarkersReady}
-                    selectedIds={selectedObj}
+                    selectedIds={selectedSet}
                     clusterMode={effectiveClusterMode}
                 />
                 {clusterMode === 'bubble' && !forceShowAllMarkers && (
@@ -2753,7 +2753,7 @@ function MapComponent({
                 <NonFlagMarkersLayer
                     groupedObjects={nonFlagData.groupedObjects}
                     iconsById={nonFlagData.iconsById}
-                    selectedIds={selectedObj}
+                    selectedIds={selectedSet}
                     currentZoom={currentZoom}
                     forceShowAllMarkers={forceShowAllMarkers}
                     pinnedGroupId={pinnedGroupId}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useMap } from 'react-leaflet';
 
 const DEFAULT_PAD = 0.15;
@@ -30,7 +30,7 @@ export function useMapViewportMarkers(items, options = {}) {
   const { pad = DEFAULT_PAD, enabled = true } = options;
   const itemsRef = useRef(items);
   itemsRef.current = items;
-  const itemsKey = buildItemsKey(items);
+  const itemsKey = useMemo(() => buildItemsKey(items), [items]);
 
   const filterByBounds = useCallback(() => {
     const list = itemsRef.current;

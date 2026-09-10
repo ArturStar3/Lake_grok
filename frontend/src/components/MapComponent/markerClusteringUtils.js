@@ -313,11 +313,12 @@ export const calculateMarkerPosition = (obj, _scale = 1) => {
  * Кластеризация объектов с is_flag=false (группировка элементов с количеством)
  * @param {Array} objects - Массив объектов
  * @param {Object} mapInstance - Экземпляр карты
- * @param {Array} selectedIds - Массив выбранных ID объектов
+ * @param {Array|Set} selectedIds - идентификаторы выбранных объектов
  * @returns {Array} Массив объектов с информацией о кластерах
  */
 export const processNonFlagClustering = (objects, mapInstance, selectedIds = []) => {
   if (!objects || !Array.isArray(objects) || !mapInstance) return objects;
+  const selectedSet = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
 
   // Фильтруем только объекты с is_flag=false
   const nonFlagObjects = objects.filter(obj => obj.marker?.is_flag !== true);
@@ -358,7 +359,7 @@ export const processNonFlagClustering = (objects, mapInstance, selectedIds = [])
         const groupId = `group-${country}-${cluster.map((o) => o.id).slice().sort().join('-')}`;
         
         // Проверяем сколько объектов группы выбрано
-        const selectedInGroup = cluster.filter(obj => selectedIds.includes(obj.id));
+        const selectedInGroup = cluster.filter(obj => selectedSet.has(obj.id));
         
         // Группировка для страны
         

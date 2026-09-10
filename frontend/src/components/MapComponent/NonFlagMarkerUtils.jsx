@@ -15,6 +15,10 @@ import { resolveMediaUrl } from "../../utils/mediaUrl";
  */
 export default function NonFlagLabelGeneration({ objects, onMarkersReady, selectedIds = [], clusterMode = 'legacy' }) {
   const mapInstance = useMapEvents({});
+  const selectedSet = useMemo(
+    () => (selectedIds instanceof Set ? selectedIds : new Set(selectedIds || [])),
+    [selectedIds],
+  );
   const [svgCache, setSvgCache] = useState(new Map());
   const loadedPathsRef = useRef(new Set());
   const loadingPathsRef = useRef(new Set());
@@ -130,14 +134,14 @@ export default function NonFlagLabelGeneration({ objects, onMarkersReady, select
       } else {
         lastNoneIdsKeyRef.current = '';
         setBubbleClusters([]);
-        const processed = processNonFlagClustering(selectedNonFlagObjects, mapInstance, selectedIds);
+        const processed = processNonFlagClustering(selectedNonFlagObjects, mapInstance, selectedSet);
         setGroupedObjects(processed);
       }
     } else {
       setGroupedObjects(selectedNonFlagObjects);
       setBubbleClusters([]);
     }
-  }, [clusterKey, selectedNonFlagObjects, selectedIds, mapInstance, clusterMode]);
+  }, [clusterKey, selectedNonFlagObjects, selectedSet, mapInstance, clusterMode]);
 
   const iconsById = useMemo(() => {
     if (!L || !L.DivIcon) {

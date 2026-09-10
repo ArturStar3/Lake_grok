@@ -29,8 +29,9 @@ export const isNonFlagMarker = (obj) => {
  * @returns {Array} Отфильтрованный массив флаговых маркеров
  */
 export const filterFlagMarkers = (objects, selectedIds) => {
+  const selectedSet = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
   return objects.filter(obj => 
-    selectedIds.includes(obj.id) && isFlagMarker(obj)
+    selectedSet.has(obj.id) && isFlagMarker(obj)
   );
 };
 
@@ -41,7 +42,8 @@ export const filterFlagMarkers = (objects, selectedIds) => {
  * @returns {Array} Отфильтрованный массив нефлаговых маркеров
  */
 export const filterNonFlagMarkers = (objects, selectedIds) => {
+  const selectedSet = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
   return objects.filter(obj => 
-    selectedIds.includes(obj.id) && isNonFlagMarker(obj)
+    selectedSet.has(obj.id) && isNonFlagMarker(obj)
   );
 };

@@ -64,7 +64,7 @@ DEBUG=False
 NGINX_HTTP_PORT=8080
 POSTGRES_DB=infolake_db
 POSTGRES_USER=infolake
-POSTGRES_PASSWORD=change_me
+POSTGRES_PASSWORD=<длинный-уникальный-пароль>
 POSTGRES_HOST_PORT=5431
 ```
 
