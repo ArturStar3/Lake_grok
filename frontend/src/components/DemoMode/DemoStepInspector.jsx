@@ -117,7 +117,13 @@ export default function DemoStepInspector({
     step.animation.effect === DEMO_EFFECT.STATE_CYCLE
     || step.animation.effect === DEMO_EFFECT.STATE_OVERLAY
   );
-  const showAnimationPlayback = step.animation.effect !== DEMO_EFFECT.NONE;
+  const supportsAnimationRepeats = [
+    DEMO_TOOL.OBJECTS,
+    DEMO_TOOL.EVENTS,
+    DEMO_TOOL.ZONES,
+    DEMO_TOOL.SITUATIONS,
+  ].includes(step.tool);
+  const showAnimationPlayback = supportsAnimationRepeats && step.animation.effect !== DEMO_EFFECT.NONE;
   const showFlyToFields = step.camera.mode === DEMO_CAMERA_MODE.FLY_TO;
   const showCameraTiming = step.camera.mode !== DEMO_CAMERA_MODE.NONE;
 
@@ -350,19 +356,34 @@ export default function DemoStepInspector({
             options={DEMO_EASINGS}
             onChange={(easing) => patchAnimation({ easing })}
           />
-          <label className="demo-checkbox">
-            <input
-              type="checkbox"
-              checked={Boolean(step.animation.continuous)}
-              onChange={(e) => patchAnimation({
-                continuous: e.target.checked,
-                repeat: e.target.checked
-                  ? step.animation.repeat
-                  : Math.max(1, Number(step.animation.repeat) || 1),
-              })}
-            />
-            <span>Непрерывно</span>
-          </label>
+          {showAnimationPlayback && (
+            <fieldset className="demo-inspector__group">
+              <legend>Повторение анимации</legend>
+              <div className="demo-radio-group">
+                <label className="demo-checkbox">
+                  <input
+                    type="radio"
+                    name={`animation-repeat-${step.key || step.id || stepNumber}`}
+                    checked={!step.animation.continuous}
+                    onChange={() => patchAnimation({
+                      continuous: false,
+                      repeat: Math.max(1, Number(step.animation.repeat) || 1),
+                    })}
+                  />
+                  <span>Конечное число повторений</span>
+                </label>
+                <label className="demo-checkbox">
+                  <input
+                    type="radio"
+                    name={`animation-repeat-${step.key || step.id || stepNumber}`}
+                    checked={Boolean(step.animation.continuous)}
+                    onChange={() => patchAnimation({ continuous: true })}
+                  />
+                  <span>Бесконечно — до смены этапа</span>
+                </label>
+              </div>
+            </fieldset>
+          )}
           {showAnimationPlayback && !step.animation.continuous && (
             <NumberField
               label="Количество повторов"
