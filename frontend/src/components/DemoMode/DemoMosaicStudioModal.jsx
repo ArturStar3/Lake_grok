@@ -6,6 +6,7 @@ import {
   DEMO_MOSAIC_CONTENTS,
   DEMO_MOSAIC_CONTENT,
   DEMO_MOSAIC_EXPAND_ANIMATIONS,
+  DEMO_MOSAIC_EXPAND_ANIMATION,
   DEMO_MOSAIC_LAYOUTS,
   DEMO_MOSAIC_REVEAL,
   DEMO_MOSAIC_SLOT_LABELS,
@@ -22,6 +23,8 @@ import {
 import { uploadDemoMosaicMedia } from '../../api/demoScenarios';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import DemoStudioSaveActions from './DemoStudioSaveActions';
+import DemoMosaicScreenEditor from './DemoMosaicScreenEditor';
+import DemoMosaicScreenText from './DemoMosaicScreenText';
 import './DemoMosaicStudioModal.css';
 
 /**
@@ -46,6 +49,9 @@ export default function DemoMosaicStudioModal({
   const [screenId, setScreenId] = useState('a');
   const [videoBusy, setVideoBusy] = useState(false);
   const videoInputRef = useRef(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const libraryRef = useRef(library);
+  libraryRef.current = library;
 
   const preset = findMosaicPreset(library, presetId) || library.presets[0] || null;
   const screen = preset?.screens?.find((item) => item.id === screenId) || preset?.screens?.[0] || null;
@@ -53,20 +59,24 @@ export default function DemoMosaicStudioModal({
   const assignedExpandStage = findStage(stages, mosaicScreenExpandStageId(screen));
 
   const patchLibrary = (partial) => {
-    onChange(normalizeScenarioMosaic({ ...library, ...partial }));
+    const next = normalizeScenarioMosaic({ ...libraryRef.current, ...partial });
+    libraryRef.current = next;
+    onChange(next);
   };
 
   const patchPreset = (partial) => {
     if (!preset) return;
-    const next = normalizeMosaicPreset({ ...preset, ...partial });
-    const presets = library.presets.map((item) => (item.id === preset.id ? next : item));
+    const current = libraryRef.current.presets.find((item) => item.id === preset.id) || preset;
+    const next = normalizeMosaicPreset({ ...current, ...partial });
+    const presets = libraryRef.current.presets.map((item) => (item.id === preset.id ? next : item));
     patchLibrary({ presets, active_preset_id: next.id });
     setPresetId(next.id);
   };
 
   const patchScreen = (partial) => {
     if (!preset || !screen) return;
-    const screens = preset.screens.map((item) => (
+    const current = libraryRef.current.presets.find((item) => item.id === preset.id) || preset;
+    const screens = current.screens.map((item) => (
       item.id === screen.id ? { ...item, ...partial } : item
     ));
     patchPreset({ screens });
@@ -93,6 +103,21 @@ export default function DemoMosaicStudioModal({
     setPresetId(active);
   };
 
+  const handleAddPhotoMap = () => {
+    const next = createDefaultMosaicPreset({
+      title: 'Фотография и карта', layout: '1x2',
+      expand_animation: DEMO_MOSAIC_EXPAND_ANIMATION.COVER,
+      expand_ms: 1400, collapse_ms: 1000, expandable_slots: ['b'],
+      screens: [
+        { id: 'a', label: 'Фотография', content_type: DEMO_MOSAIC_CONTENT.IMAGE },
+        { id: 'b', label: 'Карта', content_type: DEMO_MOSAIC_CONTENT.STAGE, stage_id: stages[0]?.id || stages[0]?.key || null },
+      ],
+    });
+    patchLibrary({ presets: [...libraryRef.current.presets, next], active_preset_id: next.id });
+    setPresetId(next.id);
+    setScreenId('a');
+  };
+
   const layoutSlots = preset ? getMosaicLayoutDef(preset.layout).slots : [];
   const stageOptions = [
     { id: '', label: 'Не назначен' },
@@ -114,10 +139,10 @@ export default function DemoMosaicStudioModal({
           <div className="demo-mosaic-studio-modal__header-actions">
             <DemoStudioSaveActions
               canWrite={canWrite}
-              onSave={onSave}
+              onSave={() => onSave?.(libraryRef.current)}
               busy={saveBusy}
               notice={saveNotice}
-              disabled={saveDisabled}
+              disabled={saveDisabled || imageBusy || videoBusy}
             />
             <button type="button" className="demo-btn demo-btn--ghost" onClick={onClose}>
               Закрыть
@@ -135,6 +160,7 @@ export default function DemoMosaicStudioModal({
                 </button>
               )}
             </div>
+            {!readOnly && <button type="button" className="demo-btn demo-btn--ghost" onClick={handleAddPhotoMap}>+ Фотография и карта</button>}
             <ul>
               {library.presets.map((item) => (
                 <li key={item.id}>
@@ -320,7 +346,9 @@ export default function DemoMosaicStudioModal({
                       && String(expandStage.id || expandStage.key) !== String(gridStage.id || gridStage.key),
                     );
                     let barLabel = 'Этап не назначен';
-                    if (mosaicScreenHasVideo(item)) {
+                    if (item?.content_type === DEMO_MOSAIC_CONTENT.IMAGE) {
+                      barLabel = item.image_url ? 'Фотография' : 'Загрузите фотографию';
+                    } else if (mosaicScreenHasVideo(item)) {
                       barLabel = expandStage?.title
                         ? `Видео · ${expandStage.title}`
                         : 'Видео';
@@ -342,6 +370,8 @@ export default function DemoMosaicStudioModal({
                         ].filter(Boolean).join(' ')}
                         onClick={() => setScreenId(id)}
                       >
+                        {item?.content_type === DEMO_MOSAIC_CONTENT.IMAGE && item.image_url && <img className="demo-mosaic-preview__image" src={resolveMediaUrl(item.image_url)} alt="" style={{ objectFit: item.image_fit }} />}
+                        <DemoMosaicScreenText text={item?.text} />
                         <span className="demo-mosaic-preview__title">
                           {item?.label || DEMO_MOSAIC_SLOT_LABELS[id] || id.toUpperCase()}
                         </span>
@@ -362,6 +392,7 @@ export default function DemoMosaicStudioModal({
                 >
                   Просмотр пресета
                 </button>
+                {preset.layout === '1x2' && <p className="demo-field__hint">Для наезда карты добавьте в программу два блока этого пресета: «Показать сетку», затем «Развернуть экран» → экран B. Выберите эффект «Наезд поверх соседних экранов».</p>}
               </>
             )}
           </section>
@@ -488,7 +519,9 @@ export default function DemoMosaicStudioModal({
                   </div>
                 ) : null}
 
-                {screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO ? (
+                <DemoMosaicScreenEditor key={`${preset.id}-${screen.id}`} screen={screen} onChange={patchScreen} onBusyChange={setImageBusy} readOnly={readOnly || saveBusy} />
+
+                {screen.content_type === DEMO_MOSAIC_CONTENT.IMAGE ? null : screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO ? (
                   <label className="demo-field">
                     <span className="demo-field__label">Этап при разворачивании</span>
                     <select
@@ -532,7 +565,12 @@ export default function DemoMosaicStudioModal({
                     </label>
                   </>
                 )}
-                {!stages.length && (
+                {screen.content_type !== DEMO_MOSAIC_CONTENT.IMAGE && onOpenStages && stages.length > 0 && (
+                  <button type="button" className="demo-btn demo-btn--ghost" onClick={onOpenStages}>
+                    Настроить этапы карты
+                  </button>
+                )}
+                {screen.content_type !== DEMO_MOSAIC_CONTENT.IMAGE && !stages.length && (
                   <p className="demo-field__hint">
                     Сначала создайте этапы в конструкторе этапов.
                     {onOpenStages && (
@@ -546,7 +584,7 @@ export default function DemoMosaicStudioModal({
                   </p>
                 )}
                 {(() => {
-                  if (!assignedExpandStage) return null;
+                  if (!assignedExpandStage || screen.content_type === DEMO_MOSAIC_CONTENT.IMAGE) return null;
                   if (screen.content_type === DEMO_MOSAIC_CONTENT.VIDEO) {
                     return (
                       <p className="demo-field__hint">

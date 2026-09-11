@@ -8,6 +8,10 @@
   padding: 16px;
 }
 
+.demo-mosaic-studio-modal__image-preview { display: block; max-width: 100%; max-height: 200px; object-fit: contain; background: #0b1220; }
+.demo-mosaic-preview__image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.demo-mosaic-preview__title, .demo-mosaic-preview__bar { position: relative; z-index: 1; }
+
 .demo-mosaic-studio-modal__backdrop {
   position: absolute;
   inset: 0;

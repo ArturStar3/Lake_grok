@@ -3,6 +3,7 @@ import MapComponent from '../MapComponent/MapComponent';
 import { useDemoStageRunner } from '../../hooks/demo/useDemoStageRunner';
 import {
   DEMO_MOSAIC_SLOT_LABELS,
+  DEMO_MOSAIC_CONTENT,
   DEMO_TOOL,
   findStage,
   mosaicScreenHasVideo,
@@ -15,6 +16,7 @@ import {
   FORMULAR_SYNTHETIC_CARDS,
 } from '../../hooks/demo/useDemoContentCards';
 import DemoCueMark from './DemoCueMark';
+import DemoMosaicScreenText from './DemoMosaicScreenText';
 import './DemoMosaic.css';
 
 const noop = () => {};
@@ -83,11 +85,12 @@ function DemoMosaicTile({
 }) {
   const label = screen?.label || DEMO_MOSAIC_SLOT_LABELS[slotId] || slotId.toUpperCase();
   const isVideo = mosaicScreenHasVideo(screen);
+  const isImage = screen?.content_type === DEMO_MOSAIC_CONTENT.IMAGE;
   const videoUrl = isVideo ? resolveMediaUrl(screen.video_url) : null;
   const loop = Boolean(screen?.loop);
   const stage = useMemo(
-    () => (isVideo ? null : findStage(stages, screen?.stage_id)),
-    [isVideo, stages, screen?.stage_id],
+    () => (isVideo || isImage ? null : findStage(stages, screen?.stage_id)),
+    [isVideo, isImage, stages, screen?.stage_id],
   );
   const catalogs = useMemo(
     () => catalogsProp || sliceCatalogsForStage(stage, {}),
@@ -114,6 +117,7 @@ function DemoMosaicTile({
 
   const lastInvalidateSizeRef = useRef({ x: 0, y: 0 });
   const videoRef = useRef(null);
+  const imageRef = useRef(null);
   const onPaintedRef = useRef(onPainted);
   onPaintedRef.current = onPainted;
   const paintedRef = useRef(false);
@@ -132,6 +136,22 @@ function DemoMosaicTile({
       onPaintedRef.current?.(slotId);
     };
 
+    if (isImage) {
+      const image = imageRef.current;
+      if (!image || image.complete) {
+        done();
+        return undefined;
+      }
+      image.addEventListener('load', done, { once: true });
+      image.addEventListener('error', done, { once: true });
+      fallbackId = window.setTimeout(done, 4000);
+      return () => {
+        cancelled = true;
+        image.removeEventListener('load', done);
+        image.removeEventListener('error', done);
+        window.clearTimeout(fallbackId);
+      };
+    }
     if (isVideo) {
       const video = videoRef.current;
       if (!video || video.readyState >= 2) {
@@ -186,7 +206,7 @@ function DemoMosaicTile({
       if (raf) cancelAnimationFrame(raf);
       if (fallbackId) window.clearTimeout(fallbackId);
     };
-  }, [isVideo, runner.mapRef, slotId, stage]);
+  }, [isVideo, isImage, screen?.image_url, runner.mapRef, slotId, stage]);
 
   useEffect(() => {
     if (!playing || paintedRef.current) return undefined;
@@ -238,7 +258,11 @@ function DemoMosaicTile({
     <div className={`demo-mosaic-tile demo-mosaic-tile--${slotId}${isVideo ? ' demo-mosaic-tile--video' : ''}`}>
       <DemoCueMark value={screen?.cue} size="sm" />
       <div className="demo-mosaic-tile__map">
-        {isVideo && videoUrl ? (
+        {isImage ? (
+          screen.image_url
+            ? <img ref={imageRef} className="demo-mosaic-tile__image" src={resolveMediaUrl(screen.image_url)} alt={screen.label || 'Фотография'} style={{ objectFit: screen.image_fit || 'contain' }} />
+            : <div className="demo-mosaic-tile__empty">Фотография не выбрана</div>
+        ) : isVideo && videoUrl ? (
           <video
             ref={videoRef}
             className="demo-mosaic-tile__video"
@@ -283,7 +307,7 @@ function DemoMosaicTile({
           <div className="demo-mosaic-tile__empty">Нет этапа</div>
         )}
       </div>
-      {isVideo ? null : (
+      {isVideo || isImage ? null : (
         <DemoMosaicPeek
           contentStep={runner.contentStep}
           objects={catalogs.objects}
@@ -294,6 +318,7 @@ function DemoMosaicTile({
         <span>{label}</span>
         {loop ? <span className="demo-mosaic-tile__loop" title="Повтор этапа">∞</span> : null}
       </div>
+      <DemoMosaicScreenText text={screen?.text} />
     </div>
   );
 }

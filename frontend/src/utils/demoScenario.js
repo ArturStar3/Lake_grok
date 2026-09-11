@@ -261,9 +261,11 @@ export const DEMO_MOSAIC_REVEAL = {
 export const DEMO_MOSAIC_EXPAND_ANIMATION = {
   STRETCH: 'stretch',
   CENTER_THEN_STRETCH: 'center_then_stretch',
+  COVER: 'cover',
 };
 
 export const DEMO_MOSAIC_EXPAND_ANIMATIONS = [
+  { id: DEMO_MOSAIC_EXPAND_ANIMATION.COVER, label: 'Наезд поверх соседних экранов' },
   { id: DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH, label: 'Сразу на весь экран' },
   {
     id: DEMO_MOSAIC_EXPAND_ANIMATION.CENTER_THEN_STRETCH,
@@ -505,11 +507,13 @@ export const DEMO_DEFAULT_TABLEAU_NETWORK = {
 };
 
 export const DEMO_MOSAIC_CONTENT = {
+  IMAGE: 'image',
   STAGE: 'stage',
   VIDEO: 'video',
 };
 
 export const DEMO_MOSAIC_CONTENTS = [
+  { id: DEMO_MOSAIC_CONTENT.IMAGE, label: 'Статическая фотография' },
   { id: DEMO_MOSAIC_CONTENT.STAGE, label: 'Живая мини-карта' },
   { id: DEMO_MOSAIC_CONTENT.VIDEO, label: 'Видеофайл' },
 ];
@@ -1748,11 +1752,13 @@ export function mosaicScreenHasVideo(screen) {
 }
 
 export function mosaicScreenGridStageId(screen) {
+  if (screen?.content_type === DEMO_MOSAIC_CONTENT.IMAGE) return null;
   if (screen?.stage_id == null || screen.stage_id === '') return null;
   return String(screen.stage_id);
 }
 
 export function mosaicScreenExpandStageId(screen) {
+  if (screen?.content_type === DEMO_MOSAIC_CONTENT.IMAGE) return null;
   if (screen?.expand_stage_id != null && String(screen.expand_stage_id).trim()) {
     return String(screen.expand_stage_id).trim();
   }
@@ -2122,6 +2128,9 @@ export function normalizeMosaicScreen(raw, slotId, defaultLabel = '') {
       ? data.video_url.trim().slice(0, 2000)
       : null,
     video_media_id: optionalTableauId(data.video_media_id),
+    image_url: typeof data.image_url === 'string' && data.image_url.trim()
+      ? data.image_url.trim().slice(0, 2000) : null,
+    image_fit: pickChoice(data.image_fit, ['contain', 'cover'], 'contain'),
     camera: normalizeCamera(data.camera),
     selection: {
       target_ids: toIdList(selectionRaw.target_ids),

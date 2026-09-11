@@ -50,6 +50,28 @@ function scenarioFileName(title) {
   return `${safeTitle || 'scenario'}.infolake-demo.json`;
 }
 
+function preserveNetworkSettingsIfResponseIsEmpty(saved, submittedTableau) {
+  const normalized = normalizeScenario(saved);
+  const submitted = new Map(
+    (submittedTableau?.presets || []).map((preset) => [String(preset.id), preset]),
+  );
+  const presets = (normalized.tableau?.presets || []).map((preset) => {
+    const requested = submitted.get(String(preset.id));
+    if (preset.variant !== 'network' || requested?.variant !== 'network') return preset;
+    const requestedLogos = requested.network?.logos || [];
+    const returnedLogos = preset.network?.logos || [];
+    const requestedCount = requestedLogos.filter((logo) => logo?.src).length;
+    const returnedCount = returnedLogos.filter((logo) => logo?.src).length;
+    return requestedCount > 0 && returnedCount === 0
+      ? { ...preset, network: requested.network }
+      : preset;
+  });
+  return {
+    ...normalized,
+    tableau: normalizeScenarioTableau({ ...normalized.tableau, presets }),
+  };
+}
+
 /**
  * Генеральный конструктор демонстрации: программа показа из этапов и мультиэкранов.
  */
@@ -300,7 +322,7 @@ export default function DemoStudioModal({
     });
   }, [activeIndex, draft, patchDraft]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (overrides = null) => {
     if (!draft) return;
     if (!draft.title.trim()) {
       setNotice('Укажите название сценария.');
@@ -309,7 +331,10 @@ export default function DemoStudioModal({
     setBusy(true);
     setNotice('');
     try {
-      const saved = await onSave(draft);
+      const snapshot = overrides?.mosaic
+        ? { ...draft, mosaic: normalizeScenarioMosaic(overrides.mosaic) }
+        : draft;
+      const saved = await onSave(snapshot);
       setDraft(saved);
       setDirty(false);
       setNotice('Сценарий сохранён.');
@@ -390,7 +415,7 @@ export default function DemoStudioModal({
     setNotice('');
     try {
       const saved = await onSave(nextDraft);
-      setDraft(saved);
+      setDraft(preserveNetworkSettingsIfResponseIsEmpty(saved, nextDraft.tableau));
       setDirty(false);
       setNotice('Сценарий сохранён.');
     } catch (err) {
@@ -1150,7 +1175,7 @@ export default function DemoStudioModal({
             }}
             readOnly={!canWrite}
             canWrite={canWrite}
-            onSave={handleSave}
+            onSave={(mosaic) => handleSave({ mosaic })}
             saveBusy={busy}
             saveNotice={notice}
             saveDisabled={!draft}

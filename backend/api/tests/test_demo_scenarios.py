@@ -578,6 +578,69 @@ class DemoScenarioApiTests(APITestCase):
         self.assertIsNone(collapse_item.get('expand_ms'))
         self.assertIsNone(collapse_item.get('expand_easing'))
 
+    def test_mosaic_photo_map_cover_round_trip(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        stage_id = '22222222-2222-2222-2222-222222222222'
+        preset_id = 'photo-map'
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{'id': stage_id, 'title': 'Map', 'steps': [build_step()]}],
+            mosaic={
+                'active_preset_id': preset_id,
+                'presets': [{
+                    'id': preset_id, 'title': 'Photo and map', 'layout': '1x2',
+                    'expand_animation': 'cover', 'expand_ms': 1400,
+                    'expandable_slots': ['b'],
+                    'screens': [
+                        {'id': 'a', 'content_type': 'image',
+                         'image_url': '/media/demo/photo.jpg', 'image_fit': 'cover',
+                         'text': {'content': 'Photo caption', 'screen': {'x': 0.5, 'y': 0.8}}},
+                        {'id': 'b', 'content_type': 'stage', 'stage_id': stage_id,
+                         'text': {'content': 'Map caption', 'style': {'font_size': 42}}},
+                    ],
+                }],
+            },
+            sequence=[
+                {'type': 'mosaic', 'preset_id': preset_id, 'mosaic_action': 'show_grid'},
+                {'type': 'mosaic', 'preset_id': preset_id, 'mosaic_action': 'expand',
+                 'slot': 'b', 'expand_animation': 'cover'},
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        url = f"/api/v1/demo-scenarios/{response.data['id']}/"
+        loaded = self.client.get(url, **headers)
+        self.assertEqual(loaded.status_code, status.HTTP_200_OK, loaded.data)
+        preset = loaded.data['mosaic']['presets'][0]
+        self.assertEqual(preset['layout'], '1x2')
+        self.assertEqual(preset['expand_animation'], 'cover')
+        self.assertEqual(preset['expand_ms'], 1400)
+        self.assertEqual(preset['expandable_slots'], ['b'])
+        photo, map_screen = preset['screens']
+        self.assertEqual(photo['content_type'], 'image')
+        self.assertEqual(photo['image_url'], '/media/demo/photo.jpg')
+        self.assertEqual(photo['image_fit'], 'cover')
+        self.assertEqual(photo['text']['content'], 'Photo caption')
+        self.assertEqual(photo['text']['screen'], {'x': 0.5, 'y': 0.8})
+        self.assertEqual(map_screen['content_type'], 'stage')
+        self.assertEqual(map_screen['stage_id'], stage_id)
+        self.assertEqual(map_screen['text']['content'], 'Map caption')
+        self.assertEqual(map_screen['text']['style']['font_size'], 42)
+        self.assertEqual(loaded.data['sequence'][1]['expand_animation'], 'cover')
+
+        mosaic = loaded.data['mosaic']
+        photo['image_url'] = '/media/demo/replacement.png'
+        photo['image_fit'] = 'contain'
+        map_screen['text']['content'] = 'Updated map caption'
+        updated = self.client.patch(url, {'mosaic': mosaic}, format='json', **headers)
+        self.assertEqual(updated.status_code, status.HTTP_200_OK, updated.data)
+        reloaded = self.client.get(url, **headers)
+        self.assertEqual(reloaded.status_code, status.HTTP_200_OK, reloaded.data)
+        photo, map_screen = reloaded.data['mosaic']['presets'][0]['screens']
+        self.assertEqual(photo['image_url'], '/media/demo/replacement.png')
+        self.assertEqual(photo['image_fit'], 'contain')
+        self.assertEqual(map_screen['text']['content'], 'Updated map caption')
+
     def test_mosaic_expand_stage_id_round_trip(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         grid_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'

@@ -139,3 +139,17 @@ class DemoScannerApiTests(APITestCase):
         saved = self.client.get(f"/api/v1/demo-scenarios/{response.data['id']}/").data['tableau']['presets'][0]
         self.assertEqual(saved['variant'], 'network')
         self.assertEqual(saved['network'], network)
+        saved['network']['logos'][1] = {
+            'src': '/media/demo_tableau/replaced-logo.png',
+            'title': 'Заменённый',
+        }
+        response = self.client.patch(
+            f"/api/v1/demo-scenarios/{response.data['id']}/",
+            {'tableau': {'presets': [saved]}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data['tableau']['presets'][0]['network']['logos'][1],
+            saved['network']['logos'][1],
+        )

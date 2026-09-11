@@ -2,9 +2,11 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { flushSync } from 'react-dom';
 import DemoMosaicTile from './DemoMosaicTile';
 import DemoCueMark from './DemoCueMark';
+import DemoMosaicScreenText from './DemoMosaicScreenText';
 import {
   DEMO_EASING_CSS,
   DEMO_MOSAIC_EXPAND_ANIMATION,
+  DEMO_MOSAIC_CONTENT,
   DEMO_MOSAIC_SLOT_LABELS,
   getMosaicLayoutDef,
   mosaicScreenHasVideo,
@@ -32,8 +34,9 @@ const FOCUS_PHASE = {
   FULL: 'full',
 };
 
-/** Transition только transform (translate + scale). */
+/** Transform for zooming, clip-path for expansion over adjacent screens. */
 const ANIM = {
+  COVER: 'cover',
   NONE: 'none',
   TRANSFORM: 'transform',
 };
@@ -176,6 +179,7 @@ function DemoMosaicShell({
   const [focusGeom, setFocusGeom] = useState(null);
   const [translate, setTranslate] = useState(ZERO_TX);
   const [scale, setScale] = useState(IDENTITY_SCALE);
+  const [clipInset, setClipInset] = useState('inset(0px 0px 0px 0px)');
   const [focusPhase, setFocusPhase] = useState(FOCUS_PHASE.SLOT);
   const [animKind, setAnimKind] = useState(ANIM.NONE);
   const [phaseMs, setPhaseMs] = useState(350);
@@ -205,6 +209,7 @@ function DemoMosaicShell({
     || DEMO_MOSAIC_EXPAND_ANIMATION.STRETCH;
   const useCenterThenStretch = expandAnimation
     === DEMO_MOSAIC_EXPAND_ANIMATION.CENTER_THEN_STRETCH;
+  const useCover = expandAnimation === DEMO_MOSAIC_EXPAND_ANIMATION.COVER;
   const cssEasing = mosaicRuntime?.cssEasing
     || DEMO_EASING_CSS[mosaicRuntime?.easing]
     || DEMO_EASING_CSS.ease_out;
@@ -244,6 +249,7 @@ function DemoMosaicShell({
       setFlipPrep(true);
       setAnimKind(ANIM.NONE);
       setFocusGeom(full);
+      setClipInset('inset(0px 0px 0px 0px)');
       setTranslate(ZERO_TX);
       setScale(IDENTITY_SCALE);
       setFocusPhase(FOCUS_PHASE.FULL);
@@ -481,6 +487,37 @@ function DemoMosaicShell({
       return true;
     };
 
+    // Move the map centre from the slot to the screen centre while expanding
+    // its viewport over the neighbours, without distorting the map's aspect ratio.
+    if (useCover) {
+      const insetX = Math.max(0, (full.w - rect.w) / 2);
+      const insetY = Math.max(0, (full.h - rect.h) / 2);
+      const slotClip = `inset(${insetY}px ${insetX}px ${insetY}px ${insetX}px)`;
+      const fullClip = 'inset(0px 0px 0px 0px)';
+      const expanding = direction === 'expand';
+      if (!prepFrame(() => {
+        setAnimKind(ANIM.COVER);
+        setPhaseMs(transitionMs);
+        setFocusGeom(full);
+        setTranslate(expanding ? toSlotTx : ZERO_TX);
+        setScale(IDENTITY_SCALE);
+        setClipInset(expanding ? slotClip : fullClip);
+        setFocusPhase(FOCUS_PHASE.FULL);
+        setPanelVisible(true);
+      })) return;
+      resizeLiveMap(mapRef?.current);
+      afterPaint(() => {
+        setClipInset(expanding ? fullClip : slotClip);
+        setTranslate(expanding ? ZERO_TX : toSlotTx);
+        phaseTimerRef.current = setTimeout(() => {
+          if (gen !== morphGenRef.current) return;
+          if (expanding) commitFull();
+          finishMorph();
+        }, transitionMs);
+      });
+      return;
+    }
+
     // ——— EXPAND ———
     if (direction === 'expand') {
       if (!useCenterThenStretch) {
@@ -606,6 +643,8 @@ function DemoMosaicShell({
     readSlotRect,
     transitionMs,
     useCenterThenStretch,
+    useCover,
+    mapRef,
   ]);
 
   useLayoutEffect(() => {
@@ -715,6 +754,9 @@ function DemoMosaicShell({
     && (mode === 'expanding' || mode === 'focus' || mode === 'collapsing' || mode === 'switching');
   const isFull = focusPhase === FOCUS_PHASE.FULL;
   const coverMain = warming || showFocus;
+  const coverScreen = screens[mode === 'switching' ? (fromSlot || focusSlot) : focusSlot];
+  const coverImageUrl = showFocus && coverScreen?.content_type === DEMO_MOSAIC_CONTENT.IMAGE
+    ? resolveMediaUrl(coverScreen.image_url) : null;
 
   const coverVideoUrl = useMemo(() => {
     if (!active || !showFocus) return null;
@@ -861,8 +903,10 @@ function DemoMosaicShell({
 
   const focusStyle = useMemo(() => {
     if (!active) return undefined;
-    const transition = (!flipPrep && animKind === ANIM.TRANSFORM)
-      ? `transform ${phaseMs}ms ${cssEasing}`
+    const transition = (!flipPrep && animKind !== ANIM.NONE)
+      ? (animKind === ANIM.COVER
+        ? `clip-path ${phaseMs}ms ${cssEasing}, transform ${phaseMs}ms ${cssEasing}`
+        : `transform ${phaseMs}ms ${cssEasing}`)
       : 'none';
 
     const style = {
@@ -871,6 +915,7 @@ function DemoMosaicShell({
       pointerEvents: coverMain ? 'auto' : 'none',
       transformOrigin: 'center center',
       transform: `translate3d(${translate.x}px, ${translate.y}px, 0) scale(${scale.x}, ${scale.y})`,
+      clipPath: animKind === ANIM.COVER ? clipInset : undefined,
       transition,
       borderRadius: isFull ? 0 : undefined,
       boxShadow: isFull ? '0 0 0 0 transparent' : undefined,
@@ -893,6 +938,7 @@ function DemoMosaicShell({
   }, [
     active,
     animKind,
+    clipInset,
     coverMain,
     cssEasing,
     flipPrep,
@@ -1008,6 +1054,11 @@ function DemoMosaicShell({
             preload="auto"
           />
         ) : null}
+        {coverImageUrl ? <img className="demo-mosaic__focus-image" src={coverImageUrl} alt={coverScreen.label || 'Фотография'} style={{ objectFit: coverScreen.image_fit || 'contain' }} /> : null}
+        {showFocus ? <div className="demo-mosaic__focus-caption" style={{
+          inset: animKind === ANIM.COVER ? clipInset.slice(6, -1) : 0,
+          transition: !flipPrep && animKind === ANIM.COVER ? `inset ${phaseMs}ms ${cssEasing}` : 'none',
+        }}><DemoMosaicScreenText text={coverScreen?.text} /></div> : null}
       </div>
       <DemoCueMark value={cue} size="lg" />
     </div>

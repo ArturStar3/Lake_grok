@@ -55,7 +55,7 @@ MOSAIC_SLOT_IDS_BY_LAYOUT = {
     '2+3': ('a', 'b', 'c', 'd', 'e'),
 }
 MOSAIC_REVEALS = ('all', 'stagger')
-MOSAIC_EXPAND_ANIMATIONS = ('stretch', 'center_then_stretch')
+MOSAIC_EXPAND_ANIMATIONS = ('stretch', 'center_then_stretch', 'cover')
 MOSAIC_ACTIONS = ('show_grid', 'show_slot', 'focus_slot', 'collapse', 'exit')
 SEQUENCE_MOSAIC_ACTIONS = ('show_grid', 'expand', 'collapse')
 SEQUENCE_TYPES = ('stage', 'mosaic', 'tableau')
@@ -188,7 +188,7 @@ DEFAULT_TABLEAU_GALLERY = {
     'overlap_rotate_deg': 3,
     'images': [],
 }
-MOSAIC_CONTENT_TYPES = ('stage', 'video')
+MOSAIC_CONTENT_TYPES = ('stage', 'video', 'image')
 DEFAULT_SEQUENCE_TRANSITION = {
     'effect': 'none',
     'duration_ms': 400,
@@ -694,6 +694,12 @@ def normalize_mosaic_screen(raw, slot_id, default_label='', allowed_stage_ids=No
             else None
         ),
         'video_media_id': _optional_id(data.get('video_media_id')),
+        'image_url': (
+            data['image_url'].strip()[:2000]
+            if isinstance(data.get('image_url'), str) and data['image_url'].strip()
+            else None
+        ),
+        'image_fit': _choice(data.get('image_fit'), ('contain', 'cover'), 'contain'),
         'camera': normalize_camera(data.get('camera')),
         'selection': {
             'target_ids': _normalize_id_list(selection_raw.get('target_ids')),

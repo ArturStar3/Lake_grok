@@ -313,6 +313,26 @@
   background: #0b1220;
 }
 
+.demo-mosaic-tile__image, .demo-mosaic__focus-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #0b1220;
+}
+.demo-mosaic__focus-image { z-index: 4; }
+.demo-mosaic__focus-caption { position: absolute; z-index: 650; pointer-events: none; }
+.demo-mosaic-screen-text {
+  position: absolute;
+  z-index: 650;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+.demo-mosaic-screen-text__stroke { position: absolute; inset: 0; }
+
 .demo-mosaic-tile__map .leaflet-container,
 .demo-mosaic-tile__map .map {
   background: #0b1220;
