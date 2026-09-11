@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { FeatureGroup, Polygon, useMap } from 'react-leaflet';
 import { getZonePolygonStrokeStyle } from '../../../utils/actionZoneStyle';
 import { getZonePolygonPositionsList } from '../../../utils/inundationZone';
+import { sortRevisionsBySituationDateTime } from '../../../utils/situationUtils';
 import { registerDemoAnimation, unregisterDemoAnimation } from './demoRafDriver';
 import { demoRepeatCount } from './demoEffectCache';
 
@@ -117,8 +118,10 @@ export default function SituationStateCycleLayer({
   onRevisionChange,
 }) {
   const ordered = useMemo(() => {
-    const sorted = [...revisions].sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return order === 'new_to_old' ? sorted.reverse() : sorted;
+    return sortRevisionsBySituationDateTime(
+      revisions,
+      order === 'new_to_old' ? 'desc' : 'asc',
+    );
   }, [revisions, order]);
 
   const [index, setIndex] = useState(0);

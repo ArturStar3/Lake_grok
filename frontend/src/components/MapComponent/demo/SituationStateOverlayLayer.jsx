@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import SituationPolygon from '../SituationPolygon';
+import { sortRevisionsBySituationDateTime } from '../../../utils/situationUtils';
 import { demoRepeatCount } from './demoEffectCache';
 
 /**
@@ -20,8 +21,10 @@ export default memo(function SituationStateOverlayLayer({
   onRevisionChange,
 }) {
   const ordered = useMemo(() => {
-    const sorted = [...revisions].sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return order === 'new_to_old' ? sorted.reverse() : sorted;
+    return sortRevisionsBySituationDateTime(
+      revisions,
+      order === 'new_to_old' ? 'desc' : 'asc',
+    );
   }, [revisions, order]);
   const revisionKey = useMemo(
     () => ordered.map((revision) => String(revision?.id ?? '')).join('|'),
