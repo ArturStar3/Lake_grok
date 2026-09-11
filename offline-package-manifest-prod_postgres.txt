@@ -1,5 +1,5 @@
 ﻿InfoLake offline package manifest
-Generated: 2026-09-09 16:41:01
+Generated: 2026-09-11 09:27:30
 Git branch: develop_demonstration
 Mode: PRODUCTION + PostgreSQL 17 in Docker (docker-compose.postgres.yml)
 
@@ -11,8 +11,8 @@ Docker images in infolake_full_offline_prod_postgres.tar:
 
 Archive:
   Stable:    .\infolake_full_offline_prod_postgres.tar
-  Timestamp: .\infolake_full_offline_prod_postgres_20260909_164027.tar
-  Size:      1730.7 MB
+  Timestamp: .\infolake_full_offline_prod_postgres_20260911_092655.tar
+  Size:      1735.3 MB
 
 Copy to offline server:
   1. infolake_full_offline_prod_postgres.tar (this archive)
