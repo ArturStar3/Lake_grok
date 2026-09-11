@@ -27,6 +27,7 @@ import {
   normalizeScenario,
   normalizeScenarioMosaic,
   normalizeScenarioTableau,
+  serializeScenario,
 } from '../../utils/demoScenario';
 import './DemoStudioModal.css';
 
@@ -36,6 +37,17 @@ function moveItem(list, from, to) {
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+const SCENARIO_FILE_TYPE = 'infolake-demo-scenario';
+const SCENARIO_FILE_VERSION = 1;
+
+function scenarioFileName(title) {
+  const safeTitle = String(title || 'scenario')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .trim()
+    .slice(0, 80);
+  return `${safeTitle || 'scenario'}.infolake-demo.json`;
 }
 
 /**
@@ -80,6 +92,7 @@ export default function DemoStudioModal({
   const [tableauStudioOpen, setTableauStudioOpen] = useState(false);
   const [stageStudioOpen, setStageStudioOpen] = useState(false);
   const dragIndexRef = useRef(null);
+  const scenarioFileInputRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -308,6 +321,58 @@ export default function DemoStudioModal({
     }
   }, [draft, onSave]);
 
+  const handleExport = useCallback(() => {
+    if (!draft) return;
+    const contents = JSON.stringify({
+      type: SCENARIO_FILE_TYPE,
+      version: SCENARIO_FILE_VERSION,
+      // Media URLs and IDs are configuration, not file contents. Keeping
+      // them lets the scenario work after transfer with the same media set.
+      scenario: serializeScenario(draft),
+    }, null, 2);
+    const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = scenarioFileName(draft.title);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotice('Сценарий сохранён в файл. Медиафайлы в него не включены.');
+  }, [draft]);
+
+  const handleImport = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!confirmDiscard()) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setNotice('Файл сценария слишком большой.');
+      return;
+    }
+    try {
+      const payload = JSON.parse(await file.text());
+      if (
+        !payload
+        || payload.type !== SCENARIO_FILE_TYPE
+        || payload.version !== SCENARIO_FILE_VERSION
+        || !payload.scenario
+        || typeof payload.scenario !== 'object'
+      ) {
+        throw new Error('unsupported-file');
+      }
+      const imported = normalizeScenario(payload.scenario);
+      if (!imported.title.trim()) throw new Error('invalid-scenario');
+      setDraft({ ...imported, id: null, is_default: false });
+      setActiveIndex(0);
+      setDirty(true);
+      setNotice('Сценарий загружен. Ссылки на медиафайлы сохранены.');
+    } catch (err) {
+      console.error('Не удалось загрузить сценарий демонстрации из файла', err);
+      setNotice('Не удалось прочитать файл сценария. Выберите файл, сохранённый в InfoLake.');
+    }
+  }, [confirmDiscard]);
+
   const handleTableauSave = useCallback(async (tableau) => {
     if (!draft) return;
     const nextDraft = {
@@ -424,6 +489,33 @@ export default function DemoStudioModal({
             >
               Воспроизвести
             </button>
+            <button
+              type="button"
+              className="demo-btn demo-btn--ghost"
+              onClick={handleExport}
+              disabled={!draft}
+            >
+              Скачать файл
+            </button>
+            {canWrite && (
+              <>
+                <input
+                  ref={scenarioFileInputRef}
+                  type="file"
+                  accept="application/json,.json,.infolake-demo.json"
+                  className="demo-studio__file-input"
+                  onChange={handleImport}
+                />
+                <button
+                  type="button"
+                  className="demo-btn demo-btn--ghost"
+                  onClick={() => scenarioFileInputRef.current?.click()}
+                  disabled={busy}
+                >
+                  Загрузить файл
+                </button>
+              </>
+            )}
             {canWrite && (
               <button
                 type="button"
