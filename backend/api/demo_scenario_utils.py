@@ -164,7 +164,7 @@ DEFAULT_TABLEAU_CAMERA = {
     'ease_linearity': 0.3,
     'padding': 72,
 }
-TABLEAU_VARIANTS = ('tablet', 'gallery', 'scanner')
+TABLEAU_VARIANTS = ('tablet', 'gallery', 'scanner', 'network')
 TABLEAU_GALLERY_ENTER = (
     'center_zoom', 'fade_scale', 'slide_up', 'slide_left', 'slide_right', 'blur_in',
     'from_object',
@@ -1367,6 +1367,18 @@ def normalize_tableau_gallery(raw):
     }
 
 
+def normalize_tableau_network(raw):
+    data = raw if isinstance(raw, dict) else {}
+    source_logos = data.get('logos') if isinstance(data.get('logos'), list) else []
+    logos = []
+    for index in range(3):
+        item = source_logos[index] if index < len(source_logos) and isinstance(source_logos[index], dict) else {}
+        src = item.get('src') if isinstance(item.get('src'), str) else ''
+        title = item.get('title') if isinstance(item.get('title'), str) else ''
+        logos.append({'src': src.strip()[:2000], 'title': title.strip()[:120]})
+    return {'logos': logos}
+
+
 def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None):
     data = raw if isinstance(raw, dict) else {}
     preset_id = data.get('id')
@@ -1457,6 +1469,7 @@ def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None
         'stage_id': stage_id,
         'variant': _choice(data.get('variant'), TABLEAU_VARIANTS, 'tablet'),
         'gallery': normalize_tableau_gallery(data.get('gallery')),
+        'network': normalize_tableau_network(data.get('network')),
         'scanner': normalize_scanner(data.get('scanner')),
         'tilt': normalize_tableau_tilt(data.get('tilt')),
         'border_radius_px': _clamp(

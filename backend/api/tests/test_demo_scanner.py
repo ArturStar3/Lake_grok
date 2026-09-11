@@ -120,3 +120,22 @@ class DemoScannerApiTests(APITestCase):
         response = self.client.patch(url, {'tableau': {'presets': [saved]}}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['tableau']['presets'][0]['scanner']['effect'], 'typewriter')
+
+    def test_network_tableau_keeps_three_logo_links(self):
+        self.client.force_authenticate(self.writer)
+        network = {
+            'logos': [
+                {'src': '/media/demo_tableau/logo-1.png', 'title': 'Первый'},
+                {'src': '/media/demo_tableau/logo-2.png', 'title': 'Второй'},
+                {'src': '/media/demo_tableau/logo-3.png', 'title': 'Третий'},
+            ],
+        }
+        response = self.client.post('/api/v1/demo-scenarios/', {
+            'title': 'Сеть',
+            'tableau': {'presets': [{'id': 'network', 'variant': 'network', 'network': network}]},
+            'sequence': [{'type': 'tableau', 'preset_id': 'network'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        saved = self.client.get(f"/api/v1/demo-scenarios/{response.data['id']}/").data['tableau']['presets'][0]
+        self.assertEqual(saved['variant'], 'network')
+        self.assertEqual(saved['network'], network)

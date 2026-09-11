@@ -121,6 +121,7 @@ export default function DemoStepInspector({
     DEMO_TOOL.OBJECTS,
     DEMO_TOOL.EVENTS,
     DEMO_TOOL.ZONES,
+    DEMO_TOOL.INUNDATION,
     DEMO_TOOL.SITUATIONS,
   ].includes(step.tool);
   const showAnimationPlayback = supportsAnimationRepeats && step.animation.effect !== DEMO_EFFECT.NONE;

@@ -7,7 +7,8 @@
   4. Галерея: из объекта (тест) — разворот кадра из маркера, с картой и без.
   5. Все возможности карты (тест) — планшет, сетка 2+3 и развороты слоёв.
   6. Сканирование документов: конфликт в Украине — DOCX и 10 изображений.
-  7. Обзор возможностей карты (тест) — инструменты карты по шагам.
+  7. Обмен информацией (тест) — три узла сети с логотипами.
+  8. Обзор возможностей карты (тест) — инструменты карты по шагам.
 
 Использование:
   python manage.py seed_demo_showcases --replace
@@ -21,7 +22,7 @@ from django.core.management.base import BaseCommand
 class Command(BaseCommand):
     help = (
         'Создаёт витринные сценарии конструкторов, мультиэкрана, '
-        'художественного режима и инструментов карты'
+        'художественного режима, обмена информацией и инструментов карты'
     )
 
     def add_arguments(self, parser):
@@ -40,6 +41,7 @@ class Command(BaseCommand):
         call_command('seed_gallery_demo_scenario', **kwargs)
         call_command('seed_map_capabilities_demo_scenario', **kwargs)
         call_command('seed_scanner_demo_scenario', **kwargs)
+        call_command('seed_network_demo_scenario', **kwargs)
         call_command('seed_sample_demo_scenario', **kwargs)
         call_command(
             'seed_constructors_demo_scenario',
@@ -52,5 +54,6 @@ class Command(BaseCommand):
             '«Галерея: из объекта (тест)», '
             '«Все возможности карты (тест)», '
             '«Сканирование документов: конфликт в Украине», '
+            '«Обмен информацией (тест)», '
             '«Обзор возможностей карты (тест)».'
         ))

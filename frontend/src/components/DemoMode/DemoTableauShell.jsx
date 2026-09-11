@@ -12,6 +12,7 @@ import DemoTableauArrowSpark from './DemoTableauArrowSpark';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauGalleryLayer from './DemoTableauGalleryLayer';
 import DemoScannerLayer from './DemoScannerLayer';
+import DemoNetworkLayer from './DemoNetworkLayer';
 import './DemoTableauBlockView.css';
 import './DemoTableau.css';
 
@@ -127,7 +128,8 @@ function DemoTableauShell({
 
   const active = Boolean(tableauRuntime?.active);
   const isScanner = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.SCANNER;
-  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY || isScanner;
+  const isNetwork = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.NETWORK;
+  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY || isScanner || isNetwork;
   const phase = tableauRuntime?.phase || (active ? 'active' : 'idle');
   const tilt = tableauRuntime?.tilt || {};
   const blocks = tableauRuntime?.blocks || [];
@@ -438,12 +440,12 @@ function DemoTableauShell({
         active ? 'demo-tableau--active' : 'demo-tableau--idle',
         active && tilted && !isGallery ? 'demo-tableau--tilted' : '',
         isGallery ? 'demo-tableau--gallery' : '',
-        isGallery && tableauRuntime?.gallery?.show_map === false ? 'demo-tableau--gallery-nomap' : '',
+        (isNetwork || (isGallery && tableauRuntime?.gallery?.show_map === false)) ? 'demo-tableau--gallery-nomap' : '',
         phase === 'exiting' ? 'demo-tableau--exiting' : '',
       ].filter(Boolean).join(' ')}
       style={rootStyle}
     >
-      {isGallery && tableauRuntime?.gallery?.show_map === false ? (
+      {(isNetwork || (isGallery && tableauRuntime?.gallery?.show_map === false)) ? (
         <div className="demo-tableau__nomap-bg" aria-hidden="true" />
       ) : null}
 
@@ -454,7 +456,8 @@ function DemoTableauShell({
       </div>
 
       {active && isScanner ? <DemoScannerLayer key={runId} scanner={tableauRuntime.scanner} playing={playing && phase !== 'exiting'} /> : null}
-      {active && isGallery && !isScanner ? (
+      {active && isNetwork ? <DemoNetworkLayer key={runId} logos={tableauRuntime.network?.logos} playing={playing && phase !== 'exiting'} /> : null}
+      {active && isGallery && !isScanner && !isNetwork ? (
         <>
           <DemoTableauGalleryLayer tableauRuntime={tableauRuntime} objects={objects} />
           {caption?.content ? (

@@ -4,6 +4,7 @@ import {
   DEMO_DEFAULT_TABLEAU_CAPTION,
   DEMO_DEFAULT_TABLEAU_CAMERA,
   DEMO_DEFAULT_TABLEAU_GALLERY,
+  DEMO_DEFAULT_TABLEAU_NETWORK,
   DEMO_DEFAULT_TABLEAU_MAP_REVEAL,
   DEMO_DEFAULT_TABLEAU_OVERLAY,
   DEMO_DEFAULT_TABLEAU_TILT,
@@ -50,6 +51,8 @@ import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { uploadDemoTableauMedia } from '../../api/demoScenarios';
 import DemoScannerEditor from './DemoScannerEditor';
 import DemoScannerLayer from './DemoScannerLayer';
+import DemoNetworkEditor from './DemoNetworkEditor';
+import DemoNetworkLayer from './DemoNetworkLayer';
 import ZoneColorPicker from '../ReferenceData/ZoneColorPicker';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauBlockStudioModal from './DemoTableauBlockStudioModal';
@@ -331,7 +334,9 @@ export default function DemoTableauStudioModal({
   const cells = overlay.cells || [];
   const isGallery = isTableauGalleryPreset(preset);
   const isScanner = preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER;
+  const isNetwork = preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK;
   const gallery = preset?.gallery || DEMO_DEFAULT_TABLEAU_GALLERY;
+  const network = preset?.network || DEMO_DEFAULT_TABLEAU_NETWORK;
   galleryRef.current = gallery;
   libraryRef.current = library;
 
@@ -765,7 +770,8 @@ export default function DemoTableauStudioModal({
           <div>
             <h2>Художественный режим</h2>
             <p className="demo-tableau-studio-modal__hint">
-              {isScanner ? 'Сканирование изображений и заполнение документа из DOCX.' : isGallery
+              {isScanner ? 'Сканирование изображений и заполнение документа из DOCX.' : isNetwork
+                ? 'Три логотипа образуют сеть взаимного обмена данными.' : isGallery
                 ? 'Галерея: кадры проявляются в центре и садятся на заданные места. Карту можно скрыть.'
                 : 'Планшетный режим: сетка блоков и стрелки к карте. Вид карты — из этапа.'}
             </p>
@@ -776,7 +782,7 @@ export default function DemoTableauStudioModal({
                 Этапы…
               </button>
             ) : null}
-            {!isGallery && !isScanner ? (
+            {!isGallery && !isScanner && !isNetwork ? (
               <button type="button" className="demo-btn demo-btn--ghost" onClick={handleOpenBlocks}>
                 Блоки…
               </button>
@@ -804,7 +810,7 @@ export default function DemoTableauStudioModal({
 
         <div className={[
           'demo-tableau-studio-modal__body',
-          isGallery ? 'is-gallery' : '',
+          (isGallery || isNetwork) ? 'is-gallery' : '',
         ].filter(Boolean).join(' ')}>
           <aside className="demo-tableau-studio-modal__presets">
             <div className="demo-tableau-studio-modal__presets-head">
@@ -886,7 +892,7 @@ export default function DemoTableauStudioModal({
                   </p>
                 ) : (
                   <p className="demo-tableau-studio-modal__hint">
-                    {isScanner ? 'Для сканирования этап карты не требуется.' : 'Выберите этап — иначе карта будет пустой.'}
+                    {(isScanner || isNetwork) ? 'Для этого режима этап карты не требуется.' : 'Выберите этап — иначе карта будет пустой.'}
                   </p>
                 )}
 
@@ -902,7 +908,7 @@ export default function DemoTableauStudioModal({
                   </select>
                 </label>
 
-                {!isScanner && <>
+                {!isScanner && !isNetwork && <>
                 {!isGallery ? (
                   <>
                 <label className="demo-field">
@@ -1292,6 +1298,18 @@ export default function DemoTableauStudioModal({
               <div className="demo-scanner-preview">
                 <DemoScannerLayer key={`${preset.id}-${JSON.stringify(preset.scanner)}`} scanner={preset.scanner} />
               </div>
+            ) : isNetwork ? (
+              <>
+                <div className="demo-network-preview">
+                  <DemoNetworkLayer key={`${preset.id}-${JSON.stringify(network.logos)}`} logos={network.logos} />
+                </div>
+                <DemoNetworkEditor
+                  key={preset.id}
+                  value={network}
+                  onChange={(nextNetwork) => patchPreset({ network: nextNetwork })}
+                  readOnly={readOnly}
+                />
+              </>
             ) : (
               <>
                 <div
@@ -1616,6 +1634,10 @@ export default function DemoTableauStudioModal({
               <p className="demo-tableau-studio-modal__empty">Создайте пресет слева.</p>
             ) : isScanner ? (
               <DemoScannerEditor key={preset.id} value={preset.scanner} onChange={(scanner) => patchPreset({ scanner })} readOnly={readOnly} />
+            ) : isNetwork ? (
+              <p className="demo-tableau-studio-modal__hint">
+                Кнопки выбора логотипов находятся под превью.
+              </p>
             ) : isGallery ? (
               <fieldset className="demo-inspector__group" disabled={readOnly}>
                 <legend>Галерея</legend>

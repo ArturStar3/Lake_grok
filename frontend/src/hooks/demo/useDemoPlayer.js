@@ -92,6 +92,7 @@ const EMPTY_MOSAIC = {
 
 function isGalleryNomapPreset(preset) {
   return preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+    || preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK
     || (isTableauGalleryPreset(preset) && preset?.gallery?.show_map === false);
 }
 
@@ -99,6 +100,7 @@ function isGalleryNomapRuntime(runtime) {
   return Boolean(
     runtime?.active
     && (runtime?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+      || runtime?.variant === DEMO_TABLEAU_VARIANT.NETWORK
       || (runtime?.variant === DEMO_TABLEAU_VARIANT.GALLERY && runtime?.gallery?.show_map === false))
   );
 }
@@ -1468,11 +1470,11 @@ export function useDemoPlayer({ actions, data }) {
 
     if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU && item.tableauPreset) {
       const preset = item.tableauPreset;
-      if (preset.variant === DEMO_TABLEAU_VARIANT.SCANNER) {
+      if (preset.variant === DEMO_TABLEAU_VARIANT.SCANNER || preset.variant === DEMO_TABLEAU_VARIANT.NETWORK) {
         tableauPoseReadyRef.current = true;
         tableauPendingEnterRef.current = null;
         setTableauRuntime({ ...EMPTY_TABLEAU, active: true, phase: 'active',
-          variant: DEMO_TABLEAU_VARIANT.SCANNER, scanner: preset.scanner,
+          variant: preset.variant, scanner: preset.scanner, network: preset.network,
           presetId: preset.id, untiltMs: 0,
           runId: (tableauRuntimeRef.current?.runId || 0) + 1 });
         if (mosaicRuntimeRef.current?.active) setMosaicRuntime(EMPTY_MOSAIC);
@@ -1686,7 +1688,7 @@ export function useDemoPlayer({ actions, data }) {
 
       if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
         const preset = item.tableauPreset;
-        if (preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER) {
+        if (preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER || preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK) {
           tableauPendingEnterRef.current = null;
           stopTableauReveal();
           return;
@@ -2314,7 +2316,10 @@ export function useDemoPlayer({ actions, data }) {
       const surviving = new Set(
         nextComposedTexts(programItems, stageIndex, beatIndex, scenario).map((item) => item.key),
       );
-      list = list.filter((item) => surviving.has(item.key));
+      list = list.filter((item) => (
+        surviving.has(item.key)
+        || (waitingForPresenter && item.text?.persist_until_click)
+      ));
     }
     if (!list.length) return EMPTY_TEXTS;
 
@@ -2339,6 +2344,7 @@ export function useDemoPlayer({ actions, data }) {
     programItems,
     scenario,
     stageIndex,
+    waitingForPresenter,
   ]);
 
   const totalMs = program.totalMs || 0;

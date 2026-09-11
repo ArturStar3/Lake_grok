@@ -4,6 +4,7 @@ import { normalizeScanner, scannerDurationMs } from './demoScanner';
 export const DEMO_STEP_MIN_DURATION_MS = 500;
 export const DEMO_STEP_MAX_DURATION_MS = 600_000;
 export const DEMO_DEFAULT_STEP_DURATION_MS = 6000;
+export const DEMO_NETWORK_DURATION_MS = 20_000;
 
 export const DEMO_TOOL = {
   CAMERA: 'camera',
@@ -424,12 +425,14 @@ export const DEMO_TABLEAU_VARIANT = {
   TABLET: 'tablet',
   GALLERY: 'gallery',
   SCANNER: 'scanner',
+  NETWORK: 'network',
 };
 
 export const DEMO_TABLEAU_VARIANTS = [
   { id: DEMO_TABLEAU_VARIANT.TABLET, label: 'Планшетный режим' },
   { id: DEMO_TABLEAU_VARIANT.GALLERY, label: 'Галерея на карте' },
   { id: DEMO_TABLEAU_VARIANT.SCANNER, label: 'Сканирование документов' },
+  { id: DEMO_TABLEAU_VARIANT.NETWORK, label: 'Обмен информацией' },
 ];
 
 export const DEMO_TABLEAU_GALLERY_ENTER = {
@@ -495,6 +498,10 @@ export const DEMO_DEFAULT_TABLEAU_GALLERY = {
   overlap_offset_pct: 4,
   overlap_rotate_deg: 3,
   images: [],
+};
+
+export const DEMO_DEFAULT_TABLEAU_NETWORK = {
+  logos: [{ src: '', title: '' }, { src: '', title: '' }, { src: '', title: '' }],
 };
 
 export const DEMO_MOSAIC_CONTENT = {
@@ -1693,6 +1700,20 @@ export function normalizeTableauGallery(raw) {
   };
 }
 
+export function normalizeTableauNetwork(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const rawLogos = Array.isArray(data.logos) ? data.logos : [];
+  return {
+    logos: Array.from({ length: 3 }, (_, index) => {
+      const logo = rawLogos[index] && typeof rawLogos[index] === 'object' ? rawLogos[index] : {};
+      return {
+        src: typeof logo.src === 'string' ? logo.src.trim().slice(0, 2000) : '',
+        title: typeof logo.title === 'string' ? logo.title.trim().slice(0, 120) : '',
+      };
+    }),
+  };
+}
+
 export function isTableauGalleryPreset(preset) {
   return preset?.variant === DEMO_TABLEAU_VARIANT.GALLERY;
 }
@@ -1842,6 +1863,7 @@ export function normalizeTableauPreset(raw, allowedBlockIds = null) {
       DEMO_TABLEAU_VARIANT.TABLET,
     ),
     gallery: normalizeTableauGallery(data.gallery),
+    network: normalizeTableauNetwork(data.network),
     scanner: normalizeScanner(data.scanner),
     tilt: normalizeTableauTilt(data.tilt),
     border_radius_px: clampInt(
@@ -1922,6 +1944,7 @@ export function createDefaultTableauPreset(overrides = {}) {
     stage_id: null,
     variant: DEMO_TABLEAU_VARIANT.TABLET,
     gallery: { ...DEMO_DEFAULT_TABLEAU_GALLERY, images: [] },
+    network: { ...DEMO_DEFAULT_TABLEAU_NETWORK, logos: DEMO_DEFAULT_TABLEAU_NETWORK.logos.map((logo) => ({ ...logo })) },
     tilt: { ...DEMO_DEFAULT_TABLEAU_TILT },
     border_radius_px: DEMO_DEFAULT_TABLEAU_BORDER_RADIUS,
     tilt_ms: DEMO_DEFAULT_TABLEAU_TILT_MS,
@@ -3093,6 +3116,9 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
     }
     if (preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER) {
       return Math.max(scannerDurationMs(preset.scanner), DEMO_DEFAULT_STEP_DURATION_MS);
+    }
+    if (preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK) {
+      return Math.max(DEMO_NETWORK_DURATION_MS, DEMO_DEFAULT_STEP_DURATION_MS);
     }
     const placements = preset?.placements || [];
     const stagger = preset?.card_stagger_ms || 0;
