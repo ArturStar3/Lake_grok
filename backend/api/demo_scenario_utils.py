@@ -639,6 +639,7 @@ def normalize_text(raw):
         },
         'width': width,
         'persist_until_click': _as_bool(data.get('persist_until_click'), False),
+        'hide_when_expanded': _as_bool(data.get('hide_when_expanded'), False),
         'style': _normalize_text_style(data.get('style')),
         'enter': _normalize_text_transition(data.get('enter'), DEFAULT_TEXT_ENTER, TEXT_ENTER_EFFECTS),
         'exit': _normalize_text_transition(data.get('exit'), DEFAULT_TEXT_EXIT, TEXT_EXIT_EFFECTS),

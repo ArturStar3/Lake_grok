@@ -1,16 +1,15 @@
 .demo-playbar {
     position: fixed;
     left: 50%;
-    bottom: 18px;
+    bottom: 12px;
     transform: translateX(-50%);
     z-index: 10050;
-    min-width: 620px;
-    max-width: min(920px, calc(100% - 32px));
-    background: rgba(17, 24, 39, 0.9);
+    min-width: 0;
+    background: rgba(17, 24, 39, 0.58);
     color: #f8fafc;
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(6px);
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(3px);
     overflow: hidden;
     transition: opacity 220ms ease, transform 220ms ease;
 }
@@ -40,8 +39,8 @@
 .demo-playbar__row {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 8px 12px;
+    gap: 4px;
+    padding: 5px;
 }
 
 .demo-playbar__controls {
@@ -55,8 +54,8 @@
     background: rgba(255, 255, 255, 0.1);
     color: #f8fafc;
     border-radius: 6px;
-    width: 32px;
-    height: 30px;
+    width: 28px;
+    height: 26px;
     cursor: pointer;
     font-size: 0.78rem;
     line-height: 1;
@@ -67,8 +66,8 @@
 }
 
 .demo-playbar__play {
-    width: 40px !important;
-    background: #2f80ed !important;
+    width: 30px !important;
+    background: rgba(47, 128, 237, 0.85) !important;
     font-size: 0.9rem !important;
 }
 
@@ -280,18 +279,31 @@
 }
 
 .demo-playbar__exit {
-    border: 1px solid rgba(255, 255, 255, 0.24);
-    background: transparent;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
     color: #f8fafc;
     border-radius: 6px;
-    padding: 5px 12px;
-    font-size: 0.8rem;
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    font-size: 0.72rem;
     cursor: pointer;
     white-space: nowrap;
 }
 
 .demo-playbar__exit:hover {
     background: rgba(255, 255, 255, 0.12);
+}
+
+/* Во время показа оставляем только непосредственные кнопки управления. */
+.demo-playbar__progress,
+.demo-playbar__stages,
+.demo-playbar__info,
+.demo-playbar__counter,
+.demo-playbar__step-progress,
+.demo-playbar__icon-btn,
+.demo-playbar__waiting {
+    display: none;
 }
 
 /* Во время показа прячем операторские элементы карты.

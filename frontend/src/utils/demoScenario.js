@@ -1234,11 +1234,9 @@ export function cellContentRect(overlay, cell, metrics = null) {
   const innerTop = rect.top + Math.min(offsetTop, Math.max(0, rect.height - 0.5));
   const innerHeight = Math.max(0.5, rect.bottom - innerTop);
   const cw = clampFloat(cell?.content_width, 20, 100, 100) / 100;
-  // Рамка блока всегда занимает высоту ряда. Это тот же прямоугольник,
-  // от которого строятся стрелки; content_height оставлен в данных для
-  // совместимости со старыми сценариями, но больше не сжимает рамку.
   const width = rect.width * cw;
-  const height = innerHeight;
+  const ch = clampFloat(cell?.content_height, 20, 100, 100) / 100;
+  const height = innerHeight * ch;
   const alignX = pickChoice(cell?.align_x, DEMO_TABLEAU_CELL_ALIGNS, 'center');
   const alignY = pickChoice(cell?.align_y, DEMO_TABLEAU_CELL_ALIGNS, 'center');
   const left = rect.left + alignOffset(alignX, rect.width - width);
@@ -2569,6 +2567,7 @@ export function normalizeText(raw) {
     },
     width: hasWidth ? clampInt(data.width, 40, 2000, 400) : null,
     persist_until_click: Boolean(data.persist_until_click),
+    hide_when_expanded: Boolean(data.hide_when_expanded),
     style: normalizeTextStyle(data.style),
     enter: normalizeTextTransition(data.enter, DEMO_TEXT_ENTER_DEFAULTS, DEMO_TEXT_ENTER_EFFECTS),
     exit: normalizeTextTransition(data.exit, DEMO_TEXT_EXIT_DEFAULTS, DEMO_TEXT_EXIT_EFFECTS),

@@ -138,16 +138,20 @@ function DemoMosaicTile({
 
     if (isImage) {
       const image = imageRef.current;
+      const decoded = () => {
+        if (image?.decode) image.decode().catch(() => null).then(done);
+        else done();
+      };
       if (!image || image.complete) {
-        done();
-        return undefined;
+        decoded();
+        return () => { cancelled = true; };
       }
-      image.addEventListener('load', done, { once: true });
+      image.addEventListener('load', decoded, { once: true });
       image.addEventListener('error', done, { once: true });
       fallbackId = window.setTimeout(done, 4000);
       return () => {
         cancelled = true;
-        image.removeEventListener('load', done);
+        image.removeEventListener('load', decoded);
         image.removeEventListener('error', done);
         window.clearTimeout(fallbackId);
       };
@@ -206,7 +210,7 @@ function DemoMosaicTile({
       if (raf) cancelAnimationFrame(raf);
       if (fallbackId) window.clearTimeout(fallbackId);
     };
-  }, [isVideo, isImage, screen?.image_url, runner.mapRef, slotId, stage]);
+  }, [isVideo, isImage, screen?.image_url, videoUrl, runner.mapRef, slotId, stage]);
 
   useEffect(() => {
     if (!playing || paintedRef.current) return undefined;

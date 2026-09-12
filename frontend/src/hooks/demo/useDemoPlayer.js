@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
+import { warmDemoImages } from '../../utils/demoMedia';
 import {
   DEMO_CAMERA_MODE,
   DEMO_DEFAULT_TABLEAU_MAP_REVEAL,
@@ -470,6 +471,7 @@ export function useDemoPlayer({ actions, data }) {
   const [hideFinishedTexts, setHideFinishedTexts] = useState(false);
   const [mosaicRuntime, setMosaicRuntime] = useState(EMPTY_MOSAIC);
   const [tableauRuntime, setTableauRuntime] = useState(EMPTY_TABLEAU);
+  useEffect(() => warmDemoImages(scenario), [scenario]);
   const [tableauRevealAnim, setTableauRevealAnim] = useState(EMPTY_ANIMATION);
 
   const actionsRef = useRef(actions);
@@ -1431,34 +1433,13 @@ export function useDemoPlayer({ actions, data }) {
     clearMosaicTransitionTimer();
 
     if (prev.active && prev.presetId) {
-      const parkWarm = () => {
-        setMosaicRuntime({
-          ...prev,
-          warming: true,
-          pendingReveal: false,
-          transitioning: null,
-          focusHidden: false,
-          mode: 'grid',
-          focusSlot: null,
-          reveal: DEMO_MOSAIC_REVEAL.ALL,
-          staggerMs: 0,
-          handoff: false,
-          fromSlot: null,
-          incomingSlot: null,
-        });
-      };
-      if (animate && !prev.warming) {
-        setMosaicRuntime({
-          ...prev,
-          transitioning: 'exit',
-          focusHidden: true,
-          mode: 'grid',
-        });
-        mosaicTransitionTimerRef.current = setTimeout(parkWarm, prev.transitionMs || 700);
-        return;
-      }
-      parkWarm();
-      return;
+      // Обычный этап после развёрнутого слота должен сразу получить живую
+      // карту. Сетка появляется только по явному действию SHOW_GRID или
+      // COLLAPSE, поэтому здесь полностью снимаем mosaic-оболочку одним
+      // обновлением состояния, без промежуточного exit-кадра.
+      mosaicRuntimeRef.current = EMPTY_MOSAIC;
+      setMosaicRuntime(EMPTY_MOSAIC);
+      return { holdPlayback: false };
     }
 
     setMosaicRuntime({ ...EMPTY_MOSAIC });
@@ -2091,6 +2072,17 @@ export function useDemoPlayer({ actions, data }) {
       goTo(stageIndex, { beat: beatIndex + 1, skipEnter: true });
       return;
     }
+    if (!waitingForPresenter) {
+      const manualIndex = programItems.findIndex((candidate, index) => (
+        index > stageIndex
+        && (Boolean(candidate.item?.wait_for_presenter)
+          || candidate.beats?.some(beatWaitsForClick))
+      ));
+      if (manualIndex !== -1) {
+        goTo(manualIndex);
+        return;
+      }
+    }
     if (moveToNextItem()) return;
     if (scenario?.loop && programItems.length) goTo(0);
   }, [
@@ -2101,6 +2093,7 @@ export function useDemoPlayer({ actions, data }) {
     scenario,
     stageIndex,
     status,
+    waitingForPresenter,
   ]);
 
   const prev = useCallback(() => {

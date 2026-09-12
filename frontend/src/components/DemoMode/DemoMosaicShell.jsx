@@ -1054,7 +1054,7 @@ function DemoMosaicShell({
         {showFocus ? <div className="demo-mosaic__focus-caption" style={{
           inset: animKind === ANIM.COVER ? clipInset.slice(6, -1) : 0,
           transition: !flipPrep && animKind === ANIM.COVER ? `inset ${phaseMs}ms ${cssEasing}` : 'none',
-        }}><DemoMosaicScreenText text={coverScreen?.text} /></div> : null}
+        }}><DemoMosaicScreenText text={coverScreen?.text} expanded /></div> : null}
       </div>
       <DemoCueMark value={cue} size="lg" />
     </div>

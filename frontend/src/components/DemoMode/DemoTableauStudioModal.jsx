@@ -1510,7 +1510,7 @@ export default function DemoTableauStudioModal({
                           block={block}
                           style={{
                             width: `${cell.content_width ?? 100}%`,
-                            height: '100%',
+                            height: `${cell.content_height ?? 100}%`,
                           }}
                         />
                       ) : (
@@ -1518,7 +1518,7 @@ export default function DemoTableauStudioModal({
                           className="demo-tableau-studio-modal__placement-missing"
                           style={{
                             width: `${cell.content_width ?? 100}%`,
-                            height: '100%',
+                            height: `${cell.content_height ?? 100}%`,
                           }}
                         >
                           {isBridge ? 'Мост' : 'Пусто'}

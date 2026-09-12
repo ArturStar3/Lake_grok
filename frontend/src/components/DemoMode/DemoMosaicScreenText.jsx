@@ -1,8 +1,8 @@
 import { buildDemoTextStyles } from '../../utils/demoTextStyle';
 
 /** A screen caption stays with its panel during expansion and collapse. */
-export default function DemoMosaicScreenText({ text }) {
-  if (!text?.content) return null;
+export default function DemoMosaicScreenText({ text, expanded = false }) {
+  if (!text?.content || (expanded && text.hide_when_expanded)) return null;
   const styles = buildDemoTextStyles(text);
   return <div className="demo-mosaic-screen-text" style={{
     ...styles.box,

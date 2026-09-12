@@ -5,7 +5,7 @@ import { DEMO_BLACKOUT } from '../../hooks/demo/useDemoPlayer';
 import { getToolIcon, getToolLabel } from '../../utils/demoScenario';
 import './DemoPlaybackBar.css';
 
-const AUTO_HIDE_MS = 4000;
+const AUTO_HIDE_MS = 1800;
 
 /**
  * HUD управления показом: переход по этапам, пауза автопрокрутки, прогресс, выход.

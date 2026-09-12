@@ -79,6 +79,7 @@ export default function DemoMosaicScreenEditor({ screen, onChange, onBusyChange,
         <input type="number" min={0} max={100} value={Math.round(text.screen[axis] * 100)} onChange={(e) => patchText({ screen: { ...text.screen, [axis]: Number(e.target.value) / 100 } })} />
       </label>)}
       <label className="demo-checkbox"><input type="checkbox" checked={text.style.background.enabled} onChange={(e) => patchStyle({ background: { ...text.style.background, enabled: e.target.checked } })} /><span>Подложка под текстом</span></label>
+      <label className="demo-checkbox"><input type="checkbox" checked={Boolean(text.hide_when_expanded)} onChange={(e) => patchText({ hide_when_expanded: e.target.checked })} /><span>Скрывать при разворачивании экрана</span></label>
       <p className="demo-field__hint">Текст принадлежит этому экрану и остаётся на нём при разворачивании. Пустое поле скрывает текст.</p>
     </fieldset>
   </>;
