@@ -38,6 +38,11 @@ export default function DemoScannerLayer({ scanner, playing = true }) {
   const visibleRef = useRef(3);
   const length = useMemo(() => documentLength(config.document), [config.document]);
   const complete = state.draining && !state.cards.length;
+  const status = complete ? 'ОБРАБОТКА ЗАВЕРШЕНА' : state.draining ? 'ФИНАЛЬНЫЙ ПЕРЕНОС' : 'СИНТЕЗ ДОКУМЕНТА';
+  const documentName = config.document.name || 'ДОКУМЕНТ';
+  const interpolate = (value) => String(value || '')
+    .replaceAll('{status}', status)
+    .replaceAll('{document}', documentName);
   const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
@@ -86,7 +91,7 @@ export default function DemoScannerLayer({ scanner, playing = true }) {
   }, [state.delivered, state.revealed, reduced]);
 
   return <div className={`demo-scanner ${!playing ? 'is-paused' : ''} ${reduced ? 'is-reduced' : ''}`}>
-    <header className="demo-scanner__header"><span>INFOLAKE <b>/</b> ДОКУМЕНТЫ</span><span>{complete ? 'ОБРАБОТКА ЗАВЕРШЕНА' : state.draining ? 'ФИНАЛЬНЫЙ ПЕРЕНОС' : 'СИНТЕЗ ДОКУМЕНТА'}</span></header>
+    <header className="demo-scanner__header"><span>{interpolate(config.header_left)}</span><span>{interpolate(config.header_right)}</span></header>
     <div className="demo-scanner__workspace">
       <section className="demo-scanner__source">
         <div className="demo-scanner__label">01 / ИСТОЧНИКИ <span>{state.delivered} / {config.images.length}</span></div>
@@ -110,7 +115,7 @@ export default function DemoScannerLayer({ scanner, playing = true }) {
         <div className="demo-scanner__label">02 / РЕЗУЛЬТАТ <span>{Math.floor(length ? state.revealed / length * 100 : 0)}%</span></div>
         <div ref={paperRef} className="demo-scanner__paper-scroll">
           <article className="demo-scanner__paper" aria-label={config.document.name || 'Результат сканирования'}>
-            <div className="demo-scanner__paper-meta">INFOLAKE / {config.document.name || 'ДОКУМЕНТ'}</div>
+            <div className="demo-scanner__paper-meta">{interpolate(config.paper_meta)}</div>
             <DocumentText document={config.document} revealed={state.revealed} effect={config.effect} tick={state.tick} />
           </article>
         </div>

@@ -87,6 +87,20 @@
     #0b1220;
 }
 
+.demo-tableau__video {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0b1220;
+}
+
+.demo-tableau--gallery .demo-tableau__video + .demo-tableau__caption {
+  z-index: 5;
+}
+
 .demo-tableau__nomap-bg {
   position: absolute;
   inset: 0;

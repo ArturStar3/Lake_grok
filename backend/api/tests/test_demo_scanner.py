@@ -80,6 +80,16 @@ class DemoScannerImportTests(SimpleTestCase):
         self.assertEqual(result['effect'], 'letters')
         self.assertEqual(result['document']['blocks'][0]['runs'][0]['style'], {'fontWeight': 'bold'})
 
+    def test_normalization_keeps_configurable_scanner_labels(self):
+        result = normalize_scanner({
+            'header_left': 'АРХИВ / ОБЗОР',
+            'header_right': 'СТАТУС: {status}',
+            'paper_meta': 'ДОСЬЕ / {document}',
+        })
+        self.assertEqual(result['header_left'], 'АРХИВ / ОБЗОР')
+        self.assertEqual(result['header_right'], 'СТАТУС: {status}')
+        self.assertEqual(result['paper_meta'], 'ДОСЬЕ / {document}')
+
     def test_malformed_collections_are_safe(self):
         for raw in (None, [], {'images': 42, 'document': {'blocks': 17}}, {'document': {'blocks': [{'runs': 1}, {'type': 'table', 'rows': [1, [1]]}]}}):
             normalize_scanner(raw)

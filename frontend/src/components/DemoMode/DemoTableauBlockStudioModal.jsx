@@ -169,7 +169,7 @@ export default function DemoTableauBlockStudioModal({
     event.stopPropagation();
     setElementId(targetElement.id);
 
-    const canvas = canvasRef.current;
+    const canvas = canvasRef.current?.querySelector('.demo-tableau-block');
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
@@ -242,7 +242,7 @@ export default function DemoTableauBlockStudioModal({
           <div>
             <h2>Конструктор блоков</h2>
             <p className="demo-tableau-block-studio-modal__hint">
-              Шаблоны блоков: текст и картинки с перетаскиванием на холсте.
+              Текст и картинки масштабируются вместе. Размер шрифта задан на холсте 1920×1080; на сцене блок вписывается в рамку целиком.
             </p>
           </div>
           <div className="demo-tableau-block-studio-modal__header-actions">
@@ -314,7 +314,7 @@ export default function DemoTableauBlockStudioModal({
                   ref={canvasRef}
                   className="demo-tableau-block-studio-modal__artboard-inner"
                   style={{
-                    aspectRatio: `${aspectW} / ${aspectH}`,
+                    aspectRatio: `${aspectW * 19.2} / ${aspectH * 10.8}`,
                     ['--block-w']: aspectW,
                     ['--block-h']: aspectH,
                   }}

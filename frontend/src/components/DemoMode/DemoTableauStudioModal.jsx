@@ -5,6 +5,7 @@ import {
   DEMO_DEFAULT_TABLEAU_CAMERA,
   DEMO_DEFAULT_TABLEAU_GALLERY,
   DEMO_DEFAULT_TABLEAU_NETWORK,
+  DEMO_DEFAULT_TABLEAU_VIDEO,
   DEMO_DEFAULT_TABLEAU_MAP_REVEAL,
   DEMO_DEFAULT_TABLEAU_OVERLAY,
   DEMO_DEFAULT_TABLEAU_TILT,
@@ -48,7 +49,7 @@ import {
   computeGallerySettleRects,
 } from '../../utils/demoTableauGalleryLayout';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
-import { uploadDemoTableauMedia } from '../../api/demoScenarios';
+import { uploadDemoMosaicMedia, uploadDemoTableauMedia } from '../../api/demoScenarios';
 import DemoScannerEditor from './DemoScannerEditor';
 import DemoScannerLayer from './DemoScannerLayer';
 import DemoNetworkEditor from './DemoNetworkEditor';
@@ -304,6 +305,8 @@ export default function DemoTableauStudioModal({
   const [blockStudioOpen, setBlockStudioOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [galleryBusy, setGalleryBusy] = useState(false);
+  const [galleryTargetCountry, setGalleryTargetCountry] = useState('');
+  const [galleryTargetQuery, setGalleryTargetQuery] = useState('');
   const [previewScale, setPreviewScale] = useState(1);
   const [monitorAspect, setMonitorAspect] = useState(() => {
     if (typeof window === 'undefined') return 16 / 9;
@@ -319,6 +322,7 @@ export default function DemoTableauStudioModal({
   const sceneRef = useRef(null);
   const paletteRef = useRef(null);
   const galleryFileRef = useRef(null);
+  const videoFileRef = useRef(null);
   const galleryRef = useRef(null);
   const libraryRef = useRef(library);
 
@@ -333,10 +337,12 @@ export default function DemoTableauStudioModal({
   const mapArrow = overlay.map_arrow || DEMO_DEFAULT_TABLEAU_OVERLAY.map_arrow;
   const cells = overlay.cells || [];
   const isGallery = isTableauGalleryPreset(preset);
+  const isVideo = preset?.variant === DEMO_TABLEAU_VARIANT.VIDEO;
   const isScanner = preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER;
   const isNetwork = preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK;
   const gallery = preset?.gallery || DEMO_DEFAULT_TABLEAU_GALLERY;
   const network = preset?.network || DEMO_DEFAULT_TABLEAU_NETWORK;
+  const video = preset?.video || DEMO_DEFAULT_TABLEAU_VIDEO;
   galleryRef.current = gallery;
   libraryRef.current = library;
 
@@ -348,9 +354,23 @@ export default function DemoTableauStudioModal({
       return {
         id: String(id),
         label: obj?.title || obj?.label || String(id),
+        country: obj?.country?.title || '',
       };
     });
   }, [assignedStage, objects]);
+
+  const galleryTargetCountries = useMemo(() => (
+    [...new Set(galleryTargetOptions.map((item) => item.country).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'ru'))
+  ), [galleryTargetOptions]);
+
+  const filteredGalleryTargetOptions = useMemo(() => {
+    const query = galleryTargetQuery.trim().toLocaleLowerCase('ru');
+    return galleryTargetOptions.filter((item) => (
+      (!galleryTargetCountry || item.country === galleryTargetCountry)
+      && (!query || item.label.toLocaleLowerCase('ru').includes(query))
+    ));
+  }, [galleryTargetCountry, galleryTargetOptions, galleryTargetQuery]);
 
   const allowedBlockIds = useMemo(
     () => new Set((library.blocks || []).map((b) => b.id)),
@@ -379,6 +399,16 @@ export default function DemoTableauStudioModal({
   const selectedGalleryRectIndex = selectedGalleryImage
     ? (gallery.images || []).findIndex((item) => item.id === selectedGalleryImage.id)
     : -1;
+  const visibleGalleryTargetOptions = useMemo(() => {
+    const selectedId = selectedGalleryImage?.target_id != null
+      ? String(selectedGalleryImage.target_id)
+      : '';
+    if (!selectedId || filteredGalleryTargetOptions.some((item) => item.id === selectedId)) {
+      return filteredGalleryTargetOptions;
+    }
+    const selected = galleryTargetOptions.find((item) => item.id === selectedId);
+    return selected ? [selected, ...filteredGalleryTargetOptions] : filteredGalleryTargetOptions;
+  }, [filteredGalleryTargetOptions, galleryTargetOptions, selectedGalleryImage]);
   const bridgeCell = cells.find((c) => c.role === 'bridge') || null;
 
   const canMakeBridge = useMemo(() => {
@@ -447,6 +477,11 @@ export default function DemoTableauStudioModal({
         ...partial,
       }),
     });
+  };
+
+  const patchVideo = (partial) => {
+    if (!preset) return;
+    patchPreset({ video: { ...video, ...partial } });
   };
 
   const handleAddPreset = () => {
@@ -596,6 +631,20 @@ export default function DemoTableauStudioModal({
       });
     } catch {
       // ошибка загрузки — оставляем текущий список
+    } finally {
+      setGalleryBusy(false);
+    }
+  };
+
+  const handleVideoFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !preset || readOnly) return;
+    setGalleryBusy(true);
+    try {
+      const data = await uploadDemoMosaicMedia(file);
+      if (!data?.url) return;
+      patchVideo({ video_url: data.url, video_media_id: data.id || null });
     } finally {
       setGalleryBusy(false);
     }
@@ -773,6 +822,8 @@ export default function DemoTableauStudioModal({
               {isScanner ? 'Сканирование изображений и заполнение документа из DOCX.' : isNetwork
                 ? 'Три логотипа образуют сеть взаимного обмена данными.' : isGallery
                 ? 'Галерея: кадры проявляются в центре и садятся на заданные места. Карту можно скрыть.'
+                : isVideo
+                  ? 'Видео показывается на весь экран; при необходимости добавьте надпись в инспекторе.'
                 : 'Планшетный режим: сетка блоков и стрелки к карте. Вид карты — из этапа.'}
             </p>
           </div>
@@ -782,7 +833,7 @@ export default function DemoTableauStudioModal({
                 Этапы…
               </button>
             ) : null}
-            {!isGallery && !isScanner && !isNetwork ? (
+            {!isGallery && !isVideo && !isScanner && !isNetwork ? (
               <button type="button" className="demo-btn demo-btn--ghost" onClick={handleOpenBlocks}>
                 Блоки…
               </button>
@@ -1310,6 +1361,31 @@ export default function DemoTableauStudioModal({
                   readOnly={readOnly}
                 />
               </>
+            ) : isVideo ? (
+              <div className="demo-tableau-studio-modal__video-preview">
+                {video.video_url ? (
+                  <video
+                    src={resolveMediaUrl(video.video_url)}
+                    muted
+                    controls
+                    loop={video.loop !== false}
+                    playsInline
+                    style={{ objectFit: video.object_fit || 'cover' }}
+                  />
+                ) : (
+                  <p className="demo-tableau-studio-modal__empty">Загрузите видео в инспекторе.</p>
+                )}
+                {caption.content ? <div className="demo-tableau-studio-modal__video-caption" style={{
+                  left: `${caption.x}%`,
+                  top: `${caption.y}%`,
+                  fontFamily: caption.font_family || 'Roboto',
+                  fontSize: `${caption.font_size ?? 17}px`,
+                  fontWeight: caption.font_weight ?? 700,
+                  color: caption.color || '#f8fafc',
+                  background: caption.background || 'rgba(15, 23, 42, 0.82)',
+                  border: `${caption.border?.width ?? 1}px solid ${caption.border?.color || 'rgba(255, 255, 255, 0.28)'}`,
+                }}>{caption.content}</div> : null}
+              </div>
             ) : (
               <>
                 <div
@@ -1432,7 +1508,6 @@ export default function DemoTableauStudioModal({
                       const inner = block ? (
                         <DemoTableauBlockView
                           block={block}
-                          contentScale={previewScale}
                           style={{
                             width: `${cell.content_width ?? 100}%`,
                             height: `${cell.content_height ?? 100}%`,
@@ -1598,7 +1673,6 @@ export default function DemoTableauStudioModal({
                                   <span className="demo-tableau-studio-modal__palette-thumb">
                                     <DemoTableauBlockView
                                       block={block}
-                                      contentScale={0.2}
                                       style={{ width: '100%', height: '100%' }}
                                     />
                                   </span>
@@ -1638,6 +1712,46 @@ export default function DemoTableauStudioModal({
               <p className="demo-tableau-studio-modal__hint">
                 Кнопки выбора логотипов находятся под превью.
               </p>
+            ) : isVideo ? (
+              <fieldset className="demo-inspector__group" disabled={readOnly}>
+                <legend>Полноэкранное видео</legend>
+                <input
+                  ref={videoFileRef}
+                  type="file"
+                  accept="video/mp4,video/webm"
+                  hidden
+                  onChange={handleVideoFile}
+                />
+                <button
+                  type="button"
+                  className="demo-btn demo-btn--ghost"
+                  disabled={galleryBusy}
+                  onClick={() => videoFileRef.current?.click()}
+                >
+                  {galleryBusy ? 'Загрузка…' : (video.video_url ? 'Заменить видео' : 'Загрузить видео')}
+                </button>
+                {video.video_url ? (
+                  <button
+                    type="button"
+                    className="demo-btn demo-btn--ghost"
+                    onClick={() => patchVideo({ video_url: null, video_media_id: null })}
+                  >
+                    Убрать видео
+                  </button>
+                ) : null}
+                <p className="demo-tableau-studio-modal__hint">MP4 или WebM, до 80 МБ. Надпись задаётся в общих настройках пресета.</p>
+                <label className="demo-field">
+                  <span className="demo-field__label">Заполнение экрана</span>
+                  <select value={video.object_fit || 'cover'} onChange={(e) => patchVideo({ object_fit: e.target.value })}>
+                    <option value="cover">Заполнить с обрезкой</option>
+                    <option value="contain">Целиком, без обрезки</option>
+                  </select>
+                </label>
+                <label className="demo-checkbox">
+                  <input type="checkbox" checked={video.loop !== false} onChange={(e) => patchVideo({ loop: e.target.checked })} />
+                  <span className="demo-checkbox__text">Повторять видео</span>
+                </label>
+              </fieldset>
             ) : isGallery ? (
               <fieldset className="demo-inspector__group" disabled={readOnly}>
                 <legend>Галерея</legend>
@@ -1787,21 +1901,51 @@ export default function DemoTableauStudioModal({
                         На выбранном этапе нет объектов. Добавьте шаг «Объекты» в этапе.
                       </p>
                     ) : (
-                      <label className="demo-field">
-                        <span className="demo-field__label">Объект на карте</span>
-                        <select
-                          value={selectedGalleryImage.target_id || ''}
-                          onChange={(e) => patchGalleryImage(
-                            selectedGalleryImage.id,
-                            { target_id: e.target.value || null },
-                          )}
-                        >
-                          <option value="">Не выбран</option>
-                          {galleryTargetOptions.map((item) => (
-                            <option key={item.id} value={item.id}>{item.label}</option>
-                          ))}
-                        </select>
-                      </label>
+                      <>
+                        {galleryTargetCountries.length > 1 ? (
+                          <label className="demo-field">
+                            <span className="demo-field__label">Страна объекта</span>
+                            <select
+                              value={galleryTargetCountry}
+                              onChange={(e) => setGalleryTargetCountry(e.target.value)}
+                            >
+                              <option value="">Все страны</option>
+                              {galleryTargetCountries.map((country) => (
+                                <option key={country} value={country}>{country}</option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                        <label className="demo-field">
+                          <span className="demo-field__label">Поиск объекта</span>
+                          <input
+                            type="search"
+                            value={galleryTargetQuery}
+                            placeholder="Название объекта"
+                            onChange={(e) => setGalleryTargetQuery(e.target.value)}
+                          />
+                        </label>
+                        <label className="demo-field">
+                          <span className="demo-field__label">Объект на карте</span>
+                          <select
+                            value={selectedGalleryImage.target_id || ''}
+                            onChange={(e) => patchGalleryImage(
+                              selectedGalleryImage.id,
+                              { target_id: e.target.value || null },
+                            )}
+                          >
+                            <option value="">Не выбран</option>
+                            {visibleGalleryTargetOptions.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.country ? `${item.label} · ${item.country}` : item.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {!filteredGalleryTargetOptions.length ? (
+                          <p className="demo-tableau-studio-modal__hint">По заданным фильтрам объекты не найдены.</p>
+                        ) : null}
+                      </>
                     )}
                   </>
                 ) : (

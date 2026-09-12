@@ -539,7 +539,7 @@ export default function DemoMosaicStudioModal({
                 ) : (
                   <>
                     <label className="demo-field">
-                      <span className="demo-field__label">Этап в сетке</span>
+                      <span className="demo-field__label">Этап в свёрнутом режиме</span>
                       <select
                         value={screen.stage_id || ''}
                         onChange={(e) => patchScreen({ stage_id: e.target.value || null })}
@@ -550,12 +550,12 @@ export default function DemoMosaicStudioModal({
                       </select>
                     </label>
                     <label className="demo-field">
-                      <span className="demo-field__label">Этап при разворачивании</span>
+                      <span className="demo-field__label">Этап в развёрнутом режиме</span>
                       <select
                         value={screen.expand_stage_id || ''}
                         onChange={(e) => patchScreen({ expand_stage_id: e.target.value || null })}
                       >
-                        <option value="">Как в сетке</option>
+                        <option value="">Как в свёрнутом режиме</option>
                         {stages.map((stage) => (
                           <option key={stage.id || stage.key} value={String(stage.id || stage.key)}>
                             {stage.title || 'Без названия'}

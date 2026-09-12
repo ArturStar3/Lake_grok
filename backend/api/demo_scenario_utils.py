@@ -164,7 +164,7 @@ DEFAULT_TABLEAU_CAMERA = {
     'ease_linearity': 0.3,
     'padding': 72,
 }
-TABLEAU_VARIANTS = ('tablet', 'gallery', 'scanner', 'network')
+TABLEAU_VARIANTS = ('tablet', 'gallery', 'video', 'scanner', 'network')
 TABLEAU_GALLERY_ENTER = (
     'center_zoom', 'fade_scale', 'slide_up', 'slide_left', 'slide_right', 'blur_in',
     'from_object',
@@ -187,6 +187,12 @@ DEFAULT_TABLEAU_GALLERY = {
     'overlap_offset_pct': 4,
     'overlap_rotate_deg': 3,
     'images': [],
+}
+DEFAULT_TABLEAU_VIDEO = {
+    'video_url': None,
+    'video_media_id': None,
+    'object_fit': 'cover',
+    'loop': True,
 }
 MOSAIC_CONTENT_TYPES = ('stage', 'video', 'image')
 DEFAULT_SEQUENCE_TRANSITION = {
@@ -1373,6 +1379,17 @@ def normalize_tableau_gallery(raw):
     }
 
 
+def normalize_tableau_video(raw):
+    data = raw if isinstance(raw, dict) else {}
+    video_url = data.get('video_url') if isinstance(data.get('video_url'), str) else ''
+    return {
+        'video_url': video_url.strip()[:2000] or None,
+        'video_media_id': _optional_id(data.get('video_media_id')),
+        'object_fit': _choice(data.get('object_fit'), ('contain', 'cover'), 'cover'),
+        'loop': _as_bool(data.get('loop'), True),
+    }
+
+
 def normalize_tableau_network(raw):
     data = raw if isinstance(raw, dict) else {}
     source_logos = data.get('logos') if isinstance(data.get('logos'), list) else []
@@ -1475,6 +1492,7 @@ def normalize_tableau_preset(raw, allowed_stage_ids=None, allowed_block_ids=None
         'stage_id': stage_id,
         'variant': _choice(data.get('variant'), TABLEAU_VARIANTS, 'tablet'),
         'gallery': normalize_tableau_gallery(data.get('gallery')),
+        'video': normalize_tableau_video(data.get('video')),
         'network': normalize_tableau_network(data.get('network')),
         'scanner': normalize_scanner(data.get('scanner')),
         'tilt': normalize_tableau_tilt(data.get('tilt')),

@@ -487,28 +487,25 @@ function DemoMosaicShell({
       return true;
     };
 
-    // Move the map centre from the slot to the screen centre while expanding
-    // its viewport over the neighbours, without distorting the map's aspect ratio.
+    // Reveal the fullscreen surface from the exact slot rectangle.  Keeping the
+    // surface stationary avoids the initial move towards the centre that is
+    // especially visible for a right-hand slot.
     if (useCover) {
-      const insetX = Math.max(0, (full.w - rect.w) / 2);
-      const insetY = Math.max(0, (full.h - rect.h) / 2);
-      const slotClip = `inset(${insetY}px ${insetX}px ${insetY}px ${insetX}px)`;
+      const slotClip = `inset(${Math.max(0, rect.t)}px ${Math.max(0, full.w - rect.l - rect.w)}px ${Math.max(0, full.h - rect.t - rect.h)}px ${Math.max(0, rect.l)}px)`;
       const fullClip = 'inset(0px 0px 0px 0px)';
       const expanding = direction === 'expand';
       if (!prepFrame(() => {
         setAnimKind(ANIM.COVER);
         setPhaseMs(transitionMs);
         setFocusGeom(full);
-        setTranslate(expanding ? toSlotTx : ZERO_TX);
+        setTranslate(ZERO_TX);
         setScale(IDENTITY_SCALE);
         setClipInset(expanding ? slotClip : fullClip);
         setFocusPhase(FOCUS_PHASE.FULL);
         setPanelVisible(true);
       })) return;
-      resizeLiveMap(mapRef?.current);
       afterPaint(() => {
         setClipInset(expanding ? fullClip : slotClip);
-        setTranslate(expanding ? ZERO_TX : toSlotTx);
         phaseTimerRef.current = setTimeout(() => {
           if (gen !== morphGenRef.current) return;
           if (expanding) commitFull();
@@ -644,7 +641,6 @@ function DemoMosaicShell({
     transitionMs,
     useCenterThenStretch,
     useCover,
-    mapRef,
   ]);
 
   useLayoutEffect(() => {

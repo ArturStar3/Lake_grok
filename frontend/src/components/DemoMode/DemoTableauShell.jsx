@@ -8,6 +8,7 @@ import {
   cellAlignStyle,
   bridgeSpacerPercent,
 } from '../../utils/demoScenario';
+import { resolveMediaUrl } from '../../utils/mediaUrl';
 import DemoTableauArrowSpark from './DemoTableauArrowSpark';
 import DemoTableauBlockView from './DemoTableauBlockView';
 import DemoTableauGalleryLayer from './DemoTableauGalleryLayer';
@@ -125,11 +126,13 @@ function DemoTableauShell({
   const [spark, setSpark] = useState(null);
   const sparkCtlRef = useRef({ schedule: null, cancelled: true, lastId: null });
   const overlayArrowsRef = useRef([]);
+  const videoRef = useRef(null);
 
   const active = Boolean(tableauRuntime?.active);
   const isScanner = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.SCANNER;
   const isNetwork = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.NETWORK;
-  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY || isScanner || isNetwork;
+  const isVideo = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.VIDEO;
+  const isGallery = tableauRuntime?.variant === DEMO_TABLEAU_VARIANT.GALLERY || isVideo || isScanner || isNetwork;
   const phase = tableauRuntime?.phase || (active ? 'active' : 'idle');
   const tilt = tableauRuntime?.tilt || {};
   const blocks = tableauRuntime?.blocks || [];
@@ -162,6 +165,19 @@ function DemoTableauShell({
   }, [overlaysVisible, overlay, mapFrame]);
 
   overlayArrowsRef.current = overlayArrows;
+  const videoUrl = isVideo ? resolveMediaUrl(tableauRuntime?.video?.video_url) : null;
+
+  useEffect(() => {
+    const node = videoRef.current;
+    if (!node || !videoUrl) return undefined;
+    if (playing && phase !== 'exiting') {
+      const play = node.play();
+      if (play?.catch) play.catch(() => null);
+    } else {
+      node.pause();
+    }
+    return undefined;
+  }, [playing, phase, videoUrl, runId]);
   const arrowsKey = useMemo(() => arrowsGeometryKey(overlayArrows), [overlayArrows]);
 
   const arrowDrawables = useMemo(
@@ -440,12 +456,12 @@ function DemoTableauShell({
         active ? 'demo-tableau--active' : 'demo-tableau--idle',
         active && tilted && !isGallery ? 'demo-tableau--tilted' : '',
         isGallery ? 'demo-tableau--gallery' : '',
-        (isNetwork || (isGallery && tableauRuntime?.gallery?.show_map === false)) ? 'demo-tableau--gallery-nomap' : '',
+        (isVideo || isNetwork || (isGallery && tableauRuntime?.gallery?.show_map === false)) ? 'demo-tableau--gallery-nomap' : '',
         phase === 'exiting' ? 'demo-tableau--exiting' : '',
       ].filter(Boolean).join(' ')}
       style={rootStyle}
     >
-      {(isNetwork || (isGallery && tableauRuntime?.gallery?.show_map === false)) ? (
+      {(isVideo || isNetwork || (isGallery && tableauRuntime?.gallery?.show_map === false)) ? (
         <div className="demo-tableau__nomap-bg" aria-hidden="true" />
       ) : null}
 
@@ -457,7 +473,39 @@ function DemoTableauShell({
 
       {active && isScanner ? <DemoScannerLayer key={runId} scanner={tableauRuntime.scanner} playing={playing && phase !== 'exiting'} /> : null}
       {active && isNetwork ? <DemoNetworkLayer key={runId} logos={tableauRuntime.network?.logos} playing={playing && phase !== 'exiting'} /> : null}
-      {active && isGallery && !isScanner && !isNetwork ? (
+      {active && isVideo && videoUrl ? (
+        <>
+          <video
+            ref={videoRef}
+            className="demo-tableau__video"
+            src={videoUrl}
+            muted
+            autoPlay
+            loop={tableauRuntime.video.loop !== false}
+            playsInline
+            preload="auto"
+            style={{ objectFit: tableauRuntime.video.object_fit || 'cover' }}
+          />
+          {caption?.content ? (
+            <div
+              className="demo-tableau__caption demo-tableau__caption--visible"
+              style={{
+                left: `${caption.x}%`,
+                top: `${caption.y}%`,
+                fontFamily: caption.font_family || 'Roboto',
+                fontSize: `${caption.font_size ?? 17}px`,
+                fontWeight: caption.font_weight ?? 700,
+                color: caption.color || '#f8fafc',
+                background: caption.background || 'rgba(15, 23, 42, 0.82)',
+                border: `${caption.border?.width ?? 1}px solid ${caption.border?.color || 'rgba(255, 255, 255, 0.28)'}`,
+              }}
+            >
+              {caption.content}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {active && isGallery && !isVideo && !isScanner && !isNetwork ? (
         <>
           <DemoTableauGalleryLayer tableauRuntime={tableauRuntime} objects={objects} />
           {caption?.content ? (

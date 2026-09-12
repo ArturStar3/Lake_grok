@@ -426,6 +426,7 @@ export const DEMO_DEFAULT_TABLEAU_CAMERA = {
 export const DEMO_TABLEAU_VARIANT = {
   TABLET: 'tablet',
   GALLERY: 'gallery',
+  VIDEO: 'video',
   SCANNER: 'scanner',
   NETWORK: 'network',
 };
@@ -433,6 +434,7 @@ export const DEMO_TABLEAU_VARIANT = {
 export const DEMO_TABLEAU_VARIANTS = [
   { id: DEMO_TABLEAU_VARIANT.TABLET, label: 'Планшетный режим' },
   { id: DEMO_TABLEAU_VARIANT.GALLERY, label: 'Галерея на карте' },
+  { id: DEMO_TABLEAU_VARIANT.VIDEO, label: 'Полноэкранное видео' },
   { id: DEMO_TABLEAU_VARIANT.SCANNER, label: 'Сканирование документов' },
   { id: DEMO_TABLEAU_VARIANT.NETWORK, label: 'Обмен информацией' },
 ];
@@ -504,6 +506,13 @@ export const DEMO_DEFAULT_TABLEAU_GALLERY = {
 
 export const DEMO_DEFAULT_TABLEAU_NETWORK = {
   logos: [{ src: '', title: '' }, { src: '', title: '' }, { src: '', title: '' }],
+};
+
+export const DEMO_DEFAULT_TABLEAU_VIDEO = {
+  video_url: null,
+  video_media_id: null,
+  object_fit: 'cover',
+  loop: true,
 };
 
 export const DEMO_MOSAIC_CONTENT = {
@@ -1704,6 +1713,18 @@ export function normalizeTableauGallery(raw) {
   };
 }
 
+export function normalizeTableauVideo(raw) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  return {
+    video_url: typeof data.video_url === 'string' && data.video_url.trim()
+      ? data.video_url.trim().slice(0, 2000)
+      : null,
+    video_media_id: optionalTableauId(data.video_media_id),
+    object_fit: pickChoice(data.object_fit, ['contain', 'cover'], 'cover'),
+    loop: data.loop === undefined ? true : Boolean(data.loop),
+  };
+}
+
 export function normalizeTableauNetwork(raw) {
   const data = raw && typeof raw === 'object' ? raw : {};
   const rawLogos = Array.isArray(data.logos) ? data.logos : [];
@@ -1869,6 +1890,7 @@ export function normalizeTableauPreset(raw, allowedBlockIds = null) {
       DEMO_TABLEAU_VARIANT.TABLET,
     ),
     gallery: normalizeTableauGallery(data.gallery),
+    video: normalizeTableauVideo(data.video),
     network: normalizeTableauNetwork(data.network),
     scanner: normalizeScanner(data.scanner),
     tilt: normalizeTableauTilt(data.tilt),
@@ -1950,6 +1972,7 @@ export function createDefaultTableauPreset(overrides = {}) {
     stage_id: null,
     variant: DEMO_TABLEAU_VARIANT.TABLET,
     gallery: { ...DEMO_DEFAULT_TABLEAU_GALLERY, images: [] },
+    video: { ...DEMO_DEFAULT_TABLEAU_VIDEO },
     network: { ...DEMO_DEFAULT_TABLEAU_NETWORK, logos: DEMO_DEFAULT_TABLEAU_NETWORK.logos.map((logo) => ({ ...logo })) },
     tilt: { ...DEMO_DEFAULT_TABLEAU_TILT },
     border_radius_px: DEMO_DEFAULT_TABLEAU_BORDER_RADIUS,

@@ -1,21 +1,37 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import './DemoTableauBlockView.css';
 
 /**
  * Визуализация шаблона блока (элементы в % внутри блока).
- * contentScale — масштаб px-метрик для превью студии (сцена / монитор).
+ * Единый холст 1920×1080: размеры блока заданы в процентах от него.
+ * Холст целиком вписывается в доступную рамку без изменения пропорций.
  * enableBlur — backdrop-filter (студия); в показе выключать: blur поверх 3D-карты дорог.
  */
 export default function DemoTableauBlockView({
   block,
   className = '',
   style,
-  contentScale = 1,
   enableBlur = true,
   children,
 }) {
+  const hostRef = useRef(null);
+  const hasBlock = Boolean(block);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return undefined;
+    const update = () => setSize({ width: host.clientWidth, height: host.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [hasBlock]);
   if (!block) return null;
-  const scale = Number.isFinite(contentScale) && contentScale > 0 ? contentScale : 1;
+  const designWidth = (block.width || 22) * 19.2;
+  const designHeight = (block.height || 28) * 10.8;
+  const fit = Math.min(size.width / designWidth, size.height / designHeight);
+  const scale = 1;
   const fill = block.fill || {};
   const border = block.border || {};
   const bg = fill.color || (enableBlur ? 'rgba(15,23,42,0.55)' : 'rgba(15,23,42,0.82)');
@@ -24,8 +40,9 @@ export default function DemoTableauBlockView({
   const borderWidth = (border.width ?? 1) * scale;
 
   return (
+    <div ref={hostRef} className={className} style={{ position: 'relative', ...style }}>
     <div
-      className={['demo-tableau-block', className].filter(Boolean).join(' ')}
+      className="demo-tableau-block"
       style={{
         borderRadius: `${radiusPx}px`,
         background: bg,
@@ -34,8 +51,13 @@ export default function DemoTableauBlockView({
         boxShadow: `0 ${12 * scale}px ${32 * scale}px rgba(0,0,0,0.35)`,
         ...(enableBlur ? { backdropFilter: 'blur(10px)' } : null),
         overflow: 'visible',
-        position: 'relative',
-        ...style,
+        position: 'absolute',
+        width: `${designWidth}px`,
+        height: `${designHeight}px`,
+        left: `${(size.width - designWidth * fit) / 2}px`,
+        top: `${(size.height - designHeight * fit) / 2}px`,
+        transform: `scale(${fit})`,
+        transformOrigin: 'top left',
       }}
     >
       {(block.elements || []).map((el) => {
@@ -101,6 +123,7 @@ export default function DemoTableauBlockView({
         );
       })}
       {children}
+    </div>
     </div>
   );
 }

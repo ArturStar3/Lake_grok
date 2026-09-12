@@ -17,6 +17,9 @@ export function normalizeScanner(raw = {}) {
     scan_min_ms: minimum,
     scan_max_ms: Math.max(minimum, number('scan_max_ms', 4800, 500, 15000)),
     characters_per_second: number('characters_per_second', 80, 10, 500),
+    header_left: String(raw?.header_left ?? 'INFOLAKE / ДОКУМЕНТЫ').slice(0, 120),
+    header_right: String(raw?.header_right ?? '{status}').slice(0, 120),
+    paper_meta: String(raw?.paper_meta ?? 'INFOLAKE / {document}').slice(0, 200),
   };
 }
 

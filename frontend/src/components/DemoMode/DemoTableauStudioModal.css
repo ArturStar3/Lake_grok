@@ -162,6 +162,33 @@
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);
 }
 
+.demo-tableau-studio-modal__video-preview {
+  position: relative;
+  flex: 1;
+  min-height: 280px;
+  width: 100%;
+  overflow: hidden;
+  background: #0b1220;
+  border: 2px solid rgba(96, 165, 250, 0.85);
+}
+
+.demo-tableau-studio-modal__video-preview > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #0b1220;
+}
+
+.demo-tableau-studio-modal__video-caption {
+  position: absolute;
+  z-index: 2;
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
 .demo-tableau-studio-modal__monitor-label {
   position: absolute;
   left: 8px;
@@ -758,7 +785,8 @@
 .demo-tableau-studio-modal__gallery-frame img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   pointer-events: none;
   border-radius: 8px;
   display: block;

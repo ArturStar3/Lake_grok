@@ -60,6 +60,10 @@ export default function DemoScannerEditor({ value, onChange, readOnly }) {
     <span>{config.document.name || 'Документ не загружен'}</span>
     <p className="demo-tableau-studio-modal__hint">Сохраняются абзацы, основные стили текста и таблицы. Верстка страниц Word, колонтитулы, рисунки и сложная нумерация не воспроизводятся. Шрифты берутся с устройства. Длинный лист прокручивается автоматически.</p>
     <label>Появление текста<select value={config.effect} onChange={(e) => patch({ effect: e.target.value })}>{SCANNER_EFFECTS.map((effect) => <option key={effect.id} value={effect.id}>{effect.label}</option>)}</select></label>
+    <label>Шапка слева<input type="text" maxLength={120} value={config.header_left} onChange={(e) => patch({ header_left: e.target.value })} /></label>
+    <label>Шапка справа<input type="text" maxLength={120} value={config.header_right} onChange={(e) => patch({ header_right: e.target.value })} /></label>
+    <label>Метаданные листа<input type="text" maxLength={200} value={config.paper_meta} onChange={(e) => patch({ paper_meta: e.target.value })} /></label>
+    <p className="demo-tableau-studio-modal__hint">Используйте <code>{'{status}'}</code> для текущего статуса обработки и <code>{'{document}'}</code> для имени DOCX.</p>
     {[['scan_min_ms', 'Минимум на один проход, мс', 500, 15000], ['scan_max_ms', 'Максимум на один проход, мс', 500, 15000], ['characters_per_second', 'Символов в секунду', 10, 500]].map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={config[key]} onChange={(e) => patch({ [key]: Number(e.target.value) })} /></label>)}
     <p className="demo-tableau-studio-modal__hint">Для показа целиком оставьте автоматическую длительность такта (до {Math.ceil(scannerDurationMs(config) / 1000)} с). Каждый перенос открывает следующую порцию текста.</p>
     {busy && <p role="status">Загрузка…</p>}

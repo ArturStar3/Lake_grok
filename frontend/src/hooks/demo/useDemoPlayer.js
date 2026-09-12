@@ -91,7 +91,8 @@ const EMPTY_MOSAIC = {
 };
 
 function isGalleryNomapPreset(preset) {
-  return preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+  return preset?.variant === DEMO_TABLEAU_VARIANT.VIDEO
+    || preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER
     || preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK
     || (isTableauGalleryPreset(preset) && preset?.gallery?.show_map === false);
 }
@@ -99,7 +100,8 @@ function isGalleryNomapPreset(preset) {
 function isGalleryNomapRuntime(runtime) {
   return Boolean(
     runtime?.active
-    && (runtime?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+    && (runtime?.variant === DEMO_TABLEAU_VARIANT.VIDEO
+      || runtime?.variant === DEMO_TABLEAU_VARIANT.SCANNER
       || runtime?.variant === DEMO_TABLEAU_VARIANT.NETWORK
       || (runtime?.variant === DEMO_TABLEAU_VARIANT.GALLERY && runtime?.gallery?.show_map === false))
   );
@@ -112,6 +114,7 @@ const EMPTY_TABLEAU = {
   stageId: null,
   variant: DEMO_TABLEAU_VARIANT.TABLET,
   gallery: null,
+  video: null,
   tilt: {
     perspective: 1200,
     rotate_x: 58,
@@ -1470,11 +1473,19 @@ export function useDemoPlayer({ actions, data }) {
 
     if (item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU && item.tableauPreset) {
       const preset = item.tableauPreset;
-      if (preset.variant === DEMO_TABLEAU_VARIANT.SCANNER || preset.variant === DEMO_TABLEAU_VARIANT.NETWORK) {
+      if (
+        preset.variant === DEMO_TABLEAU_VARIANT.VIDEO
+        || preset.variant === DEMO_TABLEAU_VARIANT.SCANNER
+        || preset.variant === DEMO_TABLEAU_VARIANT.NETWORK
+      ) {
         tableauPoseReadyRef.current = true;
         tableauPendingEnterRef.current = null;
         setTableauRuntime({ ...EMPTY_TABLEAU, active: true, phase: 'active',
-          variant: preset.variant, scanner: preset.scanner, network: preset.network,
+          variant: preset.variant,
+          scanner: preset.scanner,
+          network: preset.network,
+          video: preset.video,
+          caption: preset.caption?.content ? { ...preset.caption } : null,
           presetId: preset.id, untiltMs: 0,
           runId: (tableauRuntimeRef.current?.runId || 0) + 1 });
         if (mosaicRuntimeRef.current?.active) setMosaicRuntime(EMPTY_MOSAIC);
@@ -1688,7 +1699,11 @@ export function useDemoPlayer({ actions, data }) {
 
       if (item.kind === DEMO_SEQUENCE_TYPE.TABLEAU) {
         const preset = item.tableauPreset;
-        if (preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER || preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK) {
+        if (
+          preset?.variant === DEMO_TABLEAU_VARIANT.VIDEO
+          || preset?.variant === DEMO_TABLEAU_VARIANT.SCANNER
+          || preset?.variant === DEMO_TABLEAU_VARIANT.NETWORK
+        ) {
           tableauPendingEnterRef.current = null;
           stopTableauReveal();
           return;

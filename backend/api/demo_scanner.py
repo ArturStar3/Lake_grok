@@ -100,6 +100,9 @@ def normalize_scanner(raw):
         'effect': raw.get('effect') if raw.get('effect') in ('letters', 'scramble', 'typewriter') else 'letters',
         'scan_min_ms': minimum, 'scan_max_ms': max(minimum, number('scan_max_ms', 4800, 500, 15000)),
         'characters_per_second': number('characters_per_second', 80, 10, 500),
+        'header_left': (raw.get('header_left') if isinstance(raw.get('header_left'), str) else 'INFOLAKE / ДОКУМЕНТЫ')[:120],
+        'header_right': (raw.get('header_right') if isinstance(raw.get('header_right'), str) else '{status}')[:120],
+        'paper_meta': (raw.get('paper_meta') if isinstance(raw.get('paper_meta'), str) else 'INFOLAKE / {document}')[:200],
     }
 
 
