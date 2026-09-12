@@ -42,7 +42,10 @@ UNFOLD = {
     ],
     'BORDER_RADIUS': '6px',
     'SIDEBAR': {
-        'show_search': True,
+        # Поиск Unfold открывается как модальное поле при загрузке админки в
+        # некоторых браузерах и перехватывает все клики. Навигация задана
+        # явно, поэтому отключаем этот нестабильный оверлей.
+        'show_search': False,
         'show_all_applications': False,
         'navigation': [
             {
