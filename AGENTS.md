@@ -27,7 +27,8 @@
 - Backend, from `backend/`: `python manage.py check`; targeted `python manage.py test <app-or-test-label>`; full `python manage.py test`. Tests switch to in-memory SQLite and disable migrations in `infolake/settings.py`.
 - Frontend, from `frontend/`: `npm run lint` and `npm run build`. There is no frontend test script.
 - Map style generation, from `frontend/`: `npm run build:map-style`. This rewrites both `tileserver/styles/infolake-unified.json` and `frontend/src/config/unifiedLayerMapping.json`; run it only when relevant and review both outputs.
-- Validate a Compose mode with its exact overlays, for example `docker compose -f docker-compose.yml -f docker-compose.server.yml config --quiet`, before starting it. Production offline startup is `docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never`; the PostgreSQL variant also includes `-f docker-compose.postgres.yml`.
+- Validate a Compose mode with its exact overlays, for example `docker compose -f docker-compose.yml -f docker-compose.server.yml config --quiet`, before starting it. Production offline startup is `docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --no-build --pull never`; the PostgreSQL variant also includes `-f docker-compose.postgres.yml`. The postgres overlay requires `POSTGRES_PASSWORD` in the root `.env`.
+- Offline image archives are built on a networked machine with `.\export-offline.ps1` (prod) and `.\export-offline.ps1 -Postgres` (prod + PostgreSQL 17). Do not commit `infolake_full_offline*.tar`; do update `offline-package-manifest-prod.txt` and `offline-package-manifest-prod_postgres.txt`.
 - Do not claim a check passed unless it was executed. For Markdown-only changes, path/command validation and diff review are sufficient; do not start services solely to validate prose.
 
 ## Local instructions
@@ -37,4 +38,4 @@
 - Tile/style work: `tileserver/AGENTS.md`
 - Nginx work: `nginx/AGENTS.md` (also inspect `frontend/deploy/`)
 
-For operational details, prefer the existing `PRODUCTION_LAUNCH.md`, `OFFLINE_MIGRATION.md`, `OFFLINE_DIAGNOSTICS.md`, and mode-specific `OFFLINE_DEPLOY_*.md` documents over duplicating them here.
+For operational details, prefer the existing `PRODUCTION_LAUNCH.md`, `OFFLINE_MIGRATION.md`, `OFFLINE_DIAGNOSTICS.md`, and mode-specific `OFFLINE_DEPLOY_*.md` documents over duplicating them here. Demonstration constructors and seed showcases are documented in `DEMO_MODE.md`.

@@ -11,7 +11,7 @@
 - Use `src/config/axios.js` and its `apiClient`/auth interceptors for API work. Base API requests at `/api/v1` through `getApiUrl()` so same-origin, direct dev, and direct production modes all continue to work.
 - JWT access, refresh, and user state are stored in `sessionStorage`. Preserve the single-refresh/retry behavior and the public-auth endpoint exceptions when changing authentication.
 - Keep route protection consistent with `ProtectedRoute` and backend module permissions. UI hiding is not authorization; backend permission behavior remains authoritative.
-- Resolve media URLs through the existing `src/utils/mediaUrl.js` behavior rather than embedding a backend host.
+- Resolve media URLs through the existing `src/utils/mediaUrl.js` behavior rather than embedding a backend host. Demonstration images/video use the same helper (`src/utils/demoMedia.js` for gallery warmup).
 
 ## Mapping and runtime modes
 
@@ -19,6 +19,7 @@
 - The default map is the generated `infolake-unified` vector style rendered by MapLibre inside Leaflet. `VITE_MAP_VECTOR=false` selects the legacy raster fallback. Preserve both unless the task explicitly removes one.
 - Overlay toggles depend on exact MapLibre IDs in `src/config/unifiedLayerMapping.json`. If source overlay styles change, regenerate through `npm run build:map-style` and review the generated style and mapping together.
 - Offline runtime assets must stay local. Attribution links are metadata, but code, tiles, glyphs, sprites, fonts, and images needed to render the app may not depend on an external host.
+- Demonstration UI is under `src/components/DemoMode/`, playback under `src/hooks/demo/`, and the scenario contract in `src/utils/demoScenario.js`. Mosaic/tableau field names must stay compatible with `backend/api/demo_scenario_utils.py`. Production images bake the SPA via `Dockerfile.server`; demo playback changes need a rebuilt nginx image before an offline tar export.
 
 ## Verification
 

@@ -12,6 +12,7 @@
 - Use the existing read/write serializer split and serializer validation where the surrounding resource does. Keep multi-model operations atomic and place substantial domain work in an existing or appropriately scoped service/helper module.
 - Apply module permissions and country scoping consistently. Do not replace custom permissions with plain `IsAuthenticated`, leak disallowed-country objects, or change deliberate not-found-versus-forbidden behavior without reviewing access tests.
 - Complex behavior is already separated into helpers/services, including target actions, operational-situation revisions, equipment zones/catalogs, reports, account workflows, and data exchange. Extend the relevant module instead of duplicating its rules in a view.
+- Demonstration scenarios live in `formular` models and `api/demo_scenario_utils.py`. Keep frontend `src/utils/demoScenario.js` and this normalizer in sync for mosaic/tableau fields. Seed showcases are `formular/management/commands/seed_*_demo_scenario.py` (wired through `seed_demo_showcases`); demo fixtures sit under `formular/demo_assets/`. Unfold admin search is intentionally off (`unfold_settings.py` plus `templates/unfold/helpers/command.html`).
 - Preserve Russian UI/admin text and existing API field names unless a product change requires otherwise.
 
 ## Data and files
@@ -27,4 +28,4 @@
 - Run from `backend/`: `python manage.py check`.
 - Run the narrowest relevant label first, such as `python manage.py test accounts.tests.test_auth_api`, then `python manage.py test` for broad backend changes.
 - For model changes, also generate/review the migration and run the relevant tests. If local dependencies are unavailable, use an already-running `backend` service with `docker compose exec -T backend python manage.py ...` or report the limitation; do not start/rebuild production services just for a check.
-- There is no pytest configuration; use Django's test runner. Authentication, country scoping, destructive permissions, operational revisions, map settings, equipment zones, data exchange, and report changes need their corresponding regression coverage.
+- There is no pytest configuration; use Django's test runner. Authentication, country scoping, destructive permissions, operational revisions, map settings, equipment zones, data exchange, report, and demo-scenario changes need their corresponding regression coverage (`api.tests.test_demo_scenarios`, `formular.tests.test_seed_*`).
