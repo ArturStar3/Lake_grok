@@ -1510,7 +1510,7 @@ export default function DemoTableauStudioModal({
                           block={block}
                           style={{
                             width: `${cell.content_width ?? 100}%`,
-                            height: `${cell.content_height ?? 100}%`,
+                            height: '100%',
                           }}
                         />
                       ) : (
@@ -1518,7 +1518,7 @@ export default function DemoTableauStudioModal({
                           className="demo-tableau-studio-modal__placement-missing"
                           style={{
                             width: `${cell.content_width ?? 100}%`,
-                            height: `${cell.content_height ?? 100}%`,
+                            height: '100%',
                           }}
                         >
                           {isBridge ? 'Мост' : 'Пусто'}
@@ -2337,21 +2337,10 @@ export default function DemoTableauStudioModal({
                         })}
                       />
                     </label>
-                    <label className="demo-field">
-                      <span className="demo-field__label">
-                        Высота блока ({Math.round(selectedCell.content_height ?? 100)}%)
-                      </span>
-                      <input
-                        type="range"
-                        min={20}
-                        max={100}
-                        step={1}
-                        value={selectedCell.content_height ?? 100}
-                        onChange={(e) => patchSelectedCell({
-                          content_height: Number(e.target.value),
-                        })}
-                      />
-                    </label>
+                    <p className="demo-tableau-studio-modal__hint">
+                      Высота рамки равна высоте ряда. Положение текста и изображений
+                      внутри рамки задаётся в конструкторе блока.
+                    </p>
                     {selectedCellIds.size > 1 ? (
                       <p className="demo-tableau-studio-modal__hint">
                         Выбрано ячеек: {selectedCellIds.size}

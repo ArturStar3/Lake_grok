@@ -4,6 +4,7 @@ import {
   DEMO_TEXT_ALIGNS,
   DEMO_TEXT_FONTS,
   DEMO_TEXT_WEIGHTS,
+  DEMO_TABLEAU_CELL_ALIGNS,
   createDefaultTableauBlock,
   createDefaultTableauImageElement,
   createDefaultTableauTextElement,
@@ -169,7 +170,7 @@ export default function DemoTableauBlockStudioModal({
     event.stopPropagation();
     setElementId(targetElement.id);
 
-    const canvas = canvasRef.current?.querySelector('.demo-tableau-block');
+    const canvas = canvasRef.current?.querySelector('.demo-tableau-block__content');
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
@@ -411,6 +412,19 @@ export default function DemoTableauBlockStudioModal({
                       value={block.height}
                       onChange={(e) => patchBlock({ height: Number(e.target.value) })}
                     />
+                  </label>
+                  <label className="demo-field">
+                    <span className="demo-field__label">Расположение содержимого по высоте</span>
+                    <select
+                      value={block.content_align_y || 'center'}
+                      onChange={(e) => patchBlock({ content_align_y: e.target.value })}
+                    >
+                      {DEMO_TABLEAU_CELL_ALIGNS.map((align) => (
+                        <option key={align} value={align}>
+                          {align === 'start' ? 'Сверху' : align === 'end' ? 'Снизу' : 'По центру'}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="demo-field">
                     <span className="demo-field__label">Скругление ({block.border_radius_px ?? 12}px)</span>

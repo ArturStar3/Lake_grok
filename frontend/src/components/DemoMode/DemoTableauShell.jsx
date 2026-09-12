@@ -605,7 +605,7 @@ function DemoTableauShell({
                     className="demo-tableau__placement-block"
                     style={{
                       width: `${cell.content_width ?? 100}%`,
-                      height: `${cell.content_height ?? 100}%`,
+                      height: '100%',
                     }}
                   />
                 );

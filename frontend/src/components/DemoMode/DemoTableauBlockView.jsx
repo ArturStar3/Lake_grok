@@ -5,7 +5,7 @@ import './DemoTableauBlockView.css';
 /**
  * Визуализация шаблона блока (элементы в % внутри блока).
  * Единый холст 1920×1080: размеры блока заданы в процентах от него.
- * Холст целиком вписывается в доступную рамку без изменения пропорций.
+ * Рамка всегда занимает весь контейнер, а холст содержимого вписывается в неё.
  * enableBlur — backdrop-filter (студия); в показе выключать: blur поверх 3D-карты дорог.
  */
 export default function DemoTableauBlockView({
@@ -39,11 +39,21 @@ export default function DemoTableauBlockView({
   const radiusPx = (block.border_radius_px ?? 12) * scale;
   const borderWidth = (border.width ?? 1) * scale;
 
+  const alignY = block.content_align_y || 'center';
+  const contentTop = alignY === 'start'
+    ? 0
+    : alignY === 'end'
+      ? size.height - designHeight * fit
+      : (size.height - designHeight * fit) / 2;
+
   return (
-    <div ref={hostRef} className={className} style={{ position: 'relative', ...style }}>
     <div
-      className="demo-tableau-block"
+      ref={hostRef}
+      className={['demo-tableau-block', className].filter(Boolean).join(' ')}
       style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
         borderRadius: `${radiusPx}px`,
         background: bg,
         opacity: fill.opacity == null ? 1 : fill.opacity,
@@ -51,16 +61,22 @@ export default function DemoTableauBlockView({
         boxShadow: `0 ${12 * scale}px ${32 * scale}px rgba(0,0,0,0.35)`,
         ...(enableBlur ? { backdropFilter: 'blur(10px)' } : null),
         overflow: 'visible',
-        position: 'absolute',
-        width: `${designWidth}px`,
-        height: `${designHeight}px`,
-        left: `${(size.width - designWidth * fit) / 2}px`,
-        top: `${(size.height - designHeight * fit) / 2}px`,
-        transform: `scale(${fit})`,
-        transformOrigin: 'top left',
+        ...style,
       }}
     >
-      {(block.elements || []).map((el) => {
+      <div
+        className="demo-tableau-block__content"
+        style={{
+          position: 'absolute',
+          width: `${designWidth}px`,
+          height: `${designHeight}px`,
+          left: `${(size.width - designWidth * fit) / 2}px`,
+          top: `${contentTop}px`,
+          transform: `scale(${fit})`,
+          transformOrigin: 'top left',
+        }}
+      >
+        {(block.elements || []).map((el) => {
         if (el.type === 'image') {
           const src = resolveMediaUrl(el.src);
           return (
@@ -121,9 +137,9 @@ export default function DemoTableauBlockView({
             ))}
           </div>
         );
-      })}
-      {children}
-    </div>
+        })}
+        {children}
+      </div>
     </div>
   );
 }

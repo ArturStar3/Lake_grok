@@ -1033,6 +1033,7 @@ def normalize_tableau_block(raw, index=0):
         'title': title[:200],
         'width': _clamp_float(data.get('width', 22), 8, 80, 22.0),
         'height': _clamp_float(data.get('height', 28), 8, 70, 28.0),
+        'content_align_y': _choice(data.get('content_align_y'), TABLEAU_CELL_ALIGNS, 'center'),
         'border_radius_px': _clamp(
             data.get('border_radius_px', 12), 0, 48, 12,
         ),

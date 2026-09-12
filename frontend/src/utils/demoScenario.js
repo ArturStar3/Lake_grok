@@ -915,6 +915,7 @@ export function normalizeTableauBlock(raw, index = 0) {
     title,
     width: clampFloat(data.width, 8, 80, 22),
     height: clampFloat(data.height, 8, 70, 28),
+    content_align_y: pickChoice(data.content_align_y, DEMO_TABLEAU_CELL_ALIGNS, 'center'),
     border_radius_px: clampInt(data.border_radius_px, 0, 48, 12),
     fill: normalizeTableauFill(data.fill),
     border: normalizeTableauBorder(data.border),
@@ -1233,9 +1234,11 @@ export function cellContentRect(overlay, cell, metrics = null) {
   const innerTop = rect.top + Math.min(offsetTop, Math.max(0, rect.height - 0.5));
   const innerHeight = Math.max(0.5, rect.bottom - innerTop);
   const cw = clampFloat(cell?.content_width, 20, 100, 100) / 100;
-  const ch = clampFloat(cell?.content_height, 20, 100, 100) / 100;
+  // Рамка блока всегда занимает высоту ряда. Это тот же прямоугольник,
+  // от которого строятся стрелки; content_height оставлен в данных для
+  // совместимости со старыми сценариями, но больше не сжимает рамку.
   const width = rect.width * cw;
-  const height = innerHeight * ch;
+  const height = innerHeight;
   const alignX = pickChoice(cell?.align_x, DEMO_TABLEAU_CELL_ALIGNS, 'center');
   const alignY = pickChoice(cell?.align_y, DEMO_TABLEAU_CELL_ALIGNS, 'center');
   const left = rect.left + alignOffset(alignX, rect.width - width);
