@@ -204,7 +204,7 @@ export default function DemoStageStudioModal({
     };
   }, [onChange, onTextMapApplyRef, stages]);
 
-  const playback = useMemo(() => buildStageBeats(stage?.steps || []), [stage]);
+  const playback = useMemo(() => buildStageBeats(stage?.steps || [], stage?.duration_ms), [stage]);
   const activeStep = stage?.steps?.[activeStepIndex] || null;
 
   return (
@@ -302,6 +302,12 @@ export default function DemoStageStudioModal({
                   <span className="demo-field__hint">
                     Цифра в правом верхнем углу на показе ({DEMO_CUE_MIN}–{DEMO_CUE_MAX}). Пусто — не показывать.
                   </span>
+                </label>
+                <label className="demo-field">
+                  <span className="demo-field__label">Длительность этапа, мс</span>
+                  <input type="number" min={0} max={600000} step={500} value={stage.duration_ms ?? 0}
+                    disabled={readOnly} onChange={(e) => patchStage({ duration_ms: Number(e.target.value) })} />
+                  <span className="demo-field__hint">0 — длительность определяется шагами. Большее значение добавляет время к последнему такту.</span>
                 </label>
                 <div className="demo-studio__pane-head">
                   <span>Шаги этапа</span>

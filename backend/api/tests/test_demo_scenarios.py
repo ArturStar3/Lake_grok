@@ -844,6 +844,29 @@ class DemoScenarioApiTests(APITestCase):
         self.assertEqual(patched_screens['a']['cue'], 3)
         self.assertEqual(patched_screens['b']['cue'], 4)
 
+    def test_stage_duration_round_trip(self):
+        headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
+        response = self.create_scenario(
+            headers,
+            steps=[],
+            stages=[{
+                'title': 'Длительный этап',
+                'duration_ms': 12500,
+                'steps': [build_step()],
+            }],
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['stages'][0]['duration_ms'], 12500)
+
+        patched = self.client.patch(
+            f'/api/v1/demo-scenarios/{response.data["id"]}/',
+            {'sequence': response.data['sequence']},
+            format='json',
+            **headers,
+        )
+        self.assertEqual(patched.status_code, status.HTTP_200_OK, patched.data)
+        self.assertEqual(patched.data['stages'][0]['duration_ms'], 12500)
+
     def test_invalid_cue_is_dropped(self):
         headers = auth_header(self.client, 'demo_admin', ADMIN_PASSWORD)
         stage_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'

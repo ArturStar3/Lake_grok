@@ -119,6 +119,7 @@ function DemoTableauShell({
   mapRef = null,
   objects = [],
   playing = true,
+  keepLoopingVideo = false,
   children,
 }) {
   const [tilted, setTilted] = useState(false);
@@ -170,14 +171,24 @@ function DemoTableauShell({
   useEffect(() => {
     const node = videoRef.current;
     if (!node || !videoUrl) return undefined;
-    if (playing && phase !== 'exiting') {
+    if ((playing || keepLoopingVideo) && phase !== 'exiting') {
       const play = node.play();
       if (play?.catch) play.catch(() => null);
     } else {
       node.pause();
     }
     return undefined;
-  }, [playing, phase, videoUrl, runId]);
+  }, [playing, keepLoopingVideo, phase, videoUrl, runId]);
+
+  const handleVideoEnded = useCallback(() => {
+    const node = videoRef.current;
+    // The presentation timer is paused while waiting for a click. A looping
+    // scenario keeps video running even for an older preset with loop off.
+    if (!node || !keepLoopingVideo || phase === 'exiting') return;
+    node.currentTime = 0;
+    const play = node.play();
+    if (play?.catch) play.catch(() => null);
+  }, [keepLoopingVideo, phase]);
   const arrowsKey = useMemo(() => arrowsGeometryKey(overlayArrows), [overlayArrows]);
 
   const arrowDrawables = useMemo(
@@ -481,7 +492,8 @@ function DemoTableauShell({
             src={videoUrl}
             muted
             autoPlay
-            loop={tableauRuntime.video.loop !== false}
+            loop={keepLoopingVideo || tableauRuntime.video.loop !== false}
+            onEnded={handleVideoEnded}
             playsInline
             preload="auto"
             style={{ objectFit: tableauRuntime.video.object_fit || 'cover' }}

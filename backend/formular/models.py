@@ -1593,6 +1593,11 @@ class DemoScenarioStage(models.Model):
         verbose_name='Номер позиции',
         help_text='Цифра в углу экрана для докладчика (1–99). Пусто — не показывать.',
     )
+    duration_ms = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Длительность этапа, мс',
+        help_text='0 — длительность определяется шагами этапа.',
+    )
 
     class Meta:
         verbose_name = 'Этап сценария демонстрации'

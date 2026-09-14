@@ -2647,6 +2647,7 @@ export function normalizeStage(raw, index = 0) {
     order: Number.isFinite(Number(data.order)) ? Number(data.order) : index,
     title: typeof data.title === 'string' ? data.title : '',
     cue: normalizeCue(data.cue),
+    duration_ms: clampInt(data.duration_ms, 0, DEMO_STEP_MAX_DURATION_MS, 0),
     steps: steps
       .filter((step) => step?.tool !== DEMO_TOOL.MOSAIC)
       .map((step, stepIndex) => normalizeStep(step, stepIndex))
@@ -2915,6 +2916,7 @@ export function serializeScenario(scenario) {
       id: stage.id,
       title: stage.title,
       cue: stage.cue,
+      duration_ms: stage.duration_ms,
       steps: stage.steps.map((step) => ({
         title: step.title,
         tool: step.tool,
@@ -3012,14 +3014,15 @@ export function buildScenarioStages(steps = []) {
  * Такты внутри одного этапа-шаблона. `on_click` внутри этапа — это новый такт,
  * а не отдельный слайд программы.
  */
-export function buildStageBeats(steps = []) {
+export function buildStageBeats(steps = [], durationMs = 0) {
   const rewritten = (steps || []).map((step, index) => (
     index > 0 && step.start_mode === DEMO_START_MODE.ON_CLICK
       ? { ...step, start_mode: DEMO_START_MODE.AFTER_PREVIOUS }
       : step
   ));
   const derived = buildScenarioStages(rewritten);
-  if (derived.length <= 1) return derived[0] || {
+  if (derived.length <= 1) {
+    const result = derived[0] || {
     index: 0,
     steps: rewritten,
     indices: rewritten.map((_, index) => index),
@@ -3028,7 +3031,14 @@ export function buildStageBeats(steps = []) {
     startMs: 0,
     endMs: 0,
     title: '',
-  };
+    };
+    return durationMs > 0 ? {
+      ...result,
+      beats: fitStageBeatsToDuration(result.beats, durationMs),
+      durationMs,
+      endMs: durationMs,
+    } : result;
+  }
   const beats = [];
   derived.forEach((stage) => {
     stage.beats.forEach((beat) => beats.push({ ...beat }));
@@ -3039,7 +3049,7 @@ export function buildStageBeats(steps = []) {
     beat.endMs = inner + beat.durationMs;
     inner = beat.endMs;
   });
-  return {
+  const result = {
     index: 0,
     steps: rewritten,
     indices: rewritten.map((_, index) => index),
@@ -3049,10 +3059,16 @@ export function buildStageBeats(steps = []) {
     endMs: inner,
     title: derived.find((stage) => stage.title)?.title || '',
   };
+  return durationMs > 0 ? {
+    ...result,
+    beats: fitStageBeatsToDuration(result.beats, durationMs),
+    durationMs,
+    endMs: durationMs,
+  } : result;
 }
 
 export function composeStateForStage(stage, beatIndex = Infinity) {
-  const playback = buildStageBeats(stage?.steps || []);
+  const playback = buildStageBeats(stage?.steps || [], stage?.duration_ms);
   return composeStateAtStage([playback], 0, beatIndex);
 }
 
@@ -3116,7 +3132,7 @@ export function mosaicDurationMs(preset, stages = []) {
   const fromStages = (preset?.screens || []).reduce((max, screen) => {
     const stage = findStage(stages, mosaicScreenGridStageId(screen));
     if (!stage) return max;
-    const duration = buildStageBeats(stage.steps).durationMs;
+    const duration = buildStageBeats(stage.steps, stage.duration_ms).durationMs;
     return Math.max(max, duration);
   }, 0);
   return fromStages || DEMO_DEFAULT_STEP_DURATION_MS;
@@ -3136,7 +3152,7 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
       const slot = item.slot || preset?.expandable_slots?.[0] || preset?.screens?.[0]?.id || null;
       const screen = (preset?.screens || []).find((entry) => entry.id === slot);
       const stage = findStage(stages, mosaicScreenExpandStageId(screen));
-      const stageMs = buildStageBeats(stage?.steps || []).durationMs;
+      const stageMs = buildStageBeats(stage?.steps || [], stage?.duration_ms).durationMs;
       return Math.max(morphMs, stageMs, DEMO_DEFAULT_STEP_DURATION_MS);
     }
     return mosaicDurationMs(preset, stages);
@@ -3144,7 +3160,7 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
   if (item.type === DEMO_SEQUENCE_TYPE.TABLEAU) {
     const preset = findTableauPreset(tableau, item.preset_id);
     const stage = findStage(stages, preset?.stage_id);
-    const stageMs = buildStageBeats(stage?.steps || []).durationMs;
+    const stageMs = buildStageBeats(stage?.steps || [], stage?.duration_ms).durationMs;
     if (isTableauGalleryPreset(preset)) {
       return Math.max(stageMs, tableauGalleryDurationMs(preset.gallery), DEMO_DEFAULT_STEP_DURATION_MS);
     }
@@ -3163,7 +3179,7 @@ export function sequenceItemDurationMs(item, stages = [], mosaic = null, tableau
     return Math.max(stageMs, revealMs, DEMO_DEFAULT_STEP_DURATION_MS);
   }
   const stage = findStage(stages, item.stage_id);
-  return buildStageBeats(stage?.steps || []).durationMs;
+  return buildStageBeats(stage?.steps || [], stage?.duration_ms).durationMs;
 }
 
 export function buildProgramPlayback(scenario) {
@@ -3212,7 +3228,7 @@ export function buildProgramPlayback(scenario) {
         lastMosaicFocus = { presetId: preset?.id || null, slot: null, focusStage: null };
       }
       const expandPlayback = mosaicAction === DEMO_MOSAIC_ACTION.EXPAND && focusStage
-        ? buildStageBeats(focusStage.steps || [])
+        ? buildStageBeats(focusStage.steps || [], focusStage.duration_ms)
         : null;
       const beats = expandPlayback?.beats?.length
         ? fitStageBeatsToDuration(expandPlayback.beats, durationMs, { loop: Boolean(screen?.loop) })
@@ -3258,7 +3274,7 @@ export function buildProgramPlayback(scenario) {
       return;
     }
     const stage = findStage(stages, item.stage_id);
-    const playback = buildStageBeats(stage?.steps || []);
+    const playback = buildStageBeats(stage?.steps || [], stage?.duration_ms);
     items.push({
       index,
       item,

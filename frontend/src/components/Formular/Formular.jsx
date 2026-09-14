@@ -491,6 +491,19 @@ export default function Formular({ onMapFullscreenChange }) {
         stageCount: demoPlayer.playback.stageCount,
     });
 
+    useEffect(() => {
+        if (!canReadDemo || demoPlayer.playback.isActive) return undefined;
+        const handleQuickStart = (event) => {
+            if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.code !== 'KeyD') return;
+            const target = event.target;
+            if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+            event.preventDefault();
+            handlePlayDemo();
+        };
+        window.addEventListener('keydown', handleQuickStart);
+        return () => window.removeEventListener('keydown', handleQuickStart);
+    }, [canReadDemo, demoPlayer.playback.isActive, handlePlayDemo]);
+
     const demoMenu = useMemo(() => ({
         canPlayDemo: canReadDemo,
         canConfigureDemo: canReadDemo,
@@ -1864,6 +1877,12 @@ export default function Formular({ onMapFullscreenChange }) {
                             <DemoTableauShell
                                 tableauRuntime={demoPlayer.tableauRuntime}
                                 playing={demoPlayer.playback?.isPlaying}
+                                keepLoopingVideo={Boolean(
+                                    demoPlayer.playback?.waitingForPresenter
+                                    && demoPlayer.playback?.status === DEMO_STATUS.PLAYING
+                                    && demoPlayer.playback?.loop
+                                    && demoPlayer.tableauRuntime?.variant === 'video'
+                                )}
                                 mapRef={mapRef}
                                 objects={objects}
                             >

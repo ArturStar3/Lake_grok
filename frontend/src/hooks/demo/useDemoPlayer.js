@@ -1638,6 +1638,17 @@ export function useDemoPlayer({ actions, data }) {
     applyTokenRef.current += 1;
     const token = applyTokenRef.current;
     const state = composedStateForProgramItem(item, boundedBeat);
+    const enteringGallery = item.kind === DEMO_SEQUENCE_TYPE.TABLEAU
+      && isTableauGalleryPreset(item.tableauPreset);
+    if (enteringGallery) {
+      // Gallery preparation may wait for data/media. Clear the previous stage
+      // synchronously so an animated zone cannot occupy the first gallery frame.
+      stopTableauReveal();
+      applyState({
+        ...emptyComposedState(),
+        target_ids: galleryImageTargetIds(item.tableauPreset?.gallery),
+      }, { instant: true });
+    }
     const mosaicExpand = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC
       && item.mosaicAction === DEMO_MOSAIC_ACTION.EXPAND;
     const mosaicCollapse = item.kind === DEMO_SEQUENCE_TYPE.MOSAIC

@@ -220,7 +220,7 @@ export function useDemoStageRunner({
   const lastCameraRunRef = useRef(-1);
   const [, setPlaybackVersion] = useState(0);
 
-  const playback = useMemo(() => buildStageBeats(stage?.steps || []), [stage]);
+  const playback = useMemo(() => buildStageBeats(stage?.steps || [], stage?.duration_ms), [stage]);
   const beats = useMemo(() => playback.beats || [], [playback]);
   const stageId = stage?.id != null ? String(stage.id) : null;
   const key = (enabled && stageId && beats.length)

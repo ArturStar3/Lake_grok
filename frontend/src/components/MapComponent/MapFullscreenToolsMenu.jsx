@@ -24,7 +24,7 @@ export default function MapFullscreenToolsMenu({
           disabled={!hasDemoScenario}
           title={hasDemoScenario ? undefined : 'Сценарии демонстрации ещё не созданы'}
         >
-          Демонстрация: воспроизвести
+          Демонстрация: воспроизвести (Ctrl+Shift+D)
         </button>
       )}
       {canConfigureDemo && (

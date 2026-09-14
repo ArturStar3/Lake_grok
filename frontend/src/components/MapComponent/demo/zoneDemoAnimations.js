@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef } from 'react';
+﻿import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import { ZONE_LEAF_MANUAL, makeParamLeaf } from '../../../utils/inundationZone';
 import { applyEasing, DEMO_EFFECT } from '../../../utils/demoScenario';
@@ -144,6 +144,9 @@ export function useCircleRevealAnimation(circleRef, {
 
     return () => {
       unregisterDemoAnimation(key, map);
+      // Do not expose the completed radius for a frame while React removes the
+      // outgoing zone during a slide transition.
+      if (!finished) layer.setRadius(MIN_REVEAL_RADIUS_M);
     };
   }, [circleRef, map, enabled, runId, radiusMeters, durationMs, delayMs, easing, continuous, repeat, animationKey]);
 }
@@ -188,7 +191,9 @@ export function usePolygonRevealAnimation(polygonRef, {
   positionsRef.current = positions;
   const signature = positionsSignature(positions);
 
-  useEffect(() => {
+  // A passive cleanup ran after Leaflet had painted the next slide, leaving a
+  // full-size polygon for one frame. Run cleanup before paint instead.
+  useLayoutEffect(() => {
     const layer = polygonRef.current;
     const pts = positionsRef.current;
     if (!layer || !pts?.length || !centroid) return undefined;
@@ -281,6 +286,12 @@ export function usePolygonRevealAnimation(polygonRef, {
     return () => {
       unregisterDemoAnimation(key, map);
       stopViewSync?.();
+      if (!finished && path) {
+        path.setAttribute(
+          'transform',
+          `translate(${map.latLngToLayerPoint(centroid).x} ${map.latLngToLayerPoint(centroid).y}) scale(${MIN_REVEAL_FACTOR}) translate(${-map.latLngToLayerPoint(centroid).x} ${-map.latLngToLayerPoint(centroid).y})`,
+        );
+      }
     };
   }, [polygonRef, map, enabled, runId, signature, centroid, durationMs, delayMs, easing, continuous, repeat, animationKey]);
 }

@@ -1771,6 +1771,7 @@ def replace_demo_scenario_library(
             'order': index,
             'title': (title or f'Этап {index + 1}')[:255],
             'cue': normalize_cue(row.get('cue')),
+            'duration_ms': _clamp(row.get('duration_ms', 0), 0, MAX_STEP_DURATION_MS, 0),
         }
         if stage_id:
             try:

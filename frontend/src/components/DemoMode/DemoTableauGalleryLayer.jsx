@@ -178,31 +178,37 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
   const gallery = tableauRuntime?.gallery || null;
   const phase = tableauRuntime?.phase || 'idle';
   const exiting = phase === 'exiting';
-  const phaseRef = useRef(phase);
-  phaseRef.current = phase;
   const runId = tableauRuntime?.runId || 0;
   const images = gallery?.images || EMPTY_IMAGES;
   const reduced = prefersReducedMotion();
   const enterEffect = gallery?.enter_effect || 'center_zoom';
 
   const [aspects, setAspects] = useState({});
-  const [preparedImages, setPreparedImages] = useState(null);
+  const [preparedKey, setPreparedKey] = useState('');
+  const imageKey = useMemo(() => images.map((image) => `${image.id}:${image.src}`).join('|'), [images]);
   useEffect(() => {
     let cancelled = false;
-    Promise.all(images.map((image) => prepareDemoImage(image.src))).then((loaded) => {
+    Promise.all(images.map(async (image) => {
+      const loaded = await prepareDemoImage(image.src);
+      if (loaded?.decode) {
+        try { await loaded.decode(); } catch { /* decoded by the browser on first paint */ }
+      }
+      return loaded;
+    })).then((loaded) => {
       if (cancelled) return;
       const next = {};
       loaded.forEach((image, index) => {
         if (image) next[images[index].id] = image.naturalWidth / image.naturalHeight;
       });
       setAspects(next);
-      setPreparedImages(images);
+      setPreparedKey(imageKey);
     });
     return () => { cancelled = true; };
-  }, [images]);
+  }, [imageKey, images]);
   const [framePhases, setFramePhases] = useState(() => makePhases(images.length, FRAME_PHASE.HIDDEN));
   const [origins, setOrigins] = useState({});
   const timersRef = useRef([]);
+  const enteredRunRef = useRef('');
 
   const settleRects = useMemo(
     () => computeGallerySettleRects(images, gallery, aspects),
@@ -251,7 +257,7 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
 
   useEffect(() => {
     clearTimers();
-    if (!images.length || preparedImages !== images) {
+    if (!images.length || preparedKey !== imageKey) {
       setFramePhases([]);
       return undefined;
     }
@@ -259,10 +265,16 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
       setFramePhases(makePhases(images.length, FRAME_PHASE.EXITING));
       return undefined;
     }
-    if (reduced || phaseRef.current === 'active') {
+    if (reduced) {
       setFramePhases(makePhases(images.length, FRAME_PHASE.SETTLED));
       return undefined;
     }
+
+    // Decoding may finish after the stage timer reaches "active". The entrance
+    // must still start from its first frame rather than jump to the final pose.
+    const enteredKey = `${runId}:${imageKey}`;
+    if (enteredRunRef.current === enteredKey) return undefined;
+    enteredRunRef.current = enteredKey;
 
     setFramePhases(makePhases(images.length, FRAME_PHASE.HIDDEN));
     const stagger = gallery?.stagger_ms ?? 160;
@@ -310,7 +322,8 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
     gallery?.settle_ms,
     gallery?.stagger_ms,
     images,
-    preparedImages,
+    preparedKey,
+    imageKey,
     exiting,
     reduced,
     runId,
@@ -335,7 +348,7 @@ function DemoTableauGalleryLayer({ tableauRuntime = null, objects = [] }) {
       {images.map((image, index) => {
         const src = resolveMediaUrl(image.src);
         if (!src) return null;
-        const framePhase = preparedImages === images
+        const framePhase = preparedKey === imageKey
           ? framePhases[index] || FRAME_PHASE.HIDDEN : FRAME_PHASE.HIDDEN;
         const origin = origins[image.id];
         const useCallout = enterEffect === 'from_object' && origin && !reduced;
