@@ -28,7 +28,7 @@ docker load -i $TarFile
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`nLoaded images:" -ForegroundColor DarkGray
-docker images --format "  {{.Repository}}:{{.Tag}}" | Select-String -Pattern "infolake-|nginx:1.27|maptiler/tileserver"
+docker images --format "  {{.Repository}}:{{.Tag}}" | Select-String -Pattern "infolake-|maptiler/tileserver"
 
 Write-Host "`nStarting containers (offline DEV, no build, no pull)..." -ForegroundColor Cyan
 docker compose --profile dev up -d --no-build --pull never

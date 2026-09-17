@@ -247,6 +247,13 @@ function beatWaitsForClick(beat) {
   return Boolean(beat?.steps?.some((step) => step.wait_for_click));
 }
 
+function isSinglePlayVideoItem(item) {
+  return item?.kind === DEMO_SEQUENCE_TYPE.TABLEAU
+    && item.tableauPreset?.variant === DEMO_TABLEAU_VARIANT.VIDEO
+    && Boolean(item.tableauPreset.video?.video_url)
+    && item.tableauPreset.video.loop === false;
+}
+
 function isSameMosaicExpandSlot(runtime, presetId, slot) {
   if (!runtime?.active || !slot || runtime.presetId !== presetId) return false;
   if (runtime.mode === 'switching') {
@@ -1844,17 +1851,22 @@ export function useDemoPlayer({ actions, data }) {
       return;
     }
 
-    runExitThen(item, () => {
-      if (moveToNextItem()) return;
+    if (stageIndex === programItems.length - 1 && !scenario?.loop) {
       stopFrameLoop();
       setHideFinishedTexts(true);
-      setStatus(DEMO_STATUS.PAUSED);
       setWaitingForPresenter(true);
+      if (item.kind !== DEMO_SEQUENCE_TYPE.TABLEAU
+        || item.tableauPreset?.variant !== DEMO_TABLEAU_VARIANT.VIDEO) {
+        setStatus(DEMO_STATUS.PAUSED);
+      }
       const finished = item.beats[beatIndex]?.durationMs || item.durationMs || 0;
       setBeatElapsedMs(finished);
       publishProgress(finished);
       pausedElapsedRef.current = finished;
-    });
+      return;
+    }
+
+    runExitThen(item, () => moveToNextItem());
   }, [
     beatIndex,
     goTo,
@@ -1895,6 +1907,11 @@ export function useDemoPlayer({ actions, data }) {
 
       const elapsed = now - beatStartedAtRef.current;
       const durationMs = autoplayDurationRef.current || currentBeat.durationMs;
+      if (isSinglePlayVideoItem(currentItem) && !currentItem.item?.wait_for_presenter) {
+        publishProgress(Math.min(elapsed, durationMs));
+        frameRef.current = requestAnimationFrame(tick);
+        return;
+      }
       if (elapsed >= durationMs) {
         stopFrameLoop();
         advanceRef.current();
@@ -1908,7 +1925,14 @@ export function useDemoPlayer({ actions, data }) {
     lastFrameAtRef.current = performance.now();
     frameRef.current = requestAnimationFrame(tick);
     return stopFrameLoop;
-  }, [status, currentBeat, waitingForPresenter, publishProgress, stopFrameLoop]);
+  }, [status, currentBeat, currentItem, waitingForPresenter, publishProgress, stopFrameLoop]);
+
+  const onVideoEnded = useCallback(() => {
+    if (status !== DEMO_STATUS.PLAYING || waitingForPresenter
+      || !isSinglePlayVideoItem(currentItem) || currentItem.item?.wait_for_presenter) return;
+    stopFrameLoop();
+    advanceRef.current();
+  }, [currentItem, status, stopFrameLoop, waitingForPresenter]);
 
   /** Ротация формуляров и справок внутри такта. */
   useEffect(() => {
@@ -2509,6 +2533,8 @@ export function useDemoPlayer({ actions, data }) {
     onMosaicHandoffPrepare,
     onMosaicSwitchComplete,
     tableauRuntime,
+    onVideoEnded,
+    onVideoError: onVideoEnded,
     isActive,
     start,
     stop,

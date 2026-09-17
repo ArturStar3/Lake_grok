@@ -151,7 +151,7 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-comp
 
 | Симптом | Решение |
 |---------|---------|
-| `no such image nginx:1.27-alpine` | Запускали без `--no-build --pull never` или пытались `build`. Используйте `import-and-start.ps1` |
+| `No such image: infolake-nginx:latest` | Загрузите production-архив через `import-and-start.ps1` и запускайте с `--no-build --pull never` |
 | `No such image: infolake-nginx` | Не выполнен `docker load` или загружен dev-архив вместо production |
 | Карта пустая | Нет `tileserver/data/map.mbtiles` |
 | Backend не подключается к БД | Проверьте `DB_HOST=host.docker.internal`, PostgreSQL запущен |

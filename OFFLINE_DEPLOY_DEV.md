@@ -23,7 +23,7 @@ Dev-режим: Vite dev server в контейнере `infolake-frontend`, ngi
 В dev-архиве образы:
 - `infolake-backend:latest`
 - `infolake-frontend:latest`
-- `nginx:1.27-alpine`
+- `infolake-nginx:latest`
 - `maptiler/tileserver-gl:latest`
 
 ---
@@ -96,7 +96,7 @@ docker compose --profile dev up -d --no-build --pull never
 docker images --format "{{.Repository}}:{{.Tag}}" | findstr "infolake nginx maptiler"
 ```
 
-Ожидается: `infolake-frontend:latest`, `infolake-backend:latest`, `nginx:1.27-alpine`, `maptiler/tileserver-gl:latest`.
+Ожидается: `infolake-frontend:latest`, `infolake-backend:latest`, `infolake-nginx:latest`, `maptiler/tileserver-gl:latest`.
 
 Статус контейнеров:
 
@@ -135,7 +135,7 @@ docker compose --profile dev ps
 | Симптом | Решение |
 |---------|---------|
 | Ошибка «нет node» / нет `infolake-frontend` | Загружен production tar. Пересоберите: `export-offline.ps1 -Dev` |
-| `no such image nginx:1.27-alpine` | Dev tar не загружен или запуск без `--no-build --pull never` |
+| `No such image: infolake-nginx:latest` | Загрузите новый dev-архив через `import-and-start-dev.ps1`; старый архив содержит только базовый `nginx:1.27-alpine` |
 | Frontend не стартует | Проверьте `docker compose --profile dev logs frontend` |
 | Смешали prod и dev | Сначала `down` для обоих вариантов compose, затем один режим |
 

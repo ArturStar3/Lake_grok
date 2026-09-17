@@ -1877,12 +1877,9 @@ export default function Formular({ onMapFullscreenChange }) {
                             <DemoTableauShell
                                 tableauRuntime={demoPlayer.tableauRuntime}
                                 playing={demoPlayer.playback?.isPlaying}
-                                keepLoopingVideo={Boolean(
-                                    demoPlayer.playback?.waitingForPresenter
-                                    && demoPlayer.playback?.status === DEMO_STATUS.PLAYING
-                                    && demoPlayer.playback?.loop
-                                    && demoPlayer.tableauRuntime?.variant === 'video'
-                                )}
+                                videoPlaying={demoPlayer.playback?.status === DEMO_STATUS.PLAYING}
+                                onVideoEnded={demoPlayer.onVideoEnded}
+                                onVideoError={demoPlayer.onVideoError}
                                 mapRef={mapRef}
                                 objects={objects}
                             >

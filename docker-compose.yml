@@ -37,7 +37,7 @@ x-logging: &default-logging
 
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: infolake-nginx:latest
     container_name: infolake-nginx
     restart: unless-stopped
     stop_grace_period: 20s

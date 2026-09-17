@@ -76,6 +76,14 @@ if (-not $SkipBuild) {
     if ($NoCache) { $buildArgs += "--no-cache" }
     docker @buildArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($Dev) {
+        # Dev nginx uses the project image with dev.conf mounted over its config.
+        # Build it via the production override so the dev archive is self-contained.
+        $nginxBuildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "build", "nginx")
+        if ($NoCache) { $nginxBuildArgs += "--no-cache" }
+        docker @nginxBuildArgs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
 } else {
     Write-Host "`n=== Skip build (--SkipBuild) ===" -ForegroundColor DarkGray
 }
