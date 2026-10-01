@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 
-const UNITS_URL = `${API_URL}/api/v1/equipment-units`;
+const UNITS_URL = `/equipment-units`;
 
 export const EMPTY_UNIT_FORM = {
   title: '',
@@ -28,7 +28,7 @@ export function useEquipmentUnitsAdmin(enabled) {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(UNITS_URL, { signal });
+      const res = await apiClient.get(UNITS_URL, { signal });
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -57,15 +57,15 @@ export function useEquipmentUnitsAdmin(enabled) {
       symbol: payload.symbol.trim(),
     };
     if (id) {
-      const res = await axios.put(`${UNITS_URL}/${id}/`, body);
+      const res = await apiClient.put(`${UNITS_URL}/${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(`${UNITS_URL}/`, body);
+    const res = await apiClient.post(`${UNITS_URL}/`, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${UNITS_URL}/${id}/`);
+    await apiClient.delete(`${UNITS_URL}/${id}/`);
   }, []);
 
   return {

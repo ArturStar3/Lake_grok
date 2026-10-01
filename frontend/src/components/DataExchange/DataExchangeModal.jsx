@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
 import { canReadModule, canWriteModule } from '../../utils/permissions';
-import { API_URL } from '../../config/api';
 import ExportPanel from './ExportPanel';
 import ImportPanel from './ImportPanel';
 import './DataExchangeModal.css';
@@ -22,7 +21,7 @@ export default function DataExchangeModal({ isOpen, onClose }) {
     setTab('export');
     setExportError('');
     setImportError('');
-    axios.get(`${API_URL}/api/v1/countries/`)
+    apiClient.get(`/countries/`)
       .then((res) => setCountries(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error('Не удалось загрузить страны', err));
   }, [isOpen]);

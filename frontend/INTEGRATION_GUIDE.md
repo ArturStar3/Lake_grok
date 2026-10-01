@@ -164,9 +164,9 @@ export const calculateMarkerPosition = (obj, scale = 1) => {
 
 ```
 frontend/src/components/MapComponent/
-├── markerClusteringUtils.js      (NEW) - Логика кластеризации
-├── clusteringExamples.js          (NEW) - Примеры и документация
-├── MapUtils.jsx                   (MODIFIED) - Добавлена кластеризация
+├── markerClusteringUtils.js      - Логика кластеризации
+├── BubbleClusterLayer.jsx        - Пузырьковая кластеризация
+├── MapUtils.jsx                   - Классическая кластеризация
 ├── MapComponent.jsx               (MODIFIED) - Использует кластеризацию
 └── ...
 
@@ -211,4 +211,4 @@ const sorted = sortByOrder(grouped["Узбекистан"]);
 const clusters = createClusters(sorted, mapInstance);
 ```
 
-Подробные примеры находятся в [clusteringExamples.js](frontend/src/components/MapComponent/clusteringExamples.js).
+Подробные примеры собраны выше и в `frontend/CLUSTERING_DOCUMENTATION.md`. Отдельного файла `clusteringExamples.js` в дереве нет.

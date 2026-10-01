@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
 import { canDeleteModule, canWriteModule } from '../../utils/permissions';
-import { API_URL } from '../../config/api';
 import {
   createReportTemplate,
   deleteReportTemplate,
@@ -118,7 +117,7 @@ export default function ReportBuilderModal({
 
   const loadCountries = useCallback(async () => {
     try {
-      const countriesRes = await axios.get(`${API_URL}/api/v1/countries/`);
+      const countriesRes = await apiClient.get(`/countries/`);
       setCountries(unwrapList(countriesRes.data));
     } catch (err) {
       console.error('Не удалось загрузить страны для отчётов', err);
@@ -132,8 +131,8 @@ export default function ReportBuilderModal({
     if (!needTargets && !needTypes) return;
     try {
       const requests = [];
-      if (needTargets) requests.push(axios.get(`${API_URL}/api/v1/targets/`));
-      if (needTypes) requests.push(axios.get(`${API_URL}/api/v1/target-types/`));
+      if (needTargets) requests.push(apiClient.get(`/targets/`));
+      if (needTypes) requests.push(apiClient.get(`/target-types/`));
       const results = await Promise.all(requests);
       let idx = 0;
       if (needTargets) {

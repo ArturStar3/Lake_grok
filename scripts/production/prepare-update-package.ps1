@@ -1,165 +1,94 @@
-# prepare-update-package.ps1
-# На машине С интернетом: собирает пакет обновления для оффлайн/production-сервера.
-#
-# Результат: dist/updates/infolake_update_vX.Y.Z/ и .tar
-#   - update.bundle          (git bundle ветки production)
-#   - images.tar             (docker images)
-#   - apply-update.ps1/.bat  (скрипт применения)
-#   - VERSION, CHANGELOG.md, UPDATE_MANIFEST.txt
-#
-# Примечание: ZIP не используется — images.tar слишком велик для Compress-Archive.
-
-# Требования: Docker Desktop, git, ветка production существует и запушена локально.
+# Online preparation only. Offline application must use --no-build --pull never.
 param(
-    [string]$OutputDir = "",
+    [string]$OutputDir = '',
     [switch]$NoCache,
     [switch]$SkipBuild,
-    [switch]$SkipMapStyle
+    [switch]$SkipMapStyle,
+    [ValidateSet('prod', 'prod_postgres', 'direct-prod')][string]$Mode = 'prod'
 )
-
-$ErrorActionPreference = "Stop"
-$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'update-policy.ps1')
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $ProjectRoot
 
-function Get-Version {
-    $vFile = Join-Path $ProjectRoot "VERSION"
-    if (-not (Test-Path $vFile)) { throw "Не найден VERSION в корне проекта" }
-    return (Get-Content $vFile -Raw).Trim()
+function Assert-CleanRelease {
+    $branch = & git rev-parse --abbrev-ref HEAD
+    if ($LASTEXITCODE -ne 0 -or $branch -ne 'production') { throw 'Prepare releases from the production branch only.' }
+    $dirty = & git status --porcelain --untracked-files=all
+    if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Commit/review all source changes before preparing a release. No files were discarded.' }
 }
-
-function Assert-OnProductionBranch {
-    $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-    if ($branch -ne "production") {
-        Write-Host "Текущая ветка: $branch" -ForegroundColor Yellow
-        Write-Host "Рекомендуется собирать пакет с ветки production." -ForegroundColor Yellow
-        Write-Host "Продолжаем с текущей веткой (bundle будет из production, если она есть)." -ForegroundColor DarkGray
-    }
-}
-
-Assert-OnProductionBranch
-$version = Get-Version
-Write-Host "=== InfoLake update package v$version ===" -ForegroundColor Cyan
-
-# Ensure production branch exists locally
-git show-ref --verify --quiet refs/heads/production
-if ($LASTEXITCODE -ne 0) {
-    throw "Локальная ветка production не найдена. Создайте её: git checkout -b production"
-}
-
+Assert-CleanRelease
+$commit = (& git rev-parse HEAD).Trim()
+$version = (Get-Content -LiteralPath 'VERSION' -Raw).Trim()
+if ($version -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]*$') { throw 'Unsafe VERSION value.' }
+$composeArgs = Get-UpdateComposeArgs $Mode
+$config = Get-UpdateConfiguration $Mode
+$services = @(Get-UpdateServices $Mode)
 if (-not $SkipMapStyle) {
-    Write-Host "`n=== Building unified map style ===" -ForegroundColor Cyan
-    Push-Location (Join-Path $ProjectRoot "frontend")
-    try {
-        npm run build:map-style
-        if ($LASTEXITCODE -ne 0) { throw "build:map-style failed" }
-    } finally {
-        Pop-Location
-    }
+    & node (Join-Path $ProjectRoot 'tileserver/scripts/build-unified-style.js') --check
+    if ($LASTEXITCODE -ne 0) { throw 'Map styles differ from sources. Generate, review and commit both outputs before release.' }
 }
-
 if (-not $SkipBuild) {
-    Write-Host "`n=== Building Docker images (production frontend) ===" -ForegroundColor Cyan
-    $buildArgs = @("compose", "-f", "docker-compose.yml", "-f", "docker-compose.server.yml", "build")
-    if ($NoCache) { $buildArgs += "--no-cache" }
-    docker @buildArgs
-    if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
-} else {
-    Write-Host "`n=== Skip build (--SkipBuild) ===" -ForegroundColor DarkGray
+    $buildArgs = @('compose') + $composeArgs + @('build', '--build-arg', "INFOLAKE_GIT_SHA=$commit")
+    if ($NoCache) { $buildArgs += '--no-cache' }
+    & docker @buildArgs
+    if ($LASTEXITCODE -ne 0) { throw 'Compose build failed.' }
 }
-
-$workDir = Join-Path $ProjectRoot "dist\updates\work_v$version"
-$zipDir = if ($OutputDir) { $OutputDir } else { Join-Path $ProjectRoot "dist\updates" }
-New-Item -ItemType Directory -Force -Path $workDir | Out-Null
-New-Item -ItemType Directory -Force -Path $zipDir | Out-Null
-
-# Clean work dir
-Get-ChildItem $workDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-
-Write-Host "`n=== Creating git bundle (production) ===" -ForegroundColor Cyan
-$bundlePath = Join-Path $workDir "update.bundle"
-# Full history of production so first install and incremental updates both work
-git bundle create $bundlePath production
-if ($LASTEXITCODE -ne 0) { throw "git bundle create failed" }
-git bundle verify $bundlePath
-if ($LASTEXITCODE -ne 0) { throw "git bundle verify failed" }
-
-Write-Host "`n=== Saving Docker images ===" -ForegroundColor Cyan
-$images = @(
-    "infolake-backend:latest",
-    "infolake-frontend:latest",
-    "maptiler/tileserver-gl:latest"
-)
-foreach ($img in $images) {
-    docker image inspect $img 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Образ не найден: $img" }
+$images = @()
+foreach ($service in $services) {
+    $tag = $config.services.$service.image
+    if (-not $tag) { throw "No image configured: $service" }
+    $inspection = & docker image inspect $tag
+    if ($LASTEXITCODE -ne 0) { throw "Image is unavailable: $tag" }
+    $info = @($inspection -join "`n" | ConvertFrom-Json)[0]
+    if ($service -in @('backend', 'nginx', 'frontend-static') -and $info.Config.Labels.'org.opencontainers.image.revision' -ne $commit) {
+        throw "Image/source mismatch: $tag. Build this release; unverified --SkipBuild is not allowed."
+    }
+    $images += [ordered]@{ service = $service; tag = $tag; id = $info.Id }
 }
-# Tag versioned copies for rollback clarity on target
-docker tag "infolake-backend:latest" "infolake-backend:v$version"
-docker tag "infolake-frontend:latest" "infolake-frontend:v$version"
-$imagesTar = Join-Path $workDir "images.tar"
-$saveList = $images + @("infolake-backend:v$version", "infolake-frontend:v$version")
-docker save -o $imagesTar @saveList
-if ($LASTEXITCODE -ne 0) { throw "docker save failed" }
-
-Write-Host "`n=== Copying apply scripts and docs ===" -ForegroundColor Cyan
-Copy-Item (Join-Path $PSScriptRoot "apply-update.ps1") (Join-Path $workDir "apply-update.ps1") -Force
-Copy-Item (Join-Path $PSScriptRoot "apply-update.bat") (Join-Path $workDir "apply-update.bat") -Force
-Copy-Item (Join-Path $ProjectRoot "VERSION") (Join-Path $workDir "VERSION") -Force
-Copy-Item (Join-Path $ProjectRoot "CHANGELOG.md") (Join-Path $workDir "CHANGELOG.md") -Force
-
-$commit = (git rev-parse production).Trim()
-$stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$manifest = @"
-InfoLake update package
-Version: $version
-Generated: $stamp
-Git branch: production
-Git commit: $commit
-
-Contents:
-  - update.bundle   — git bundle ветки production
-  - images.tar      — Docker-образы (backend, frontend, tileserver)
-  - apply-update.bat / apply-update.ps1 — применение обновления
-  - VERSION, CHANGELOG.md
-
-On the target computer:
-  1. Распакуйте .tar (или скопируйте папку) так, чтобы рядом лежали
-     apply-update.bat, update.bundle, images.tar
-  2. Дважды щёлкните apply-update.bat
-  3. Дождитесь зелёного сообщения «ОБНОВЛЕНИЕ ЗАВЕРШЕНО»
-  4. При красном «ОШИБКА — ВЫПОЛНЕН ОТКАТ» отправьте файл logs\update-*.log разработчику
-
-Do NOT run docker compose build / pull on the offline machine.
-"@
-Set-Content -Path (Join-Path $workDir "UPDATE_MANIFEST.txt") -Value $manifest -Encoding UTF8
-
-$packName = "infolake_update_v$version"
-$packDir = Join-Path $zipDir $packName
-if (Test-Path $packDir) { Remove-Item $packDir -Recurse -Force }
-New-Item -ItemType Directory -Force -Path $packDir | Out-Null
-
-Write-Host "`n=== Assembling package folder ===" -ForegroundColor Cyan
-Copy-Item (Join-Path $workDir "*") -Destination $packDir -Recurse -Force
-
-# ZIP через Compress-Archive не подходит для images.tar (~2+ ГБ).
-# Упаковываем в .tar (встроенный tar Windows 10+) — оператор может распаковать 7-Zip / tar.
-$tarPath = Join-Path $zipDir "$packName.tar"
-if (Test-Path $tarPath) { Remove-Item $tarPath -Force }
-
-Write-Host "`n=== Creating TAR (large images) ===" -ForegroundColor Cyan
-Push-Location $packDir
-try {
-    tar -cf $tarPath *
-    if ($LASTEXITCODE -ne 0) { throw "tar create failed" }
-} finally {
-    Pop-Location
+Assert-CleanRelease
+if ((& git rev-parse HEAD).Trim() -ne $commit) { throw 'HEAD changed while building.' }
+$outputRoot = if ($OutputDir) { [IO.Path]::GetFullPath($OutputDir) } else { Join-Path $ProjectRoot 'dist\updates' }
+New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
+# Unique destination, never recursively remove an existing package or user directory.
+$packName = "infolake_update_v${version}_${Mode}_$(Get-Date -Format yyyyMMdd_HHmmss)_$($commit.Substring(0,8))"
+$packDir = Join-Path $outputRoot $packName
+if (Test-Path -LiteralPath $packDir) { throw "Package already exists: $packDir" }
+New-Item -ItemType Directory -Path $packDir | Out-Null
+$bundle = Join-Path $packDir 'update.bundle'
+& git bundle create $bundle refs/heads/production
+if ($LASTEXITCODE -ne 0) { throw 'Bundle creation failed.' }
+& git bundle verify $bundle
+if ($LASTEXITCODE -ne 0) { throw 'Bundle verification failed.' }
+$heads = & git bundle list-heads $bundle refs/heads/production
+if ($LASTEXITCODE -ne 0 -or ($heads -split '\s+')[0] -ne $commit) { throw 'Bundle/source mismatch.' }
+$saveImages = @($images | ForEach-Object { $_.tag })
+& docker save -o (Join-Path $packDir 'images.tar') @saveImages
+if ($LASTEXITCODE -ne 0) { throw 'Image export failed.' }
+foreach ($entry in $images) {
+    $savedId = & docker image inspect --format '{{.Id}}' $entry.tag
+    if ($LASTEXITCODE -ne 0 -or $savedId.Trim() -ne $entry.id) { throw 'Image tag changed during export. Prepare a new package.' }
 }
-
-$sizeMb = [math]::Round((Get-Item $tarPath).Length / 1MB, 1)
-$folderMb = [math]::Round(((Get-ChildItem $packDir -Recurse -File | Measure-Object -Property Length -Sum).Sum) / 1MB, 1)
-Write-Host "`nDone!" -ForegroundColor Green
-Write-Host "  Folder:  $packDir  (~$folderMb MB)"
-Write-Host "  Archive: $tarPath  ($sizeMb MB)"
-Write-Host "  Work:    $workDir"
-Write-Host "`nPass the folder or .tar to the operator (extract next to the project)."
-Write-Host "Inside the package: double-click apply-update.bat"
+Assert-CleanRelease
+if ((& git rev-parse HEAD).Trim() -ne $commit) { throw 'HEAD changed while exporting.' }
+foreach ($name in @('apply-update.ps1', 'apply-update.bat', 'update-policy.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $packDir }
+Copy-Item -LiteralPath (Join-Path $ProjectRoot 'scripts/offline/backup-postgres-before-migrate.ps1') -Destination $packDir
+foreach ($name in @('VERSION', 'CHANGELOG.md')) { Copy-Item -LiteralPath (Join-Path $ProjectRoot $name) -Destination $packDir }
+$checksums = [ordered]@{}
+foreach ($file in Get-ChildItem -LiteralPath $packDir -File) { $checksums[$file.Name] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash }
+$manifest = [ordered]@{
+    schema_version = 1; version = $version; mode = $Mode; git_commit = $commit
+    generated_at = [DateTime]::UtcNow.ToString('o'); images = $images; files = $checksums
+}
+$manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $packDir 'UPDATE_MANIFEST.json') -Encoding UTF8
+@"
+InfoLake $version ($Mode), Git $commit
+See UPDATE_MANIFEST.json for image IDs and SHA256 checksums.
+Use apply-update.bat or apply-update.ps1 -ProjectRoot <repository>.
+Do not build/pull on the offline server. Backup is mandatory.
+If migrations/startup fail, database recovery requires operator review; no automatic schema downgrade.
+"@ | Set-Content -LiteralPath (Join-Path $packDir 'UPDATE_MANIFEST.txt') -Encoding UTF8
+$tarPath = Join-Path $outputRoot "$packName.tar"
+& tar -cf $tarPath -C $packDir .
+if ($LASTEXITCODE -ne 0) { throw 'Package archive creation failed.' }
+Write-Host "Prepared $packDir and $tarPath" -ForegroundColor Green

@@ -19,13 +19,7 @@
 - 255 строк кода
 - Полностью документирован
 
-### 2. **clusteringExamples.js**
-
-- Файл: `frontend/src/components/MapComponent/clusteringExamples.js`
-- Примеры использования и тестовые данные
-- Документация по алгоритму
-
-### 3. **Документация**
+### 2. **Документация**
 
 - `frontend/CLUSTERING_README.md` - Полное описание системы
 - `frontend/CLUSTERING_DOCUMENTATION.md` - Техническая документация
@@ -272,7 +266,7 @@ return { iconsById, clusteredObjects };
 1. **CLUSTERING_README.md** - Полное описание системы
 2. **CLUSTERING_DOCUMENTATION.md** - Техническая информация
 3. **INTEGRATION_GUIDE.md** - Как использовать
-4. **clusteringExamples.js** - Примеры кода
+4. **markerClusteringUtils.js** - Функции и их вызовы в `MapUtils.jsx`
 
 ---
 
@@ -295,9 +289,9 @@ lake/
 │   ├── src/
 │   │   └── components/
 │   │       └── MapComponent/
-│   │           ├── markerClusteringUtils.js         ✨ NEW
-│   │           ├── clusteringExamples.js            ✨ NEW
-│   │           ├── MapUtils.jsx                     📝 MODIFIED
+│   │           ├── markerClusteringUtils.js
+│   │           ├── BubbleClusterLayer.jsx
+│   │           ├── MapUtils.jsx
 │   │           ├── MapComponent.jsx                 📝 MODIFIED
 │   │           └── ...
 │   ├── CLUSTERING_README.md                         ✨ NEW
@@ -335,7 +329,7 @@ lake/
 Для понимания системы:
 
 1. Прочитайте `CLUSTERING_README.md`
-2. Изучите примеры в `clusteringExamples.js`
+2. Посмотрите функции в `markerClusteringUtils.js`
 3. Посмотрите на интеграцию в `MapComponent.jsx` и `MapUtils.jsx`
 4. Отладьте с помощью инструкций в `INTEGRATION_GUIDE.md`
 

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL as API_ROOT } from '../../config/api';
 
-const COUNTRIES_API_URL = `${API_ROOT}/api/v1/countries/`;
-const EVENT_TYPES_API_URL = `${API_ROOT}/api/v1/event-types/`;
-const ACTION_TYPES_API_URL = `${API_ROOT}/api/v1/action-types/`;
+const COUNTRIES_API_URL = `/countries/`;
+const EVENT_TYPES_API_URL = `/event-types/`;
+const ACTION_TYPES_API_URL = `/action-types/`;
 
 /** Справочники для вкладок «События» и зон действия (без маркеров). */
 export function useFormularReferenceLists() {
@@ -26,9 +26,9 @@ export function useFormularReferenceLists() {
     const load = async () => {
       try {
         const [countriesRes, eventTypesRes, actionTypesRes] = await Promise.all([
-          axios.get(COUNTRIES_API_URL, { signal }),
-          axios.get(EVENT_TYPES_API_URL, { signal }),
-          axios.get(ACTION_TYPES_API_URL, { signal }),
+          apiClient.get(COUNTRIES_API_URL, { signal }),
+          apiClient.get(EVENT_TYPES_API_URL, { signal }),
+          apiClient.get(ACTION_TYPES_API_URL, { signal }),
         ]);
         if (seq !== loadSeqRef.current) return;
         setCountriesList(Array.isArray(countriesRes.data) ? countriesRes.data : []);

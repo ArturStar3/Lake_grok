@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import { apiClient } from '../../config/axios';
 import { useDropdownWithSearch } from "../../hooks/useDropdownWithSearch";
 import MarkdownEditor from "../common/MarkdownEditor/MarkdownEditor";
 import PolygonCoordinateEditor from "../common/PolygonCoordinateEditor/PolygonCoordinateEditor";
@@ -7,7 +7,6 @@ import { drawPointsToEditable, editablePointsKey, drawPointsKey, parseLatLngPoin
 import { calcDistanceMeters } from "../../utils/geoUtils";
 import "./AddEventModal.css";
 
-import { API_URL as API_ROOT } from '../../config/api';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 
 const EVENT_COLORS = [
@@ -102,9 +101,9 @@ export default function AddEventModal({
 		const loadDictionaries = async () => {
 			try {
 				const [countriesRes, markersRes, eventTypesRes] = await Promise.all([
-					axios.get(`${API_ROOT}/api/v1/countries/`),
-					axios.get(`${API_ROOT}/api/v1/event-markers/`),
-					axios.get(`${API_ROOT}/api/v1/event-types/`)
+					apiClient.get(`/countries/`),
+					apiClient.get(`/event-markers/`),
+					apiClient.get(`/event-types/`)
 				]);
 				setCountries(countriesRes.data || []);
 				setMarkers(markersRes.data || []);
@@ -113,7 +112,7 @@ export default function AddEventModal({
 				markersRes.data?.forEach(async (marker) => {
 					if (marker.path) {
 						try {
-							const res = await axios.get(resolveMediaUrl(marker.path), { responseType: "text" });
+							const res = await apiClient.get(resolveMediaUrl(marker.path), { responseType: "text" });
 							setMarkerSvgs((prev) => new Map(prev).set(marker.id, res.data));
 						} catch (err) {
 							console.warn("Не удалось загрузить SVG маркера:", marker.path, err);

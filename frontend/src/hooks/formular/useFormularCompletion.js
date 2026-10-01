@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { API_URL } from '../../config/api';
+import { apiClient } from '../../config/axios';
 
 /**
  * Загрузка заполненности формуляров по объектам страны.
@@ -24,7 +23,7 @@ export function useFormularCompletion(countryId) {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await axios.get(`${API_URL}/api/v1/targets/formular-completion/`, {
+        const { data } = await apiClient.get(`/targets/formular-completion/`, {
           params: { country: countryId },
         });
         if (cancelled) return;

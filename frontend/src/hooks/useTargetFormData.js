@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { apiClient } from '../config/axios';
 import axios from 'axios';
-import { API_URL } from '../config/api';
 import { fetchReferenceData, subscribeReferenceDataInvalidation } from './useReferenceData';
 
 /**
@@ -51,7 +51,7 @@ export const useTargetFormData = (isOpen, cachedTargets = null) => {
             }))
           );
         } else {
-          const targetsRes = await axios.get(`${API_URL}/api/v1/targets/parent-options/`, {
+          const targetsRes = await apiClient.get(`/targets/parent-options/`, {
             signal: controller.signal,
           });
           if (!cancelled) setTargets(targetsRes.data || []);

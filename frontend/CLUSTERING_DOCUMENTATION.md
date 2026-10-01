@@ -46,13 +46,9 @@ const CLUSTER_DISTANCE_PX = 37.8; // Эквивалент в пикселях (1
 - Теперь передается `mapInstance.current` в `LabelGeneration`
 - Используется `clusteredObjects` вместо `displayedObjects` для корректного отображения маркеров с офсетами
 
-### 4. Создан файл `clusteringExamples.js`
+### 4. Примеры использования
 
-Содержит:
-
-- Примеры тестовых данных
-- Примеры использования функций
-- Полную документацию по алгоритму
+Отдельного файла `clusteringExamples.js` в репозитории нет. Рабочие вызовы лежат в `markerClusteringUtils.js`, `MapUtils.jsx` и `BubbleClusterLayer.jsx`. Фрагмент ниже показывает те же функции.
 
 ## Как это работает
 

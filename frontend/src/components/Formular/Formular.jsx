@@ -35,6 +35,9 @@ import { useConsiderTerrain } from "../../hooks/formular/useConsiderTerrain";
 import { useAutoLosZoneGeometries } from "../../hooks/formular/useAutoLosZoneGeometries";
 import { useMeasurePoints } from "../../hooks/formular/useMeasurePoints";
 import { useObjectFilters } from "../../hooks/formular/useObjectFilters";
+import { useFormularDemoState } from "../../hooks/formular/useFormularDemoState";
+import { useFormularEditorState } from "../../hooks/formular/useFormularEditorState";
+import { useFormularSituationState } from "../../hooks/formular/useFormularSituationState";
 import { useMapFlyTo } from "../../hooks/formular/useMapFlyTo";
 import { useMapFavorites, FAVORITE_KIND } from "../../hooks/useMapFavorites";
 import { buildVisibleZones } from "../../utils/buildVisibleZones";
@@ -69,7 +72,46 @@ export default function Formular({ onMapFullscreenChange }) {
     const canReadDemo = canReadModule(user, 'demo_scenarios');
     const canWriteDemo = canWriteModule(user, 'demo_scenarios');
     const canDeleteDemo = canDeleteModule(user, 'demo_scenarios');
-    const [usersAdminOpen, setUsersAdminOpen] = useState(false);
+    const {
+        usersAdminOpen, setUsersAdminOpen,
+        isAddTargetModalOpen, setIsAddTargetModalOpen,
+        addTargetDraft, setAddTargetDraft,
+        formularEditorTarget, setFormularEditorTarget,
+        editTargetId, setEditTargetId,
+        editTargetFormPatch, setEditTargetFormPatch,
+        isEditEventModalOpen, setIsEditEventModalOpen,
+        editingEvent, setEditingEvent,
+        editEventDrawMode, setEditEventDrawMode,
+        editEventDrawPoints, setEditEventDrawPoints,
+        isReferenceDataOpen, setReferenceDataOpen,
+        isReportsOpen, setReportsOpen,
+        isDataExchangeOpen, setDataExchangeOpen,
+        referenceEquipmentId, setReferenceEquipmentId,
+    } = useFormularEditorState();
+    const {
+        isSituationDrawActive, setIsSituationDrawActive,
+        situationDrawPolygons, setSituationDrawPolygons,
+        situationDrawPoints, setSituationDrawPoints,
+        situationDrawTerritoryIndex, setSituationDrawTerritoryIndex,
+        situationDrawTerritoryIndexRef, situationDrawPolygonsRef,
+        situationModalOpen, setSituationModalOpen,
+        situationModalMode, setSituationModalMode,
+        situationModalTarget, setSituationModalTarget,
+        situationModalRevisionId, setSituationModalRevisionId,
+        detailSituation, setDetailSituation,
+        situationRevisions, setSituationRevisions,
+        focusedSituationId, setFocusedSituationId,
+        timelineRevisionId, setTimelineRevisionId,
+        highlightedSituationId, setHighlightedSituationId,
+    } = useFormularSituationState();
+    const {
+        demoStudioOpen, setDemoStudioOpen,
+        demoStudioPreviewHide, setDemoStudioPreviewHide,
+        demoContentCardId, setDemoContentCardId,
+        formularInitialCardId, setFormularInitialCardId,
+        demoTextEditSession, setDemoTextEditSession,
+        demoTextEditSessionRef, demoTextMapApplyRef,
+    } = useFormularDemoState();
     const [activeTab, setActiveTab] = useState("objects");
     const [selectedObj, setSelectedObj] = useState([]);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
@@ -77,65 +119,22 @@ export default function Formular({ onMapFullscreenChange }) {
     const [selectedTargetId, setSelectedTargetId] = useState(null);
     const [selectedCountryIso, setSelectedCountryIso] = useState(null);
     const [hoveredTargetId, setHoveredTargetId] = useState(null);
-    const [isAddTargetModalOpen, setIsAddTargetModalOpen] = useState(false);
-    const [addTargetDraft, setAddTargetDraft] = useState(null);
-    const [formularEditorTarget, setFormularEditorTarget] = useState(null);
-    const [editTargetId, setEditTargetId] = useState(null);
-    const [editTargetFormPatch, setEditTargetFormPatch] = useState(null);
     const [polygonDrawSession, setPolygonDrawSession] = useState(null);
     const polygonDrawSessionRef = useRef(null);
     const [vulnerabilityPickSession, setVulnerabilityPickSession] = useState(null);
     const vulnerabilityPickSessionRef = useRef(null);
     const [vulnerabilityMapPreview, setVulnerabilityMapPreview] = useState(null);
     const { zoomRules: mapZoomRules } = useMapDisplaySettings();
-    const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
-    const [editingEvent, setEditingEvent] = useState(null);
-    const [editEventDrawMode, setEditEventDrawMode] = useState(null);
-    const [editEventDrawPoints, setEditEventDrawPoints] = useState([]);
     const [isFullscreen, setFullscreen] = useState(true);
-    const [isReferenceDataOpen, setReferenceDataOpen] = useState(false);
-    const [isReportsOpen, setReportsOpen] = useState(false);
-    const [isDataExchangeOpen, setDataExchangeOpen] = useState(false);
-    const [referenceEquipmentId, setReferenceEquipmentId] = useState(null);
     const [filtersOpen, setFiltersOpen] = useState(true);
     const [eventDrawRequest, setEventDrawRequest] = useState(0);
-    const [isSituationDrawActive, setIsSituationDrawActive] = useState(false);
-    const [situationDrawPolygons, setSituationDrawPolygons] = useState([]);
-    const [situationDrawPoints, setSituationDrawPoints] = useState([]);
-    const [situationDrawTerritoryIndex, setSituationDrawTerritoryIndex] = useState(0);
-    const situationDrawTerritoryIndexRef = useRef(0);
-    const situationDrawPolygonsRef = useRef([]);
-    const [situationModalOpen, setSituationModalOpen] = useState(false);
-    const [situationModalMode, setSituationModalMode] = useState('create');
-    const [situationModalTarget, setSituationModalTarget] = useState(null);
-    const [situationModalRevisionId, setSituationModalRevisionId] = useState(null);
-    const [detailSituation, setDetailSituation] = useState(null);
-    const [situationRevisions, setSituationRevisions] = useState([]);
-    const [focusedSituationId, setFocusedSituationId] = useState(null);
-    const [timelineRevisionId, setTimelineRevisionId] = useState(null);
-    const [highlightedSituationId, setHighlightedSituationId] = useState(null);
     const [mapUiResetToken, setMapUiResetToken] = useState(0);
-    const [demoStudioOpen, setDemoStudioOpen] = useState(false);
-    const [demoStudioPreviewHide, setDemoStudioPreviewHide] = useState(null);
-    const [demoContentCardId, setDemoContentCardId] = useState(null);
-    const [formularInitialCardId, setFormularInitialCardId] = useState(null);
-    const [demoTextEditSession, setDemoTextEditSession] = useState(null);
-    const demoTextEditSessionRef = useRef(null);
-    const demoTextMapApplyRef = useRef(null);
 
     const mapRef = useRef(null);
     const toolsRef = useRef(null);
     const revisionsLoadSeqRef = useRef(0);
     const overlayLayersApiRef = useRef(null);
     const countryBoundsApiRef = useRef(null);
-
-    useEffect(() => {
-        situationDrawTerritoryIndexRef.current = situationDrawTerritoryIndex;
-    }, [situationDrawTerritoryIndex]);
-
-    useEffect(() => {
-        situationDrawPolygonsRef.current = situationDrawPolygons;
-    }, [situationDrawPolygons]);
 
     const { objects, loading: objectsLoading, error: objectsError, refresh: refreshTargets, deleteTarget } = useTargetsList();
     const { countriesList, eventTypesList, actionTypesList, reloadReferenceLists } = useFormularReferenceLists();

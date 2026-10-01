@@ -25,7 +25,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json* ./
 # Эта команда требует интернет. Выполняется только на машине со сборкой.
-RUN npm install
+RUN npm ci
 
 COPY . .
 

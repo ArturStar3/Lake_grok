@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 import { invalidateReferenceDataCache } from '../useReferenceData';
 
-const TARGET_TYPES_URL = `${API_URL}/api/v1/target-types/`;
-const COUNTRIES_URL = `${API_URL}/api/v1/countries/`;
+const TARGET_TYPES_URL = `/target-types/`;
+const COUNTRIES_URL = `/countries/`;
 
 export const EMPTY_TARGET_TYPE_FORM = {
   title: '',
@@ -36,8 +36,8 @@ export function useTargetTypesAdmin(enabled) {
     setError(null);
     try {
       const [typesRes, countriesRes] = await Promise.all([
-        axios.get(TARGET_TYPES_URL, { signal }),
-        axios.get(COUNTRIES_URL, { signal }),
+        apiClient.get(TARGET_TYPES_URL, { signal }),
+        apiClient.get(COUNTRIES_URL, { signal }),
       ]);
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(typesRes.data) ? typesRes.data : []);
@@ -70,15 +70,15 @@ export function useTargetTypesAdmin(enabled) {
       country_ids: (payload.country_ids || []).map((cid) => parseInt(cid, 10)),
     };
     if (id) {
-      const res = await axios.put(`${TARGET_TYPES_URL}/${id}/`, body);
+      const res = await apiClient.put(`${TARGET_TYPES_URL}/${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(`${TARGET_TYPES_URL}/`, body);
+    const res = await apiClient.post(`${TARGET_TYPES_URL}/`, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${TARGET_TYPES_URL}/${id}/`);
+    await apiClient.delete(`${TARGET_TYPES_URL}/${id}/`);
   }, []);
 
   const notifyChanged = useCallback(() => {

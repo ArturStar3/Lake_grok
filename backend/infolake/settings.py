@@ -242,6 +242,15 @@ if 'test' in sys.argv:
 
     MIGRATION_MODULES = _DisableMigrations()
 
+# Import/PDF input limits. Existing deployments retain these conservative defaults.
+IMPORT_MAX_UPLOAD_BYTES = env.int('IMPORT_MAX_UPLOAD_BYTES', default=100 * 1024 * 1024)
+IMPORT_MAX_EXPANDED_BYTES = env.int('IMPORT_MAX_EXPANDED_BYTES', default=1024 * 1024 * 1024)
+IMPORT_MAX_ARCHIVE_ENTRIES = env.int('IMPORT_MAX_ARCHIVE_ENTRIES', default=10000)
+IMPORT_MAX_COMPRESSION_RATIO = env.int('IMPORT_MAX_COMPRESSION_RATIO', default=1000)
+IMPORT_MAX_JSON_BYTES = env.int('IMPORT_MAX_JSON_BYTES', default=64 * 1024 * 1024)
+IMPORT_MAX_RECORDS = env.int('IMPORT_MAX_RECORDS', default=100000)
+REPORT_MAX_RESOURCE_BYTES = env.int('REPORT_MAX_RESOURCE_BYTES', default=20 * 1024 * 1024)
+
 # Copernicus GLO-90 DEM (оффлайн). В Docker: /app/dem_data/glo-90
 DEM_DATA_DIR = BASE_DIR.parent / 'tileserver' / 'data' / 'dem' / 'glo-90'
 if os.environ.get('DEM_DATA_DIR'):

@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
-import json
-import shutil
 import uuid
 from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
+from django.core.files.base import ContentFile
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
 
 from data_exchange.models import ImportItem, ImportSession
 from data_exchange.services import bundle_schema as schema
+from data_exchange.services.bundle_files import (
+    MediaWriteJournal, cleanup_staging, contained_path, extract_bundle,
+    load_bundle_json, record_media_write, relative_path, staging_root,
+)
+from data_exchange.services.import_access import (
+    ensure_import_permission, ensure_session_access, validate_bundle_scope,
+    validate_reference_changes,
+)
+from infolake.safe_content import safe_svg
 from equipment.models import (
     Equipment,
     EquipmentCategory,
@@ -53,24 +62,15 @@ from formular.models import (
 
 
 def _staging_root(session_id) -> Path:
-    return Path(settings.MEDIA_ROOT) / 'import_sessions' / str(session_id)
+    return staging_root(session_id)
 
 
 def _extract_zip(uploaded_file, session_id) -> Path:
-    import zipfile
-
-    root = _staging_root(session_id)
-    if root.exists():
-        shutil.rmtree(root)
-    root.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(uploaded_file) as zf:
-        zf.extractall(root)
-    return root
+    return extract_bundle(uploaded_file, session_id)
 
 
 def _load_json(path: Path):
-    with path.open('r', encoding='utf-8') as fh:
-        return json.load(fh)
+    return load_bundle_json(path)
 
 
 def _find_by_title(model, title: str):
@@ -100,6 +100,7 @@ def _label_for(entity_type: str, record: dict) -> str:
 
 
 def analyze_bundle(uploaded_file, user) -> ImportSession:
+    ensure_import_permission(user)
     session = ImportSession.objects.create(
         status=ImportSession.Status.ANALYZING,
         created_by=user if getattr(user, 'is_authenticated', False) else None,
@@ -113,11 +114,32 @@ def analyze_bundle(uploaded_file, user) -> ImportSession:
 
         manifest = _load_json(manifest_path)
         data = _load_json(data_path)
+        if not isinstance(manifest, dict) or not isinstance(data, dict):
+            raise ValueError('manifest.json и data.json должны содержать объекты')
+        total_records = 0
+        for entity_type, records in data.items():
+            if entity_type not in schema.ENTITY_ORDER or not isinstance(records, list):
+                raise ValueError('Неизвестный тип сущности или некорректная коллекция')
+            keys = set()
+            for record in records:
+                if not isinstance(record, dict) or not isinstance(record.get('natural_key'), str) or not record['natural_key']:
+                    raise ValueError('Каждая запись должна содержать natural_key')
+                if record['natural_key'] in keys or len(record['natural_key']) > 500:
+                    raise ValueError('Повторяющийся или слишком длинный natural_key')
+                keys.add(record['natural_key'])
+                for field in ('path', 'image'):
+                    if record.get(field):
+                        contained_path(root, record[field])
+            total_records += len(records)
+        if total_records > getattr(settings, 'IMPORT_MAX_RECORDS', 100000):
+            raise ValueError('Слишком много записей в бандле')
         version = manifest.get('format_version')
         if version != schema.BUNDLE_FORMAT_VERSION:
             raise ValueError(
                 f'Несовместимая версия бандла: {version}, ожидается {schema.BUNDLE_FORMAT_VERSION}'
             )
+
+        validate_bundle_scope(data, user)
 
         session.manifest = manifest
         session.bundle_path = f'import_sessions/{session.id}'
@@ -152,6 +174,9 @@ def analyze_bundle(uploaded_file, user) -> ImportSession:
                         else:
                             decision = ImportItem.Decision.PENDING  # conflict: default keep until user chooses
 
+                if entity_type in schema.CHILD_ENTITY_TYPES:
+                    local_payload = local
+
                 items.append(ImportItem(
                     session=session,
                     entity_type=entity_type,
@@ -173,6 +198,7 @@ def analyze_bundle(uploaded_file, user) -> ImportSession:
         session.save(update_fields=['summary', 'status', 'updated_at'])
         return session
     except Exception as exc:
+        cleanup_staging(session.id)
         session.status = ImportSession.Status.FAILED
         session.error_message = str(exc)
         session.save(update_fields=['status', 'error_message', 'updated_at'])
@@ -365,15 +391,24 @@ def _lookup_child(entity_type, record):
 def _attach_media(instance, field_name: str, rel_path: str | None, staging: Path):
     if not rel_path:
         return
-    src = staging / 'media' / rel_path
+    rel_path = str(relative_path(rel_path))
+    src = contained_path(staging, f'media/{rel_path}')
     if not src.exists():
         # try flat
-        src = staging / rel_path
+        src = contained_path(staging, rel_path)
     if not src.exists():
         return
     field = getattr(instance, field_name)
     with src.open('rb') as fh:
-        field.save(Path(rel_path).name, File(fh), save=False)
+        if src.suffix.lower() == '.svg':
+            try:
+                content = ContentFile(safe_svg(fh.read(2 * 1024 * 1024 + 1)).encode('utf-8'))
+            except ValidationError as exc:
+                raise ValueError('Бандл содержит небезопасный SVG') from exc
+        else:
+            content = File(fh)
+        field.save(Path(rel_path).name, content, save=False)
+        record_media_write(field)
 
 
 def _is_empty(value) -> bool:
@@ -411,12 +446,20 @@ def _merge_file(instance, field_name: str, rel_path: str | None, staging: Path):
         _attach_media(instance, field_name, rel_path, staging)
 
 
-def cancel_import_session(session: ImportSession):
-    root = _staging_root(session.id)
-    if root.exists():
-        shutil.rmtree(root, ignore_errors=True)
+@transaction.atomic
+def cancel_import_session(session: ImportSession, user=None):
+    session = ImportSession.objects.select_for_update().get(pk=session.pk)
+    # Management cleanup may also remove sessions of deleted/blocked users.
+    if user is not None:
+        ensure_import_permission(user)
+        ensure_session_access(session, user)
+    if session.status == ImportSession.Status.APPLIED:
+        raise ValueError('Применённую сессию нельзя отменить')
+    if session.status == ImportSession.Status.APPLYING:
+        raise ValueError('Сессия применяется')
     session.status = ImportSession.Status.CANCELLED
     session.save(update_fields=['status', 'updated_at'])
+    transaction.on_commit(lambda: cleanup_staging(session.id))
 
 
 def _item_apply_mode(item: ImportItem) -> str | None:
@@ -434,12 +477,23 @@ def _item_apply_mode(item: ImportItem) -> str | None:
     return None  # keep_local / pending
 
 
+def apply_import_session(session: ImportSession, decisions: dict | None = None, *, user=None) -> dict:
+    with MediaWriteJournal():
+        return _apply_import_session(session, decisions, user=user)
+
+
 @transaction.atomic
-def apply_import_session(session: ImportSession, decisions: dict | None = None) -> dict:
+def _apply_import_session(session: ImportSession, decisions: dict | None = None, *, user=None) -> dict:
     """
     decisions: {item_id: 'keep_local'|'use_imported'|'merge'}
     """
-    if session.status not in (ImportSession.Status.READY, ImportSession.Status.APPLYING):
+    session = ImportSession.objects.select_for_update().get(pk=session.pk)
+    user = user if user is not None else session.created_by
+    ensure_import_permission(user)
+    ensure_session_access(session, user)
+    if session.status == ImportSession.Status.APPLIED:
+        return session.summary
+    if session.status != ImportSession.Status.READY:
         raise ValueError(f'Сессия в статусе {session.status}, применение невозможно')
 
     session.status = ImportSession.Status.APPLYING
@@ -448,11 +502,21 @@ def apply_import_session(session: ImportSession, decisions: dict | None = None) 
     decisions = decisions or {}
     items = list(session.items.all())
     decision_by_id = {str(k): v for k, v in decisions.items()}
+    if set(decision_by_id) - {str(item.id) for item in items}:
+        raise ValueError('Решение содержит запись из другой сессии')
+    if any(value not in ImportItem.Decision.values or value == ImportItem.Decision.PENDING for value in decision_by_id.values()):
+        raise ValueError('Некорректное решение конфликта')
 
     for item in items:
         if str(item.id) in decision_by_id:
             item.decision = decision_by_id[str(item.id)]
             item.save(update_fields=['decision'])
+
+    records_by_type = {}
+    for item in items:
+        records_by_type.setdefault(item.entity_type, []).append(item.imported_snapshot)
+    validate_bundle_scope(records_by_type, user)
+    validate_reference_changes(items, user, _item_apply_mode)
 
     def should_apply(item: ImportItem) -> bool:
         return _item_apply_mode(item) is not None
@@ -491,8 +555,7 @@ def apply_import_session(session: ImportSession, decisions: dict | None = None) 
     session.summary = summary
     session.save(update_fields=['status', 'summary', 'updated_at'])
 
-    if staging.exists():
-        shutil.rmtree(staging, ignore_errors=True)
+    transaction.on_commit(lambda: cleanup_staging(session.id))
 
     return summary
 
@@ -913,7 +976,8 @@ def _apply_entity(entity_type, rec, maps, staging: Path, mode='create'):
             obj.lat = _merge_scalar(obj.lat, rec['lat'])
             obj.lng = _merge_scalar(obj.lng, rec['lng'])
             obj.action_radius = _merge_scalar(obj.action_radius, rec.get('action_radius'))
-            obj.antenna_height_m = _merge_scalar(obj.antenna_height_m, rec.get('antenna_height_m') or 10.0)
+            height = rec.get('antenna_height_m')
+            obj.antenna_height_m = _merge_scalar(obj.antenna_height_m, height if height is not None else 10.0)
             obj.crest_elevation_m = _merge_scalar(obj.crest_elevation_m, rec.get('crest_elevation_m'))
             obj.normal_pool_level_m = _merge_scalar(obj.normal_pool_level_m, rec.get('normal_pool_level_m'))
             obj.max_pool_level_m = _merge_scalar(obj.max_pool_level_m, rec.get('max_pool_level_m'))
@@ -927,7 +991,8 @@ def _apply_entity(entity_type, rec, maps, staging: Path, mode='create'):
             obj.lat = rec['lat']
             obj.lng = rec['lng']
             obj.action_radius = rec.get('action_radius')
-            obj.antenna_height_m = rec.get('antenna_height_m') or 10.0
+            height = rec.get('antenna_height_m')
+            obj.antenna_height_m = height if height is not None else 10.0
             obj.crest_elevation_m = rec.get('crest_elevation_m')
             obj.normal_pool_level_m = rec.get('normal_pool_level_m')
             obj.max_pool_level_m = rec.get('max_pool_level_m')

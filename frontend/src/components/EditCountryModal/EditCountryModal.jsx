@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../config/axios';
 import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './EditCountryModal.css';
-import { API_URL } from '../../config/api';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 
-const API_ROOT = API_URL;
 
 export default function EditCountryModal({ countryId, countryIso, isOpen, onClose, onCountryUpdated, isNewCountry = false }) {
     const [activeTab, setActiveTab] = useState('country');
@@ -33,7 +31,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
         if (!isOpen) return;
         (async () => {
             try {
-                const { data } = await axios.get(`${API_ROOT}/api/v1/marker-color-palettes/`);
+                const { data } = await apiClient.get(`/marker-color-palettes/`);
                 setMarkerPalettes(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.warn('Не удалось загрузить палитры маркеров:', err);
@@ -58,7 +56,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
     
     const loadAttachments = async (id) => {
         try {
-            const attachmentsRes = await axios.get(`${API_ROOT}/api/v1/country-attachments/`, {
+            const attachmentsRes = await apiClient.get(`/country-attachments/`, {
                 params: { country: id }
             });
             const grouped = {};
@@ -79,9 +77,9 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
         setLoading(true);
         try {
             const [countryRes, countryInfoRes, sectionsRes] = await Promise.all([
-                axios.get(`${API_ROOT}/api/v1/countries/${countryId}/`),
-                axios.get(`${API_ROOT}/api/v1/country/${countryIso}/`),
-                axios.get(`${API_ROOT}/api/v1/country-sections/`)
+                apiClient.get(`/countries/${countryId}/`),
+                apiClient.get(`/country/${countryIso}/`),
+                apiClient.get(`/country-sections/`)
             ]);
             
             const country = countryRes.data;
@@ -113,7 +111,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
     
     const loadSections = async () => {
         try {
-            const sectionsRes = await axios.get(`${API_ROOT}/api/v1/country-sections/`);
+            const sectionsRes = await apiClient.get(`/country-sections/`);
             setSections(sectionsRes.data);
         } catch (err) {
             console.error('Ошибка загрузки секций:', err);
@@ -193,7 +191,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                 formData.append('description', draft.description || '');
                 formData.append('image', file);
 
-                const resp = await axios.post(`${API_ROOT}/api/v1/country-attachments/`, formData, {
+                const resp = await apiClient.post(`/country-attachments/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
@@ -225,7 +223,7 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
 
     const handleAttachmentDelete = async (sectionId, attachmentId) => {
         try {
-            await axios.delete(`${API_ROOT}/api/v1/country-attachments/${attachmentId}/`);
+            await apiClient.delete(`/country-attachments/${attachmentId}/`);
             setAttachmentsBySection(prev => {
                 const current = prev[sectionId] || [];
                 return {
@@ -287,10 +285,10 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
             
             let savedCountry;
             if (isNewCountry) {
-                const response = await axios.post(`${API_ROOT}/api/v1/countries/`, dataToSend);
+                const response = await apiClient.post(`/countries/`, dataToSend);
                 savedCountry = response.data;
             } else {
-                const response = await axios.put(`${API_ROOT}/api/v1/countries/${countryId}/`, dataToSend);
+                const response = await apiClient.put(`/countries/${countryId}/`, dataToSend);
                 savedCountry = response.data;
             }
             
@@ -309,10 +307,10 @@ export default function EditCountryModal({ countryId, countryIso, isOpen, onClos
                     
                     if (info.id) {
                         // Обновляем существующий
-                        await axios.put(`${API_ROOT}/api/v1/country-infos/${info.id}/`, infoData);
+                        await apiClient.put(`/country-infos/${info.id}/`, infoData);
                     } else {
                         // Создаем новый
-                        await axios.post(`${API_ROOT}/api/v1/country-infos/`, infoData);
+                        await apiClient.post(`/country-infos/`, infoData);
                     }
                 }
             }

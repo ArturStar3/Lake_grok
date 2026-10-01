@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL as API_ROOT } from '../../config/api';
 
-const API_URL = `${API_ROOT}/api/v1/operational-situations/`;
+const API_URL = `/operational-situations/`;
 
 const EMPTY_FILTERS = {
   title: '',
@@ -42,8 +42,8 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
     try {
       const params = buildParams();
       const [listResp, timelineResp] = await Promise.all([
-        axios.get(API_URL, { params, signal: controller.signal }),
-        axios.get(`${API_URL}timeline/`, { params, signal: controller.signal }),
+        apiClient.get(API_URL, { params, signal: controller.signal }),
+        apiClient.get(`${API_URL}timeline/`, { params, signal: controller.signal }),
       ]);
       if (seq !== fetchSeqRef.current) return;
       setSituations(Array.isArray(listResp.data) ? listResp.data : []);
@@ -66,7 +66,7 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
 
   const fetchRevisions = useCallback(async (situationId) => {
     if (!situationId) return [];
-    const resp = await axios.get(`${API_URL}${situationId}/revisions/`);
+    const resp = await apiClient.get(`${API_URL}${situationId}/revisions/`);
     return Array.isArray(resp.data) ? resp.data : [];
   }, []);
 
@@ -80,31 +80,31 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
   }, [activeTab, canRead, fetchSituations]);
 
   const createSituation = useCallback(async (payload) => {
-    const resp = await axios.post(API_URL, payload);
+    const resp = await apiClient.post(API_URL, payload);
     await fetchSituations();
     return resp.data;
   }, [fetchSituations]);
 
   const correctSituation = useCallback(async (situationId, payload) => {
-    const resp = await axios.patch(`${API_URL}${situationId}/current/`, payload);
+    const resp = await apiClient.patch(`${API_URL}${situationId}/current/`, payload);
     await fetchSituations();
     return resp.data;
   }, [fetchSituations]);
 
   const correctSituationRevision = useCallback(async (situationId, revisionId, payload) => {
-    const resp = await axios.patch(`${API_URL}${situationId}/revisions/${revisionId}/`, payload);
+    const resp = await apiClient.patch(`${API_URL}${situationId}/revisions/${revisionId}/`, payload);
     await fetchSituations();
     return resp.data;
   }, [fetchSituations]);
 
   const createSituationRevision = useCallback(async (situationId, payload) => {
-    const resp = await axios.post(`${API_URL}${situationId}/revisions/`, payload);
+    const resp = await apiClient.post(`${API_URL}${situationId}/revisions/`, payload);
     await fetchSituations();
     return resp.data;
   }, [fetchSituations]);
 
   const forkSituation = useCallback(async (situationId, payload) => {
-    const resp = await axios.post(`${API_URL}${situationId}/fork/`, payload);
+    const resp = await apiClient.post(`${API_URL}${situationId}/fork/`, payload);
     await fetchSituations();
     return resp.data;
   }, [fetchSituations]);
@@ -116,7 +116,7 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
     const confirmed = window.confirm(`Удалить «${title}»?`);
     if (!confirmed) return false;
     try {
-      await axios.delete(`${API_URL}${situation.id}/`);
+      await apiClient.delete(`${API_URL}${situation.id}/`);
       await fetchSituations();
       return true;
     } catch (err) {
@@ -134,7 +134,7 @@ export function useOperationalSituationsList(activeTab, canRead = true) {
     if (!confirmed) return { deleted: false };
 
     try {
-      const resp = await axios.delete(`${API_URL}${situationId}/revisions/${revision.id}/`);
+      const resp = await apiClient.delete(`${API_URL}${situationId}/revisions/${revision.id}/`);
       await fetchSituations();
       if (resp.status === 204) {
         return { deleted: true, situationDeleted: true, situationId };

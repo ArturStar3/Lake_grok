@@ -135,7 +135,6 @@ function build() {
       'openmaptiles:version': base.metadata?.['openmaptiles:version'] || '3.x',
       'infolake:unified': true,
       'infolake:layerMapping': layerMapping,
-      'infolake:generatedAt': new Date().toISOString(),
       'infolake:sourceStyles': [BASE_STYLE, ...overlayKeys.map((k) => `${k}.json`)],
     },
     sources: base.sources,
@@ -165,10 +164,22 @@ function build() {
     console.log(`+ ${overlayKey}: ${overlayLayers.length} слоёв → ${frontendId}${placeNote}`);
   });
 
+  const mapping = { layerMapping, defaultVisible: [...DEFAULT_VISIBLE_FRONTEND_IDS] };
+  if (process.argv.includes('--check')) {
+    const existingStyle = readJson(OUTPUT_STYLE);
+    // Legacy timestamp is not part of the style contract; checking never rewrites outputs.
+    delete existingStyle.metadata?.['infolake:generatedAt'];
+    if (JSON.stringify(existingStyle) !== JSON.stringify(unified) ||
+        JSON.stringify(readJson(OUTPUT_MAPPING)) !== JSON.stringify(mapping)) {
+      throw new Error('Generated map style/mapping differ from sources. Run build:map-style and review both outputs.');
+    }
+    console.log('Map style and mapping match sources (no files changed).');
+    return;
+  }
   fs.writeFileSync(OUTPUT_STYLE, `${JSON.stringify(unified, null, 2)}\n`, 'utf8');
   fs.writeFileSync(
     OUTPUT_MAPPING,
-    `${JSON.stringify({ layerMapping, defaultVisible: [...DEFAULT_VISIBLE_FRONTEND_IDS] }, null, 2)}\n`,
+    `${JSON.stringify(mapping, null, 2)}\n`,
     'utf8',
   );
 

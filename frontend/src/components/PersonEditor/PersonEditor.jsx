@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../config/axios';
 import { useDropdownWithSearch } from '../../hooks/useDropdownWithSearch';
 import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import '../FormularEditor/FormularEditor.css';
 import './PersonEditor.css';
-import { API_URL } from '../../config/api';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 
-const API_ROOT = API_URL;
 
 export default function PersonEditor({
   personId,
@@ -84,7 +82,7 @@ export default function PersonEditor({
       setPhotos([]);
       return;
     }
-    const res = await axios.get(`${API_ROOT}/api/v1/person-photos/`, {
+    const res = await apiClient.get(`/person-photos/`, {
       params: { person: currentPersonId },
     });
     const list = Array.isArray(res.data) ? res.data : [];
@@ -97,9 +95,9 @@ export default function PersonEditor({
     setError(null);
     try {
       const [sectionsRes, typesRes, personsRes] = await Promise.all([
-        axios.get(`${API_ROOT}/api/v1/person-sections/`),
-        axios.get(`${API_ROOT}/api/v1/relation-types/`),
-        axios.get(`${API_ROOT}/api/v1/persons/`),
+        apiClient.get(`/person-sections/`),
+        apiClient.get(`/relation-types/`),
+        apiClient.get(`/persons/`),
       ]);
       setSections(organizeIntoHierarchy(sectionsRes.data || []));
       setRelationTypes(typesRes.data || []);
@@ -107,9 +105,9 @@ export default function PersonEditor({
 
       if (personId) {
         const [personRes, detailRes, attachmentsRes] = await Promise.all([
-          axios.get(`${API_ROOT}/api/v1/persons/${personId}/`),
-          axios.get(`${API_ROOT}/api/v1/person/${personId}/`),
-          axios.get(`${API_ROOT}/api/v1/person-attachments/`, { params: { person: personId } }),
+          apiClient.get(`/persons/${personId}/`),
+          apiClient.get(`/person/${personId}/`),
+          apiClient.get(`/person-attachments/`, { params: { person: personId } }),
         ]);
         setFullName(personRes.data.full_name || '');
         setPosition(personRes.data.position || '');
@@ -172,7 +170,7 @@ export default function PersonEditor({
         formData.append('title', draft.title.trim());
         formData.append('description', draft.description || '');
         formData.append('image', file);
-        const resp = await axios.post(`${API_ROOT}/api/v1/person-attachments/`, formData, {
+        const resp = await apiClient.post(`/person-attachments/`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         uploaded.push(resp.data);
@@ -192,7 +190,7 @@ export default function PersonEditor({
   };
 
   const handleAttachmentDelete = async (sectionId, attachmentId) => {
-    await axios.delete(`${API_ROOT}/api/v1/person-attachments/${attachmentId}/`);
+    await apiClient.delete(`/person-attachments/${attachmentId}/`);
     setAttachmentsBySection((prev) => ({
       ...prev,
       [sectionId]: (prev[sectionId] || []).filter((item) => item.id !== attachmentId),
@@ -212,7 +210,7 @@ export default function PersonEditor({
         if (photos.length === 0 && uploaded.length === 0) {
           formData.append('order', '1');
         }
-        const resp = await axios.post(`${API_ROOT}/api/v1/person-photos/`, formData, {
+        const resp = await apiClient.post(`/person-photos/`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         uploaded.push(resp.data);
@@ -229,13 +227,13 @@ export default function PersonEditor({
   };
 
   const handlePhotoDelete = async (photoId, currentPersonId) => {
-    await axios.delete(`${API_ROOT}/api/v1/person-photos/${photoId}/`);
+    await apiClient.delete(`/person-photos/${photoId}/`);
     await loadPhotos(currentPersonId);
     onSaved?.();
   };
 
   const handleSetAvatar = async (photoId, currentPersonId) => {
-    await axios.patch(`${API_ROOT}/api/v1/person-photos/${photoId}/`, { order: 1 });
+    await apiClient.patch(`/person-photos/${photoId}/`, { order: 1 });
     await loadPhotos(currentPersonId);
     onSaved?.();
   };
@@ -243,12 +241,12 @@ export default function PersonEditor({
   const handleAddRelation = async (currentPersonId) => {
     if (!newRelationPersonId || !newRelationTypeId || !currentPersonId) return;
     try {
-      await axios.post(`${API_ROOT}/api/v1/person-relations/`, {
+      await apiClient.post(`/person-relations/`, {
         person_from: currentPersonId,
         person_to: newRelationPersonId,
         relation_type: newRelationTypeId,
       });
-      const detailRes = await axios.get(`${API_ROOT}/api/v1/person/${currentPersonId}/`);
+      const detailRes = await apiClient.get(`/person/${currentPersonId}/`);
       setRelations(detailRes.data.relations || []);
       setNewRelationPersonId('');
       setNewRelationTypeId('');
@@ -260,8 +258,8 @@ export default function PersonEditor({
   };
 
   const handleDeleteRelation = async (relationId, currentPersonId) => {
-    await axios.delete(`${API_ROOT}/api/v1/person-relations/${relationId}/`);
-    const detailRes = await axios.get(`${API_ROOT}/api/v1/person/${currentPersonId}/`);
+    await apiClient.delete(`/person-relations/${relationId}/`);
+    const detailRes = await apiClient.get(`/person/${currentPersonId}/`);
     setRelations(detailRes.data.relations || []);
   };
 
@@ -281,9 +279,9 @@ export default function PersonEditor({
         position: position.trim(),
       };
       if (resolvedPersonId) {
-        await axios.patch(`${API_ROOT}/api/v1/persons/${resolvedPersonId}/`, body);
+        await apiClient.patch(`/persons/${resolvedPersonId}/`, body);
       } else {
-        const res = await axios.post(`${API_ROOT}/api/v1/persons/`, body);
+        const res = await apiClient.post(`/persons/`, body);
         savedPersonId = res.data.id;
         setResolvedPersonId(savedPersonId);
         await loadPhotos(savedPersonId);
@@ -294,7 +292,7 @@ export default function PersonEditor({
         content: content || '',
       }));
       if (items.length > 0) {
-        await axios.post(`${API_ROOT}/api/v1/person/${savedPersonId}/bulk/`, { items });
+        await apiClient.post(`/person/${savedPersonId}/bulk/`, { items });
       }
 
       onSaved?.();

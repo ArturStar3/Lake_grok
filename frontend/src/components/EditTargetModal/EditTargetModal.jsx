@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
 import { markerPreviewHtml } from '../../utils/svgUtils';
 import { getCountryMarkerPalette } from '../../utils/markerPalette';
@@ -20,7 +21,6 @@ import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import PolygonCoordinateEditor from '../common/PolygonCoordinateEditor/PolygonCoordinateEditor';
 import noUserIcon from '../../assets/images/no_user.png';
 import './EditTargetModal.css';
-import { API_URL } from '../../config/api';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import { useObjectUrl } from '../../hooks/useObjectUrl';
 import {
@@ -84,7 +84,6 @@ function ActionPolygonCoordinateField({ zoneGeometry, onGeometryChange, error })
     );
 }
 
-const API_ROOT = API_URL;
 
 export default function EditTargetModal({
     targetId,
@@ -401,9 +400,9 @@ export default function EditTargetModal({
                     sectionsRes,
                     equipmentRes,
                 ] = await Promise.all([
-                    axios.get(`${API_ROOT}/api/v1/targets/${targetId}/`, { signal: controller.signal }),
-                    axios.get(`${API_ROOT}/api/v1/formular-sections/`, { signal: controller.signal }),
-                    axios.get(`${API_ROOT}/api/v1/equipment/`, { signal: controller.signal }),
+                    apiClient.get(`/targets/${targetId}/`, { signal: controller.signal }),
+                    apiClient.get(`/formular-sections/`, { signal: controller.signal }),
+                    apiClient.get(`/equipment/`, { signal: controller.signal }),
                 ]);
 
                 if (seq !== loadSeqRef.current) return;
@@ -427,7 +426,7 @@ export default function EditTargetModal({
                         type: t.type?.id ?? t.type,
                     })));
                 } else {
-                    const parentsRes = await axios.get(`${API_ROOT}/api/v1/targets/parent-options/`, {
+                    const parentsRes = await apiClient.get(`/targets/parent-options/`, {
                         signal: controller.signal,
                     });
                     if (seq !== loadSeqRef.current) return;
@@ -441,8 +440,8 @@ export default function EditTargetModal({
                     type: target.type?.id || '',
                     marker: target.marker?.id || '',
                     parent: target.parent || '',
-                    lat: target.lat || '',
-                    lng: target.lng || '',
+                    lat: target.lat ?? '',
+                    lng: target.lng ?? '',
                     actions: target.actions?.map((action) => mapTargetActionToForm(action)) || [],
                     deployed_equipment: (target.deployed_equipment || []).map((row) => ({
                         equipment_id: row.equipment?.id || '',
@@ -465,7 +464,7 @@ export default function EditTargetModal({
                 setSections(organized);
             
                 try {
-                    const formularRes = await axios.get(`${API_ROOT}/api/v1/formular/${targetId}/`, {
+                    const formularRes = await apiClient.get(`/formular/${targetId}/`, {
                         signal: controller.signal,
                     });
                     if (seq !== loadSeqRef.current) return;
@@ -484,7 +483,7 @@ export default function EditTargetModal({
                 }
 
                 try {
-                    const attachmentsRes = await axios.get(`${API_ROOT}/api/v1/formular-attachments/`, {
+                    const attachmentsRes = await apiClient.get(`/formular-attachments/`, {
                         params: { target: targetId },
                         signal: controller.signal,
                     });
@@ -504,7 +503,7 @@ export default function EditTargetModal({
                 }
 
                 try {
-                    const personsRes = await axios.get(`${API_ROOT}/api/v1/persons/`, {
+                    const personsRes = await apiClient.get(`/persons/`, {
                         params: { target: targetId },
                         signal: controller.signal,
                     });
@@ -619,7 +618,7 @@ export default function EditTargetModal({
                 formData.append('description', draft.description || '');
                 formData.append('image', file);
 
-                const resp = await axios.post(`${API_ROOT}/api/v1/formular-attachments/`, formData, {
+                const resp = await apiClient.post(`/formular-attachments/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 uploaded.push(resp.data);
@@ -643,7 +642,7 @@ export default function EditTargetModal({
 
     const handleAttachmentDelete = async (sectionId, attachmentId) => {
         try {
-            await axios.delete(`${API_ROOT}/api/v1/formular-attachments/${attachmentId}/`);
+            await apiClient.delete(`/formular-attachments/${attachmentId}/`);
             setAttachmentsBySection((prev) => {
                 const next = { ...prev };
                 next[sectionId] = (next[sectionId] || []).filter((item) => item.id !== attachmentId);
@@ -736,7 +735,7 @@ export default function EditTargetModal({
     const reloadPersons = async () => {
         if (!targetId) return;
         try {
-            const res = await axios.get(`${API_ROOT}/api/v1/persons/`, { params: { target: targetId } });
+            const res = await apiClient.get(`/persons/`, { params: { target: targetId } });
             setPersons(res.data || []);
         } catch (err) {
             console.warn('Ошибка загрузки персоналий:', err);
@@ -746,7 +745,7 @@ export default function EditTargetModal({
     const handleDeletePerson = async (id) => {
         if (!window.confirm('Удалить лицо?')) return;
         try {
-            await axios.delete(`${API_ROOT}/api/v1/persons/${id}/`);
+            await apiClient.delete(`/persons/${id}/`);
             await reloadPersons();
         } catch (err) {
             console.error(err);
@@ -767,7 +766,7 @@ export default function EditTargetModal({
         try {
             await Promise.all(
                 updates.map((item) =>
-                    axios.patch(`${API_ROOT}/api/v1/persons/${item.id}/`, { order: item.order }),
+                    apiClient.patch(`/persons/${item.id}/`, { order: item.order }),
                 ),
             );
             setPersons(
@@ -783,7 +782,7 @@ export default function EditTargetModal({
     };
 
     const syncTargetVulnerabilities = async (rows) => {
-        const listRes = await axios.get(`${API_ROOT}/api/v1/target-vulnerabilities/`, {
+        const listRes = await apiClient.get(`/target-vulnerabilities/`, {
             params: { target: targetId },
         });
         const remoteIds = new Set((listRes.data || []).map((v) => v.id));
@@ -811,24 +810,24 @@ export default function EditTargetModal({
                 Object.entries(payload).forEach(([key, value]) => fd.append(key, value));
                 fd.append('image', row.imageFile);
                 if (row.id) {
-                    await axios.patch(`${API_ROOT}/api/v1/target-vulnerabilities/${row.id}/`, fd);
+                    await apiClient.patch(`/target-vulnerabilities/${row.id}/`, fd);
                     kept.add(row.id);
                 } else {
-                    const created = await axios.post(`${API_ROOT}/api/v1/target-vulnerabilities/`, fd);
+                    const created = await apiClient.post(`/target-vulnerabilities/`, fd);
                     kept.add(created.data.id);
                 }
             } else if (row.id) {
-                await axios.patch(`${API_ROOT}/api/v1/target-vulnerabilities/${row.id}/`, payload);
+                await apiClient.patch(`/target-vulnerabilities/${row.id}/`, payload);
                 kept.add(row.id);
             } else {
-                const created = await axios.post(`${API_ROOT}/api/v1/target-vulnerabilities/`, payload);
+                const created = await apiClient.post(`/target-vulnerabilities/`, payload);
                 kept.add(created.data.id);
             }
         }
 
         for (const id of remoteIds) {
             if (!kept.has(id)) {
-                await axios.delete(`${API_ROOT}/api/v1/target-vulnerabilities/${id}/`);
+                await apiClient.delete(`/target-vulnerabilities/${id}/`);
             }
         }
     };
@@ -941,7 +940,7 @@ export default function EditTargetModal({
                     })),
             };
             
-            await axios.put(`${API_ROOT}/api/v1/targets/${targetId}/`, dataToSend);
+            await apiClient.put(`/targets/${targetId}/`, dataToSend);
             await syncTargetVulnerabilities(formData.vulnerabilities || []);
             
             // Сохраняем формуляр
@@ -950,7 +949,7 @@ export default function EditTargetModal({
                 content: content || ''
             }));
             
-            await axios.post(`${API_ROOT}/api/v1/formular/${targetId}/bulk/`, { items });
+            await apiClient.post(`/formular/${targetId}/bulk/`, { items });
 
             preserveLocalFormRef.current = false;
             

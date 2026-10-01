@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 
-const EQUIPMENT_URL = `${API_URL}/api/v1/equipment`;
-const EQUIPMENT_IMAGES_URL = `${API_URL}/api/v1/equipment-images/`;
-const CATEGORIES_URL = `${API_URL}/api/v1/equipment-categories`;
-const PARAMETERS_URL = `${API_URL}/api/v1/equipment-parameters`;
-const COUNTRIES_URL = `${API_URL}/api/v1/countries/`;
+const EQUIPMENT_URL = `/equipment`;
+const EQUIPMENT_IMAGES_URL = `/equipment-images/`;
+const CATEGORIES_URL = `/equipment-categories`;
+const PARAMETERS_URL = `/equipment-parameters`;
+const COUNTRIES_URL = `/countries/`;
 
 export const EMPTY_EQUIPMENT_FORM = {
   title: '',
@@ -47,10 +47,10 @@ export function useEquipmentCatalogAdmin(enabled, schemaVersion = 0) {
     setError(null);
     try {
       const [equipmentRes, categoriesRes, parametersRes, countriesRes] = await Promise.all([
-        axios.get(EQUIPMENT_URL, { signal }),
-        axios.get(CATEGORIES_URL, { signal }),
-        axios.get(PARAMETERS_URL, { signal }),
-        axios.get(COUNTRIES_URL, { signal }),
+        apiClient.get(EQUIPMENT_URL, { signal }),
+        apiClient.get(CATEGORIES_URL, { signal }),
+        apiClient.get(PARAMETERS_URL, { signal }),
+        apiClient.get(COUNTRIES_URL, { signal }),
       ]);
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(equipmentRes.data) ? equipmentRes.data : []);
@@ -94,15 +94,15 @@ export function useEquipmentCatalogAdmin(enabled, schemaVersion = 0) {
         })),
     };
     if (id) {
-      const res = await axios.put(`${EQUIPMENT_URL}/${id}/`, body);
+      const res = await apiClient.put(`${EQUIPMENT_URL}/${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(`${EQUIPMENT_URL}/`, body);
+    const res = await apiClient.post(`${EQUIPMENT_URL}/`, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${EQUIPMENT_URL}/${id}/`);
+    await apiClient.delete(`${EQUIPMENT_URL}/${id}/`);
   }, []);
 
   const uploadImages = useCallback(async (equipmentId, files) => {
@@ -112,7 +112,7 @@ export function useEquipmentCatalogAdmin(enabled, schemaVersion = 0) {
       formData.append('equipment', equipmentId);
       formData.append('title', file.name);
       formData.append('image', file);
-      const res = await axios.post(EQUIPMENT_IMAGES_URL, formData, {
+      const res = await apiClient.post(EQUIPMENT_IMAGES_URL, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       uploaded.push(res.data);
@@ -121,7 +121,7 @@ export function useEquipmentCatalogAdmin(enabled, schemaVersion = 0) {
   }, []);
 
   const deleteImage = useCallback(async (imageId) => {
-    await axios.delete(`${EQUIPMENT_IMAGES_URL}${imageId}/`);
+    await apiClient.delete(`${EQUIPMENT_IMAGES_URL}${imageId}/`);
   }, []);
 
   return {

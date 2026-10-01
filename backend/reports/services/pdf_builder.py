@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from reports.services.collectors import collect_section_data
+from reports.services.local_resources import fetch_local_resource
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,8 @@ def build_pdf_bytes(*, template_name, template_description, sections, user, sect
     )
 
     css_path = Path(settings.BASE_DIR) / 'reports' / 'static' / 'reports' / 'pdf_base.css'
-    stylesheets = [CSS(filename=str(css_path))] if css_path.exists() else []
-    return HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf(stylesheets=stylesheets)
+    stylesheets = [CSS(filename=str(css_path), url_fetcher=fetch_local_resource)] if css_path.exists() else []
+    return HTML(string=html, base_url=str(settings.BASE_DIR), url_fetcher=fetch_local_resource).write_pdf(stylesheets=stylesheets)
 
 
 def build_pdf_for_template(template, user, section_overrides=None) -> bytes:

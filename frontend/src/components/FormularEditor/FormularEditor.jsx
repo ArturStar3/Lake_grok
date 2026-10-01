@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../config/axios';
 import MarkdownEditor from '../common/MarkdownEditor/MarkdownEditor';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
 import './FormularEditor.css';
 
-import { API_URL as API_ROOT } from '../../config/api';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 
 export default function FormularEditor({ targetId, targetTitle, isOpen, onClose, onSaved }) {
@@ -30,7 +29,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
         
         try {
             // Загружаем структуру разделов формуляра
-            const sectionsRes = await axios.get(`${API_ROOT}/api/v1/formular-sections/`);
+            const sectionsRes = await apiClient.get(`/formular-sections/`);
             const allSections = sectionsRes.data;
             
             // Организуем разделы в иерархию
@@ -40,7 +39,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
             // Загружаем существующие данные формуляра для этого объекта
             // Примечание: /formular/<id>/ возвращает {formular: [...], subordinates: [...]}
             try {
-                const formularRes = await axios.get(`${API_ROOT}/api/v1/formular/${targetId}/`);
+                const formularRes = await apiClient.get(`/formular/${targetId}/`);
                 const existingData = {};
                 const formularItems = formularRes.data.formular || (Array.isArray(formularRes.data) ? formularRes.data : []);
                 formularItems.forEach(item => {
@@ -57,7 +56,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
 
             // Загружаем изображения формуляра
             try {
-                const attachmentsRes = await axios.get(`${API_ROOT}/api/v1/formular-attachments/`, {
+                const attachmentsRes = await apiClient.get(`/formular-attachments/`, {
                     params: { target: targetId }
                 });
                 const grouped = {};
@@ -155,7 +154,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                 formData.append('description', draft.description || '');
                 formData.append('image', file);
 
-                const resp = await axios.post(`${API_ROOT}/api/v1/formular-attachments/`, formData, {
+                const resp = await apiClient.post(`/formular-attachments/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 uploaded.push(resp.data);
@@ -179,7 +178,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
 
     const handleAttachmentDelete = async (sectionId, attachmentId) => {
         try {
-            await axios.delete(`${API_ROOT}/api/v1/formular-attachments/${attachmentId}/`);
+            await apiClient.delete(`/formular-attachments/${attachmentId}/`);
             setAttachmentsBySection((prev) => {
                 const next = { ...prev };
                 next[sectionId] = (next[sectionId] || []).filter((item) => item.id !== attachmentId);
@@ -201,7 +200,7 @@ export default function FormularEditor({ targetId, targetTitle, isOpen, onClose,
                 content: content || ''
             }));
             
-            await axios.post(`${API_ROOT}/api/v1/formular/${targetId}/bulk/`, {
+            await apiClient.post(`/formular/${targetId}/bulk/`, {
                 items
             });
             

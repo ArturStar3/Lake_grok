@@ -323,15 +323,9 @@ def collect_vulnerabilities(user, filters):
 
 
 def _markdown_to_html(text):
-    if not text or not str(text).strip():
-        return ''
-    import markdown as md
+    from infolake.markdown_render import render_markdown
 
-    return md.markdown(
-        str(text),
-        extensions=['extra', 'sane_lists', 'tables'],
-        output_format='html5',
-    )
+    return str(render_markdown(text))
 
 
 def _order_value(value):

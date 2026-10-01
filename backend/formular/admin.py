@@ -4,6 +4,8 @@ import re
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from django.core.exceptions import ValidationError
+from infolake.safe_content import safe_svg
 from django.db.models import Prefetch, Count
 
 from infolake.admin_base import InlineOnlyModelAdmin, ModelAdmin
@@ -264,7 +266,7 @@ class MarkerAdmin(ModelAdmin):
         if file_path and os.path.exists(file_path):
             try:
                 with open(file_path, 'r', encoding='utf-8') as svg_file:
-                    svg_content = svg_file.read()
+                    svg_content = safe_svg(svg_file.read(2 * 1024 * 1024 + 1))
                 ids = re.findall(r'\bid="([^"]+)"', svg_content)
                 if ids:
                     id_map = {}
@@ -303,7 +305,7 @@ class MarkerAdmin(ModelAdmin):
                     '<div class="marker-admin__svg-wrap" style="width:85px;height:85px;">{}</div>',
                     mark_safe(svg_content),
                 )
-            except OSError:
+            except (OSError, ValidationError):
                 pass
         return format_html(
             '<img src="{}" width="40" height="40" style="object-fit:contain" alt="icon">',

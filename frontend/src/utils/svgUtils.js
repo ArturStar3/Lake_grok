@@ -19,21 +19,21 @@ export function getViewBoxSize(svgString) {
  */
 
 import { buildMarkerPaletteStyle, markerPaletteCacheKey } from './markerPalette';
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+import { parseSafeSvg } from './safeSvg';
 
 const enrichSvgCache = new Map();
 const ENRICH_SVG_CACHE_MAX = 2000;
+const ENRICH_SVG_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+let enrichSvgCacheBytes = 0;
 
 function enrichSvgCacheKey(rawSvg, width, height, markerId, paletteKey) {
-  return `${markerId}|${paletteKey}|${width}|${height}|${rawSvg.length}|${rawSvg.slice(0, 64)}`;
+  return `${markerId}|${paletteKey}|${width}|${height}|${rawSvg}`;
 }
 
 /** Сброс при смене набора объектов на карте. */
 export function clearEnrichSvgCache() {
   enrichSvgCache.clear();
+  enrichSvgCacheBytes = 0;
 }
 
 /**
@@ -47,8 +47,9 @@ export const enrichSvg = (rawSvg, w, h, markerId, palette) => {
     return "";
   }
 
-  const width = typeof w === "string" ? w.replace(/px$/i, "") : w;
-  const height = typeof h === "string" ? h.replace(/px$/i, "") : h;
+  const width = Number(typeof w === 'string' ? w.replace(/px$/i, '') : w);
+  const height = Number(typeof h === 'string' ? h.replace(/px$/i, '') : h);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return '';
   const suffix = String(markerId ?? 'marker');
   const paletteKey = markerPaletteCacheKey(palette);
 
@@ -58,22 +59,31 @@ export const enrichSvg = (rawSvg, w, h, markerId, palette) => {
   }
 
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(rawSvg, "image/svg+xml");
+    const doc = parseSafeSvg(rawSvg);
 
-    if (doc.documentElement.nodeName === "parsererror") {
+    if (!doc) {
       console.warn(`enrichSvg: DOMParser error for markerId=${markerId}`);
       return "";
     }
 
-    const idMap = {};
+    const idMap = new Map();
     doc.querySelectorAll('[id]').forEach((el) => {
       const oldId = el.getAttribute('id');
       if (!oldId) return;
-      if (!idMap[oldId]) {
-        idMap[oldId] = `${oldId}-${suffix}`;
-      }
-      el.setAttribute('id', idMap[oldId]);
+      if (!idMap.has(oldId)) idMap.set(oldId, `${oldId}-${suffix}`);
+      el.setAttribute('id', idMap.get(oldId));
+    });
+
+    // Mutate parsed attributes; serialization escapes IDs instead of interpolating HTML.
+    doc.querySelectorAll('*').forEach((el) => {
+      Array.from(el.attributes).forEach((attr) => {
+        let value = attr.value.replace(/url\s*\(\s*['"]?#([\w.-]+)['"]?\s*\)/gi,
+          (match, id) => idMap.has(id) ? `url(#${idMap.get(id)})` : match);
+        if (attr.localName === 'href' && value.startsWith('#') && idMap.has(value.slice(1))) {
+          value = `#${idMap.get(value.slice(1))}`;
+        }
+        attr.value = value;
+      });
     });
 
     const svgEl = doc.querySelector('svg');
@@ -84,41 +94,20 @@ export const enrichSvg = (rawSvg, w, h, markerId, palette) => {
         }
       });
       svgEl.classList.add('marker-themed');
+      svgEl.setAttribute('width', String(width));
+      svgEl.setAttribute('height', String(height));
     }
 
-    let svgString = new XMLSerializer().serializeToString(doc);
+    const result = new XMLSerializer().serializeToString(doc);
 
-    Object.entries(idMap)
-      .sort((a, b) => b[0].length - a[0].length)
-      .forEach(([oldId, newId]) => {
-        const escaped = escapeRegExp(oldId);
-        svgString = svgString
-          .replace(new RegExp(`url\\(#${escaped}\\)`, 'g'), `url(#${newId})`)
-          .replace(new RegExp(`href="#${escaped}"`, 'g'), `href="#${newId}"`)
-          .replace(new RegExp(`xlink:href="#${escaped}"`, 'g'), `xlink:href="#${newId}"`);
-      });
-
-    svgString = svgString.replace(/<svg\s/, '<svg xmlns="http://www.w3.org/2000/svg" ');
-
-    const match = svgString.match(/<svg([\s\S]*?)>/i);
-    if (!match) {
-      console.warn(`enrichSvg: No SVG tag found for markerId=${markerId}`);
-      return svgString;
+    const entryBytes = 2 * (cacheKey.length + result.length);
+    if (enrichSvgCache.size >= ENRICH_SVG_CACHE_MAX || enrichSvgCacheBytes + entryBytes > ENRICH_SVG_CACHE_MAX_BYTES) {
+      clearEnrichSvgCache();
     }
-
-    const originalAttrs = match[1];
-    const cleanedAttrs = originalAttrs
-      .replace(/\swidth\s*=\s*["'][^"']*["']/i, "")
-      .replace(/\sheight\s*=\s*["'][^"']*["']/i, "")
-      .trim();
-
-    const newAttrs = `${cleanedAttrs} width="${width}" height="${height}"`.trim();
-    const result = svgString.replace(/<svg([\s\S]*?)>/i, `<svg ${newAttrs}>`);
-
-    if (enrichSvgCache.size >= ENRICH_SVG_CACHE_MAX) {
-      enrichSvgCache.clear();
+    if (entryBytes <= ENRICH_SVG_CACHE_MAX_BYTES) {
+      enrichSvgCache.set(cacheKey, result);
+      enrichSvgCacheBytes += entryBytes;
     }
-    enrichSvgCache.set(cacheKey, result);
     return result;
   } catch (e) {
     console.warn(`enrichSvg: Error processing SVG for markerId=${markerId}:`, e);
@@ -144,8 +133,8 @@ export function markerPreviewHtml(svgString, palette) {
  * @deprecated Используйте wrapMarkerSvg + enrichSvg с палитрой.
  */
 export const addColorClassToSvg = (svgString, _color = 'blue') => {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(svgString, 'image/svg+xml');
+  const doc = parseSafeSvg(svgString);
+  if (!doc) return '';
   const svgElement = doc.querySelector('svg');
 
   if (svgElement) {
