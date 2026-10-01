@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL as API_ROOT } from '../../config/api';
 import { buildEventShape } from '../../utils/eventGeometry';
 
-const EVENTS_API_URL = `${API_ROOT}/api/v1/events`;
+const EVENTS_API_URL = `/events`;
 
 const EMPTY_FILTERS = {
   title: '',
@@ -61,7 +61,7 @@ export function useEventsList(activeTab) {
       if (filters.countries.length > 0) params.countries = filters.countries.join(',');
       if (filters.eventTypes.length > 0) params.event_types = filters.eventTypes.join(',');
 
-      const resp = await axios.get(EVENTS_API_URL, { params, signal: controller.signal });
+      const resp = await apiClient.get(EVENTS_API_URL, { params, signal: controller.signal });
       if (seq !== fetchSeqRef.current) return;
       setEvents(Array.isArray(resp.data) ? resp.data : []);
     } catch (err) {
@@ -87,7 +87,7 @@ export function useEventsList(activeTab) {
 
   const saveEvent = useCallback(async (payload) => {
     try {
-      await axios.post(`${EVENTS_API_URL}/`, buildEventRequestBody(payload));
+      await apiClient.post(`${EVENTS_API_URL}/`, buildEventRequestBody(payload));
       await fetchEvents();
       return true;
     } catch (err) {
@@ -99,7 +99,7 @@ export function useEventsList(activeTab) {
   const updateEvent = useCallback(async (payload, eventId) => {
     if (!eventId) return false;
     try {
-      await axios.patch(`${EVENTS_API_URL}/${eventId}/`, buildEventRequestBody(payload));
+      await apiClient.patch(`${EVENTS_API_URL}/${eventId}/`, buildEventRequestBody(payload));
       await fetchEvents();
       return true;
     } catch (err) {
@@ -112,7 +112,7 @@ export function useEventsList(activeTab) {
     const confirmed = window.confirm(`Удалить событие "${eventItem.title}"?`);
     if (!confirmed) return false;
     try {
-      await axios.delete(`${EVENTS_API_URL}/${eventItem.id}/`);
+      await apiClient.delete(`${EVENTS_API_URL}/${eventItem.id}/`);
       await fetchEvents();
       return true;
     } catch (err) {

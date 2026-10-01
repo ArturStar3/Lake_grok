@@ -10,7 +10,7 @@
 
 - Preserve offline operation: operational styles must use local `mbtiles://{openmaptiles}`, local glyphs, and local sprites. Do not replace them with Mapbox, OSM tile servers, CDNs, or other network services.
 - Treat style IDs, frontend overlay IDs, source name `openmaptiles`, and source-layer names as contracts. Current styles depend on OpenMapTiles layers including `landcover`, `landuse`, `park`, `water`, `waterway`, `transportation`, `building`, `boundary`, `place`, `aeroway`, `aerodrome_label`, `housenumber`, `water_name`, `mountain_peak`, `poi`, and `transportation_name`.
-- Edit source styles/scripts rather than hand-editing only the generated unified style. Regenerate from `frontend/` with `npm run build:map-style`, then review both generated files. The build stamps `generatedAt`, so avoid running it for unrelated work.
+- Edit source styles/scripts rather than hand-editing only the generated unified style. Regenerate from `frontend/` with `npm run build:map-style`, then review both generated files. The generator is deterministic; `node tileserver/scripts/build-unified-style.js --check` from the repository root compares both outputs without rewriting them and ignores a legacy `generatedAt` timestamp.
 - Keep the configured `map.mbtiles` filename aligned with volume contents. Never commit, rewrite, or copy large `*.mbtiles` files unless explicitly requested.
 - Retain local font ranges and sprite JSON/PNG pairs when changing labels or icons. Check source-layer availability and zoom ranges against the actual MBTiles before adding a layer.
 

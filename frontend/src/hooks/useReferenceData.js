@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import { apiClient } from '../config/axios';
 import axios from 'axios';
-import { API_URL } from '../config/api';
 import { resolveMediaUrl } from '../utils/mediaUrl';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -36,7 +36,7 @@ async function loadMarkerSvgs(markers, signal) {
   const entries = await mapPool(withPath, MARKER_SVG_CONCURRENCY, async (marker) => {
     try {
       const mediaUrl = resolveMediaUrl(marker.path);
-      const res = await axios.get(mediaUrl, { responseType: 'text', signal });
+      const res = await apiClient.get(mediaUrl, { responseType: 'text', signal });
       return [marker.id, res.data];
     } catch (err) {
       if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') throw err;
@@ -64,10 +64,10 @@ export async function fetchReferenceData({ signal, includeMarkerSvgs = true } = 
 
   inflightPromise = (async () => {
     const [countriesRes, markersRes, actionTypesRes, targetTypesRes] = await Promise.all([
-      axios.get(`${API_URL}/api/v1/countries/`, { signal }),
-      axios.get(`${API_URL}/api/v1/markers/`, { signal }),
-      axios.get(`${API_URL}/api/v1/action-types/`, { signal }),
-      axios.get(`${API_URL}/api/v1/target-types/`, { signal }),
+      apiClient.get(`/countries/`, { signal }),
+      apiClient.get(`/markers/`, { signal }),
+      apiClient.get(`/action-types/`, { signal }),
+      apiClient.get(`/target-types/`, { signal }),
     ]);
 
     const markers = markersRes.data || [];

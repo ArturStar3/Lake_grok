@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 import { invalidateReferenceDataCache } from '../useReferenceData';
 import { normalizeHexColor } from '../../utils/actionZoneStyle';
 
-const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types/`;
+const ACTION_TYPES_URL = `/action-types/`;
 
 export const ZONE_MODE_OPTIONS = [
   { value: 'flat', label: 'Круг на плоскости' },
@@ -44,7 +44,7 @@ export function useActionTypesAdmin(enabled) {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(ACTION_TYPES_URL, { signal });
+      const res = await apiClient.get(ACTION_TYPES_URL, { signal });
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -86,15 +86,15 @@ export function useActionTypesAdmin(enabled) {
       body.zone_mode = 'polygon';
     }
     if (id) {
-      const res = await axios.put(`${ACTION_TYPES_URL}${id}/`, body);
+      const res = await apiClient.put(`${ACTION_TYPES_URL}${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(ACTION_TYPES_URL, body);
+    const res = await apiClient.post(ACTION_TYPES_URL, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${ACTION_TYPES_URL}${id}/`);
+    await apiClient.delete(`${ACTION_TYPES_URL}${id}/`);
   }, []);
 
   const notifyChanged = useCallback(() => {

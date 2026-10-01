@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 
-const CATEGORIES_URL = `${API_URL}/api/v1/equipment-categories`;
+const CATEGORIES_URL = `/equipment-categories`;
 
 export const EMPTY_CATEGORY_FORM = {
   title: '',
@@ -30,7 +30,7 @@ export function useEquipmentCategoriesAdmin(enabled) {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(CATEGORIES_URL, { signal });
+      const res = await apiClient.get(CATEGORIES_URL, { signal });
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -60,15 +60,15 @@ export function useEquipmentCategoriesAdmin(enabled) {
       order: parseInt(payload.order, 10) || 1,
     };
     if (id) {
-      const res = await axios.put(`${CATEGORIES_URL}/${id}/`, body);
+      const res = await apiClient.put(`${CATEGORIES_URL}/${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(`${CATEGORIES_URL}/`, body);
+    const res = await apiClient.post(`${CATEGORIES_URL}/`, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${CATEGORIES_URL}/${id}/`);
+    await apiClient.delete(`${CATEGORIES_URL}/${id}/`);
   }, []);
 
   return {

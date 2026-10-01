@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 import { formatEquipmentLabel } from '../../utils/equipmentCatalogUtils';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
@@ -37,7 +36,7 @@ export default function EquipmentDetailModal({
     setError(null);
 
     axios
-      .get(`${API_URL}/api/v1/equipment/${equipmentId}/`, { signal: controller.signal })
+      .get(`/equipment/${equipmentId}/`, { signal: controller.signal })
       .then((res) => setEquipment(res.data))
       .catch((err) => {
         if (axios.isCancel?.(err) || err?.code === 'ERR_CANCELED') return;

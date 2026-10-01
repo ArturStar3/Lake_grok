@@ -137,11 +137,6 @@ export function downloadFileBlob(blob, filename = 'report.pdf') {
   openFileBlob(blob, filename);
 }
 
-/** @deprecated use downloadFileBlob */
-export function downloadPdfBlob(blob, filename = 'report.pdf') {
-  openFileBlob(blob, filename);
-}
-
 export function previewPdfBlob(blob) {
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank', 'noopener,noreferrer');

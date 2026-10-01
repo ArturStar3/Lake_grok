@@ -7,3 +7,9 @@ __pycache__/
 .env.*
 *.log
 db.sqlite3
+media/
+staticfiles/
+.pytest_cache/
+dem/
+dem_data/
+*.dump

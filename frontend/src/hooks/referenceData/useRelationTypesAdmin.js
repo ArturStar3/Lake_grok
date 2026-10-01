@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 
-const RELATION_TYPES_URL = `${API_URL}/api/v1/relation-types/`;
+const RELATION_TYPES_URL = `/relation-types/`;
 
 export const EMPTY_RELATION_TYPE_FORM = {
   title: '',
@@ -28,7 +28,7 @@ export function useRelationTypesAdmin(enabled) {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(RELATION_TYPES_URL, { signal });
+      const res = await apiClient.get(RELATION_TYPES_URL, { signal });
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -57,15 +57,15 @@ export function useRelationTypesAdmin(enabled) {
       reverse_title: (payload.reverse_title || '').trim(),
     };
     if (id) {
-      const res = await axios.put(`${RELATION_TYPES_URL}${id}/`, body);
+      const res = await apiClient.put(`${RELATION_TYPES_URL}${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(RELATION_TYPES_URL, body);
+    const res = await apiClient.post(RELATION_TYPES_URL, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${RELATION_TYPES_URL}${id}/`);
+    await apiClient.delete(`${RELATION_TYPES_URL}${id}/`);
   }, []);
 
   return {

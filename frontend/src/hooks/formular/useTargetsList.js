@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL as API_ROOT } from '../../config/api';
 
-const TARGETS_API_URL = `${API_ROOT}/api/v1/targets/`;
+const TARGETS_API_URL = `/targets/`;
 
 export function useTargetsList() {
   const [objects, setObjects] = useState([]);
@@ -13,7 +13,7 @@ export function useTargetsList() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await axios.get(TARGETS_API_URL, { signal });
+      const resp = await apiClient.get(TARGETS_API_URL, { signal });
       const data = resp.data;
       setObjects(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -32,7 +32,7 @@ export function useTargetsList() {
     if (!confirmed) return false;
 
     try {
-      await axios.delete(`${TARGETS_API_URL}${targetId}/`);
+      await apiClient.delete(`${TARGETS_API_URL}${targetId}/`);
       await fetchData();
       return true;
     } catch (err) {

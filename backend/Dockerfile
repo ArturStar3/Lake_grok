@@ -18,6 +18,9 @@
 
 FROM python:3.12-slim
 
+ARG INFOLAKE_GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$INFOLAKE_GIT_SHA
+
 WORKDIR /app
 
 # Все системные зависимости устанавливаются одной командой.

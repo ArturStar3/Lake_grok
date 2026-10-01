@@ -167,11 +167,8 @@ export const USE_VECTOR_MAP = import.meta.env.VITE_MAP_VECTOR !== 'false';
 // Legacy PNG (откат / отладка)
 export const BORDERS_LABELS_STYLE = 'borders-labels';
 export const TILE_RASTER_URL = `${getTilesPathPrefix()}/styles/${BORDERS_LABELS_STYLE}/{z}/{x}/{y}.png`;
-export const BASIC_STYLE = 'basic';
-export const TILE_RASTER_BASIC_URL = `${getTilesPathPrefix()}/styles/${BASIC_STYLE}/{z}/{x}/{y}.png`;
 
 export const TILESERVER_TILEJSON = `${getTileserverBaseUrl()}/data/openmaptiles.json`;
-export const TILESERVER_STYLE_JSON = `${getTileserverBaseUrl()}/styles/${BORDERS_LABELS_STYLE}/style.json`;
 
 export const overlayTileUrl = (style) =>
   `${getTilesPathPrefix()}/styles/${style}/{z}/{x}/{y}.png`;

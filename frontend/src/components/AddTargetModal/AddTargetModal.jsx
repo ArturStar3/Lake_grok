@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../config/axios';
 import { markerPreviewHtml } from '../../utils/svgUtils';
 import { getCountryMarkerPalette } from '../../utils/markerPalette';
 import { useActionsArray } from '../../hooks/useActionsArray';
@@ -14,11 +14,9 @@ import {
 } from '../../utils/targetTypeTree';
 import './AddTargetModal.css';
 
-import { API_URL } from '../../config/api';
 import { formatCoordValue } from '../../utils/polygonDrawUtils';
 import { isPolygonZoneMode } from '../../utils/inundationZone';
 
-const API_ROOT = API_URL;
 
 export default function AddTargetModal({
     isOpen,
@@ -212,7 +210,7 @@ export default function AddTargetModal({
                     }))
             };
             
-            const response = await axios.post(`${API_ROOT}/api/v1/targets/`, dataToSend);
+            const response = await apiClient.post(`/targets/`, dataToSend);
             
             // Сбрасываем форму
             setFormData({

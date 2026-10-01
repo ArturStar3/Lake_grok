@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { API_URL } from '../config/api';
+import { apiClient } from '../config/axios';
 import {
   isInundationZoneType,
   isPolygonZoneMode,
@@ -14,8 +13,8 @@ export async function computeLosZone(targetId, actionId, antennaHeightM = null) 
   if (antennaHeightM != null && !Number.isNaN(Number(antennaHeightM))) {
     body.antenna_height_m = Number(antennaHeightM);
   }
-  const { data } = await axios.post(
-    `${API_URL}/api/v1/targets/${targetId}/actions/${actionId}/compute-los-zone/`,
+  const { data } = await apiClient.post(
+    `/targets/${targetId}/actions/${actionId}/compute-los-zone/`,
     body,
   );
   return data;
@@ -26,8 +25,8 @@ export async function computeEquipmentLosZone(targetId, equipmentId, parameterId
   if (antennaHeightM != null && !Number.isNaN(Number(antennaHeightM))) {
     body.antenna_height_m = Number(antennaHeightM);
   }
-  const { data } = await axios.post(
-    `${API_URL}/api/v1/targets/${targetId}/deployed-equipment/${equipmentId}/parameters/${parameterId}/compute-los-zone/`,
+  const { data } = await apiClient.post(
+    `/targets/${targetId}/deployed-equipment/${equipmentId}/parameters/${parameterId}/compute-los-zone/`,
     body,
   );
   return data;

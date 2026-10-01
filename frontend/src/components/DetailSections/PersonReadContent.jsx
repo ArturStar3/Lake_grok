@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
-import { API_URL } from '../../config/api';
+import { apiClient } from '../../config/axios';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
 import AttachmentGallery from './AttachmentGallery';
 import MarkdownContent from '../common/MarkdownEditor/MarkdownContent';
@@ -22,8 +21,8 @@ export default function PersonReadContent({ person, onRelationClick, className =
       setLoading(true);
       try {
         const [detailRes, attachmentsRes] = await Promise.all([
-          axios.get(`${API_URL}/api/v1/person/${person.id}/`),
-          axios.get(`${API_URL}/api/v1/person-attachments/`, { params: { person: person.id } }),
+          apiClient.get(`/person/${person.id}/`),
+          apiClient.get(`/person-attachments/`, { params: { person: person.id } }),
         ]);
         if (cancelled) return;
         setDetail(detailRes.data);

@@ -7,7 +7,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 
@@ -22,6 +22,9 @@ ENV VITE_ENABLE_HMR=false
 RUN npm run build
 
 FROM node:20-alpine
+
+ARG INFOLAKE_GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$INFOLAKE_GIT_SHA
 
 WORKDIR /app
 

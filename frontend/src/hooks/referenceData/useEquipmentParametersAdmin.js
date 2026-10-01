@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../../config/axios';
 import axios from 'axios';
-import { API_URL } from '../../config/api';
 
-const PARAMETERS_URL = `${API_URL}/api/v1/equipment-parameters`;
-const UNITS_URL = `${API_URL}/api/v1/equipment-units`;
-const CATEGORIES_URL = `${API_URL}/api/v1/equipment-categories`;
-const ACTION_TYPES_URL = `${API_URL}/api/v1/action-types/`;
+const PARAMETERS_URL = `/equipment-parameters`;
+const UNITS_URL = `/equipment-units`;
+const CATEGORIES_URL = `/equipment-categories`;
+const ACTION_TYPES_URL = `/action-types/`;
 
 export const EMPTY_PARAMETER_FORM = {
   title: '',
@@ -51,10 +51,10 @@ export function useEquipmentParametersAdmin(enabled, schemaVersion = 0) {
     setError(null);
     try {
       const [parametersRes, unitsRes, categoriesRes, actionTypesRes] = await Promise.all([
-        axios.get(PARAMETERS_URL, { signal }),
-        axios.get(UNITS_URL, { signal }),
-        axios.get(CATEGORIES_URL, { signal }),
-        axios.get(ACTION_TYPES_URL, { signal }),
+        apiClient.get(PARAMETERS_URL, { signal }),
+        apiClient.get(UNITS_URL, { signal }),
+        apiClient.get(CATEGORIES_URL, { signal }),
+        apiClient.get(ACTION_TYPES_URL, { signal }),
       ]);
       if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(parametersRes.data) ? parametersRes.data : []);
@@ -98,15 +98,15 @@ export function useEquipmentParametersAdmin(enabled, schemaVersion = 0) {
         : null,
     };
     if (id) {
-      const res = await axios.put(`${PARAMETERS_URL}/${id}/`, body);
+      const res = await apiClient.put(`${PARAMETERS_URL}/${id}/`, body);
       return res.data;
     }
-    const res = await axios.post(`${PARAMETERS_URL}/`, body);
+    const res = await apiClient.post(`${PARAMETERS_URL}/`, body);
     return res.data;
   }, []);
 
   const deleteItem = useCallback(async (id) => {
-    await axios.delete(`${PARAMETERS_URL}/${id}/`);
+    await apiClient.delete(`${PARAMETERS_URL}/${id}/`);
   }, []);
 
   return {

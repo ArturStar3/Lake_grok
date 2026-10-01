@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import { apiClient } from '../../config/axios';
 import EditCountryModal from "../EditCountryModal/EditCountryModal";
 import DetailSectionNavigator from "../DetailSections/DetailSectionNavigator";
 import "./CountryModal.css";
-import { API_URL } from "../../config/api";
 import { buildSectionCards, organizeSectionData } from "../../utils/organizeSectionData";
 import { useFormularCompletion } from "../../hooks/formular/useFormularCompletion";
 import { getCountryMarkerPalette } from "../../utils/markerPalette";
 import { useAuth } from "../../context/AuthContext";
 import { hasCountryAccess } from "../../utils/permissions";
 
-const API_ROOT = API_URL;
 
 export default function CountryModal({
     countryIso,
@@ -44,7 +42,7 @@ export default function CountryModal({
 
         const fetchAttachments = async (id) => {
             try {
-                const response = await axios.get(`${API_ROOT}/api/v1/country-attachments/`, {
+                const response = await apiClient.get(`/country-attachments/`, {
                     params: { country: id }
                 });
                 const grouped = {};
@@ -64,7 +62,7 @@ export default function CountryModal({
             setLoading(true);
             setError(null);
             try {
-                const countriesResponse = await axios.get(`${API_ROOT}/api/v1/countries/`);
+                const countriesResponse = await apiClient.get(`/countries/`);
                 const foundCountry = countriesResponse.data.find(c => c.iso_code === countryIso);
                 
                 if (foundCountry) {
@@ -74,7 +72,7 @@ export default function CountryModal({
                     await fetchAttachments(foundCountry.id);
                     
                     try {
-                        const response = await axios.get(`${API_ROOT}/api/v1/country/${countryIso}/`);
+                        const response = await apiClient.get(`/country/${countryIso}/`);
                         setData(response.data);
                     } catch (err) {
                         if (err.response?.status === 404) {
@@ -125,7 +123,7 @@ export default function CountryModal({
         setCountryExists(true);
         
         try {
-            const response = await axios.get(`${API_ROOT}/api/v1/country/${countryIso}/`);
+            const response = await apiClient.get(`/country/${countryIso}/`);
             setData(response.data);
         } catch (err) {
             if (err.response?.status === 404) {
@@ -134,7 +132,7 @@ export default function CountryModal({
         }
 
         try {
-            const attachmentsResponse = await axios.get(`${API_ROOT}/api/v1/country-attachments/`, {
+            const attachmentsResponse = await apiClient.get(`/country-attachments/`, {
                 params: { country: updatedCountry.id }
             });
             const grouped = {};
